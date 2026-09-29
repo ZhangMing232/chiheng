@@ -1,4 +1,13 @@
 #!/bin/bash
+# 这个文件是干什么的：
+# 给这台 Mac 装上登录后自动打开赤轨：写一份自启配置，登录就跑本机服务，挂了会再拉起来。
+#
+# 你需要知道的：
+# 在项目目录执行 npm run install:mac 时跑；npm run mac:update 的最后一步也会调用它。
+# 装好以后，每次登录 Mac，网页和记账会一起起来，地址是 http://127.0.0.1:8787 。
+# 日志写在 data/serve.log。这个脚本不碰账本，也不会向券商下真实委托。
+# 想停掉、并且以后登录不再自动开，用 npm run mac:stop。日常选股不用改这里。
+
 # 登录后启动赤轨。在项目目录执行：npm run install:mac
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 记一个小标记：这次登录是平台自动带进来的。这种会话不显示退出按钮。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Client-readable marker for gate-materialized sessions ("Sign in with Grok"
  * zero-click sessions minted by `gate-session.server.ts`). Signing out of a
  * gate session is a no-op — the next request re-materializes it from

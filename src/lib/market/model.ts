@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 「启动前期」怎么打分，以及全市场共用的涨跌停幅度。
+ *
+ * 你需要知道的：
+ * ST 和名字里带「退」的，涨跌停按 5%。科创板 688、创业板 300 和 301 按 20%。北证按 30%。其余主板按 10%。
+ * HOLD_SESSIONS 是启动前期最多拿 8 个交易日，不是每一套都拿 8 天。
+ * TRACK_NEED 是样本要记满 60 个交易日才谈胜率，不是持股天数。
+ */
 import type { Board, Quote } from "@/lib/market/types";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 
@@ -41,10 +50,12 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+/** 按股票代码和名字给出涨跌停百分比。10 表示 10%，不是 0.1。 */
 export function limitPct(quote: Quote): number {
   return boardLimit(quote.id, quote.name);
 }
 
+/** 不看行情、只看代码和名字，算出涨跌停百分比。给还没有 Quote 的地方用。 */
 export function boardLimit(id: string, name: string): number {
   if (name.toUpperCase().includes("ST") || name.includes("退")) return 5;
   if (id.startsWith("sh688") || id.startsWith("sz300") || id.startsWith("sz301")) return 20;
@@ -52,6 +63,7 @@ export function boardLimit(id: string, name: string): number {
   return 10;
 }
 
+/** 现价已经贴到涨停或跌停就标出来。留了 0.15 个百分点的缝，避免四舍五入把涨停漏掉。 */
 export function limitTag(quote: Quote): "涨停" | "跌停" | null {
   if (quote.chg == null) return null;
   const limit = limitPct(quote);

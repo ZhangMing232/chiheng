@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 页面上用的登录闸门：没登录就先空着或转到登录页，避免闪一下未登录的样子。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Navigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";

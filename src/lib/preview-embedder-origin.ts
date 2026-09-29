@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 判断当前页面是不是被允许的 Grok 预览页嵌进来的，避免随便一个网站发指令。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 export function isGrokEmbedderOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);

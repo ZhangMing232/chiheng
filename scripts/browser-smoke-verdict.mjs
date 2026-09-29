@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 整理浏览器冒烟测试的结论，并和上一次结果比一比页面有没有变样。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { createHash } from "node:crypto";
 export function normalizeBodyText(text) {
   return String(text ?? "")

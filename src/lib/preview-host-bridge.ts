@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 预览外层页面和这个应用之间传消息：翻页、返回，以及连接器令牌就绪。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Guest side of the grok-web ↔ sandbox preview postMessage bridge.
  *
  * Activates only when this page is framed by an allowlisted Grok embedder.

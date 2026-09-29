@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 /**
+ * 这个文件是干什么的：
+ * 管构建结果的预览服务（本机 8081 端口）：先停掉旧进程，再开新的。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Owns :8081, the built-output QA preview.
  *
  * `vite preview` is strictPort, so a preview left over from an earlier turn

@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+/**
+ * 这个文件是干什么的：
+ * 用无头浏览器打开本机页面、截图，并核对登录开关在开发和构建两边是否一致。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";

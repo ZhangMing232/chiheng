@@ -1,9 +1,24 @@
+/**
+ * 这个文件是干什么的：
+ * 五套选股策略。每套自己算买入价、卖出价、止损价，互不混用。
+ *
+ * 你需要知道的：
+ * 每套最多同时拿 10 只。现价打到买入价才算买进，打到卖出价或止损价才算卖出。
+ * 涨停不算能买进。买入当天不能卖（T+1），卖出日的判断在 journal-book.ts。
+ * 「次日补涨」不在这里算价，它有自己的尾盘逻辑，所以 quoteOrder 对它直接返回空。
+ */
 import { limitPct, limitTag, planExit, screen, type Scored } from "./model.ts";
 import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
 
+/** 五套策略的内部编号。页面上的中文名在 STYLES 里。 */
 export type StyleId = "early" | "trend" | "breakout" | "value" | "relay";
 
+/**
+ * 一只股票在某一套策略下的计划价。
+ * buy 买入价，sell 卖出价，stop 止损价，单位都是元。
+ * hit 为 true 表示现价已经碰到买入条件，还要再检查没涨停、名额还够，才会记入持仓。
+ */
 export type Order = Scored & {
   buy: number;
   sell: number;
@@ -11,6 +26,7 @@ export type Order = Scored & {
   hit: boolean;
 };
 
+/** 页面上的五套标签。hint 是给用户看的一句人话，真正的门槛在下面各个函数里。 */
 export const STYLES: { id: StyleId; name: string; hint: string }[] = [
   {
     id: "early",
@@ -39,10 +55,12 @@ export const STYLES: { id: StyleId; name: string; hint: string }[] = [
   },
 ];
 
+/** 把价格四舍五入到分。A 股报价最小是 0.01 元。 */
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** 用现价和涨跌幅倒推昨收。涨跌幅是百分比，例如 10 表示涨了 10%。 */
 function prevClose(quote: Quote): number | null {
   if (quote.chg == null || !(quote.price > 0)) return null;
   const denom = 1 + quote.chg / 100;
@@ -50,6 +68,10 @@ function prevClose(quote: Quote): number | null {
   return quote.price / denom;
 }
 
+/**
+ * 这只票现在能不能拿来做计划。
+ * 不要：ST、股价低于 4 元、总市值低于 40 亿、已经贴着涨停或跌停（那种价往往买不进或卖不出）。
+ */
 function tradable(quote: Quote): boolean {
   if (quote.st || quote.price < 4 || quote.cap < 40 || quote.chg == null) return false;
   const limit = limitPct(quote);
@@ -57,6 +79,10 @@ function tradable(quote: Quote): boolean {
   return true;
 }
 
+/**
+ * 启动前期。门槛在 rules.ts，这里只把「允许涨幅的中间」换成买入价。
+ * 现价回到买入价和止损价之间才算 hit，也就是等它回落，不追高。
+ */
 function earlyOrder(quote: Quote, rules: EarlyRules): Order | null {
   const scored = screen(quote, true, rules);
   const prev = prevClose(quote);
@@ -75,6 +101,10 @@ function earlyOrder(quote: Quote, rules: EarlyRules): Order | null {
   };
 }
 
+/**
+ * 趋势回踩。20 日涨了 10% 到 40%，60 日至少涨了 5%，今天在 0 到跌 4% 之间。
+ * 买入价就是昨收。止损按 20 日涨幅的四分之一，至少 3%。
+ */
 function trendOrder(quote: Quote): Order | null {
   const prev = prevClose(quote);
   if (!tradable(quote) || prev == null || quote.d20 == null || quote.d60 == null) return null;
@@ -96,6 +126,10 @@ function trendOrder(quote: Quote): Order | null {
   };
 }
 
+/**
+ * 放量突破。量比至少 1.8，换手至少 2%，成交额至少 8000 万元。
+ * 买入价是昨收再往上 2%。现价刚过这个价、还没再冲过 1.5% 才买。止损放在昨收。
+ */
 function breakoutOrder(quote: Quote): Order | null {
   const prev = prevClose(quote);
   if (!tradable(quote) || prev == null || quote.d5 == null || quote.d20 == null) return null;
@@ -117,6 +151,10 @@ function breakoutOrder(quote: Quote): Order | null {
   };
 }
 
+/**
+ * 低估值。市盈率不超过 18 倍，市净率不超过 2 倍，总市值至少 100 亿。
+ * 买入价按市盈率 15 倍折算，卖出价按 22 倍折算，止损按 10 倍折算。
+ */
 function valueOrder(quote: Quote): Order | null {
   if (!tradable(quote) || quote.pe == null || quote.pb == null || quote.pe <= 0 || quote.pb <= 0) return null;
   if (quote.pe > 18 || quote.pb > 2 || quote.cap < 100) return null;
@@ -137,19 +175,24 @@ function valueOrder(quote: Quote): Order | null {
   };
 }
 
+/** 五套策略的固定顺序。页面上的标签就按这个排。 */
 export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "relay"];
+/** 每一套同时最多持有这么多只。满了就不再开新仓。 */
 export const MAX_POSITIONS = 10;
 
+/** 一笔成交属于哪一套。旧账上没有这五套之一的名字时返回空，不塞进任何一套。 */
 export function styleOf(trade: { style?: string }): StyleId | null {
   if (trade.style === "early" || trade.style === "trend" || trade.style === "breakout" || trade.style === "value" || trade.style === "relay") return trade.style;
   return null;
 }
 
+/** 这套策略还剩几个仓位。只数还没卖出的（exit 是空）。 */
 export function slotsLeft(trades: { style?: string; exit: number | null }[], style: StyleId): number {
   const open = trades.filter((trade) => trade.exit == null && styleOf(trade) === style).length;
   return Math.max(0, MAX_POSITIONS - open);
 }
 
+/** 观察名单上的一行。block 有值时今天不能按这个价买：limit 是涨停买不进，away 是价格已经离开买入价。 */
 export type Listed = {
   quote: Quote;
   score: number;
@@ -188,6 +231,10 @@ export function watchList(
   return rows.slice(0, MAX_POSITIONS);
 }
 
+/**
+ * 从观察名单里挑出现在该记入的买单。
+ * 条件：现价已经 hit、不是涨停、这套里还没有这只、名额还够。
+ */
 export function takeBuys(
   list: Listed[],
   held: { id: string; style?: string; exit: number | null }[],
@@ -211,6 +258,10 @@ export function bookRisk(trades: { style?: string; exit: number | null; entry: n
   return sum / MAX_POSITIONS;
 }
 
+/**
+ * 给一只行情算出这一套的计划价。
+ * 次日补涨不走这里。对不上趋势、突破、低估值时，按启动前期算。
+ */
 export function quoteOrder(style: StyleId, quote: Quote, rules: EarlyRules): Order | null {
   if (style === "relay") return null;
   if (style === "trend") return trendOrder(quote);

@@ -1,5 +1,13 @@
 // @ts-check
 /**
+ * 这个文件是干什么的：
+ * 规定退出登录要等多久、超时了怎么处理。预览里和正式网站上不一样。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * The sign-out sequence used by `src/lib/auth/client.ts`, kept here as a pure
  * module so its effects can be unit-tested (`node --test` only covers
  * `scripts/`), the same split `migration-plan.mjs` uses for the two appliers.

@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 取出当前用户。登录关掉时用一个固定的开发用户，登录开着就用真实会话。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { authClient, authEnabled } from "./client";
 
 /** Normalized user shape used across the app, auth on or off. */

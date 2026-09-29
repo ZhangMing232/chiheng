@@ -1,7 +1,17 @@
+/**
+ * 这个文件是干什么的：
+ * 负责期指这块。从中金所拉沪深300、上证50、中证500、中证1000 的会员持仓。
+ *
+ * 你需要知道的：
+ * 单位是手。公布的是代客，不是机构专户。大约五分钟更新一次，当天没有就往前找。
+ */
+
 import { shanghaiDate } from "./session.ts";
 
+/** 一个期货会员。lots 是持仓手数，chg 是比上一交易日增减的手数。 */
 export type FutMember = { name: string; lots: number; chg: number };
 
+/** 四个股指期货主力合约的持仓。含多单合计、空单合计，以及多空两边手数最多的会员。date 是公布日。 */
 export type FutBook = {
   date: string;
   rows: {

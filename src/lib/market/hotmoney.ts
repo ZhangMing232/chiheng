@@ -1,11 +1,22 @@
+/**
+ * 这个文件是干什么的：
+ * 负责游资这块。把当天龙虎榜按营业部席位汇总，常见席位换成能对上的别名。
+ *
+ * 你需要知道的：
+ * 金额是万元，正是净买、负是净卖。收盘后才有，大约五分钟更新一次。
+ */
+
+/** 席位买过的一只股票。netWan 是净额，万元，正是净买、负是净卖。 */
 export type HotStock = { name: string; netWan: number };
 
+/** 一个席位当天的汇总。name 是别名或营业部简称，netWan 是净额（万元），stocks 是它买卖的股票。 */
 export type HotSeat = {
   name: string;
   netWan: number;
   stocks: HotStock[];
 };
 
+/** 一天的龙虎榜席位账。date 是交易日，没有数据时是空字符串。 */
 export type HotBook = {
   date: string;
   seats: HotSeat[];

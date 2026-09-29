@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 「生成汇总图」按钮。点一下把当前内容画成一张图，可以预览、保存或关掉。
+ *
+ * 你需要知道的：
+ * 生成图片不会改变买入价，也不会改账。关掉图片时会清掉临时链接。
+ */
+
 import { useState } from "react";
 
 type Poster = { url: string; filename: string; blob: Blob };
@@ -6,6 +14,7 @@ function drop(poster: Poster | null) {
   if (poster?.url.startsWith("blob:")) URL.revokeObjectURL(poster.url);
 }
 
+/** 按外面传入的画法生成一张 PNG。能分享就调系统分享，否则触发下载。 */
 export function PosterButton({ draw }: { draw: () => { canvas: HTMLCanvasElement; filename: string } }) {
   const [poster, setPoster] = useState<Poster | null>(null);
   const [error, setError] = useState<string | null>(null);

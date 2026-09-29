@@ -1,10 +1,20 @@
+/**
+ * 这个文件是干什么的：
+ * 负责消息这块。拉 7x24 快讯，也能按股票查最近的资讯和公告。
+ *
+ * 你需要知道的：
+ * 利好、利空只看标题里的用词，不是研报。涨跌幅是百分数，正涨负跌。大约一分钟更新一次。
+ */
+
 import https from "node:https";
 
+/** 快讯点到的一个板块。code 是板块代码（BKxxxx），name 是板块名。 */
 export type NewsBoard = {
   code: string;
   name: string;
 };
 
+/** 快讯点到的一只股票。id 带市场前缀（如 sh600000），code 是六位数字，chg 是涨跌幅百分数，没有就是 null。 */
 export type NewsStock = {
   id: string;
   code: string;
@@ -12,8 +22,10 @@ export type NewsStock = {
   chg: number | null;
 };
 
+/** 用词判断的态度：good 利好，bad 利空，flat 没说清。 */
 export type NewsTone = "good" | "bad" | "flat";
 
+/** 一条快讯。tone 是态度，boards 和 stocks 是文中点到的板块和个股。 */
 export type NewsItem = {
   id: string;
   time: string;
@@ -152,6 +164,7 @@ export async function loadNews(): Promise<NewsItem[]> {
   return rows;
 }
 
+/** 搜到的一只 A 股。id 带市场前缀，code 是六位数字，board 是市场类型说明。 */
 export type StockHit = {
   id: string;
   code: string;
@@ -159,6 +172,7 @@ export type StockHit = {
   board: string;
 };
 
+/** 一只股票的一条资讯或公告。kind 是 news（资讯）或 ann（公告）。url 是原文链接，没有就是空字符串。 */
 export type StockArticle = {
   id: string;
   time: string;
@@ -219,6 +233,7 @@ export async function loadStockArticles(id: string): Promise<StockArticle[]> {
   return rows;
 }
 
+/** 批量查涨跌幅。传入带市场前缀的代码，返回代码到涨跌幅（百分数）的对照，查不到是 null。 */
 export async function stockChg(ids: string[]): Promise<Map<string, number | null>> {
   const names = await namesOf(ids).catch(() => new Map<string, { name: string; chg: number | null }>());
   return new Map(ids.map((id) => [id, names.get(id)?.chg ?? null]));

@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 海报的公共画笔。主题颜色、页眉、卡片、分隔线、页脚和裁切都在这里。资金、游资、期指、消息、选股的图都用它。
+ *
+ * 你需要知道的：
+ * 先调用 beginPoster 换一套主题，红涨绿跌的颜色会跟着变。画布宽固定 1080，先画很高，再裁到内容高度。
+ */
+
 export const POSTER_W = 1080;
 export const FONT = '"PingFang SC","Hiragino Sans GB","WenQuanYi Zen Hei","Noto Sans SC",sans-serif';
 
@@ -38,6 +46,7 @@ export let LINE = active.line;
 export let CARD = active.card;
 export let BG = active.bg;
 
+/** 当前这张海报的主题名字，例如「夜轨」「金线」。用来写进文件名。 */
 export function themeName(): string {
   return active.name;
 }
@@ -58,22 +67,26 @@ export function beginPoster(): PosterTheme {
   return active;
 }
 
+/** 按数字选颜色。正数用红（涨或流入），负数用绿（跌或流出），零或没有就用正文色。 */
 export function toneColor(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n) || n === 0) return INK;
   return n > 0 ? RED : GREEN;
 }
 
+/** 把「2026-09-30」收成「9月30日」。对不上这个格式就原样返回。 */
 export function dayFromDate(date: string): string {
   const match = date.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return date;
   return `${Number(match[2])}月${Number(match[3])}日`;
 }
 
+/** 从日期字符串里取出 YYYY-MM-DD，用来做文件名。对不上就用今天。 */
 export function fileDate(date: string): string {
   const match = date.match(/\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : new Date().toISOString().slice(0, 10);
 }
 
+/** 文字太宽就截断并加上省略号。max 是最大宽度（像素），返回能放下的字符串。 */
 export function fit(ctx: CanvasRenderingContext2D, text: string, max: number): string {
   if (ctx.measureText(text).width <= max) return text;
   let next = text;
@@ -81,6 +94,7 @@ export function fit(ctx: CanvasRenderingContext2D, text: string, max: number): s
   return `${next}…`;
 }
 
+/** 当前主题的左边界（像素）。侧栏主题会把正文往右推。 */
 export function edge(): number {
   if (active.kind === "side") return 268;
   if (active.kind === "gold" || active.kind === "glow") return 80;
@@ -88,10 +102,12 @@ export function edge(): number {
   return 48;
 }
 
+/** 当前主题的右边界（像素）。 */
 export function rightEdge(): number {
   return POSTER_W - (active.kind === "side" ? 40 : edge());
 }
 
+/** 新建一张空白海报（宽 1080，先画很高）并铺上主题底色。返回画布和画笔。画布不可用会抛错。 */
 export function openPoster(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
   canvas.width = POSTER_W;
@@ -147,6 +163,7 @@ function corner(ctx: CanvasRenderingContext2D, x: number, y: number, sx: number,
   ctx.lineWidth = 1;
 }
 
+/** 画页眉：日期、大标题、一行说明。返回页眉结束的纵坐标，后面的内容从这里接着画。 */
 export function paintHead(ctx: CanvasRenderingContext2D, date: string, title: string, sub: string): number {
   const left = edge();
   if (active.kind === "red") {
@@ -273,6 +290,7 @@ export function paintHead(ctx: CanvasRenderingContext2D, date: string, title: st
   return 214;
 }
 
+/** 画一条横线。y 是高度，x 和 end 是起止横坐标，不传就用左右边界。 */
 export function paintHairline(ctx: CanvasRenderingContext2D, y: number, x = edge(), end = rightEdge()) {
   ctx.beginPath();
   ctx.moveTo(x, y);
@@ -294,6 +312,7 @@ export function paintHairline(ctx: CanvasRenderingContext2D, y: number, x = edge
   ctx.setLineDash([]);
 }
 
+/** 按最大宽度把一段话拆成多行。中文按字折行。返回字符串数组，至少一行。 */
 export function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];
   let line = "";
@@ -310,6 +329,7 @@ export function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth:
   return lines.length ? lines : [""];
 }
 
+/** 在指定位置写字。太宽就先缩小字号，还放不下就截断。size 是起始字号，min 是最小字号。 */
 export function paintSized(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, size: number, min = 16) {
   let next = size;
   ctx.font = `${next}px ${FONT}`;
@@ -319,6 +339,7 @@ export function paintSized(ctx: CanvasRenderingContext2D, text: string, x: numbe
   }
   ctx.fillText(ctx.measureText(text).width > maxWidth ? fit(ctx, text, maxWidth) : text, x, y);
 }
+/** 画几张数字卡片。每张有标签、大数字、颜色和一行小字。返回卡片区结束的纵坐标。 */
 export function paintCards(
   ctx: CanvasRenderingContext2D,
   y: number,
@@ -408,6 +429,7 @@ export function paintCards(
   return y + cardH;
 }
 
+/** 画一节小标题。color 是标题或色条的颜色。返回这一节标题结束的纵坐标。 */
 export function paintSection(ctx: CanvasRenderingContext2D, y: number, label: string, color: string, x = edge()): number {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
@@ -452,6 +474,7 @@ export function paintSection(ctx: CanvasRenderingContext2D, y: number, label: st
   return y + 40;
 }
 
+/** 画页脚说明，并带上一句「复盘用，不是买卖依据」。返回整张图内容的结束高度。 */
 export function paintFoot(ctx: CanvasRenderingContext2D, y: number, note: string): number {
   const left = edge();
   paintHairline(ctx, y, left, rightEdge());
@@ -466,6 +489,7 @@ export function paintFoot(ctx: CanvasRenderingContext2D, y: number, note: string
   return foot + 44;
 }
 
+/** 把画布裁到指定高度，去掉下面空白。返回新画布。 */
 export function cropPoster(canvas: HTMLCanvasElement, height: number): HTMLCanvasElement {
   const out = document.createElement("canvas");
   out.width = POSTER_W;

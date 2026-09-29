@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 服务器函数里取出「当前登录的是谁」，再按这个人读写数据。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { createMiddleware } from "@tanstack/react-start";
 
 /**

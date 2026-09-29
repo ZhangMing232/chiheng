@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 挂在选股页上的记账块。它自己不画任何界面，只在后台盯着现价。
+ * 符合条件就往模拟账里记买入或卖出。
+ *
+ * 你需要知道的：
+ * 现价打到买入价才记。已经记下的买入价不再改。跌停先不卖，等能卖再结算。
+ */
+
 import { useEffect, useState } from "react";
 import { STYLE_IDS, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
@@ -8,6 +17,7 @@ import { getKline } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperTrade } from "@/lib/paper";
 
+/** 不显示任何内容。行情够新时记下打到买入价的票，并把该止损或该止盈的旧仓结算掉。 */
 export function Journal({
   quotes,
   live,

@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 拦住别的网站冒用你的登录状态来调用这个应用的接口。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { getRequest } from "@tanstack/react-start/server";
 
 /**

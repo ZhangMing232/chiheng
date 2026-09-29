@@ -1,5 +1,13 @@
 // @ts-check
 /**
+ * 这个文件是干什么的：
+ * 算出哪些数据库脚本还没跑过，避免同一份脚本执行两次。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Migration bookkeeping shared by the two appliers — `scripts/migrate.mjs`
  * (deploy, `readdir`) and `src/lib/db.ts` (PGLite preview, `import.meta.glob`).
  *

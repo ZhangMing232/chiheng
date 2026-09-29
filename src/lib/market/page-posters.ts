@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 画三张海报：精选选股、全市场消息汇总、单只股票的资讯和公告。
+ *
+ * 你需要知道的：
+ * 价格涨跌是红涨绿跌。消息里的红是利好、绿是利空，只看标题用词，不是研报。
+ */
+
 import { fmtPrice, signedPct } from "./format";
 import type { NewsTone, StockArticle } from "./news";
 import {
@@ -25,6 +33,7 @@ import {
   wrapLines,
 } from "./poster";
 
+/** 选股海报上的一行。chg 是涨跌幅（百分数，可空），price 是现价，buy、sell 是买入价和卖出价，badge 是状态，比如「等待买入」。 */
 export type PickPosterRow = {
   name: string;
   code: string;
@@ -35,6 +44,7 @@ export type PickPosterRow = {
   badge: string;
 };
 
+/** 画精选选股海报。传入日期、策略名、这套持仓只数和精选行。返回画布和文件名。图里只列买入价。 */
 export function drawPicksPoster(input: { date: string; styleName: string; openCount: number; rows: PickPosterRow[] }) {
   beginPoster();
   const { canvas, ctx } = openPoster();
@@ -88,6 +98,7 @@ export function drawPicksPoster(input: { date: string; styleName: string; openCo
   return { canvas: cropPoster(canvas, y), filename: `赤轨-选股-${themeName()}-${fileDate(input.date)}.png` };
 }
 
+/** 画消息汇总海报。传入利好、利空的板块和个股，以及这批快讯条数。返回画布和文件名。左边利好，右边利空。 */
 export function drawNewsPoster(input: {
   date: string;
   goodBoards: { name: string; n: number }[];
@@ -119,6 +130,7 @@ export function drawNewsPoster(input: {
   return { canvas: cropPoster(canvas, y), filename: `赤轨-消息-${themeName()}-${fileDate(input.date)}.png` };
 }
 
+/** 画一只股票的资讯和公告。传入日期、标题、今日涨跌和几行消息。返回画布和文件名。红是利好，绿是利空。 */
 export function drawSymbolPoster(input: {
   date: string;
   title: string;
@@ -163,6 +175,7 @@ export function drawSymbolPoster(input: {
   return { canvas: cropPoster(canvas, y), filename: `赤轨-个股-${themeName()}-${fileDate(input.date)}.png` };
 }
 
+/** 把一条个股资讯或公告收成海报上的一行。标出是资讯还是公告，以及利好、利空或没说清。 */
 export function articleLine(item: StockArticle): { label: string; text: string; tone: NewsTone } {
   const kind = item.kind === "ann" ? "公告" : "资讯";
   const tone = item.tone === "good" ? "利好" : item.tone === "bad" ? "利空" : "未表态";

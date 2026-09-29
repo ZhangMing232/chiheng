@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 行情总入口。拉全市场报价、指数和 K 线，并把资金、游资、期指、消息、选股、偏好和规则包成给页面调用的服务。
+ *
+ * 你需要知道的：
+ * 涨跌幅是百分数，正涨负跌。全市场报价大约一分钟缓存，指数大约二十秒。拉失败时能用旧数据就标成过期。
+ */
+
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
@@ -174,6 +182,7 @@ async function fetchUniverse(): Promise<Universe> {
   };
 }
 
+/** 拉全市场 A 股报价。refresh 为 true 时忽略缓存重拉。返回股票列表和时间；只拉到一部分或用了旧数据会标出来。 */
 export async function loadUniverse(refresh: boolean): Promise<Universe> {
   if (!refresh && universeCache && Date.now() - universeCache.at < TTL_MS) {
     return universeCache.payload;
@@ -223,6 +232,7 @@ function parseIndices(text: string): IndexQuote[] {
   return rows;
 }
 
+/** 拉几只常用指数和沪深300ETF 的现价。返回名称、价格、涨跌额和涨跌幅（百分数）。失败时尽量用上次结果。 */
 export async function loadIndices(): Promise<IndexQuote[]> {
   if (indexCache && Date.now() - indexCache.at < INDEX_TTL_MS) return indexCache.rows;
   const url = `https://web.sqt.gtimg.cn/utf8/q=${INDEX_IDS.join(",")}`;
@@ -242,6 +252,7 @@ export async function loadIndices(): Promise<IndexQuote[]> {
   }
 }
 
+/** 拉一只股票最近约 120 根前复权日 K。id 是 sh、sz 或 bj 加六位代码。返回日期、开高低收和成交量。 */
 export async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }> {
   const hit = klineCache.get(id);
   if (hit && Date.now() - hit.at < 5 * 60_000) return { id, bars: hit.bars };
@@ -287,23 +298,28 @@ function readRefresh(data: unknown): { refresh: boolean } {
   return { refresh: false };
 }
 
+/** 给页面用的全市场报价。可传 refresh: true 强制刷新。 */
 export const getUniverse = createServerFn({ method: "GET" })
   .validator(readRefresh)
   .handler(async ({ data }) => loadUniverse(data.refresh));
 
+/** 给页面用的指数行情。没有参数。 */
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
 
+/** 给页面用的接力选股。按现在是不是尾盘、以及今天的日期去取名单。 */
 export const getRelay = createServerFn({ method: "GET" }).handler(async () => {
   const phase = sessionPhase();
   return loadRelay(phase.tailHalf, phase.date);
 });
 
+/** 给页面用的 7x24 快讯。没有参数。 */
 export const getNews = createServerFn({ method: "GET" }).handler(async () => loadNews());
 
 function countTone(articles: StockArticle[], tone: StockArticle["tone"]): number {
   return articles.filter((item) => item.tone === tone).length;
 }
 
+/** 给页面用的个股消息。q 是代码或名称时搜一只并带上资讯；不传 q 时看账上还没卖的持仓，最多 8 只。 */
 export const getSymbolNews = createServerFn({ method: "GET" })
   .validator((data: unknown) => {
     const q =
@@ -360,12 +376,16 @@ export const getSymbolNews = createServerFn({ method: "GET" })
     return { q: "", matches: [] as StockHit[], picked: null, articles: [] as StockArticle[], groups: withChg };
   });
 
+/** 给页面用的资金账。没有参数。金额在账里是万元。 */
 export const getFlow = createServerFn({ method: "GET" }).handler(async () => loadFlow());
 
+/** 给页面用的龙虎榜席位。没有参数。净额是万元。 */
 export const getHotMoney = createServerFn({ method: "GET" }).handler(async () => loadHotMoney());
 
+/** 给页面用的股指期货持仓。没有参数。单位是手。 */
 export const getIndexFutures = createServerFn({ method: "GET" }).handler(async () => loadIndexFutures());
 
+/** 给页面用的日 K。传入 { id }，id 必须是 sh、sz 或 bj 加六位代码。 */
 export const getKline = createServerFn({ method: "GET" })
   .validator((data: unknown) => {
     if (
@@ -382,6 +402,7 @@ export const getKline = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => loadKline(data.id));
 
+/** 读本机记录器状态。返回上次记录时间 at（毫秒，没有是 null）和是否正常 ok。 */
 export const getRecorder = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const text = await readFile(join(process.cwd(), "data", "recorder.json"), "utf8");
@@ -395,6 +416,7 @@ export const getRecorder = createServerFn({ method: "GET" }).handler(async () =>
   }
 });
 
+/** 读当前登录用户的交易日记。没登录就返回空列表。personal 表示是不是本人账本。 */
 export const getServerJournal = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const { requireUserId } = await import("@/lib/auth/verify.server");
@@ -407,8 +429,10 @@ export const getServerJournal = createServerFn({ method: "GET" }).handler(async 
   }
 });
 
+/** 读选股规则。读不到文件就用默认规则。 */
 export const getRules = createServerFn({ method: "GET" }).handler(async () => readRules());
 
+/** 保存选股规则。区间要左边小于右边，填不完整会报错。选股条件变了，版本号加一。 */
 export const saveRules = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const parsed = parseRules(data);
@@ -417,8 +441,10 @@ export const saveRules = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => writeRules(data));
 
+/** 读页面偏好（策略、板块、价位、市值）。读不到就用默认。 */
 export const getPrefs = createServerFn({ method: "GET" }).handler(async () => readPrefs());
 
+/** 保存页面偏好。填不对会报错。 */
 export const savePrefs = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const parsed = parsePrefs(data);

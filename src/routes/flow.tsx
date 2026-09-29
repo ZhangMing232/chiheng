@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 「资金」页。看大盘成交和主力流向、北向成交额、行业和个股净流入流出。
+ * 再往下是游资席位和股指期货持仓。每一块都能单独生成汇总图。
+ *
+ * 你需要知道的：
+ * 这里只展示。北向没有盘中净流入。生成图片不会改变买入价。
+ */
+
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
@@ -9,6 +18,7 @@ import { readMarket, type FlowRow, type MarketPart, type MarketTape, type NorthL
 import type { HotBook, HotSeat } from "@/lib/market/hotmoney";
 import type { FutBook } from "@/lib/market/index-futures";
 
+/** 资金页路由。进来时同时去拉资金流向、游资和股指期货，某一块失败就那一块空着。 */
 export const Route = createFileRoute("/flow")({
   loader: async () => {
     const [book, hot, futures] = await Promise.all([

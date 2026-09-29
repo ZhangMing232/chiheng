@@ -1,3 +1,13 @@
+/**
+ * 这个文件是干什么的：
+ * 负责资金这块。拉行业、个股的主力净流入，北向成交额，还有沪深两市按单子大小拆开的资金和成交额。
+ * 整理成一本资金账，给页面和海报用。
+ *
+ * 你需要知道的：
+ * 金额大多是万元。主力净额和散户净额是同一笔成交的两边，不是两群人。
+ */
+
+/** 一行资金排名。chg 是涨跌幅（百分数，正涨负跌）。inflow 是主力净流入，万元，正为流入、负为流出。 */
 export type FlowRow = {
   id: string;
   name: string;
@@ -7,6 +17,7 @@ export type FlowRow = {
   leader: string;
 };
 
+/** 北向的一条腿，沪股通或深股通。amount 是成交额，万元；净流入不公布。 */
 export type NorthLeg = {
   name: string;
   date: string;
@@ -15,6 +26,7 @@ export type NorthLeg = {
   leader: string;
 };
 
+/** 沪市或深市今天的资金拆分，单位都是万元。主力等于超大单加大单。 */
 export type MarketPart = {
   name: string;
   /** 万元。主力 = 超大单 + 大单。 */
@@ -58,6 +70,7 @@ export function readMarket(parts: MarketPart[]): string[] {
   return lines;
 }
 
+/** 一个指数今天的成交。amount 是成交额（万元），volume 是成交量（手），prevAmount 是上一交易日成交额（万元），没有则是 null。 */
 export type MarketTape = {
   name: string;
   /** 成交额，万元。 */
@@ -68,6 +81,7 @@ export type MarketTape = {
   prevAmount: number | null;
 };
 
+/** 一整本资金数据。含行业和个股的流入流出、北向、两市拆分和成交。asOf 是拉到的时间（毫秒）。 */
 export type FlowBook = {
   sectorsIn: FlowRow[];
   sectorsOut: FlowRow[];

@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 /**
+ * 这个文件是干什么的：
+ * 启动开发、构建或预览之前，先读入本项目的环境开关，免得登录配置对不上。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Run a command with `.grok/app-env.json` merged into its environment.
  *
  * `dev`, `build` and `preview` all route through this wrapper, so the dev

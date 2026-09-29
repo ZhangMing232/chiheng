@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 服务器上去调用外部连接器（网盘、日历这类）的客户端。不能在浏览器里直接用。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { createHash } from "node:crypto";
 import { getRequest } from "@tanstack/react-start/server";
 import {

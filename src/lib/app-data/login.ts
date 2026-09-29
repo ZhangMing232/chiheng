@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 判断连接器是不是要求先登录，需要的话就跳到登录地址。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import type { CallToolResult } from "./types.ts";
 
 export function isLoginRequired(result: CallToolResult): boolean {

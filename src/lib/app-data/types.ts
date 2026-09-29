@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 连接器的名字、工具名和调用结果长什么样，前后端共用这些类型。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 export const CONNECTOR_TOKEN_HEADER = "x-connector-access-token";
 
 export const CONNECTOR_TOKEN_PENDING_CODE = "connector_token_pending";

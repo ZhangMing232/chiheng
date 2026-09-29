@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 这个应用自己的登录服务器：管会话、对接登录中介。预览和正式发布都走这里。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Self-hosted Better Auth for THIS app (server-only).
  *
  * Pre-wired for live preview + deploy — do not rewrite this file. To enable

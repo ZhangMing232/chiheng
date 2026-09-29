@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 只认上海时间，判断今天是不是交易日、现在是早盘、午休还是尾盘。
+ *
+ * 你需要知道的：
+ * 买入窗口只有两段：9:25 到 9:30，以及 14:40 到 15:00。
+ * 次日补涨要等到 14:30 之后才冻结名单，之前看到的价格只是预览。
+ * 节假日写在 HOLIDAYS 里，过完一年要手工补下一年的日期，否则假日会被当成交易日。
+ */
 import type { SessionInfo } from "@/lib/market/types";
 
 const HOLIDAYS = new Set([
@@ -22,6 +31,7 @@ const HOLIDAYS = new Set([
   "2026-10-07",
 ]);
 
+/** 周末和 HOLIDAYS 里的日期都不是交易日。weekday 不传就按上海时区自己算。 */
 export function isTradingDay(date: string, weekday?: string): boolean {
   if (HOLIDAYS.has(date)) return false;
   if (weekday === "Sat" || weekday === "Sun") return false;
@@ -54,6 +64,7 @@ function shanghaiParts(now: number) {
   };
 }
 
+/** 下一个交易日，写成「9月30日」。用来提示最早哪天能卖。 */
 export function nextSessionLabel(now = Date.now()): string {
   let cursor = now + 24 * 60 * 60 * 1000;
   for (let i = 0; i < 16; i += 1) {
@@ -66,6 +77,7 @@ export function nextSessionLabel(now = Date.now()): string {
   return "下一交易日";
 }
 
+/** 当前时刻在上海是哪一天，格式 YYYY-MM-DD。不要用电脑本地时区。 */
 export function shanghaiDate(now = Date.now()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
@@ -82,6 +94,10 @@ function entryOf(date: string, weekday: string, mins: number): "none" | "open" |
   return "none";
 }
 
+/**
+ * 从现在起再过这么多个交易日，是几月几日。
+ * 已经收盘或本来就是周末，先跳到下一个交易日再开始数。
+ */
 export function exitAfterSessions(sessions: number, now = Date.now()): string {
   const target = Math.max(1, Math.round(sessions));
   const start = shanghaiParts(now);
@@ -105,6 +121,7 @@ export function exitAfterSessions(sessions: number, now = Date.now()): string {
   return "更晚的交易日";
 }
 
+/** 把「现在」翻译成页面上那一行状态：未开盘、集合竞价、交易中、午间休市、尾盘、已收盘。 */
 export function sessionPhase(now = Date.now()): SessionInfo {
   const { weekday, mins } = shanghaiParts(now);
   const nextSell = nextSessionLabel(now);
@@ -129,6 +146,7 @@ export function sessionPhase(now = Date.now()): SessionInfo {
   return { ...base, phase: "closed", label: "已收盘", open: false };
 }
 
+/** 把毫秒时间戳收成上海时间的「时:分」。 */
 export function formatClock(ms: number): string {
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",

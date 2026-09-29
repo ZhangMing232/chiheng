@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 「消息」页。上面把快讯分成利好和利空两栏，并标出持仓或精选里出现的股票。
+ * 下面是按时间排的 7×24 快讯，点「生成汇总图」可以存一张图。
+ *
+ * 你需要知道的：
+ * 利好利空只看快讯用词，不是研报。看消息、生成图片都不会改买入价。
+ */
+
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
@@ -35,6 +44,7 @@ function tally(items: NewsItem[], tone: NewsTone) {
   };
 }
 
+/** 消息页路由。先拉快讯和持仓，再给精选里的股票做标记；已持仓的不再标成精选。 */
 export const Route = createFileRoute("/news")({
   loader: async () => {
     const [news, universe, journal, rules] = await Promise.all([

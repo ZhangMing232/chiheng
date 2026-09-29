@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 把资金账画成一张「资金汇总」海报：成交额、放量还是缩量、主力，以及行业和个股的流入流出。
+ *
+ * 你需要知道的：
+ * 红是净流入，绿是净流出。图上的金额由万元换算成「万」或「亿」。
+ */
+
 import type { FlowBook, FlowRow, MarketPart } from "./flow";
 import { FONT, GREEN, INK, MUTED, POSTER_W, RED, beginPoster, edge, openPoster, paintCards, paintFoot, paintHairline, paintHead, paintSection, paintSized, rightEdge, themeName } from "./poster";
 

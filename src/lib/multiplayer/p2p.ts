@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 浏览器之间直接连线的多人房间。选股记账用不到这套。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Full-mesh WebRTC rooms: one RTCPeerConnection per remote peer, signaled
  * through /api/rtc (see signaling.server.ts), game data flowing directly
  * browser-to-browser afterwards. Client-authoritative by construction — see

@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 预览环境共用的登录配置，让沙箱里也能做真正的登录，而不是假用户。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Shared LIVE-PREVIEW OAuth client (server-only — NEVER import from the client).
  *
  * The sandbox serves each live preview on a dynamic `https://*.grok-sandbox.com`

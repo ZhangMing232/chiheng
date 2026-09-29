@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 打开网站看到的第一页，也就是选股页。先把行情、规则、偏好和账取齐，再交给选股界面画出来。
+ *
+ * 你需要知道的：
+ * 取数失败时页面仍会打开，并写明行情暂时拉不下来。成交不在这一步记。
+ */
+
 import { createFileRoute } from "@tanstack/react-router";
 import { Screener } from "@/components/screener/screener";
 import { sessionPhase } from "@/lib/market/session";
@@ -6,6 +14,7 @@ import { getIndices, getPrefs, getRecorder, getRules, getServerJournal, getUnive
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import { DEFAULT_PREFS } from "@/lib/market/prefs";
 
+/** 首页路由。进页面之前把选股要的数据一次取好；失败就用空数据加一句说明。 */
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();

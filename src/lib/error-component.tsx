@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 页面崩了时显示的那一块错误提示，让人能看到出错原因。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 

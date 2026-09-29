@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 截图脚本的安全闸：只允许拍本机网页，图片也只能写到指定目录。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Target checks shared by the Playwright capture scripts.
  *
  * Both run Chromium with `--no-sandbox` as root and take their URL and output

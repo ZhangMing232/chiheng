@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 「个股」页。不搜索时，列出账上每只持仓的资讯和公告；搜代码或名称就只看那一只。
+ * 有多只重名时，上面会出现一排候选，点一下切换。
+ *
+ * 你需要知道的：
+ * 利好利空按标题用词分。有利空的持仓排在前面。看这些消息不会改买入价。
+ */
+
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
@@ -19,6 +28,7 @@ function tally(articles: StockArticle[]) {
   };
 }
 
+/** 个股页路由。地址栏里的 q 是搜索词，进来就按它拉资讯和公告。 */
 export const Route = createFileRoute("/symbol")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === "string" ? search.q.trim().slice(0, 20) : "",

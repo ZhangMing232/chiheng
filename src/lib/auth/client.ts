@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 浏览器里的登录客户端：发起登录、带上凭证、退出登录。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { genericOAuthClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { runPreSignInSignOut, runSignOut } from "../../../scripts/sign-out-plan.mjs";

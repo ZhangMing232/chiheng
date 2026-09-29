@@ -1,4 +1,14 @@
 #!/bin/bash
+# 这个文件是干什么的：
+# Mac 上管理赤轨的开关。你平时输入的 npm run mac:status、mac:update 等，都进这个文件。
+#
+# 你需要知道的：
+# status 看版本、服务开没开、页面能不能开；log 只看最近日志。这两项不改账。
+# update 会从 GitHub 拉取 main、安装依赖、重新构建，再装回登录自启。
+# start / restart 把本机网页和记账拉起来；stop 之后，登录也不会再自动启动，直到你再 start。
+# 这些命令都不会向券商下真实委托，也不会删除 data/books。
+# 第一次在这台 Mac 上，先 clone 仓库，再在项目目录执行 npm run mac:update。日常选股不用改这里。
+
 # Mac 上管理赤轨。在项目目录执行 npm run mac:status / mac:update 等。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

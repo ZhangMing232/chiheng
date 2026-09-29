@@ -1,3 +1,14 @@
+/**
+ * 这个文件是干什么的：
+ * 模拟 A 股怎么成交、怎么算赚亏。页面上的买卖提示也走这里的价。
+ *
+ * 你需要知道的：
+ * 买入当天不能卖。循环从买入日的下一根 K 线开始，所以天然是 T+1。
+ * 同一天既碰到止损又碰到止盈，先按止损算，不按更好看的卖出价。
+ * 跌停封死的那天卖不掉，这天不算卖出，继续等下一天。
+ * 手续费是写死的一来一回：佣金万 2.5 两边、印花税万 5（只在卖出里折进这一笔）、过户费万 0.1 两边。
+ * 没有做「佣金不足 5 元按 5 元收」。这是模拟账，不会发给券商。
+ */
 import { DEFAULT_RULES, type EarlyRules } from "./rules.ts";
 import { HOLD_SESSIONS } from "./model.ts";
 
@@ -10,6 +21,11 @@ function normDay(value: string): string {
   return match ? `${match[1]}-${match[2]}-${match[3]}` : value;
 }
 
+/**
+ * 顺着买入日之后的 K 线，找出第一天该卖的价格。
+ * 返回 reason：stop 止损，target 到卖出价，time 持股天数到了按收盘价卖。
+ * 还没走到那一天就返回空，账上继续拿着。
+ */
 export function exitFill(
   bars: { date: string; h?: number; l?: number; c: number }[],
   entryDate: string,
@@ -47,6 +63,7 @@ export function exitFill(
   return null;
 }
 
+/** 从买入日往后数 sessions 个交易日，用那天的收盘价。补涨这种「下一交易日卖」会用到。 */
 export function nthClose(
   bars: { date: string; c: number }[],
   entryDate: string,
@@ -62,6 +79,7 @@ export function nthClose(
   return null;
 }
 
+/** 把每笔收益率连加，看从高点回落最多多少。用来决定这版要不要停止新开仓。 */
 export function maxDrawdown(returns: number[]): number {
   let peak = 0;
   let equity = 0;
@@ -74,6 +92,7 @@ export function maxDrawdown(returns: number[]): number {
   return worst;
 }
 
+/** 从最近一笔往回数，连续亏了几笔。中间有一笔不亏就停。 */
 export function losingStreak(returns: number[]): number {
   let streak = 0;
   for (let index = returns.length - 1; index >= 0; index -= 1) {
@@ -111,28 +130,33 @@ export function liveGate(
   return { ok: true, reason: "可以按计划的小仓位做。连亏或回撤变大就会再关上" };
 }
 
+/** 14:40 之后的信号当成当天已经冻结。provisional 表示还在变，不能当买入价。 */
 export function dayLocked(day: { status?: string; signalTime?: string }): boolean {
   if (day.status === "locked") return true;
   if (day.status === "provisional") return false;
   return (day.signalTime ?? "") >= "14:40";
 }
 
+/** 这些钱按这个价最多买多少股。A 股一手 100 股，所以结果一定是 100 的倍数。 */
 export function lotShares(budget: number, price: number): number {
   if (!(budget > 0) || !(price > 0)) return 0;
   return Math.floor(budget / price / 100) * 100;
 }
 
+/** 按最大亏损百分比反推止损价。例如亏 8% 就是买入价乘 0.92。不算手续费。 */
 export function stopPrice(entry: number, maxLossPct: number): number | null {
   if (!(entry > 0) || !(maxLossPct > 0) || maxLossPct >= 100) return null;
   return entry * (1 - maxLossPct / 100);
 }
 
+/** 把金额收成「¥123」这种给人看的文字。负数带减号。 */
 export function yuan(amount: number): string {
   if (!Number.isFinite(amount)) return "—";
   const sign = amount < 0 ? "-" : "";
   return `${sign}¥${Math.abs(amount).toFixed(0)}`;
 }
 
+/** 扣掉一来一回的手续费之后，这一笔赚了多少比例。0.01 表示赚 1%。 */
 export function netReturn(entry: number, exit: number): number | null {
   if (!(entry > 0) || !(exit > 0)) return null;
   return exit / entry - 1 - ROUND_TRIP_COST;

@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 负责接力选股。在当天涨幅最高的概念板块里，各找一只还能买的次强股。
+ *
+ * 你需要知道的：
+ * 14:30 之后名单冻结，当天不再换人，只刷新现价。涨跌幅是百分数。持有天数固定 1 天。
+ */
+
 import https from "node:https";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -250,6 +258,7 @@ async function refreshFrozen(picks: Listed[]): Promise<Listed[]> {
   });
 }
 
+/** 接力策略拿几天。固定返回 1，表示尾盘买、下一交易日卖。 */
 export function relayHold(): number {
   return 1;
 }

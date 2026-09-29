@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 每个页面顶上共用的那一排：赤轨标志、四个入口、刷新，以及字号和明暗。
+ * 点「选股 / 消息 / 个股 / 资金」换页，点「显示」改字号和深浅色。
+ *
+ * 你需要知道的：
+ * 字号和明暗只存在这台浏览器里，不改账，也不改买入价。
+ */
+
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -61,6 +70,7 @@ function useTheme() {
   return [mode, setMode] as const;
 }
 
+/** 浅色、深色，或跟系统走。点中的那一项会记在这台浏览器里。 */
 export function ThemeMode() {
   const [mode, setMode] = useTheme();
   return (
@@ -79,6 +89,7 @@ export function ThemeMode() {
   );
 }
 
+/** 把整页字号调成小、标准、大或超大。选好后立刻生效，并记在本地。 */
 export function TypeSize() {
   const [size, setSize] = useTypeSize();
   return (
@@ -97,6 +108,7 @@ export function TypeSize() {
   );
 }
 
+/** 四个页面入口。你正在看的那一页会高亮。 */
 export function TopNav() {
   const path = useRouterState({ select: (state) => state.location.pathname });
   return (
@@ -114,6 +126,7 @@ export function TopNav() {
   );
 }
 
+/** 每个页面的外壳：标志、导航、刷新和「显示」。aside、extra 是顶栏里额外的一行。 */
 export function Frame({
   aside,
   extra,

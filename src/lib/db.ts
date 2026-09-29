@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 应用数据库从哪来：配了线上地址就连 Postgres，没配就用本机内嵌数据库，并补跑脚本。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
 
 /** Which database backend is active. */

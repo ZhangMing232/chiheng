@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 把连接器调用失败的原因分成：还在等授权、要登录、没连上、没权限等，方便页面提示。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import type { CallToolResult } from "./types.ts";
 import { isConnectorPending, isLoginRequired } from "./login.ts";
 

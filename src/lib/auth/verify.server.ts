@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 在服务器上核对这次请求到底是谁，不相信浏览器自己报的用户编号。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { getRequest } from "@tanstack/react-start/server";
 import { gateIdentityEnabled } from "./gate-identity.server";
 import { auth, authConfigured } from "./server";

@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 列出可以用哪些第三方账号登录（比如 Google、X），登录按钮和服务器都读这里。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * The upstream identity providers this app offers for sign-in (via the broker).
  *
  * Source of truth for BOTH the server (`server.ts`, one `genericOAuth` provider

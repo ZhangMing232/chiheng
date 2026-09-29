@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 浏览器里的模拟账本。按天记下买了哪几只、买入价多少，以及后来卖在什么价。
+ *
+ * 你需要知道的：
+ * 账存在这台浏览器本地，不会上传。同一天、同一套策略、同一只股票只记一次，记下的成交不会被改掉。
+ */
+
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -32,6 +40,7 @@ type PaperState = {
   settleIndex: (date: string, indexExit: number) => void;
 };
 
+/** 读写这笔模拟账。recordDay 记新买入，settle 记卖出，settleIndex 记沪深 300 的对照价。 */
 export const usePaper = create<PaperState>()(
   persist(
     (set, get) => ({

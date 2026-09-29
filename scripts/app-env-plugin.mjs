@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 开发服务器上开一个只在本地存在的小接口，把当前生效的环境变量吐出来，给登录检查对照用。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Dev-only `/__app-env` endpoint: the client env the running Vite server
  * resolved, as JSON.
  *

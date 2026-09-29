@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+/**
+ * 这个文件是干什么的：
+ * 给正在开发的页面拍一张预览小图。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 // Capture a 1280x800 preview PNG of the dev server (argv[2] -> argv[3]).
 // Contract with SandboxInternal.CapturePreviewThumbnail: exit 0 only after the
 // PNG is written; the service treats any non-zero exit as a gated skip and does

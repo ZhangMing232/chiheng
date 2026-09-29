@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 /**
+ * 这个文件是干什么的：
+ * 把已经写好的文件一下子换到目标位置，避免别人读到写了一半的内容。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Hand a staged file over to a path another agent reads, in one step.
  *
  *   node scripts/write-atomic.mjs /workspace/.grok/og.jpg.tmp public/og.jpg

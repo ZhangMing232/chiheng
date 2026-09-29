@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 选股页整页。顶上是交易时段、指数涨跌和上次记账时间，下面是筛选、精选和股票池。
+ * 点一只股票打开详情，点刷新再拉一轮行情。
+ *
+ * 你需要知道的：
+ * 名单在这里算出来。真正记买入卖出的是旁边那个不显示的记账组件。开盘时大约每分钟更新一次。
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Detail } from "@/components/screener/detail";
 import { Journal } from "@/components/screener/paper";
@@ -48,6 +57,7 @@ export type ScreenerInitial = {
   phase: SessionInfo;
 };
 
+/** 选股页总装。负责拉行情、记住你点开的股票，并把筛选和名单交给下面几块。 */
 export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [universe, setUniverse] = useState(initial.universe);
   const [indices, setIndices] = useState(initial.indices);

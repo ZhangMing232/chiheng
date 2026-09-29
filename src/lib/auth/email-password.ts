@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 邮箱加密码这种登录方式的开关，默认是关的。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Local email/password sign-in (this app's Better Auth DB — not the broker).
  *
  * Off by default. To enable: set `emailAndPasswordEnabled` to `true` below,

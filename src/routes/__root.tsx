@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 整站的外壳。每个页面都套在这里：网页标题、样式、登录状态，以及数据缓存。
+ *
+ * 你需要知道的：
+ * 进页面之前会先套上你上次选的明暗，避免闪一下。这里不拉行情，也不记账。
+ */
+
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth/provider";
@@ -9,6 +17,7 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
 
+/** 根路由：写好网页标题和样式，再把当前页面放进登录和数据缓存里。 */
 export const Route = createRootRoute({
   head: () => ({
     meta: [

@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 /**
+ * 这个文件是干什么的：
+ * 检查分享图、图标这些品牌文件齐不齐。这是脚手架验收，不是选股逻辑。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Brand-asset gate shared by browser-smoke.mjs (and unit-testable without a
  * browser): a canvas app is almost always a game / visually rich app, and
  * those must ship a custom share card — the default og.grok.me placeholder is

@@ -1,3 +1,10 @@
+/**
+ * 这个文件是干什么的：
+ * grok-pwa-shared.mjs 的类型声明，给 TypeScript 看。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
 export declare const DEFAULT_APP_NAME: string;
 export declare const OG_SERVICE_URL_DEFAULT: string;
 export declare const OG_SITE_REL_PATH: string;

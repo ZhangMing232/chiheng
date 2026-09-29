@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 预览里弹出的登录小窗，由服务器直接返回页面，不加载整个应用界面。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Live-preview sign-in popup — server-only (NEVER import from the client).
  *
  * The sandbox preview runs the app in a partitioned iframe, so OAuth must happen

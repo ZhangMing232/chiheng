@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 选股页的主体。上面换五套策略，中间是今天的精选表，下面是还拿着的股票池。
+ * 点名称打开详情，历史成绩折在最底下，也可以生成一张汇总图。
+ *
+ * 你需要知道的：
+ * 这里只展示。打到买入价才进股票池，当天不能卖。生成图片不会改变买入价。
+ */
+
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { PosterButton } from "@/components/screener/poster-button";
@@ -36,6 +45,7 @@ function pickBadge(pick: Pick, open: { id: string }[], preview: boolean): string
   return "等待买入";
 }
 
+/** 画出策略切换、今天的精选、还在拿的股票池，以及折起来的历史成绩。 */
 export function Picks({
   date,
   picks,

@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 /**
+ * 这个文件是干什么的：
+ * 部署时把还没执行过的数据库脚本跑一遍。本机没配数据库地址就直接跳过。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Deploy-time database migrator (node-postgres, `pg`).
  *
  * Runs during `npm run build` — on every Vercel deploy — applying pending files

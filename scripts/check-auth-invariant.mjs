@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 /**
+ * 这个文件是干什么的：
+ * 核对正在跑的开发服务器和下一次构建，对「登录开没开」的理解是否一样。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Fail loudly when the running dev server and the next build disagree about
  * `VITE_AUTH_ENABLED`.
  *

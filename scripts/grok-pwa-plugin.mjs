@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 开发预览时补上「添加到主屏幕」的网页清单和安装说明页。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Dev/preview (Vite) half of the platform PWA chrome: serves the ?install=1
  * tutorial and the per-app manifest, and injects missing PWA head tags into
  * app documents. The deployed-app half lives in server/middleware/grok-pwa.ts;

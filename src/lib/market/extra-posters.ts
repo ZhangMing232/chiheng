@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 画两张海报：游资龙虎榜，和股指期货持仓。
+ *
+ * 你需要知道的：
+ * 游资图红是净买、绿是净卖，金额按万元。期指图单位是手，红是净多、绿是净空。
+ */
+
 import type { FutBook } from "./index-futures";
 import type { HotBook } from "./hotmoney";
 import {
@@ -36,6 +44,7 @@ function lots(n: number): string {
 
 const FACE = '"PingFang SC","Hiragino Sans GB","WenQuanYi Zen Hei","Noto Sans SC",sans-serif';
 
+/** 画游资龙虎榜。传入当天席位账，返回画布和文件名。一行一个席位，旁边写净买或净卖（万元）。 */
 export function drawHotPoster(book: HotBook) {
   beginPoster();
   const { canvas, ctx } = openPoster();
@@ -94,6 +103,7 @@ function wrapStocks(ctx: CanvasRenderingContext2D, stocks: { name: string; netWa
   return lines.filter((line) => line.length > 0);
 }
 
+/** 画股指期货持仓。传入持仓账，返回画布和文件名。多单红、空单绿，单位是手。 */
 export function drawFuturesPoster(book: FutBook) {
   beginPoster();
   const { canvas, ctx } = openPoster();

@@ -1,3 +1,12 @@
+/**
+ * 这个文件是干什么的：
+ * 点开一只股票后弹出的详情。大屏钉在右侧，手机上从右边盖住页面。
+ * 你能看到现价、涨跌、模型得分、前复权走势，以及市盈率、市值、换手这些数字。
+ *
+ * 你需要知道的：
+ * 这里只展示，不买入、不改账。行情有延迟，底部链接会打开东方财富。
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Area, CartesianGrid, ComposedChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -31,6 +40,7 @@ function Tip({
   );
 }
 
+/** 一只股票的详情侧栏。点遮罩、右上角叉，或按 Esc（由外面监听）就关掉。 */
 export function Detail({
   quote,
   score,

@@ -1,4 +1,11 @@
 /**
+ * 这个文件是干什么的：
+ * 网页标题、分享卡片这些头部信息的共用算法。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+/**
  * Single source of truth for platform head chrome (PWA, extensions.js, OG),
  * shared by the Vite plugin and Nitro middleware. Plain ESM so `node --test`
  * and the Nitro bundler can both consume it.

@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 页面上等外部连接授权就绪：嵌在预览里就轮询，超时就停。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import { useEffect, useRef, useState } from "react";
 import { isFramed } from "./login.ts";
 import { getConnectorReadiness } from "./readiness.ts";

@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 服务器根据平台传来的身份，自动建好登录会话。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 import type { BetterAuthPlugin } from "better-auth";
 import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import {

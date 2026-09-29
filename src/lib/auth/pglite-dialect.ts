@@ -1,4 +1,12 @@
 /**
+ * 这个文件是干什么的：
+ * 让登录用的数据库，在没有线上数据库时改走本机内嵌的数据库。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
+/**
  * Kysely dialect for Better Auth over the app's embedded PGLite instance.
  * Lazy: resolves `getClient` on first connection so migrations can finish first.
  */

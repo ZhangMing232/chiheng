@@ -1,3 +1,11 @@
+/**
+ * 这个文件是干什么的：
+ * 防止有人在浏览器里误用只能在服务器跑的连接器代码。
+ *
+ * 你需要知道的：
+ * 日常选股不用改这里。
+ */
+
 export function assertAppDataServerOnly(
   context = "app-data/client.server",
 ): void {
