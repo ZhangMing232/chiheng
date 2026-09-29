@@ -39,7 +39,7 @@ function applyTheme(mode: string) {
   if (mode === "light" || mode === "dark") root.dataset.theme = mode;
   else delete root.dataset.theme;
   const dark = mode === "dark" || (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0c1016" : "#f3f0e8");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0e1218" : "#f5f6f8");
 }
 
 function useTheme() {
@@ -141,7 +141,8 @@ export function Frame({
         <div className="mx-auto max-w-3xl px-4 md:px-6">
           <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 py-2">
             <div className="flex min-w-0 items-center gap-3">
-              <Link to="/" className="shrink-0 text-base font-semibold tracking-tight">
+              <Link to="/" className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight">
+                <span className="size-2 rounded-full bg-up" aria-hidden />
                 赤衡
               </Link>
               <TopNav />

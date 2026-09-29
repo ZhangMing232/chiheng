@@ -101,27 +101,27 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
   return (
     <section className="rounded-2xl border border-line bg-surface">
         <h2 className="px-4 pt-3 text-base font-semibold">大盘</h2>
-        <div className="grid grid-cols-3 gap-3 px-4 py-3">
-          <div>
+        <div className="grid grid-cols-3 gap-px border-b border-line bg-line">
+          <div className="bg-surface px-4 py-4">
             <div className="text-xs text-muted">成交额</div>
-            <div className="text-xl font-semibold tabular-nums leading-tight">{amount > 0 ? fmtWan(amount) : "—"}</div>
-            <div className="mt-1 text-xs text-muted">
+            <div className="mt-1 text-2xl font-semibold tabular-nums leading-none">{amount > 0 ? fmtWan(amount) : "—"}</div>
+            <div className="mt-2 text-xs text-muted">
               {tape.map((row) => `${row.name} ${fmtWan(row.amount)}`).join(" · ") || "上证和深成"}
             </div>
           </div>
-          <div>
+          <div className="bg-surface px-4 py-4">
             <div className={"text-xs " + (amountDelta == null || amountDelta === 0 ? "text-muted" : amountDelta > 0 ? "text-up" : "text-down")}>
               {volumeWord ?? "较昨日"}
             </div>
-            <div className={(amountDelta == null || amountDelta === 0 ? "text-fg" : amountDelta > 0 ? "text-up" : "text-down") + " text-xl font-semibold tabular-nums leading-tight"}>
+            <div className={(amountDelta == null || amountDelta === 0 ? "text-fg" : amountDelta > 0 ? "text-up" : "text-down") + " mt-1 text-2xl font-semibold tabular-nums leading-none"}>
               {amountDelta == null ? "—" : fmtWan(Math.abs(amountDelta))}
             </div>
-            <div className="mt-1 text-xs text-muted">比上一交易日</div>
+            <div className="mt-2 text-xs text-muted">比上一交易日</div>
           </div>
-          <div className="text-right">
+          <div className="bg-surface px-4 py-4">
             <div className="text-xs text-muted">{main == null ? "主力" : `主力${flowWord(main)}`}</div>
-            <div className={toneClass(main) + " text-xl font-semibold tabular-nums leading-tight"}>{main == null ? "—" : fmtWan(main)}</div>
-            <div className="mt-1 text-xs text-muted">{share == null ? "占成交额 —" : `占成交额 ${Math.abs(share).toFixed(2)}%`}</div>
+            <div className={toneClass(main) + " mt-1 text-2xl font-semibold tabular-nums leading-none"}>{main == null ? "—" : fmtWan(main)}</div>
+            <div className="mt-2 text-xs text-muted">{share == null ? "占成交额 —" : `占成交额 ${Math.abs(share).toFixed(2)}%`}</div>
           </div>
         </div>
       {parts.length === 0 ? (

@@ -15,7 +15,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "theme-color", content: "#0c1016" },
+      { name: "theme-color", content: "#0e1218" },
       {
         name: "description",
         content: "按估值、趋势和资金给沪深京 A 股打分排序。行情有延迟，不构成投资建议。",
