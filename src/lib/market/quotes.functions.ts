@@ -4,6 +4,7 @@
  *
  * 你需要知道的：
  * 涨跌幅是百分数，正涨负跌。全市场报价大约一分钟缓存，指数大约二十秒。拉失败时能用旧数据就标成过期。
+ * 全市场快照和指数走 providers 适配层：腾讯是主源，东方财富是备份，换源会在日志里留一条记录。
  */
 
 import { readFile } from "node:fs/promises";
@@ -21,15 +22,15 @@ import { loadHotMoney } from "@/lib/market/hotmoney";
 import { loadIndexFutures } from "@/lib/market/index-futures";
 import { ensureUserBook, readUserBook } from "@/lib/market/book-file";
 import { sessionPhase } from "@/lib/market/session";
-import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
-
-type Raw = Record<string, string | undefined>;
+import type { Bar, IndexQuote, Universe } from "@/lib/market/types";
+import { fetchIndices, fetchUniverse } from "@/lib/market/providers/index";
 
 const TTL_MS = 60_000;
 const INDEX_TTL_MS = 20_000;
-const HEADERS = {
+/** K 线接口的请求头。全市场快照和指数已走 providers 适配层（腾讯主、东财备）。 */
+const KLINE_HEADERS = {
   "user-agent": "Mozilla/5.0",
-  referer: "https://stockapp.finance.qq.com/",
+  referer: "https://gu.qq.com/",
   accept: "application/json,text/plain,*/*",
 };
 
@@ -39,148 +40,6 @@ let universeCache: { at: number; payload: Universe } | null = null;
 let universeInflight: Promise<Universe> | null = null;
 let indexCache: { at: number; rows: IndexQuote[] } | null = null;
 const klineCache = new Map<string, { at: number; bars: Bar[] }>();
-
-function num(value: string | undefined, kind: "any" | "pct" | "ratio"): number | null {
-  if (value == null || value === "" || value === "-") return null;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  if (kind === "pct" && Math.abs(n) >= 400) return null;
-  if (kind === "ratio" && Math.abs(n) >= 5000) return null;
-  return n;
-}
-
-function boardOf(id: string, stockType: string): Board {
-  const kind = stockType.toUpperCase();
-  if (kind.includes("KCB") || id.startsWith("sh688") || id.startsWith("sh689")) return "kcb";
-  if (kind.includes("CYB") || id.startsWith("sz300") || id.startsWith("sz301")) return "cyb";
-  if (id.startsWith("bj") || kind.includes("BJ")) return "bj";
-  if (id.startsWith("sh")) return "sh";
-  return "sz";
-}
-
-function isSt(name: string): boolean {
-  return name.toUpperCase().includes("ST") || name.includes("退");
-}
-
-function toQuote(raw: Raw): Quote | null {
-  const id = raw.code ?? "";
-  if (!/^(sh|sz|bj)\d{6}$/.test(id)) return null;
-  if (id.startsWith("sh900") || id.startsWith("sz200")) return null;
-  const name = raw.name?.trim() || id;
-  const price = num(raw.zxj, "any") ?? 0;
-  return {
-    id,
-    code: id.slice(2),
-    name,
-    board: boardOf(id, raw.stock_type ?? ""),
-    price,
-    chg: num(raw.zdf, "pct"),
-    pe: num(raw.pe_ttm, "ratio"),
-    pb: num(raw.pn, "ratio"),
-    cap: num(raw.zsz, "any") ?? 0,
-    floatCap: num(raw.ltsz, "any") ?? 0,
-    turnover: num(raw.hsl, "any") ?? 0,
-    volRatio: num(raw.lb, "any") ?? 0,
-    amp: num(raw.zf, "pct") ?? 0,
-    d5: num(raw.zdf_d5, "pct"),
-    d10: num(raw.zdf_d10, "pct"),
-    d20: num(raw.zdf_d20, "pct"),
-    d60: num(raw.zdf_d60, "pct"),
-    ytd: num(raw.zdf_y, "pct"),
-    inflow: num(raw.zljlr, "any") ?? 0,
-    amount: num(raw.turnover, "any") ?? 0,
-    st: isSt(name),
-  };
-}
-
-async function fetchPage(
-  board: string,
-  offset: number,
-  count: number,
-): Promise<{ list: Raw[]; total: number }> {
-  const url =
-    "https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList" +
-    `?board_code=${board}&sort_type=price&direct=down&offset=${offset}&count=${count}`;
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(15000) });
-  if (!res.ok) throw new Error(`status ${res.status}`);
-  const body = (await res.json()) as {
-    code?: number;
-    msg?: string;
-    data?: { rank_list?: Raw[]; total?: number };
-  };
-  const list = body.data?.rank_list;
-  if (!Array.isArray(list)) {
-    if ((body.msg ?? "").includes("count")) throw new Error("count");
-    throw new Error(body.msg || "bad payload");
-  }
-  return { list, total: body.data?.total ?? list.length };
-}
-
-async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let cursor = 0;
-  async function worker() {
-    for (;;) {
-      const index = cursor;
-      cursor += 1;
-      if (index >= items.length) return;
-      out[index] = await fn(items[index]);
-    }
-  }
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-  await Promise.all(workers);
-  return out;
-}
-
-async function loadBoard(board: string, pageSize: number): Promise<Raw[]> {
-  let size = pageSize;
-  let first: { list: Raw[]; total: number };
-  try {
-    first = await fetchPage(board, 0, size);
-  } catch (error) {
-    if (error instanceof Error && error.message === "count" && size > 40) {
-      size = 40;
-      first = await fetchPage(board, 0, size);
-    } else {
-      throw error;
-    }
-  }
-  const offsets: number[] = [];
-  for (let offset = size; offset < first.total; offset += size) offsets.push(offset);
-  const rest = await mapPool(offsets, 5, async (offset) => {
-    try {
-      return (await fetchPage(board, offset, size)).list;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 280));
-      return (await fetchPage(board, offset, size)).list;
-    }
-  });
-  return first.list.concat(...rest);
-}
-
-async function fetchUniverse(): Promise<Universe> {
-  const main = await loadBoard("aStock", 200);
-  let partial = false;
-  let star: Raw[] = [];
-  try {
-    star = await loadBoard("ksh", 40);
-  } catch {
-    partial = true;
-  }
-  const byId = new Map<string, Quote>();
-  for (const raw of main.concat(star)) {
-    const quote = toQuote(raw);
-    if (!quote || byId.has(quote.id)) continue;
-    byId.set(quote.id, quote);
-  }
-  return {
-    quotes: [...byId.values()],
-    asOf: Date.now(),
-    total: byId.size,
-    partial,
-    stale: false,
-  };
-}
 
 /** 拉全市场 A 股报价。refresh 为 true 时忽略缓存重拉。返回股票列表和时间；只拉到一部分或用了旧数据会标出来。 */
 export async function loadUniverse(refresh: boolean): Promise<Universe> {
@@ -206,44 +65,11 @@ export async function loadUniverse(refresh: boolean): Promise<Universe> {
   }
 }
 
-function parseIndices(text: string): IndexQuote[] {
-  const rows: IndexQuote[] = [];
-  for (const line of text.split("\n")) {
-    const idMatch = line.match(/^v_([a-z]{2}\d+)/);
-    const body = line.match(/="([^"]*)"/);
-    if (!idMatch || !body) continue;
-    const parts = body[1].split("~");
-    if (parts.length < 33) continue;
-    const price = Number(parts[3]);
-    const prev = Number(parts[4]);
-    const chg = Number(parts[31]);
-    if (!Number.isFinite(price)) continue;
-    const stamp = parts[30] ?? "";
-    const pct = prev ? (chg / prev) * 100 : Number(parts[32]);
-    rows.push({
-      id: idMatch[1],
-      name: parts[1] || idMatch[1],
-      price,
-      chg: Number.isFinite(chg) ? chg : 0,
-      pct: Number.isFinite(pct) ? pct : 0,
-      time: stamp.length >= 12 ? `${stamp.slice(8, 10)}:${stamp.slice(10, 12)}` : "",
-    });
-  }
-  return rows;
-}
-
-/** 拉几只常用指数和沪深300ETF 的现价。返回名称、价格、涨跌额和涨跌幅（百分数）。失败时尽量用上次结果。 */
+/** 拉几只常用指数和沪深300ETF 的现价。返回名称、价格、涨跌额和涨跌幅（百分数）。主源腾讯，挂了自动换东方财富；都失败时尽量用上次结果。 */
 export async function loadIndices(): Promise<IndexQuote[]> {
   if (indexCache && Date.now() - indexCache.at < INDEX_TTL_MS) return indexCache.rows;
-  const url = `https://web.sqt.gtimg.cn/utf8/q=${INDEX_IDS.join(",")}`;
   try {
-    const res = await fetch(url, {
-      headers: { ...HEADERS, referer: "https://gu.qq.com/" },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) throw new Error("index");
-    const rows = parseIndices(await res.text());
-    if (rows.length === 0) throw new Error("index empty");
+    const rows = await fetchIndices(INDEX_IDS);
     indexCache = { at: Date.now(), rows };
     return rows;
   } catch {
@@ -258,7 +84,7 @@ export async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }
   if (hit && Date.now() - hit.at < 5 * 60_000) return { id, bars: hit.bars };
   const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${id},day,,,120,qfq`;
   const res = await fetch(url, {
-    headers: { ...HEADERS, referer: "https://gu.qq.com/" },
+    headers: KLINE_HEADERS,
     signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) throw new Error("K 线暂时拉不下来");
