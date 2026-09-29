@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { dayLocked } from "../src/lib/market/journal-book.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { evaluate } from "../src/lib/market/model.ts";
-import { formatClock, sessionPhase } from "../src/lib/market/session.ts";
+import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
 type Trade = {
   id: string;
@@ -65,8 +65,8 @@ function weekdaysBetween(from: string, to: string): number {
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
   let count = 0;
   for (let cursor = start + 24 * 60 * 60 * 1000; cursor <= end; cursor += 24 * 60 * 60 * 1000) {
-    const weekday = new Date(cursor).toLocaleDateString("en-US", { timeZone: "Asia/Shanghai", weekday: "short" });
-    if (weekday !== "Sat" && weekday !== "Sun") count += 1;
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date(cursor));
+    if (isTradingDay(date)) count += 1;
   }
   return count;
 }
@@ -78,7 +78,7 @@ const book = await readBook();
 let days = book.days;
 let changed = false;
 
-if (phase.date && (phase.sealed || closeWindow)) {
+if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
   const existing = days.find((day) => day.date === phase.date);
   if (!existing || !dayLocked(existing)) {
     const universe = await loadUniverse(true);

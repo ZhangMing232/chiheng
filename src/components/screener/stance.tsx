@@ -24,7 +24,7 @@ export function HoldNote({ days, compact = false }: { days: number | null; compa
       <span className="font-medium">预计持股 {min === max ? `${min}` : `${min}–${max}`} 个交易日</span>
       <span className="text-muted">
         ，约 {from}
-        {from === to ? "" : ` 至 ${to}`}。从买入的下一个交易日数起，节假日未排除。
+        {from === to ? "" : ` 至 ${to}`}。从买入的下一个交易日数起，已跳过周末和 2026 年交易所休市。
       </span>
     </p>
   );

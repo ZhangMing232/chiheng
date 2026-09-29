@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
-import { dayLocked, lotShares, netReturn, stopPrice, yuan } from "@/lib/market/journal-book";
+import { dayLocked, liveGate, lotShares, netReturn, stopPrice, yuan } from "@/lib/market/journal-book";
 import { useAccount } from "@/lib/account";
 import { usePlan } from "@/lib/plan";
 import type { Quote } from "@/lib/market/types";
@@ -84,6 +84,7 @@ export function Picks({
   }, 0);
   const excesses = closed.filter((trade) => trade.ret != null && trade.indexRet != null);
   const excess = excesses.length === 0 ? null : excesses.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / excesses.length;
+  const gate = liveGate(days.length, closed);
   const featured = picks.slice(0, 3);
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
 
@@ -91,8 +92,9 @@ export function Picks({
     <div className="mb-4 flex flex-col gap-3">
       <section className="rounded-lg border border-line bg-surface px-4 py-3 text-sm">
         <h2 className="text-base font-semibold">资金</h2>
+        <p className={"mt-1 font-medium " + (gate.ok ? "" : "text-up")}>{gate.ok ? "真钱：可以按小仓位做" : "真钱：不允许"}</p>
         <p className="mt-1 text-pretty text-muted">
-          单只默认只用本金的一小部分，最多同时 3 只。止损只提醒，不改第 8 个交易日的结算价。不满 60 个交易日，这里的盈亏不能当成已经能赚钱。
+          {gate.reason}。要同时满足 60 个交易日、至少 20 笔扣费后跑赢沪深 300。这三条现在写死，不根据结果改。单只最多 20% 本金，同时最多 3 只。止损只提醒。
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label>
