@@ -82,20 +82,12 @@ function flowWord(value: number): string {
   return "持平";
 }
 
-function fmtLots(lots: number): string {
-  const abs = Math.abs(lots);
-  if (abs >= 1e8) return `${(abs / 1e8).toFixed(2)}亿手`;
-  if (abs >= 1e4) return `${Math.round(abs / 1e4)}万手`;
-  return `${Math.round(abs)}手`;
-}
-
 function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
   const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
   const amount = tape.reduce((total, row) => total + row.amount, 0);
-  const volume = tape.reduce((total, row) => total + row.volume, 0);
-  const prevVolume = tape.every((row) => row.prevVolume != null) ? tape.reduce((total, row) => total + (row.prevVolume ?? 0), 0) : null;
-  const volumeDelta = prevVolume == null ? null : volume - prevVolume;
-  const volumeWord = volumeDelta == null ? null : volumeDelta > 0 ? "放量" : volumeDelta < 0 ? "缩量" : "持平";
+  const prevAmount = tape.every((row) => row.prevAmount != null) ? tape.reduce((total, row) => total + (row.prevAmount ?? 0), 0) : null;
+  const amountDelta = prevAmount == null ? null : amount - prevAmount;
+  const volumeWord = amountDelta == null ? null : amountDelta > 0 ? "放量" : amountDelta < 0 ? "缩量" : "持平";
   const main = parts.length > 0 ? sum("main") : null;
   const share = amount > 0 && main != null ? (main / amount) * 100 : null;
   const rows: { name: string; key: keyof Omit<MarketPart, "name"> }[] = [
@@ -118,11 +110,11 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
             </div>
           </div>
           <div>
-            <div className={"text-xs " + (volumeDelta == null || volumeDelta === 0 ? "text-muted" : volumeDelta > 0 ? "text-up" : "text-down")}>
+            <div className={"text-xs " + (amountDelta == null || amountDelta === 0 ? "text-muted" : amountDelta > 0 ? "text-up" : "text-down")}>
               {volumeWord ?? "较昨日"}
             </div>
-            <div className={(volumeDelta == null || volumeDelta === 0 ? "text-fg" : volumeDelta > 0 ? "text-up" : "text-down") + " text-xl font-semibold tabular-nums leading-tight"}>
-              {volumeDelta == null ? "—" : fmtLots(volumeDelta)}
+            <div className={(amountDelta == null || amountDelta === 0 ? "text-fg" : amountDelta > 0 ? "text-up" : "text-down") + " text-xl font-semibold tabular-nums leading-tight"}>
+              {amountDelta == null ? "—" : fmtWan(Math.abs(amountDelta))}
             </div>
             <div className="mt-1 text-xs text-muted">比上一交易日</div>
           </div>
