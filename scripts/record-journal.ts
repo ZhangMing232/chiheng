@@ -1,5 +1,5 @@
 // 本机服务每分钟跑一次。14:40–15:00 只记临时名单，15:00 才锁定。
-// 目标价碰到就结算；否则等第 8 个交易日收盘。买入价写入后不再改。
+// 目标价或止损价碰到就结算；同一天两边都碰到按止损。否则等第 8 个交易日收盘。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dayLocked, exitFill, nthClose } from "../src/lib/market/journal-book.ts";

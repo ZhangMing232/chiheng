@@ -62,9 +62,9 @@ function pct(n: number | null): string {
 }
 
 /**
- * 启动前期：刚转强、20 日还没走远。
- * 涨跌停和 ST 直接排除。门槛来自 rules，改规则会换版本，不在这里写死数字。
- * 排序偏向更接近区间下沿的票，不是再加一套条件。
+ * 启动前期：刚转强、20 日还没走远。条件收窄是为了少追、少接飞刀，不是为了把历史涨幅调到最好看。
+ * 涨跌停和 ST 直接排除。门槛来自 rules，改规则会换版本。
+ * 卖出不在这里：跌 5% 止损，涨 8% 止盈，否则第 8 个交易日收盘卖。
  */
 export function screen(quote: Quote, live: boolean, rules: EarlyRules = DEFAULT_RULES): Scored | null {
   if (!live || quote.st || quote.price < 4 || quote.cap < 40) return null;

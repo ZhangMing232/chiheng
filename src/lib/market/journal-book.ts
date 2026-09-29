@@ -3,12 +3,20 @@ import { DEFAULT_RULES, type EarlyRules } from "./rules.ts";
 export const ROUND_TRIP_COST = 0.0015;
 /** 目标卖出价比参考买入价高 8%。盘中最高价碰到就按这个价记卖出。 */
 export const TARGET_GAIN = 0.08;
-/** 8 个交易日内没碰到目标价，就用第 8 天的收盘价卖。不是 60 天。 */
+/** 止损比参考买入价低 5%。亏损比目标小，这样单笔亏不过单笔赚。 */
+export const STOP_LOSS_PCT = 5;
+/** 8 个交易日内没碰到目标价或止损价，就用第 8 天的收盘价卖。不是 60 天。 */
 export const HOLD_SESSIONS = 8;
 
 export function targetPrice(entry: number): number {
   if (!(entry > 0)) return 0;
   return Math.round(entry * (1 + TARGET_GAIN) * 100) / 100;
+}
+
+export function lossPrice(entry: number): number {
+  const price = stopPrice(entry, STOP_LOSS_PCT);
+  if (price == null) return 0;
+  return Math.round(price * 100) / 100;
 }
 
 function normDay(value: string): string {
@@ -17,20 +25,24 @@ function normDay(value: string): string {
 }
 
 export function exitFill(
-  bars: { date: string; h?: number; c: number }[],
+  bars: { date: string; h?: number; l?: number; c: number }[],
   entryDate: string,
   entry: number,
-): { date: string; price: number; hit: boolean } | null {
+): { date: string; price: number; reason: "target" | "stop" | "time" } | null {
   const target = targetPrice(entry);
+  const stop = lossPrice(entry);
   const start = bars.findIndex((bar) => normDay(bar.date) === normDay(entryDate));
-  if (start < 0 || !(target > 0)) return null;
+  if (start < 0 || !(target > 0) || !(stop > 0)) return null;
   let left = HOLD_SESSIONS;
   for (let cursor = start + 1; cursor < bars.length && left > 0; cursor += 1) {
     const bar = bars[cursor];
     left -= 1;
     const high = bar.h != null && bar.h > 0 ? bar.h : bar.c;
-    if (high >= target) return { date: normDay(bar.date), price: target, hit: true };
-    if (left === 0 && bar.c > 0) return { date: normDay(bar.date), price: bar.c, hit: false };
+    const low = bar.l != null && bar.l > 0 ? bar.l : bar.c;
+    // 同一天既碰到止损又碰到止盈时，按先止损记。日线看不出先后，不能把不确定记成赚钱。
+    if (low <= stop) return { date: normDay(bar.date), price: stop, reason: "stop" };
+    if (high >= target) return { date: normDay(bar.date), price: target, reason: "target" };
+    if (left === 0 && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
   }
   return null;
 }
