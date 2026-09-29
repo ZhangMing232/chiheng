@@ -3,6 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 const LINKS = [
   { to: "/", label: "选股" },
   { to: "/news", label: "消息" },
+  { to: "/flow", label: "资金" },
 ] as const;
 
 export function TopNav() {

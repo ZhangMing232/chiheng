@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FlowRouteImport } from './routes/flow'
 import { Route as NewsRouteImport } from './routes/news'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FlowRoute = FlowRouteImport.update({
+  id: '/flow',
+  path: '/flow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsRoute = NewsRouteImport.update({
@@ -25,27 +31,31 @@ const NewsRoute = NewsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/news'
+  fullPaths: '/' | '/flow' | '/news'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/news'
-  id: '__root__' | '/' | '/news'
+  to: '/' | '/flow' | '/news'
+  id: '__root__' | '/' | '/flow' | '/news'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  FlowRoute: typeof FlowRoute
   NewsRoute: typeof NewsRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/flow': {
+      id: '/flow'
+      path: '/flow'
+      fullPath: '/flow'
+      preLoaderRoute: typeof FlowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  FlowRoute: FlowRoute,
   NewsRoute: NewsRoute,
 }
 export const routeTree = rootRouteImport
