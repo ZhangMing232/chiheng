@@ -7,7 +7,7 @@ import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
-import { planExit } from "../src/lib/market/model.ts";
+import { boardLimit, planExit } from "../src/lib/market/model.ts";
 import { STYLE_IDS, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
@@ -63,7 +63,7 @@ const tagged = days.map((day) => ({ ...day, trades: day.trades.filter((trade) =>
 if (tagged.some((day, index) => day.trades.length !== days[index].trades.length)) changed = true;
 days = tagged.filter((day) => day.trades.length > 0);
 
-if (phase.date && isTradingDay(phase.date) && (phase.open || phase.sealed)) {
+if (phase.date && isTradingDay(phase.date) && phase.matching) {
   const universe = await loadUniverse(true);
   const indices = await loadIndices();
   const index = indices.find((item) => item.id === "sh000300");
@@ -133,7 +133,7 @@ if (settleDue && phase.date) {
       try {
         const data = await loadKline(trade.id);
         const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
-        const filled = exitFill(data.bars, day.date, trade.entry, plan.stop, plan.target);
+        const filled = exitFill(data.bars, day.date, trade.entry, plan.stop, plan.target, boardLimit(trade.id, trade.name));
         if (!filled) {
           stillOpen = true;
           continue;

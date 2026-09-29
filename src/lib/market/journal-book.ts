@@ -1,7 +1,8 @@
 import { DEFAULT_RULES, type EarlyRules } from "./rules.ts";
 import { HOLD_SESSIONS } from "./model.ts";
 
-export const ROUND_TRIP_COST = 0.0015;
+/** 卖出印花税万五，佣金万二点五双边，过户费万零点一双边。没有按股数计「不足 5 元收 5 元」。 */
+export const ROUND_TRIP_COST = 0.00025 * 2 + 0.0005 + 0.00001 * 2;
 export { HOLD_SESSIONS };
 
 function normDay(value: string): string {
@@ -15,19 +16,32 @@ export function exitFill(
   entry: number,
   stop: number,
   target: number,
+  limitPct = 10,
 ): { date: string; price: number; reason: "target" | "stop" | "time" } | null {
   const start = bars.findIndex((bar) => normDay(bar.date) === normDay(entryDate));
   if (start < 0 || !(entry > 0) || !(stop > 0) || !(target > stop)) return null;
+  let prev = bars[start].c;
   let left = HOLD_SESSIONS;
-  for (let cursor = start + 1; cursor < bars.length && left > 0; cursor += 1) {
+  let extra = 5;
+  for (let cursor = start + 1; cursor < bars.length && (left > 0 || extra > 0); cursor += 1) {
     const bar = bars[cursor];
-    left -= 1;
+    const down = Math.round(prev * (1 - limitPct / 100) * 100) / 100;
+    const sealedDown = down > 0 && bar.c <= down + 0.01 && (bar.h == null || bar.h <= down + 0.01);
+    prev = bar.c;
+    if (sealedDown) {
+      if (left > 0) left -= 1;
+      else extra -= 1;
+      continue;
+    }
+    const last = left === 1;
+    if (left > 0) left -= 1;
+    else extra -= 1;
     const high = bar.h != null && bar.h > 0 ? bar.h : bar.c;
     const low = bar.l != null && bar.l > 0 ? bar.l : bar.c;
-    // 同一天既碰到止损又碰到止盈时，按先止损记。日线看不出先后，不能把不确定记成赚钱。
+    // 买入当日不在这个循环里，满足 T+1。同一天两边都碰到，按先止损。
     if (low <= stop) return { date: normDay(bar.date), price: stop, reason: "stop" };
     if (high >= target) return { date: normDay(bar.date), price: target, reason: "target" };
-    if (left === 0 && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
+    if ((last || left < 0) && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
   }
   return null;
 }

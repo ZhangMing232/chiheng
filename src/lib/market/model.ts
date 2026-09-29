@@ -42,9 +42,13 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 export function limitPct(quote: Quote): number {
-  if (quote.st) return 5;
-  if (quote.board === "cyb" || quote.board === "kcb") return 20;
-  if (quote.board === "bj") return 30;
+  return boardLimit(quote.id, quote.name);
+}
+
+export function boardLimit(id: string, name: string): number {
+  if (name.toUpperCase().includes("ST") || name.includes("退")) return 5;
+  if (id.startsWith("sh688") || id.startsWith("sz300") || id.startsWith("sz301")) return 20;
+  if (id.startsWith("bj")) return 30;
   return 10;
 }
 

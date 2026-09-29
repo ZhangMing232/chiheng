@@ -56,6 +56,8 @@ export type SessionInfo = {
   phase: SessionPhase;
   label: string;
   open: boolean;
+  /** 连续竞价或收盘集合竞价之后，限价单才可能成交。9:15–9:30 和午休不算。 */
+  matching: boolean;
   tail: boolean;
   entry: "none" | "open" | "close";
   nextSell: string;

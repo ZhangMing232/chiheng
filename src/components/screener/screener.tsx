@@ -147,7 +147,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <Journal
           quotes={quotes}
           live={live}
-          sealed={phase.sealed}
+          matching={phase.matching}
           date={phase.date}
           signalTime={formatClock(Date.now())}
           bookReady={Boolean(universe && !universe.stale && !universe.partial)}

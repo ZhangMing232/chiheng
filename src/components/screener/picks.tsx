@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { nowAction } from "@/lib/market/action";
 import { MAX_POSITIONS, bookRisk, styleOf } from "@/lib/market/strategies";
-import { BOARD_LABEL, TRACK_NEED, planExit } from "@/lib/market/model";
+import { BOARD_LABEL, TRACK_NEED, limitTag, planExit } from "@/lib/market/model";
 import { dayLocked, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
@@ -95,8 +95,9 @@ export function Picks({
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
   const featured = picks;
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
-  const stops = open.filter((trade) => trade.live != null && trade.live.price <= levels(trade, rules).stop);
-  const due = open.filter((trade) => trade.live != null && trade.live.price >= levels(trade, rules).target);
+  const sellable = open.filter((trade) => trade.day < date);
+  const stops = sellable.filter((trade) => trade.live != null && limitTag(trade.live) !== "跌停" && trade.live.price <= levels(trade, rules).stop);
+  const due = sellable.filter((trade) => trade.live != null && limitTag(trade.live) !== "跌停" && trade.live.price >= levels(trade, rules).target);
   const risk = bookRisk(
     open.map((trade) => ({ style, exit: null, entry: trade.entry, stop: trade.stop })),
     style,
@@ -175,7 +176,7 @@ export function Picks({
         <div className="px-4 py-3">
           <h2 className="font-serif text-lg font-semibold">等待卖出信号的股票池 共 {open.length}/{MAX_POSITIONS} 只</h2>
           <p className="mt-1 text-sm text-muted">
-            只记上面这份名单里打到买入价的。已持仓若同时止损，大约亏掉这套仓位的 {risk == null ? "—" : signedPct(-risk * 100)}。空着的名额不算。
+            只记上面这份名单里、连续竞价打到买入价的。买入当天不能卖。跌停封死的那天卖不出，顺延。已持仓若同时止损，大约亏掉这套仓位的 {risk == null ? "—" : signedPct(-risk * 100)}。空着的名额不算。
           </p>
         </div>
         {open.length === 0 ? (
@@ -191,8 +192,8 @@ export function Picks({
                     <div>
                       <div className="font-semibold">
                         {trade.name}{" "}
-                        <span className={"rounded-full px-2 py-0.5 text-xs font-normal " + (trade.live && (trade.live.price <= levels(trade, rules).stop || trade.live.price >= levels(trade, rules).target) ? "bg-up text-bg" : "bg-down-soft text-down")}>
-                          {trade.live && trade.live.price <= levels(trade, rules).stop ? "止损" : trade.live && trade.live.price >= levels(trade, rules).target ? "卖出" : "持有"}
+                        <span className={"rounded-full px-2 py-0.5 text-xs font-normal " + (trade.day >= date ? "bg-surface-2 text-muted" : trade.live && limitTag(trade.live) === "跌停" ? "bg-surface-2 text-muted" : trade.live && (trade.live.price <= levels(trade, rules).stop || trade.live.price >= levels(trade, rules).target) ? "bg-up text-bg" : "bg-down-soft text-down")}>
+                          {trade.day >= date ? "T+1" : trade.live && limitTag(trade.live) === "跌停" ? "跌停卖不出" : trade.live && trade.live.price <= levels(trade, rules).stop ? "止损" : trade.live && trade.live.price >= levels(trade, rules).target ? "卖出" : "持有"}
                         </span>{" "}
                         <span className="font-normal text-muted">({trade.code})</span>
                       </div>
@@ -205,11 +206,15 @@ export function Picks({
                         {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
                       </div>
                       <div className="text-xs text-muted">
-                        {trade.live && trade.live.price <= levels(trade, rules).stop
-                          ? "止损信号"
-                          : trade.live && trade.live.price >= levels(trade, rules).target
-                            ? "卖出信号"
-                            : "调入以来"}
+                        {trade.day >= date
+                          ? "今日买入，不能卖"
+                          : trade.live && limitTag(trade.live) === "跌停"
+                            ? "跌停卖不出"
+                            : trade.live && trade.live.price <= levels(trade, rules).stop
+                              ? "止损信号"
+                              : trade.live && trade.live.price >= levels(trade, rules).target
+                                ? "卖出信号"
+                                : "调入以来"}
                       </div>
                     </div>
                   </div>

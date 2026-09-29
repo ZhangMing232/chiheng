@@ -1,4 +1,4 @@
-import { limitPct, planExit, screen, type Scored } from "./model.ts";
+import { limitPct, limitTag, planExit, screen, type Scored } from "./model.ts";
 import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
 
@@ -187,7 +187,7 @@ export function takeBuys(
   style: StyleId,
 ): Listed[] {
   const openIds = new Set(held.filter((trade) => trade.exit == null && styleOf(trade) === style).map((trade) => trade.id));
-  return list.filter((row) => row.hit && !openIds.has(row.quote.id)).slice(0, slotsLeft(held, style));
+  return list.filter((row) => row.hit && limitTag(row.quote) !== "涨停" && !openIds.has(row.quote.id)).slice(0, slotsLeft(held, style));
 }
 
 /** 已持仓同时打到止损时，占这套 10 个名额的比例。空着的名额不算。 */
