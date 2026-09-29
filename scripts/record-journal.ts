@@ -47,7 +47,7 @@ const backupDir = join(homedir(), "chiheng-backup");
 
 function notify(body: string) {
   if (process.platform !== "darwin") return;
-  execFile("osascript", ["-e", `display notification ${JSON.stringify(body)} with title ${JSON.stringify("候价")}`], () => undefined);
+  execFile("osascript", ["-e", `display notification ${JSON.stringify(body)} with title ${JSON.stringify("赤轨")}`], () => undefined);
 }
 
 function notifyNames(label: string, names: string[]) {

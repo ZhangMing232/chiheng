@@ -1,5 +1,5 @@
 #!/bin/bash
-# 登录后启动候价。在项目目录执行：npm run install:mac
+# 登录后启动赤轨。在项目目录执行：npm run install:mac
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 NODE="$(command -v node)"

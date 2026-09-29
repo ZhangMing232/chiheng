@@ -143,11 +143,11 @@ export function Frame({
           <div className="flex justify-center py-4">
             <Link to="/" className="flex flex-col items-center gap-2">
               <svg viewBox="0 0 32 32" className="size-14" aria-hidden>
-                <rect width="32" height="32" rx="8" fill="#161c25" />
-                <path d="M6 16h20" stroke="#8b95a6" strokeWidth="1.4" strokeLinecap="round" />
-                <circle cx="20" cy="16" r="2.2" fill="#f0535e" />
+                <rect width="32" height="32" rx="8" fill="#0c0c0e" />
+                <path d="M7 16h7M18 16h7" stroke="#8d9198" strokeWidth="1.3" strokeLinecap="square" />
+                <polygon points="9.7,25.7 7.3,23.3 22.3,7 24.7,9.4" fill="#f0535e" />
               </svg>
-              <span className="text-2xl font-semibold tracking-tight">候价</span>
+              <span className="text-2xl font-semibold tracking-tight">赤轨</span>
             </Link>
           </div>
           <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 pb-2">
