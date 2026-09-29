@@ -20,6 +20,8 @@ export function Picks({
   quotes,
   serverDays,
   rules,
+  marketOpen,
+  tail,
   onOpen,
 }: {
   date: string;
@@ -28,6 +30,8 @@ export function Picks({
   serverDays: PaperDay[];
   rules: EarlyRules;
   benchmark: { name: string; price: number; pct: number } | null;
+  marketOpen: boolean;
+  tail: boolean;
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
@@ -80,9 +84,24 @@ export function Picks({
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
   const featured = picks.slice(0, 3);
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
+  const due = open.filter((trade) => trade.live != null && trade.live.price >= targetPrice(trade.entry));
+  const now = due.length
+    ? { title: `先卖 ${due.map((trade) => trade.name).join("、")}`, body: "现价已经到目标卖出价。卖完再看新的买入。" }
+    : lockedToday && lockedToday.trades.length
+      ? { title: "只买还没涨过参考价的", body: "标着「别追」的不要买。到了目标价再卖。" }
+      : tail
+        ? { title: "尾盘正在锁定买入价", body: "这一轮锁定之后，参考价不再改。" }
+        : marketOpen
+          ? { title: "现在只观察，先别买", body: "买入价要到 14:40 以后才锁定。" }
+          : { title: "还没开盘", body: "下面是按偏好筛出来的观察，买入价还没锁定。" };
 
   return (
     <div className="flex flex-col gap-3">
+      <section className="rounded-lg border border-line bg-surface px-4 py-3">
+        <div className="text-xs text-muted">现在</div>
+        <h2 className="mt-1 text-xl font-semibold text-pretty">{now.title}</h2>
+        <p className="mt-1 text-sm text-pretty text-muted">{now.body}</p>
+      </section>
       <section className="rounded-lg border border-line bg-surface">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -104,7 +123,10 @@ export function Picks({
                     <button type="button" onClick={() => onOpen(trade.id)} className="block w-full px-4 py-3 text-left">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
-                          <div className="truncate text-base font-semibold">{trade.name}</div>
+                          <div className="truncate text-base font-semibold">
+                            {trade.name}
+                            <span className="ml-2 rounded bg-fg px-1.5 py-0.5 text-xs font-normal text-bg">{chased ? "别追" : "可买"}</span>
+                          </div>
                           <div className="mt-1 text-xs text-muted">{trade.code}</div>
                         </div>
                         <div className="text-right">
@@ -140,6 +162,7 @@ export function Picks({
                     <div className="min-w-0">
                       <div className="truncate text-base font-semibold">
                         {pick.quote.name}
+                        <span className="ml-2 rounded border border-line px-1.5 py-0.5 text-xs font-normal text-muted">观察</span>
                         <span className="ml-2 rounded border border-line px-1.5 py-0.5 text-xs font-normal text-muted">
                           {BOARD_LABEL[pick.quote.board]}
                         </span>
@@ -184,7 +207,11 @@ export function Picks({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold">
-                        {trade.name} <span className="font-normal text-muted">({trade.code})</span>
+                        {trade.name}{" "}
+                        <span className={"rounded px-1.5 py-0.5 text-xs font-normal " + (trade.live && trade.live.price >= targetPrice(trade.entry) ? "bg-fg text-bg" : "border border-line text-muted")}>
+                          {trade.live && trade.live.price >= targetPrice(trade.entry) ? "卖出" : "持有"}
+                        </span>{" "}
+                        <span className="font-normal text-muted">({trade.code})</span>
                       </div>
                       <div className="mt-2 text-xs text-muted">
                         买入信号 {trade.day} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)} · 目标卖出价 {fmtPrice(targetPrice(trade.entry))}

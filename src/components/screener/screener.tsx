@@ -168,6 +168,8 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           picks={ranked.slice(0, 3).map((row) => ({ quote: row.quote, reasons: row.reasons }))}
           serverDays={initial.journal}
           rules={rules}
+          marketOpen={phase.open}
+          tail={phase.tail}
           benchmark={null}
           onOpen={setSelectedId}
         />
