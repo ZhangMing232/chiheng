@@ -31,6 +31,12 @@ export const Route = createRootRoute({
   component: () => (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('chiheng-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}",
+          }}
+        />
         <HeadContent />
       </head>
       <body>

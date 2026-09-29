@@ -185,7 +185,7 @@ function NewsPage() {
                         {item.stocks.map((stock) => {
                           const mark = heldSet.has(stock.id) ? "持仓" : pickedSet.has(stock.id) ? "精选" : "";
                           return (
-                            <span key={stock.id} className={"rounded-full px-2 py-0.5 text-xs " + (mark === "持仓" ? "bg-up-soft text-up" : mark === "精选" ? "bg-[#123044] text-[#5ad7ff]" : "bg-surface-2 text-muted")}>
+                            <span key={stock.id} className={"rounded-full px-2 py-0.5 text-xs " + (mark === "持仓" ? "bg-up-soft text-up" : mark === "精选" ? "bg-surface-2 text-fg" : "bg-surface-2 text-muted")}>
                               {stock.name} {signedPct(stock.chg)}
                               {mark ? ` ${mark}` : ""}
                             </span>

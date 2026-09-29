@@ -27,6 +27,56 @@ function useTypeSize() {
   return [size, setSize] as const;
 }
 
+const THEMES = [
+  { id: "system", label: "系统" },
+  { id: "light", label: "浅色" },
+  { id: "dark", label: "深色" },
+] as const;
+
+function applyTheme(mode: string) {
+  const root = document.documentElement;
+  if (mode === "light" || mode === "dark") root.dataset.theme = mode;
+  else delete root.dataset.theme;
+  const dark = mode === "dark" || (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0c1016" : "#f3f0e8");
+}
+
+function useTheme() {
+  const [mode, setMode] = useState("system");
+  useEffect(() => {
+    const saved = localStorage.getItem("chiheng-theme");
+    if (saved === "light" || saved === "dark" || saved === "system") setMode(saved);
+  }, []);
+  useEffect(() => {
+    applyTheme(mode);
+    localStorage.setItem("chiheng-theme", mode);
+    if (mode !== "system") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyTheme("system");
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [mode]);
+  return [mode, setMode] as const;
+}
+
+export function ThemeMode() {
+  const [mode, setMode] = useTheme();
+  return (
+    <div className="flex rounded-full bg-surface-2 p-0.5" aria-label="明暗">
+      {THEMES.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => setMode(item.id)}
+          className={"rounded-full px-2 py-1 text-xs " + (mode === item.id ? "bg-surface text-fg" : "text-muted")}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function TypeSize() {
   const [size, setSize] = useTypeSize();
   return (
@@ -82,7 +132,18 @@ export function Frame({
               </Link>
               <TopNav />
             </div>
-            {aside ? <div className="flex shrink-0 items-center gap-2">{aside}<TypeSize /></div> : <TypeSize />}
+            {aside ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {aside}
+                <ThemeMode />
+                <TypeSize />
+              </div>
+            ) : (
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <ThemeMode />
+                <TypeSize />
+              </div>
+            )}
           </div>
           {extra}
         </div>
