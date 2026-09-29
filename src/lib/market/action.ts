@@ -5,6 +5,8 @@ export function nowAction(input: {
   lockedCount: number;
   tail: boolean;
   marketOpen: boolean;
+  /** 休市时用来区分还没开盘和午间。 */
+  pause?: string;
 }): { title: string; body: string } {
   if (input.stopNames.length > 0) {
     return {
@@ -22,10 +24,13 @@ export function nowAction(input: {
     return { title: "只买还没涨过参考价的", body: "标着「别追」的不要买。跌回启动幅度就止损，20 日涨到策略上限就止盈。" };
   }
   if (input.tail) {
-    return { title: "尾盘正在锁定买入价", body: "这一轮锁定之后，参考价不再改。" };
+    return { title: "尾盘可以买了", body: "现价打到买入价就记入。次日补涨也从 14:30 开始。" };
   }
   if (input.marketOpen) {
-    return { title: "现在只观察，先别买", body: "买入价要到 14:40 以后才锁定。" };
+    return { title: "现在只观察", body: "现价打到这只股票的买入价才记入，没到不要买。" };
   }
-  return { title: "还没开盘", body: "下面是按偏好筛出来的观察，买入价还没锁定。" };
+  if (input.pause === "午间休市") {
+    return { title: "午间休市", body: "下午 13:00 开盘后再看。买入价还没到的，先别买。" };
+  }
+  return { title: input.pause || "还没开盘", body: "下面是观察。开盘后，现价打到买入价才记入。" };
 }

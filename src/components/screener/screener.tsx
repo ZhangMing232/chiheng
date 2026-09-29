@@ -190,6 +190,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           style={prefs.style}
           marketOpen={phase.open}
           tail={phase.tail}
+          pause={phase.label}
           benchmark={null}
           onOpen={setSelectedId}
         />

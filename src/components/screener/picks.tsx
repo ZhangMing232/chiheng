@@ -30,6 +30,7 @@ export function Picks({
   style,
   marketOpen,
   tail,
+  pause,
   onOpen,
 }: {
   date: string;
@@ -41,6 +42,7 @@ export function Picks({
   benchmark: { name: string; price: number; pct: number } | null;
   marketOpen: boolean;
   tail: boolean;
+  pause: string;
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
@@ -108,14 +110,15 @@ export function Picks({
     lockedCount: lockedToday?.trades.length ?? 0,
     tail,
     marketOpen,
+    pause,
   });
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-2xl bg-fg px-5 py-5 text-bg shadow-card">
+      <section className="rounded-2xl bg-fg px-4 py-4 text-bg shadow-card">
         <div className="text-xs tracking-widest text-surface">现在</div>
-        <h2 className="mt-2 font-serif text-2xl font-semibold text-pretty">{now.title}</h2>
-        <p className="mt-2 text-sm text-pretty text-surface">{now.body}</p>
+        <h2 className="mt-1 font-serif text-xl font-semibold text-pretty">{now.title}</h2>
+        <p className="mt-1 text-sm text-pretty text-surface">{now.body}</p>
       </section>
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -135,8 +138,8 @@ export function Picks({
               const tracked = open.some((trade) => trade.id === pick.quote.id);
               return (
               <li key={pick.quote.id} className="border-t border-line">
-                <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full px-4 py-4 text-left transition-colors hover:bg-surface-2">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full px-4 py-3 text-left transition-colors hover:bg-surface-2">
+                  <div className="flex items-baseline justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-base font-semibold">
                         {pick.quote.name}
@@ -144,28 +147,30 @@ export function Picks({
                           {tracked ? "追踪中" : pick.hit && open.length >= MAX_POSITIONS ? "仓位已满" : pick.hit ? "已到买入价" : "等待买入"}
                         </span>
                       </div>
-                      <div className="mt-1 text-xs text-muted">
+                      <div className="mt-0.5 text-xs text-muted">
                         {pick.quote.code} · {BOARD_LABEL[pick.quote.board]}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
+                      <div className="text-xs text-muted">现价</div>
+                      <div className="text-lg font-semibold tabular-nums leading-tight">{fmtPrice(pick.quote.price)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 rounded-xl bg-surface-2 px-3 py-2">
+                    <div>
                       <div className="text-xs text-muted">买入价</div>
                       <div className="font-medium tabular-nums">{fmtPrice(pick.buy)}</div>
                     </div>
-                    <div className="text-right">
+                    <div>
                       <div className="text-xs text-muted">卖出价</div>
                       <div className="font-medium tabular-nums">{fmtPrice(pick.sell)}</div>
                     </div>
-                    <div className="text-right">
+                    <div>
                       <div className="text-xs text-muted">止损价</div>
                       <div className="font-medium tabular-nums">{fmtPrice(pick.stop)}</div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs text-muted">现价</div>
-                      <div className="text-lg font-semibold tabular-nums">{fmtPrice(pick.quote.price)}</div>
-                    </div>
                   </div>
-                  {pick.reasons[0] ? <p className="mt-2 text-sm text-pretty text-muted">{pick.reasons.join("。")}</p> : null}
+                  {pick.reasons[0] ? <p className="mt-2 text-xs text-pretty leading-5 text-muted">{pick.reasons.join("。")}</p> : null}
                 </button>
               </li>
               );
