@@ -184,6 +184,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             sell: row.sell,
             stop: row.stop,
             hit: row.hit,
+            block: row.block,
           }))}
           serverDays={initial.journal}
           rules={rules}

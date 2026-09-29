@@ -31,7 +31,7 @@ export function nowAction(input: {
     return { title: "补涨还是预览", body: "14:30 之前名单和价格都会变。现在标的是预估价，先别买。" };
   }
   if (input.relay && input.tailHalf && input.marketOpen) {
-    return { title: "尾盘确认补涨", body: "现价就是买入价。还在这份名单里、又没涨停的，记入，下一交易日卖。" };
+    return { title: "尾盘确认补涨", body: "14:30 的名单已经冻结。现价还在买入价上、又没涨停的才记入，下一交易日卖。" };
   }
   if (input.marketOpen) {
     return { title: "现价到了才买", body: "打到买入价就记入。没到这个价不要买。买入当天不能卖。" };

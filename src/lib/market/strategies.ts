@@ -158,6 +158,8 @@ export type Listed = {
   sell: number;
   stop: number;
   hit: boolean;
+  /** 冻结之后不能买的原因。没有就是还能按买入价成交。 */
+  block?: "limit" | "away";
 };
 
 /** 一套策略只看分数最高的 10 只。记账也只从这 10 只里打到买入价的来，不从全市场另买。 */

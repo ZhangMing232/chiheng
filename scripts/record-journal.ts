@@ -76,7 +76,7 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
     const additions: Trade[] = [];
     let relay: Awaited<ReturnType<typeof loadRelay>> = [];
     try {
-      relay = await loadRelay(phase.tailHalf);
+      relay = await loadRelay(phase.tailHalf, phase.date);
     } catch {
       relay = [];
     }

@@ -8,7 +8,7 @@ import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
 
-type Pick = { quote: Quote; reasons: string[]; buy: number; sell: number; stop: number; hit: boolean };
+type Pick = { quote: Quote; reasons: string[]; buy: number; sell: number; stop: number; hit: boolean; block?: "limit" | "away" };
 
 function levels(trade: { entry: number; stop?: number; target?: number }, rules: EarlyRules) {
   if (trade.stop && trade.target) return { stop: trade.stop, target: trade.target };
@@ -148,7 +148,9 @@ export function Picks({
             <span className="shrink-0 rounded bg-fg px-2 py-1 text-xs text-bg">{dayLabel(date)}</span>
             <h2 className="truncate font-serif text-lg font-semibold">精选 {featured.length} 只</h2>
           </div>
-          <span className="shrink-0 text-xs text-muted">{preview ? "14:30 前是预览" : "打到买入价才追踪"}</span>
+          <span className="shrink-0 text-xs text-muted">
+            {preview ? "14:30 前是预览" : style === "relay" ? "14:30 已冻结" : "打到买入价才追踪"}
+          </span>
         </div>
         {featured.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
@@ -159,6 +161,26 @@ export function Picks({
             {featured.map((pick) => {
               const tracked = open.some((trade) => trade.id === pick.quote.id);
               const estimate = preview && !tracked;
+              const elsewhere = STYLES.filter((item) => item.id !== style)
+                .filter((item) =>
+                  source.some((day) =>
+                    day.trades.some((trade) => trade.exit == null && trade.id === pick.quote.id && styleOf(trade) === item.id),
+                  ),
+                )
+                .map((item) => item.name);
+              const badge = tracked
+                ? "追踪中"
+                : pick.hit && open.length >= MAX_POSITIONS
+                  ? "仓位已满"
+                  : pick.block === "limit"
+                    ? "涨停买不进"
+                    : pick.block === "away"
+                      ? "不追"
+                      : estimate
+                        ? "尾盘再定"
+                        : pick.hit
+                          ? "已到买入价"
+                          : "等待买入";
               return (
               <li key={pick.quote.id} className="border-t border-line">
                 <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full px-4 py-3 text-left transition-colors hover:bg-surface-2">
@@ -167,11 +189,12 @@ export function Picks({
                       <div className="truncate text-base font-semibold">
                         {pick.quote.name}
                         <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (tracked ? "bg-down-soft text-down" : pick.hit && open.length >= MAX_POSITIONS ? "bg-surface-2 text-muted" : pick.hit ? "bg-up text-bg" : "bg-surface-2 text-muted")}>
-                          {tracked ? "追踪中" : pick.hit && open.length >= MAX_POSITIONS ? "仓位已满" : estimate ? "尾盘再定" : pick.hit ? "已到买入价" : "等待买入"}
+                          {badge}
                         </span>
                       </div>
                       <div className="mt-0.5 text-xs text-muted">
                         {pick.quote.code} · {BOARD_LABEL[pick.quote.board]}
+                        {elsewhere.length > 0 ? ` · 另有 ${elsewhere.join("、")} 持有` : ""}
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
@@ -226,6 +249,15 @@ export function Picks({
                           {trade.day >= date ? "T+1" : trade.live && limitTag(trade.live) === "跌停" ? "跌停卖不出" : trade.live && trade.live.price <= levels(trade, rules).stop ? "止损" : trade.live && trade.live.price >= levels(trade, rules).target ? "卖出" : "持有"}
                         </span>{" "}
                         <span className="font-normal text-muted">({trade.code})</span>
+                        {STYLES.some(
+                          (item) =>
+                            item.id !== style &&
+                            source.some((day) =>
+                              day.trades.some((row) => row.exit == null && row.id === trade.id && styleOf(row) === item.id),
+                            ),
+                        )
+                          ? " · 另有其他策略持有"
+                          : ""}
                       </div>
                       <div className="mt-2 text-xs text-muted">
                         买入 {trade.day} {trade.signalTime} · 买入价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 卖出 {fmtPrice(levels(trade, rules).target)}

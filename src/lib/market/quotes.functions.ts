@@ -288,7 +288,10 @@ export const getUniverse = createServerFn({ method: "GET" })
 
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
 
-export const getRelay = createServerFn({ method: "GET" }).handler(async () => loadRelay(sessionPhase().tailHalf));
+export const getRelay = createServerFn({ method: "GET" }).handler(async () => {
+  const phase = sessionPhase();
+  return loadRelay(phase.tailHalf, phase.date);
+});
 
 export const getKline = createServerFn({ method: "GET" })
   .validator((data: unknown) => {

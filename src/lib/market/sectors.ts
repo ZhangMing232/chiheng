@@ -1,4 +1,6 @@
 import https from "node:https";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { limitPct } from "./model.ts";
 import type { Listed } from "./strategies.ts";
 import type { Board, Quote } from "./types.ts";
@@ -12,7 +14,8 @@ type Member = {
   cap: number;
 };
 
-const cache = { at: 0, rows: [] as Listed[] };
+const cache = { at: 0, tailHalf: false, rows: [] as Listed[] };
+const freezePath = join(process.cwd(), "data", "relay-freeze.json");
 
 function boardOf(id: string): Board {
   if (id.startsWith("sh688") || id.startsWith("sh689")) return "kcb";
@@ -161,11 +164,21 @@ function secondStrong(members: Member[], sector: string, sectorPct: number, tail
   return null;
 }
 
-/** 当天涨幅最高的三个概念板块，各取一只还能买的次强。涨停和龙头不买。 */
-export async function loadRelay(tailHalf: boolean): Promise<Listed[]> {
-  if (cache.rows.length > 0 && Date.now() - cache.at < 60_000 && cache.rows.every((row) => row.hit === tailHalf)) {
-    return cache.rows;
-  }
+/** 当天涨幅最高的三个概念板块，各取一只还能买的次强。14:30 冻结，之后不换人。 */
+export async function loadRelay(tailHalf: boolean, date: string): Promise<Listed[]> {
+  const frozen = await readFreeze(date);
+  if (frozen) return refreshFrozen(frozen);
+  if (cache.rows.length > 0 && cache.tailHalf === tailHalf && Date.now() - cache.at < 60_000) return cache.rows;
+  const picks = await rankRelay(tailHalf);
+  cache.at = Date.now();
+  cache.tailHalf = tailHalf;
+  cache.rows = picks;
+  if (!tailHalf) return picks;
+  await writeFreeze(date, picks);
+  return picks;
+}
+
+async function rankRelay(tailHalf: boolean): Promise<Listed[]> {
   const boards = (await conceptBoards()).filter((item) => item.pct >= 1.5).slice(0, 3);
   const picks: Listed[] = [];
   for (const board of boards) {
@@ -174,9 +187,67 @@ export async function loadRelay(tailHalf: boolean): Promise<Listed[]> {
     if (pick) picks.push(pick);
   }
   picks.sort((a, b) => b.score - a.score);
-  cache.at = Date.now();
-  cache.rows = picks;
   return picks;
+}
+
+async function readFreeze(date: string): Promise<Listed[] | null> {
+  try {
+    const raw = JSON.parse(await readFile(freezePath, "utf8")) as { date?: string; picks?: Listed[] };
+    if (raw.date !== date || !Array.isArray(raw.picks)) return null;
+    return raw.picks;
+  } catch {
+    return null;
+  }
+}
+
+async function writeFreeze(date: string, picks: Listed[]): Promise<void> {
+  const existing = await readFreeze(date);
+  if (existing) return;
+  await mkdir(join(process.cwd(), "data"), { recursive: true });
+  await writeFile(freezePath, JSON.stringify({ date, picks }, null, 2));
+}
+
+async function livePrices(ids: string[]): Promise<Map<string, { price: number; chg: number }>> {
+  const out = new Map<string, { price: number; chg: number }>();
+  if (ids.length === 0) return out;
+  const text = (await getBuffer(`https://web.sqt.gtimg.cn/utf8/q=${ids.join(",")}`)).toString("utf8");
+  for (const line of text.split(";")) {
+    const match = line.match(/_([a-z]{2}\d{6})="(.*)"/);
+    if (!match) continue;
+    const parts = match[2].split("~");
+    const price = Number(parts[3]);
+    const prev = Number(parts[4]);
+    const chg = Number(parts[32]);
+    const pct = Number.isFinite(chg) ? chg : prev > 0 && price > 0 ? ((price - prev) / prev) * 100 : NaN;
+    if (price > 0 && Number.isFinite(pct)) out.set(match[1], { price, chg: pct });
+  }
+  return out;
+}
+
+async function refreshFrozen(picks: Listed[]): Promise<Listed[]> {
+  let live = new Map<string, { price: number; chg: number }>();
+  try {
+    live = await livePrices(picks.map((pick) => pick.quote.id));
+  } catch {
+    live = new Map();
+  }
+  return picks.map((pick) => {
+    const now = live.get(pick.quote.id);
+    const quote = now ? { ...pick.quote, price: now.price, chg: now.chg } : pick.quote;
+    const limit = limitPct(quote);
+    const chg = quote.chg ?? 0;
+    const base = pick.reasons.filter((line) => !line.startsWith("14:30"));
+    if (!now) {
+      return { ...pick, quote, hit: false, block: "away" as const, reasons: [...base, "14:30 已冻结。现价没刷新，先不买"] };
+    }
+    if (chg >= limit - 1) {
+      return { ...pick, quote, hit: false, block: "limit" as const, reasons: [...base, "14:30 已冻结。现在涨停，买不进"] };
+    }
+    if (quote.price > pick.buy + 0.01) {
+      return { ...pick, quote, hit: false, block: "away" as const, reasons: [...base, "14:30 已冻结。现价高过买入价，不追"] };
+    }
+    return { ...pick, quote, hit: true, block: undefined, reasons: [...base, "14:30 已冻结。现价还在买入价上"] };
+  });
 }
 
 export function relayHold(): number {
