@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
-import { dayLocked, netReturn } from "@/lib/market/journal-book";
+import { dayLocked, lotShares, netReturn, stopPrice, yuan } from "@/lib/market/journal-book";
+import { useAccount } from "@/lib/account";
+import { usePlan } from "@/lib/plan";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
 
@@ -34,6 +36,8 @@ export function Picks({
     let cancel = false;
     void (async () => {
       await usePaper.persist.rehydrate();
+      await useAccount.persist.rehydrate();
+      await usePlan.persist.rehydrate();
       if (!cancel) setReady(true);
     })();
     return () => {
@@ -59,14 +63,76 @@ export function Picks({
         day: day.date,
         signalTime: day.signalTime ?? "",
         ret: netReturn(trade.entry, trade.exit!),
+        indexRet: day.indexEntry && day.indexExit ? day.indexExit / day.indexEntry - 1 : null,
       })),
   );
   const wins = closed.filter((trade) => trade.ret != null && trade.ret > 0).length;
+  const capital = useAccount((state) => state.capital);
+  const slotPct = useAccount((state) => state.slotPct);
+  const setCapital = useAccount((state) => state.setCapital);
+  const setSlotPct = useAccount((state) => state.setSlotPct);
+  const maxLoss = usePlan((state) => state.maxLoss);
+  const stopPct = maxLoss > 0 ? maxLoss : 8;
+  const budget = capital * (slotPct / 100);
+  const closedYuan = closed.reduce((sum, trade) => {
+    if (trade.ret == null) return sum;
+    return sum + lotShares(budget, trade.entry) * trade.entry * trade.ret;
+  }, 0);
+  const openYuan = open.reduce((sum, trade) => {
+    if (trade.ret == null) return sum;
+    return sum + lotShares(budget, trade.entry) * trade.entry * trade.ret;
+  }, 0);
+  const excesses = closed.filter((trade) => trade.ret != null && trade.indexRet != null);
+  const excess = excesses.length === 0 ? null : excesses.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / excesses.length;
   const featured = picks.slice(0, 3);
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
 
   return (
     <div className="mb-4 flex flex-col gap-3">
+      <section className="rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+        <h2 className="text-base font-semibold">资金</h2>
+        <p className="mt-1 text-pretty text-muted">
+          单只默认只用本金的一小部分，最多同时 3 只。止损只提醒，不改第 8 个交易日的结算价。不满 60 个交易日，这里的盈亏不能当成已经能赚钱。
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label>
+            <span className="mb-1 block text-xs text-muted">本金（元）</span>
+            <input
+              className="h-11 w-full rounded-md border border-line bg-bg px-3"
+              inputMode="numeric"
+              value={capital || ""}
+              onChange={(event) => setCapital(Number(event.target.value))}
+            />
+          </label>
+          <label>
+            <span className="mb-1 block text-xs text-muted">单只仓位（%，最多 20）</span>
+            <input
+              className="h-11 w-full rounded-md border border-line bg-bg px-3"
+              inputMode="decimal"
+              value={slotPct || ""}
+              onChange={(event) => setSlotPct(Number(event.target.value))}
+            />
+          </label>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <div>
+            <div className="text-xs text-muted">单只金额</div>
+            <div className="font-medium tabular-nums">{yuan(budget)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted">已结算盈亏</div>
+            <div className={"font-medium tabular-nums " + toneClass(closedYuan)}>{closed.length ? yuan(closedYuan) : "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted">未结算浮盈</div>
+            <div className={"font-medium tabular-nums " + toneClass(openYuan)}>{open.length ? yuan(openYuan) : "—"}</div>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          已结算相对沪深 300：{excess == null ? "还没有能比的闭环" : signedPct(excess * 100)}。止损提醒按 {stopPct}%
+          {maxLoss > 0 ? "" : "，纪律还没写，先用 8%"}。
+        </p>
+      </section>
       <section className="rounded-lg border border-line bg-surface">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -163,7 +229,8 @@ export function Picks({
                         {trade.name} <span className="font-normal text-muted">({trade.code})</span>
                       </div>
                       <div className="mt-2 text-xs text-muted">
-                        买入信号 {trade.day.slice(5)} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)}
+                        买入信号 {trade.day.slice(5)} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)} ·{" "}
+                        {lotShares(budget, trade.entry)} 股 · 止损 {fmtPrice(stopPrice(trade.entry, stopPct) ?? 0)}
                       </div>
                     </div>
                     <div className="text-right">
