@@ -5,17 +5,17 @@
     "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
   --font-serif: "WenQuanYi Zen Hei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
     "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
-  --color-bg: #070b12;
-  --color-fg: #e8f2ff;
-  --color-muted: #8ea0b8;
-  --color-surface: #101826;
-  --color-surface-2: #182436;
-  --color-line: #24344c;
-  --color-up: #ff4d6a;
-  --color-down: #2ee6a6;
-  --color-up-soft: #3a1c28;
-  --color-down-soft: #12352c;
-  --shadow-card: 0 0 0 1px rgb(80 210 255 / 0.08), 0 16px 40px rgb(0 0 0 / 0.35);
+  --color-bg: #0c1016;
+  --color-fg: #e6ebf2;
+  --color-muted: #8b95a5;
+  --color-surface: #141a22;
+  --color-surface-2: #1c2430;
+  --color-line: #2a3340;
+  --color-up: #e25b6a;
+  --color-down: #3cb888;
+  --color-up-soft: #2a1c22;
+  --color-down-soft: #152822;
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02);
 }
 
 @layer base {
@@ -27,12 +27,6 @@
   body {
     margin: 0;
     background-color: var(--color-bg);
-    background-image:
-      linear-gradient(rgb(80 210 255 / 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(80 210 255 / 0.05) 1px, transparent 1px),
-      radial-gradient(900px 420px at 80% -120px, rgb(80 210 255 / 0.16), transparent 55%);
-    background-size: 28px 28px, 28px 28px, auto;
-    background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
     line-height: 1.5;

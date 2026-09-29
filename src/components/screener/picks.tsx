@@ -124,9 +124,9 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-2xl border border-line border-l-4 border-l-[#5ad7ff] bg-surface px-4 py-3 shadow-card">
-        <div className="text-xs tracking-widest text-muted">现在</div>
-        <h2 className="mt-1 font-serif text-lg font-semibold text-pretty">{now.title}</h2>
+      <section className="rounded-2xl border border-line bg-surface px-4 py-3">
+        <div className="text-xs text-muted">现在</div>
+        <h2 className="mt-0.5 text-base font-semibold text-pretty">{now.title}</h2>
         <p className="mt-1 text-sm text-pretty text-muted">{now.body}</p>
       </section>
       <div>
@@ -151,7 +151,7 @@ export function Picks({
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 rounded bg-fg px-2 py-1 text-xs text-bg">{dayLabel(date)}</span>
+            <span className="shrink-0 text-xs text-muted">{dayLabel(date)}</span>
             <h2 className="truncate font-serif text-lg font-semibold">精选 {featured.length} 只</h2>
           </div>
           <span className="shrink-0 text-xs text-muted">

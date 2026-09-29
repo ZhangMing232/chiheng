@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TopNav } from "@/components/screener/nav";
+import { Frame } from "@/components/screener/nav";
 import { signedPct, toneClass } from "@/lib/market/format";
 import { watchList, type StyleId } from "@/lib/market/strategies";
 import { getNews, getRelay, getRules, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
@@ -70,15 +70,8 @@ function NewsPage() {
   const ordered = [...news].sort((a, b) => rank(a) - rank(b));
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-md">
-        <div className="mx-auto max-w-3xl px-4 py-3 md:px-6">
-          <h1 className="font-serif text-2xl leading-none font-semibold tracking-tight">赤衡</h1>
-          <TopNav />
-        </div>
-      </header>
-      <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-4 md:px-6">
-        <section className="rounded-2xl border border-line border-l-4 border-l-up bg-surface px-4 py-3 shadow-card">
+    <Frame>
+        <section className="rounded-2xl border border-line bg-surface px-4 py-3">
           <h2 className="font-serif text-lg font-semibold">利好</h2>
           <p className="mt-1 text-sm text-muted">按快讯用词归类，不是研报。点名的板块和个股列在下面。和持仓或精选重叠的会标出来。不改变买入价。</p>
           {good.boards.length === 0 && good.stocks.length === 0 ? (
@@ -123,7 +116,7 @@ function NewsPage() {
           )}
         </section>
         {bad.boards.length > 0 || bad.stocks.length > 0 ? (
-          <section className="rounded-2xl border border-line border-l-4 border-l-down bg-surface px-4 py-3 shadow-card">
+          <section className="rounded-2xl border border-line bg-surface px-4 py-3">
             <h2 className="font-serif text-lg font-semibold">利空</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {bad.boards.map((board) => (
@@ -145,7 +138,7 @@ function NewsPage() {
             </ul>
           </section>
         ) : null}
-        <section className="rounded-2xl border border-line bg-surface shadow-card">
+        <section className="rounded-2xl border border-line bg-surface">
           <div className="px-4 py-3">
             <h2 className="font-serif text-lg font-semibold">7x24</h2>
             <p className="mt-1 text-xs text-muted">利好在前。板块和个股是快讯自己点的名。</p>
@@ -156,7 +149,7 @@ function NewsPage() {
             <ul>
               {ordered.map((item) => {
                 return (
-                  <li key={item.id} className={"border-t border-line px-4 py-3 " + (item.tone === "good" ? "border-l-2 border-l-up" : item.tone === "bad" ? "border-l-2 border-l-down" : "")}>
+                  <li key={item.id} className="border-t border-line px-4 py-3">
                     <div className="flex items-center gap-2 text-xs text-muted">
                       <span className="tabular-nums">{item.time.slice(5, 16)}</span>
                       <span className={item.tone === "good" ? "text-up" : item.tone === "bad" ? "text-down" : ""}>{TONE_LABEL[item.tone]}</span>
@@ -193,7 +186,6 @@ function NewsPage() {
             </ul>
           )}
         </section>
-      </main>
-    </div>
+      </Frame>
   );
 }
