@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { PosterButton } from "@/components/screener/poster-button";
 import { signedPct, toneClass } from "@/lib/market/format";
+import { articleLine, drawSymbolPoster } from "@/lib/market/page-posters";
+import { shanghaiDate } from "@/lib/market/session";
 import { getSymbolNews } from "@/lib/market/quotes.functions";
 import type { NewsTone, StockArticle } from "@/lib/market/news";
 
@@ -53,6 +56,39 @@ function SymbolPage() {
         </button>
       </form>
       <p className="text-xs text-muted">资讯和公告按标题用词分成利好或利空。有利空的持仓排在前面。不改买入价。</p>
+      <PosterButton
+        draw={() => {
+          const date = shanghaiDate();
+          if (data.picked) {
+            const counts = tally(data.articles);
+            return drawSymbolPoster({
+              date,
+              title: `${data.picked.name} ${data.picked.code}`,
+              chg: data.picked.chg,
+              good: counts.good,
+              bad: counts.bad,
+              ann: counts.ann,
+              lines: data.articles.map(articleLine),
+            });
+          }
+          const good = data.groups.reduce((sum, group) => sum + group.articles.filter((item) => item.tone === "good").length, 0);
+          const bad = data.groups.reduce((sum, group) => sum + group.articles.filter((item) => item.tone === "bad").length, 0);
+          const ann = data.groups.reduce((sum, group) => sum + group.articles.filter((item) => item.kind === "ann").length, 0);
+          return drawSymbolPoster({
+            date,
+            title: "持仓消息",
+            chg: null,
+            good,
+            bad,
+            ann,
+            lines: data.groups.slice(0, 8).map((group) => {
+              const counts = tally(group.articles);
+              const tone = counts.bad > 0 ? "bad" : counts.good > 0 ? "good" : "flat";
+              return { label: signedPct(group.chg), text: `${group.name} 利空${counts.bad} 利好${counts.good}`, tone };
+            }),
+          });
+        }}
+      />
       {data.q && data.matches.length > 1 ? (
         <div className="flex gap-2 overflow-x-auto scroll-slim">
           {data.matches.map((item) => (

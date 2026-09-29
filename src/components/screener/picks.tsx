@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { PosterButton } from "@/components/screener/poster-button";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
+import { drawPicksPoster } from "@/lib/market/page-posters";
 import { nowAction } from "@/lib/market/action";
 import { MAX_POSITIONS, STYLES, styleOf } from "@/lib/market/strategies";
 import { TRACK_NEED, limitTag, planExit } from "@/lib/market/model";
@@ -20,6 +22,18 @@ function dayLabel(date: string): string {
   const match = date.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return date;
   return `${Number(match[2])}月${Number(match[3])}日`;
+}
+
+function pickBadge(pick: Pick, open: { id: string }[], preview: boolean): string {
+  const tracked = open.some((trade) => trade.id === pick.quote.id);
+  const estimate = preview && !tracked;
+  if (tracked) return "追踪中";
+  if (pick.hit && open.length >= MAX_POSITIONS) return "仓位已满";
+  if (pick.block === "limit") return "涨停买不进";
+  if (pick.block === "away") return "不追";
+  if (estimate) return "尾盘再定";
+  if (pick.hit) return "已到买入价";
+  return "等待买入";
 }
 
 export function Picks({
@@ -141,6 +155,24 @@ export function Picks({
         <span className="text-muted"> {now.body}</span>
       </p>
       <p className="text-xs text-muted">{STYLES.find((item) => item.id === style)?.hint}</p>
+      <PosterButton
+        draw={() =>
+          drawPicksPoster({
+            date,
+            styleName: STYLES.find((item) => item.id === style)?.name ?? "选股",
+            openCount: open.filter((trade) => styleOf(trade) === style).length,
+            rows: featured.map((pick) => ({
+              name: pick.quote.name,
+              code: pick.quote.code,
+              chg: pick.quote.chg,
+              price: pick.quote.price,
+              buy: pick.buy,
+              sell: pick.sell,
+              badge: pickBadge(pick, open, preview),
+            })),
+          })
+        }
+      />
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="flex items-baseline justify-between gap-3 px-4 py-3">
           <h2 className="text-base font-semibold">精选 {featured.length}</h2>

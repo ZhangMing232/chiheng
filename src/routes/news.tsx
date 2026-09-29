@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { PosterButton } from "@/components/screener/poster-button";
 import { signedPct, toneClass } from "@/lib/market/format";
+import { drawNewsPoster } from "@/lib/market/page-posters";
+import { shanghaiDate } from "@/lib/market/session";
 import { watchList, type StyleId } from "@/lib/market/strategies";
 import { getNews, getRelay, getRules, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
 import { DEFAULT_RULES } from "@/lib/market/rules";
@@ -128,6 +131,18 @@ function NewsPage() {
 
   return (
     <Frame>
+        <PosterButton
+          draw={() =>
+            drawNewsPoster({
+              date: shanghaiDate(),
+              goodBoards: good.boards,
+              badBoards: bad.boards,
+              goodStocks: good.stocks,
+              badStocks: bad.stocks,
+              total: news.length,
+            })
+          }
+        />
         <section className="overflow-hidden rounded-2xl border border-line bg-surface">
           <p className="border-b border-line px-4 py-2 text-sm text-muted">按快讯用词归类，不是研报，也不改买入价。</p>
           <div className="grid md:grid-cols-2 md:divide-x md:divide-line">
