@@ -11,7 +11,7 @@ const port = process.env.PORT ?? "8787";
 const host = process.env.HOST ?? "0.0.0.0";
 
 function record() {
-  const child = spawn(process.execPath, ["--experimental-strip-types", "scripts/record-journal.ts"], {
+  const child = spawn(process.execPath, ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/record-journal.ts"], {
     stdio: "inherit",
   });
   child.on("exit", (code) => {

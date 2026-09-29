@@ -1,7 +1,52 @@
-import type { EarlyRules } from "@/lib/market/rules";
-import { DEFAULT_RULES } from "@/lib/market/rules";
+import { DEFAULT_RULES, type EarlyRules } from "./rules.ts";
 
 export const ROUND_TRIP_COST = 0.0015;
+export const TARGET_GAIN = 0.08;
+export const HOLD_SESSIONS = 8;
+
+export function targetPrice(entry: number): number {
+  if (!(entry > 0)) return 0;
+  return Math.round(entry * (1 + TARGET_GAIN) * 100) / 100;
+}
+
+function normDay(value: string): string {
+  const match = value.match(/(\d{4})-?(\d{2})-?(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : value;
+}
+
+export function exitFill(
+  bars: { date: string; h?: number; c: number }[],
+  entryDate: string,
+  entry: number,
+): { date: string; price: number; hit: boolean } | null {
+  const target = targetPrice(entry);
+  const start = bars.findIndex((bar) => normDay(bar.date) === normDay(entryDate));
+  if (start < 0 || !(target > 0)) return null;
+  let left = HOLD_SESSIONS;
+  for (let cursor = start + 1; cursor < bars.length && left > 0; cursor += 1) {
+    const bar = bars[cursor];
+    left -= 1;
+    const high = bar.h != null && bar.h > 0 ? bar.h : bar.c;
+    if (high >= target) return { date: normDay(bar.date), price: target, hit: true };
+    if (left === 0 && bar.c > 0) return { date: normDay(bar.date), price: bar.c, hit: false };
+  }
+  return null;
+}
+
+export function nthClose(
+  bars: { date: string; c: number }[],
+  entryDate: string,
+  sessions = HOLD_SESSIONS,
+): { date: string; price: number } | null {
+  const start = bars.findIndex((bar) => normDay(bar.date) === normDay(entryDate));
+  if (start < 0) return null;
+  let left = sessions;
+  for (let cursor = start + 1; cursor < bars.length && left > 0; cursor += 1) {
+    left -= 1;
+    if (left === 0 && bars[cursor].c > 0) return { date: normDay(bars[cursor].date), price: bars[cursor].c };
+  }
+  return null;
+}
 
 export function maxDrawdown(returns: number[]): number {
   let peak = 0;

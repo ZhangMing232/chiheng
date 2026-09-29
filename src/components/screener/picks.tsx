@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
-import { dayLocked, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
+import { dayLocked, liveGate, maxDrawdown, netReturn, targetPrice } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
@@ -112,6 +112,10 @@ export function Picks({
                           <div className="font-medium tabular-nums">低于 {fmtPrice(trade.entry)}</div>
                         </div>
                         <div className="text-right">
+                          <div className="text-xs text-muted">目标卖出价</div>
+                          <div className="font-medium tabular-nums">{fmtPrice(targetPrice(trade.entry))}</div>
+                        </div>
+                        <div className="text-right">
                           <div className="text-xs text-muted">现价</div>
                           <div className="text-lg font-semibold tabular-nums">{live ? fmtPrice(live.price) : "—"}</div>
                         </div>
@@ -147,6 +151,10 @@ export function Picks({
                       <div className="font-medium tabular-nums">低于 {fmtPrice(pick.quote.price)}</div>
                     </div>
                     <div className="text-right">
+                      <div className="text-xs text-muted">目标卖出价</div>
+                      <div className="font-medium tabular-nums">{fmtPrice(targetPrice(pick.quote.price))}</div>
+                    </div>
+                    <div className="text-right">
                       <div className="text-xs text-muted">现价</div>
                       <div className="text-lg font-semibold tabular-nums">{fmtPrice(pick.quote.price)}</div>
                     </div>
@@ -162,7 +170,7 @@ export function Picks({
       <section className="rounded-lg border border-line bg-surface">
         <div className="px-4 py-3">
           <h2 className="text-base font-semibold">等待卖出信号的股票池 共 {open.length} 只</h2>
-          <p className="mt-1 text-sm text-muted">买入之后先拿着，到卖出信号再看结果。现价高于参考价就不要追。</p>
+          <p className="mt-1 text-sm text-muted">现价到了目标卖出价就卖。8 个交易日内没到，就在第 8 天收盘卖。60 个交易日只是样本够不够，不是持股期限。</p>
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
@@ -179,14 +187,14 @@ export function Picks({
                         {trade.name} <span className="font-normal text-muted">({trade.code})</span>
                       </div>
                       <div className="mt-2 text-xs text-muted">
-                        买入信号 {trade.day} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)}
+                        买入信号 {trade.day} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)} · 目标卖出价 {fmtPrice(targetPrice(trade.entry))}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className={toneClass(trade.ret == null ? null : trade.ret * 100) + " text-lg font-semibold tabular-nums"}>
                         {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
                       </div>
-                      <div className="text-xs text-muted">调入以来</div>
+                      <div className="text-xs text-muted">{trade.live && trade.live.price >= targetPrice(trade.entry) ? "卖出信号" : "调入以来"}</div>
                     </div>
                   </div>
                 </button>
@@ -199,9 +207,7 @@ export function Picks({
       <section className="rounded-lg border border-line bg-surface">
         <div className="flex items-baseline justify-between gap-3 px-4 py-3">
           <h2 className="text-base font-semibold">历史信号</h2>
-          <span className="text-xs text-muted">
-            {days.length}/{TRACK_NEED} 个交易日
-          </span>
+          <span className="text-xs text-muted">已记录 {days.length} 天</span>
         </div>
         <div className="grid grid-cols-2 gap-3 border-t border-line px-4 py-3 sm:grid-cols-4">
           <div>
@@ -226,7 +232,7 @@ export function Picks({
           </div>
         </div>
         <p className="px-4 pb-3 text-xs text-pretty text-muted">
-          {gate.reason}。累计收益是每笔扣费后收益相加，不是复利。样本不满 {TRACK_NEED} 个交易日时，不要把上涨占比当成已经稳定。
+          卖出看目标价，不看 60 天。{gate.reason}。累计收益是每笔扣费后收益相加。不满 {TRACK_NEED} 个交易日时，上涨占比还只是样本。
         </p>
         {closed.length === 0 && open.length === 0 ? null : (
           <div className="overflow-x-auto border-t border-line">

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dayLocked } from "../src/lib/market/journal-book.ts";
+import { exitFill, nthClose } from "../src/lib/market/journal-book.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { evaluate } from "../src/lib/market/model.ts";
@@ -131,21 +132,17 @@ const settleDue = pending && (book.nextSettleAt == null || Date.now() >= book.ne
 if (settleDue && phase.date) {
   let stillOpen = false;
   for (const day of days) {
-    if (weekdaysBetween(day.date, phase.date) < CHECK_DAYS) {
-      if (day.trades.some((trade) => trade.exit == null)) stillOpen = true;
-      continue;
-    }
     for (const trade of day.trades) {
       if (trade.exit != null) continue;
       try {
         const data = await loadKline(trade.id);
-        const next = barAfter(data.bars, day.date, CHECK_DAYS);
-        if (!next || !(next.c > 0)) {
+        const filled = exitFill(data.bars, day.date, trade.entry);
+        if (!filled) {
           stillOpen = true;
           continue;
         }
-        trade.exit = next.c;
-        trade.exitDate = normDate(next.date);
+        trade.exit = filled.price;
+        trade.exitDate = filled.date;
         changed = true;
       } catch {
         stillOpen = true;
@@ -154,9 +151,9 @@ if (settleDue && phase.date) {
     if (day.indexExit == null && day.indexEntry != null) {
       try {
         const data = await loadKline("sh000300");
-        const next = barAfter(data.bars, day.date, CHECK_DAYS);
-        if (next && next.c > 0) {
-          day.indexExit = next.c;
+        const next = nthClose(data.bars, day.date);
+        if (next) {
+          day.indexExit = next.price;
           changed = true;
         } else stillOpen = true;
       } catch {

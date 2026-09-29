@@ -1,28 +1,10 @@
 import { useEffect, useState } from "react";
 import { evaluate } from "@/lib/market/model";
-import { dayLocked } from "@/lib/market/journal-book";
+import { dayLocked, exitFill, nthClose } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import { getKline } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperTrade } from "@/lib/paper";
-
-const CHECK_DAYS = 8;
-
-function normDate(value: string): string {
-  const match = value.match(/(\d{4})-?(\d{2})-?(\d{2})/);
-  return match ? `${match[1]}-${match[2]}-${match[3]}` : value;
-}
-
-function barAfter(bars: { date: string; c: number }[], date: string, sessions: number) {
-  const index = bars.findIndex((bar) => normDate(bar.date) === date);
-  if (index < 0) return null;
-  let left = sessions;
-  for (let cursor = index + 1; cursor < bars.length; cursor += 1) {
-    left -= 1;
-    if (left === 0) return bars[cursor];
-  }
-  return null;
-}
 
 export function Journal({
   quotes,
@@ -113,9 +95,9 @@ export function Journal({
           if (trade.exit != null) continue;
           try {
             const data = await getKline({ data: { id: trade.id } });
-            const next = barAfter(data.bars ?? [], day.date, CHECK_DAYS);
-            if (!next || !(next.c > 0)) continue;
-            settle(day.date, trade.id, next.c, normDate(next.date), trade.entry);
+            const filled = exitFill(data.bars ?? [], day.date, trade.entry);
+            if (!filled) continue;
+            settle(day.date, trade.id, filled.price, filled.date, trade.entry);
           } catch {
             // 还没走到第 8 个交易日，或日线暂时没返回。
           }
@@ -123,8 +105,8 @@ export function Journal({
         if (day.indexExit == null && day.indexEntry != null) {
           try {
             const data = await getKline({ data: { id: "sh000300" } });
-            const next = barAfter(data.bars ?? [], day.date, CHECK_DAYS);
-            if (next && next.c > 0) settleIndex(day.date, next.c);
+            const next = nthClose(data.bars ?? [], day.date);
+            if (next) settleIndex(day.date, next.price);
           } catch {
             // 沪深 300 的日线还没走到结算日。
           }
