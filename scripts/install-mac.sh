@@ -33,5 +33,6 @@ EOF
 launchctl bootout "gui/$(id -u)/com.chiheng.serve" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 echo "已安装。打开 http://127.0.0.1:8787"
-echo "要桌面图标：npm run app:mac"
-echo "日志在 ${ROOT}/data/serve.log"
+echo "以后更新：npm run mac:update"
+echo "看是否在跑：npm run mac:status"
+echo "日志：npm run mac:log"
