@@ -8,7 +8,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { planExit } from "../src/lib/market/model.ts";
-import { quoteOrder, slotsLeft, styleOf } from "../src/lib/market/strategies.ts";
+import { STYLE_IDS, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
 type Trade = {
@@ -70,37 +70,35 @@ if (phase.date && isTradingDay(phase.date) && (phase.open || phase.sealed)) {
   const live = universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0);
   if (live) {
     const held = days.flatMap((day) => day.trades);
-    const room = slotsLeft(held, prefs.style);
-    const openIds = new Set(
-      held.filter((trade) => trade.exit == null && styleOf(trade) === prefs.style).map((trade) => trade.id),
-    );
     const existing = days.find((day) => day.date === phase.date);
-    const hits: { score: number; trade: Trade }[] = [];
-    if (room > 0) {
-      for (const quote of universe.quotes) {
-        if (openIds.has(quote.id) || !matchPrefs(quote, prefs)) continue;
-        const order = quoteOrder(prefs.style, quote, rules);
-        if (!order?.hit) continue;
-        hits.push({
-          score: order.score,
-          trade: {
-            id: quote.id,
-            code: quote.code,
-            name: quote.name,
-            entry: order.buy,
-            stop: order.stop,
-            target: order.sell,
-            style: prefs.style,
-            exit: null,
-            exitDate: null,
-          },
+    const additions: Trade[] = [];
+    for (const style of STYLE_IDS) {
+      const list = watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs));
+      for (const row of takeBuys(list, held, style)) {
+        additions.push({
+          id: row.quote.id,
+          code: row.quote.code,
+          name: row.quote.name,
+          entry: row.buy,
+          stop: row.stop,
+          target: row.sell,
+          style,
+          exit: null,
+          exitDate: null,
+        });
+        held.push({
+          id: row.quote.id,
+          code: row.quote.code,
+          name: row.quote.name,
+          entry: row.buy,
+          stop: row.stop,
+          target: row.sell,
+          style,
+          exit: null,
+          exitDate: null,
         });
       }
     }
-    const additions = hits
-      .sort((a, b) => b.score - a.score)
-      .slice(0, room)
-      .map((item) => item.trade);
     if (additions.length > 0) {
       const next: Day = existing
         ? { ...existing, trades: [...existing.trades, ...additions] }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { nowAction } from "@/lib/market/action";
-import { MAX_POSITIONS, styleOf } from "@/lib/market/strategies";
+import { MAX_POSITIONS, bookRisk, styleOf } from "@/lib/market/strategies";
 import { BOARD_LABEL, TRACK_NEED, planExit } from "@/lib/market/model";
 import { dayLocked, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
@@ -93,10 +93,14 @@ export function Picks({
   const cum = closed.reduce((sum, trade) => sum + (trade.ret ?? 0), 0);
   const indexRows = counted.filter((trade) => trade.indexRet != null);
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
-  const featured = picks.slice(0, 3);
+  const featured = picks;
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
   const stops = open.filter((trade) => trade.live != null && trade.live.price <= levels(trade, rules).stop);
   const due = open.filter((trade) => trade.live != null && trade.live.price >= levels(trade, rules).target);
+  const risk = bookRisk(
+    open.map((trade) => ({ style, exit: null, entry: trade.entry, stop: trade.stop })),
+    style,
+  );
   const now = nowAction({
     stopNames: stops.map((trade) => trade.name),
     dueNames: due.map((trade) => trade.name),
@@ -170,7 +174,9 @@ export function Picks({
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="px-4 py-3">
           <h2 className="font-serif text-lg font-semibold">等待卖出信号的股票池 共 {open.length}/{MAX_POSITIONS} 只</h2>
-          <p className="mt-1 text-sm text-muted">已经按买入价记入。现价到卖出价就卖，到止损价也卖。都没碰到，最多 8 个交易日收盘结束。</p>
+          <p className="mt-1 text-sm text-muted">
+            只记上面这份名单里打到买入价的。已持仓若同时止损，大约亏掉这套仓位的 {risk == null ? "—" : signedPct(-risk * 100)}。空着的名额不算。
+          </p>
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">

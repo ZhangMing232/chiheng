@@ -6,7 +6,7 @@ import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { isIdleBook } from "@/lib/market/model";
-import { quoteOrder } from "@/lib/market/strategies";
+import { watchList } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { formatClock, sessionPhase } from "@/lib/market/session";
@@ -87,24 +87,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
 
   const quotes = universe?.quotes ?? [];
   const live = !isIdleBook(quotes);
-  const ranked = useMemo(() => {
-    const rows: { quote: Quote; score: number; reasons: string[]; buy: number; sell: number; stop: number; hit: boolean }[] = [];
-    for (const quote of quotes) {
-      const order = quoteOrder(prefs.style, quote, rules);
-      if (!order || !matchPrefs(quote, prefs)) continue;
-      rows.push({
-        quote,
-        score: order.score,
-        reasons: order.reasons,
-        buy: order.buy,
-        sell: order.sell,
-        stop: order.stop,
-        hit: order.hit,
-      });
-    }
-    rows.sort((a, b) => b.score - a.score || b.quote.cap - a.quote.cap);
-    return rows;
-  }, [quotes, live, rules, prefs]);
+  const ranked = useMemo(
+    () => watchList(quotes, prefs.style, rules, (quote) => matchPrefs(quote, prefs)),
+    [quotes, rules, prefs],
+  );
 
   const selected = quotes.find((quote) => quote.id === selectedId) ?? null;
   const selectedRow = ranked.find((row) => row.quote.id === selectedId);
@@ -118,7 +104,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             <div>
               <div className="mb-3 h-1 w-10 rounded-full bg-up" />
               <h1 className="font-serif text-4xl leading-none font-semibold tracking-tight">赤衡</h1>
-              <p className="mt-3 max-w-sm text-sm text-pretty text-muted">选一套策略。现价打到买入价才买入并开始追踪，打到卖出价再卖。</p>
+              <p className="mt-3 max-w-sm text-sm text-pretty text-muted">四套同时记账。这里只显示当前这套会买的股票，打到买入价才记。</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="text-right text-sm">
@@ -180,7 +166,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <Picks
           date={phase.date}
           quotes={quotes}
-          picks={ranked.slice(0, 3).map((row) => ({
+          picks={ranked.map((row) => ({
             quote: row.quote,
             reasons: row.reasons,
             buy: row.buy,

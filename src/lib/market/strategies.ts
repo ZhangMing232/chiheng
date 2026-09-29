@@ -132,6 +132,7 @@ function valueOrder(quote: Quote): Order | null {
   };
 }
 
+export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value"];
 export const MAX_POSITIONS = 10;
 
 export function styleOf(trade: { style?: string }): StyleId | null {
@@ -142,6 +143,65 @@ export function styleOf(trade: { style?: string }): StyleId | null {
 export function slotsLeft(trades: { style?: string; exit: number | null }[], style: StyleId): number {
   const open = trades.filter((trade) => trade.exit == null && styleOf(trade) === style).length;
   return Math.max(0, MAX_POSITIONS - open);
+}
+
+export type Listed = {
+  quote: Quote;
+  score: number;
+  reasons: string[];
+  buy: number;
+  sell: number;
+  stop: number;
+  hit: boolean;
+};
+
+/** 一套策略只看分数最高的 10 只。记账也只从这 10 只里打到买入价的来，不从全市场另买。 */
+export function watchList(
+  quotes: Quote[],
+  style: StyleId,
+  rules: EarlyRules,
+  allow: (quote: Quote) => boolean,
+): Listed[] {
+  const rows: Listed[] = [];
+  for (const quote of quotes) {
+    if (!allow(quote)) continue;
+    const order = quoteOrder(style, quote, rules);
+    if (!order) continue;
+    rows.push({
+      quote,
+      score: order.score,
+      reasons: order.reasons,
+      buy: order.buy,
+      sell: order.sell,
+      stop: order.stop,
+      hit: order.hit,
+    });
+  }
+  rows.sort((a, b) => b.score - a.score || b.quote.cap - a.quote.cap);
+  return rows.slice(0, MAX_POSITIONS);
+}
+
+export function takeBuys(
+  list: Listed[],
+  held: { id: string; style?: string; exit: number | null }[],
+  style: StyleId,
+): Listed[] {
+  const openIds = new Set(held.filter((trade) => trade.exit == null && styleOf(trade) === style).map((trade) => trade.id));
+  return list.filter((row) => row.hit && !openIds.has(row.quote.id)).slice(0, slotsLeft(held, style));
+}
+
+/** 已持仓同时打到止损时，占这套 10 个名额的比例。空着的名额不算。 */
+export function bookRisk(trades: { style?: string; exit: number | null; entry: number; stop?: number }[], style: StyleId): number | null {
+  let sum = 0;
+  let count = 0;
+  for (const trade of trades) {
+    if (trade.exit != null || styleOf(trade) !== style) continue;
+    if (!(trade.entry > 0) || trade.stop == null || !(trade.stop > 0) || trade.stop >= trade.entry) continue;
+    sum += (trade.entry - trade.stop) / trade.entry;
+    count += 1;
+  }
+  if (count === 0) return null;
+  return sum / MAX_POSITIONS;
 }
 
 export function quoteOrder(style: StyleId, quote: Quote, rules: EarlyRules): Order | null {

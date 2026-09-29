@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { quoteOrder, slotsLeft, styleOf } from "@/lib/market/strategies";
+import { STYLE_IDS, takeBuys, watchList } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
@@ -51,33 +51,23 @@ export function Journal({
     if (!ready || !live || !bookReady || !date) return;
     const book = usePaper.getState().days;
     const held = book.flatMap((day) => day.trades);
-    const room = slotsLeft(held, prefs.style);
-    if (room <= 0) return;
-    const openIds = new Set(held.filter((trade) => trade.exit == null && styleOf(trade) === prefs.style).map((trade) => trade.id));
-    const hits: { score: number; trade: PaperTrade }[] = [];
-    for (const quote of quotes) {
-      if (openIds.has(quote.id)) continue;
-      const order = quoteOrder(prefs.style, quote, rules);
-      if (!order?.hit || !matchPrefs(quote, prefs)) continue;
-      hits.push({
-        score: order.score,
-        trade: {
-          id: quote.id,
-          code: quote.code,
-          name: quote.name,
-          entry: order.buy,
-          stop: order.stop,
-          target: order.sell,
-          style: prefs.style,
+    const trades: PaperTrade[] = [];
+    for (const style of STYLE_IDS) {
+      const list = watchList(quotes, style, rules, (quote) => matchPrefs(quote, prefs));
+      for (const row of takeBuys(list, held, style)) {
+        trades.push({
+          id: row.quote.id,
+          code: row.quote.code,
+          name: row.quote.name,
+          entry: row.buy,
+          stop: row.stop,
+          target: row.sell,
+          style,
           exit: null,
           exitDate: null,
-        },
-      });
+        });
+      }
     }
-    const trades = hits
-      .sort((a, b) => b.score - a.score)
-      .slice(0, room)
-      .map((item) => item.trade);
     if (trades.length === 0) return;
     const existing = book.find((day) => day.date === date);
     recordDay({
