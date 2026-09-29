@@ -151,14 +151,14 @@ export function Picks({
           </p>
         ) : (
           <div className="overflow-x-auto border-t border-line">
-            <table className="w-full min-w-[40rem] text-sm">
+            <table className="w-full text-sm">
               <thead className="text-xs text-muted">
                 <tr className="border-b border-line">
                   <th className="sticky left-0 bg-surface px-4 py-2 text-left font-normal">名称</th>
                   <th className="px-3 py-2 text-right font-normal">现价</th>
                   <th className="px-3 py-2 text-right font-normal">{preview ? "预估买入" : "买入"}</th>
-                  <th className="px-3 py-2 text-right font-normal">{preview ? "预估卖出" : "卖出"}</th>
-                  <th className="px-3 py-2 text-right font-normal">{preview ? "预估止损" : "止损"}</th>
+                  <th className="hidden px-3 py-2 text-right font-normal md:table-cell">{preview ? "预估卖出" : "卖出"}</th>
+                  <th className="hidden px-3 py-2 text-right font-normal md:table-cell">{preview ? "预估止损" : "止损"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,8 +203,8 @@ export function Picks({
                         </button>
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(pick.buy)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(pick.sell)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(pick.stop)}</td>
+                      <td className="hidden px-3 py-2.5 text-right tabular-nums md:table-cell">{fmtPrice(pick.sell)}</td>
+                      <td className="hidden px-3 py-2.5 text-right tabular-nums md:table-cell">{fmtPrice(pick.stop)}</td>
                     </tr>
                   );
                 })}
@@ -225,16 +225,16 @@ export function Picks({
           </p>
         ) : (
           <div className="overflow-x-auto border-t border-line">
-            <table className="w-full min-w-[36rem] text-sm">
+            <table className="w-full text-sm">
               <thead className="text-xs text-muted">
                 <tr className="border-b border-line">
                   <th className="sticky left-0 bg-surface px-4 py-2 text-left font-normal">名称</th>
                   <th className="px-3 py-2 text-right font-normal">现价</th>
-                  <th className="px-3 py-2 text-right font-normal">今日</th>
+                  <th className="hidden px-3 py-2 text-right font-normal md:table-cell">今日</th>
                   <th className="px-3 py-2 text-right font-normal">买入以来</th>
-                  <th className="px-3 py-2 text-right font-normal">买入价</th>
-                  <th className="px-3 py-2 text-right font-normal">卖出</th>
-                  <th className="px-3 py-2 text-right font-normal">止损</th>
+                  <th className="hidden px-3 py-2 text-right font-normal md:table-cell">买入价</th>
+                  <th className="hidden px-3 py-2 text-right font-normal md:table-cell">卖出</th>
+                  <th className="hidden px-3 py-2 text-right font-normal md:table-cell">止损</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,14 +248,17 @@ export function Picks({
                           <div className="text-xs text-muted">{trade.code} · {state}</div>
                         </button>
                       </td>
-                      <td className="px-3 py-2.5 text-right font-medium tabular-nums">{trade.live ? fmtPrice(trade.live.price) : "—"}</td>
-                      <td className={toneClass(trade.live?.chg) + " px-3 py-2.5 text-right tabular-nums"}>{signedPct(trade.live?.chg)}</td>
+                      <td className="px-3 py-2.5 text-right font-medium tabular-nums">
+                        <div>{trade.live ? fmtPrice(trade.live.price) : "—"}</div>
+                        <div className={toneClass(trade.live?.chg) + " text-xs md:hidden"}>{signedPct(trade.live?.chg)}</div>
+                      </td>
+                      <td className={toneClass(trade.live?.chg) + " hidden px-3 py-2.5 text-right tabular-nums md:table-cell"}>{signedPct(trade.live?.chg)}</td>
                       <td className={toneClass(trade.ret == null ? null : trade.ret * 100) + " px-3 py-2.5 text-right tabular-nums"}>
                         {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(trade.entry)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(levels(trade, rules).target)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(levels(trade, rules).stop)}</td>
+                      <td className="hidden px-3 py-2.5 text-right tabular-nums md:table-cell">{fmtPrice(trade.entry)}</td>
+                      <td className="hidden px-3 py-2.5 text-right tabular-nums md:table-cell">{fmtPrice(levels(trade, rules).target)}</td>
+                      <td className="hidden px-3 py-2.5 text-right tabular-nums md:table-cell">{fmtPrice(levels(trade, rules).stop)}</td>
                     </tr>
                   );
                 })}
@@ -265,11 +268,13 @@ export function Picks({
         )}
       </section>
 
-      <section className="rounded-2xl border border-line bg-surface shadow-card">
-        <div className="flex items-baseline justify-between gap-3 px-4 py-3">
-          <h2 className="font-serif text-lg font-semibold">这套策略的历史信号</h2>
-          <span className="text-xs text-muted">已记录 {days.length} 天</span>
-        </div>
+      <details className="rounded-xl border border-line bg-surface">
+        <summary className="flex cursor-pointer list-none items-baseline justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <span className="font-semibold">历史</span>
+          <span className="text-sm tabular-nums text-muted">
+            {closed.length === 0 ? "还没有卖出" : `上涨 ${((wins / closed.length) * 100).toFixed(2)}% · ${days.length} 天`}
+          </span>
+        </summary>
         <div className="grid grid-cols-4 border-t border-line">
           <div className="px-4 py-3">
             <div className="text-xs text-muted">上涨占比</div>
@@ -332,7 +337,7 @@ export function Picks({
             </table>
           </div>
         )}
-      </section>
+      </details>
     </div>
   );
 }

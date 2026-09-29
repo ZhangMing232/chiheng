@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { Detail } from "@/components/screener/detail";
 import { Journal } from "@/components/screener/paper";
 import { Picks } from "@/components/screener/picks";
@@ -43,14 +42,12 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [indices, setIndices] = useState(initial.indices);
   const [error, setError] = useState(initial.error);
   const [phase, setPhase] = useState(initial.phase);
-  const [refreshing, setRefreshing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [prefs, setPrefs] = useState(initial.prefs);
   const [relay, setRelay] = useState<Listed[]>([]);
   const rules = initial.rules;
 
   const refresh = useCallback(async (force: boolean) => {
-    setRefreshing(true);
     try {
       const [nextUniverse, nextIndices, nextRelay] = await Promise.all([
         getUniverse({ data: { refresh: force } }),
@@ -64,8 +61,6 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       setPhase(sessionPhase());
     } catch (err) {
       setError(err instanceof Error ? err.message : "刷新失败");
-    } finally {
-      setRefreshing(false);
     }
   }, []);
 
@@ -110,22 +105,12 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   return (
     <Frame
       aside={
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="text-right text-xs leading-4">
-            <div>{phase.label}</div>
-            <div className="tabular-nums text-muted">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => void refresh(true)}
-            disabled={refreshing}
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-sm text-fg disabled:opacity-60"
-          >
-            <RefreshCw className={cx("size-3.5", refreshing && "animate-spin")} />
-            刷新
-          </button>
+        <div className="text-right text-xs leading-4">
+          <div>{phase.label}</div>
+          <div className="tabular-nums text-muted">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</div>
         </div>
       }
+      onRefresh={() => refresh(true)}
       extra={
         indices.length > 0 ? (
           <div className="flex gap-4 overflow-x-auto scroll-slim pb-2">

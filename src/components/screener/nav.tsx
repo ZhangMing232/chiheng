@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { RefreshCw } from "lucide-react";
 
 const LINKS = [
   { to: "/", label: "选股" },
@@ -115,12 +116,25 @@ export function TopNav() {
 export function Frame({
   aside,
   extra,
+  onRefresh,
   children,
 }: {
   aside?: ReactNode;
   extra?: ReactNode;
+  onRefresh?: () => void | Promise<void>;
   children: ReactNode;
 }) {
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      if (onRefresh) await onRefresh();
+      else await router.invalidate();
+    } finally {
+      setRefreshing(false);
+    }
+  }
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur-md">
@@ -134,6 +148,15 @@ export function Frame({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {aside}
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                disabled={refreshing}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-sm disabled:opacity-60"
+              >
+                <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
+                刷新
+              </button>
               <details className="relative">
                 <summary className="cursor-pointer list-none rounded-full px-2 py-1 text-xs text-muted [&::-webkit-details-marker]:hidden">显示</summary>
                 <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded-xl border border-line bg-surface p-2 shadow-card">
