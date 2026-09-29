@@ -315,6 +315,19 @@ export const getKline = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => loadKline(data.id));
 
+export const getRecorder = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const text = await readFile(join(process.cwd(), "data", "recorder.json"), "utf8");
+    const parsed = JSON.parse(text) as { at?: unknown; ok?: unknown };
+    return {
+      at: typeof parsed.at === "number" ? parsed.at : null,
+      ok: parsed.ok !== false,
+    };
+  } catch {
+    return { at: null as number | null, ok: true };
+  }
+});
+
 export const getServerJournal = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const text = await readFile(join(process.cwd(), "data", "journal.json"), "utf8");

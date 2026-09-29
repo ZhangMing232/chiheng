@@ -1,6 +1,8 @@
 // 交易时段里，现价打到这只股票的买入价才记入。买入价写下后不再改。
 // 之后碰到卖出价或止损价就结算；同一天两边都碰到按止损。否则等第 8 个交易日收盘。
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { exitFill, nthClose } from "../src/lib/market/journal-book.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
@@ -8,7 +10,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { boardLimit, planExit } from "../src/lib/market/model.ts";
-import { STYLE_IDS, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
+import { STYLE_IDS, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
@@ -39,6 +41,36 @@ type Day = {
 type Book = { days: Day[]; nextSettleAt?: number };
 
 const bookPath = join(process.cwd(), "data", "journal.json");
+const pulsePath = join(process.cwd(), "data", "recorder.json");
+const backupDir = join(homedir(), "chiheng-backup");
+
+function notify(body: string) {
+  if (process.platform !== "darwin") return;
+  execFile("osascript", ["-e", `display notification ${JSON.stringify(body)} with title ${JSON.stringify("赤衡")}`], () => undefined);
+}
+
+async function mark(ok: boolean) {
+  await mkdir(join(process.cwd(), "data"), { recursive: true });
+  await writeFile(pulsePath, JSON.stringify({ at: Date.now(), ok }));
+}
+
+async function backup(date: string) {
+  try {
+    await access(bookPath);
+  } catch {
+    return;
+  }
+  await mkdir(backupDir, { recursive: true });
+  await copyFile(bookPath, join(backupDir, `journal-${date}.json`));
+}
+
+let failing = false;
+process.on("unhandledRejection", (err) => {
+  console.error(err);
+  if (failing) process.exit(1);
+  failing = true;
+  void mark(false).finally(() => process.exit(1));
+});
 
 async function readBook(): Promise<Book> {
   try {
@@ -127,6 +159,12 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
           };
       days = existing ? days.map((day) => (day.date === phase.date ? next : day)) : [next, ...days].slice(0, 80);
       changed = true;
+      const shown = additions.slice(0, 3).map((trade) => {
+        const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
+        return `${style} ${trade.name}`.trim();
+      });
+      const more = additions.length > shown.length ? `等 ${additions.length} 只` : "";
+      notify(`${shown.join("、")}${more} 已到买入价`);
       console.log(`bought ${phase.date} ${additions.length}`);
     } else {
       console.log(`${time} no buy`);
@@ -185,3 +223,15 @@ if (settleDue && phase.date) {
 
 if (changed) await writeBook({ days, nextSettleAt: book.nextSettleAt });
 else console.log(`${time} ${phase.label} no change`);
+
+await mark(true);
+const backupDate = phase.date || new Date().toISOString().slice(0, 10);
+const backupPath = join(backupDir, `journal-${backupDate}.json`);
+let backed = false;
+try {
+  await access(backupPath);
+  backed = true;
+} catch {
+  backed = false;
+}
+if (changed || (phase.sealed && !backed)) await backup(backupDate);

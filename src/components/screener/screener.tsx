@@ -8,11 +8,20 @@ import { signedPct, toneClass } from "@/lib/market/format";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
-import { getIndices, getRelay, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
+import { getIndices, getRecorder, getRelay, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
 import type { EarlyRules } from "@/lib/market/rules";
+
+function RecordLine({ at, ok, now }: { at: number | null; ok: boolean; now: number }) {
+  if (at == null) return <div className="text-muted">还没有记账</div>;
+  const stale = now - at > 3 * 60_000;
+  const clock = formatClock(at);
+  if (!ok) return <div className="text-up">记账失败 {clock}</div>;
+  if (stale) return <div className="text-up">记账中断 {clock}</div>;
+  return <div className="tabular-nums text-muted">上次记账 {clock}</div>;
+}
 
 const INDEX_LABEL: Record<string, string> = {
   sh510300: "沪深300ETF",
@@ -33,6 +42,7 @@ export type ScreenerInitial = {
   journal: PaperDay[];
   rules: EarlyRules;
   prefs: Prefs;
+  recorder: { at: number | null; ok: boolean };
   error: string | null;
   phase: SessionInfo;
 };
@@ -44,6 +54,8 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [phase, setPhase] = useState(initial.phase);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [prefs, setPrefs] = useState(initial.prefs);
+  const [recorder, setRecorder] = useState(initial.recorder);
+  const [now, setNow] = useState(() => Date.now());
   const [relay, setRelay] = useState<Listed[]>([]);
   const rules = initial.rules;
 
@@ -57,6 +69,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       setUniverse(nextUniverse);
       setIndices(nextIndices);
       setRelay(nextRelay);
+      setRecorder(await getRecorder());
       setError(nextUniverse.stale ? "行情源不稳定，先显示上一轮数据" : null);
       setPhase(sessionPhase());
     } catch (err) {
@@ -65,7 +78,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setPhase(sessionPhase()), 30_000);
+    const timer = window.setInterval(() => {
+      setPhase(sessionPhase());
+      setNow(Date.now());
+    }, 30_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -108,6 +124,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <div className="text-right text-xs leading-4">
           <div>{phase.label}</div>
           <div className="tabular-nums text-muted">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</div>
+          <RecordLine at={recorder.at} ok={recorder.ok} now={now} />
         </div>
       }
       onRefresh={() => refresh(true)}
