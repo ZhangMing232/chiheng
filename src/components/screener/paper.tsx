@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { screen, planExit } from "@/lib/market/model";
+import { quoteOrder } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
-import { dayLocked, exitFill, nthClose } from "@/lib/market/journal-book";
+import { planExit } from "@/lib/market/model";
+import { exitFill, nthClose } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import { getKline } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
@@ -45,41 +46,37 @@ export function Journal({
     };
   }, []);
 
-  // 尾盘先记临时价，收盘才锁定。同一版规则里，已经写下的买入价不跟着刷新改。
+  // 现价打到这只股票的买入价才记。已经记下的买入价不再改。
   useEffect(() => {
     if (!ready || !live || !bookReady || !date) return;
-    const closeWindow = signalTime >= "14:40" && signalTime < "15:00";
-    if (!sealed && !closeWindow) return;
-    const existing = usePaper.getState().days.find((day) => day.date === date);
-    if (existing && dayLocked(existing)) return;
-    const same = existing && (existing.ruleVersion ?? 1) === rules.version;
-    const prior = new Map(same ? existing.trades.map((trade) => [trade.id, trade]) : []);
+    const book = usePaper.getState().days;
+    const openIds = new Set(book.flatMap((day) => day.trades.filter((trade) => trade.exit == null).map((trade) => trade.id)));
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
-      if (!screen(quote, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
-      const kept = prior.get(quote.id);
-      const entry = kept && kept.entry > 0 ? kept.entry : quote.price;
-      const plan = kept?.stop && kept?.target ? { stop: kept.stop, target: kept.target } : planExit(entry, quote.d20, rules);
+      if (openIds.has(quote.id)) continue;
+      const order = quoteOrder(prefs.style, quote, rules);
+      if (!order?.hit || !matchPrefs(quote, prefs)) continue;
       trades.push({
         id: quote.id,
         code: quote.code,
         name: quote.name,
-        entry,
-        stop: plan.stop,
-        target: plan.target,
+        entry: order.buy,
+        stop: order.stop,
+        target: order.sell,
         exit: null,
         exitDate: null,
       });
     }
-    if (!sealed && trades.length === 0) return;
+    if (trades.length === 0) return;
+    const existing = book.find((day) => day.date === date);
     recordDay({
       date,
       savedAt: Date.now(),
-      signalTime: same ? existing.signalTime : sealed ? "15:00" : signalTime,
+      signalTime: existing?.signalTime ?? signalTime,
       status: sealed ? "locked" : "provisional",
       ruleVersion: rules.version,
-      indexEntry: same ? (existing.indexEntry ?? indexPrice) : indexPrice,
-      indexExit: same ? existing.indexExit : null,
+      indexEntry: existing?.indexEntry ?? indexPrice,
+      indexExit: existing?.indexExit ?? null,
       trades,
     });
   }, [ready, sealed, live, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules, prefs]);

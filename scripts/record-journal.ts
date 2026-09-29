@@ -1,13 +1,14 @@
-// 本机服务每分钟跑一次。14:40–15:00 只记临时名单，15:00 才锁定。
-// 目标价或止损价碰到就结算；同一天两边都碰到按止损。否则等第 8 个交易日收盘。
+// 交易时段里，现价打到这只股票的买入价才记入。买入价写下后不再改。
+// 之后碰到卖出价或止损价就结算；同一天两边都碰到按止损。否则等第 8 个交易日收盘。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { dayLocked, exitFill, nthClose } from "../src/lib/market/journal-book.ts";
+import { exitFill, nthClose } from "../src/lib/market/journal-book.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
-import { screen, planExit } from "../src/lib/market/model.ts";
+import { planExit } from "../src/lib/market/model.ts";
+import { quoteOrder } from "../src/lib/market/strategies.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
 type Trade = {
@@ -54,54 +55,53 @@ const rules = await readRules();
 const prefs = await readPrefs();
 const phase = sessionPhase();
 const time = formatClock(Date.now());
-const closeWindow = time >= "14:40" && time < "15:00";
 const book = await readBook();
 let days = book.days;
 let changed = false;
 
-if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
-  const existing = days.find((day) => day.date === phase.date);
-  if (!existing || !dayLocked(existing)) {
-    const universe = await loadUniverse(true);
-    const indices = await loadIndices();
-    const index = indices.find((item) => item.id === "sh000300");
-    const live = universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0);
-    const same = existing != null && (existing.ruleVersion ?? 1) === rules.version;
-    const trades: Trade[] = [];
-    if (live) {
-      for (const quote of universe.quotes) {
-        if (!screen(quote, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
-        const prior = same ? existing?.trades.find((trade) => trade.id === quote.id) : undefined;
-        const entry = prior && prior.entry > 0 ? prior.entry : quote.price;
-        const plan = prior?.stop && prior?.target ? { stop: prior.stop, target: prior.target } : planExit(entry, quote.d20, rules);
-        trades.push({
-          id: quote.id,
-          code: quote.code,
-          name: quote.name,
-          entry,
-          stop: plan.stop,
-          target: plan.target,
-          exit: null,
-          exitDate: null,
-        });
-      }
+if (phase.date && isTradingDay(phase.date) && (phase.open || phase.sealed)) {
+  const universe = await loadUniverse(true);
+  const indices = await loadIndices();
+  const index = indices.find((item) => item.id === "sh000300");
+  const live = universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0);
+  if (live) {
+    const openIds = new Set(days.flatMap((day) => day.trades.filter((trade) => trade.exit == null).map((trade) => trade.id)));
+    const existing = days.find((day) => day.date === phase.date);
+    const additions: Trade[] = [];
+    for (const quote of universe.quotes) {
+      if (openIds.has(quote.id) || !matchPrefs(quote, prefs)) continue;
+      const order = quoteOrder(prefs.style, quote, rules);
+      if (!order?.hit) continue;
+      additions.push({
+        id: quote.id,
+        code: quote.code,
+        name: quote.name,
+        entry: order.buy,
+        stop: order.stop,
+        target: order.sell,
+        exit: null,
+        exitDate: null,
+      });
+      openIds.add(quote.id);
     }
-    if (phase.sealed || trades.length > 0) {
-      const next: Day = {
-        date: phase.date,
-        savedAt: Date.now(),
-        signalTime: same && existing?.signalTime && existing.signalTime >= "14:40" ? existing.signalTime : phase.sealed ? "15:00" : time,
-        status: phase.sealed ? "locked" : "provisional",
-        ruleVersion: rules.version,
-        indexEntry: (same ? existing?.indexEntry : null) ?? (index && index.price > 0 ? index.price : null),
-        indexExit: null,
-        trades,
-      };
+    if (additions.length > 0) {
+      const next: Day = existing
+        ? { ...existing, trades: [...existing.trades, ...additions] }
+        : {
+            date: phase.date,
+            savedAt: Date.now(),
+            signalTime: time,
+            status: phase.sealed ? "locked" : "provisional",
+            ruleVersion: rules.version,
+            indexEntry: index && index.price > 0 ? index.price : null,
+            indexExit: null,
+            trades: additions,
+          };
       days = existing ? days.map((day) => (day.date === phase.date ? next : day)) : [next, ...days].slice(0, 80);
       changed = true;
-      console.log(`locked ${phase.date} ${trades.length}`);
+      console.log(`bought ${phase.date} ${additions.length}`);
     } else {
-      console.log(`${time} tail empty, not locked`);
+      console.log(`${time} no buy`);
     }
   }
 }

@@ -1,28 +1,32 @@
 import type { Quote } from "./types.ts";
+import type { StyleId } from "./strategies.ts";
 
 export type Prefs = {
+  style: StyleId;
   board: "all" | "main" | "cyb" | "kcb";
   price: "all" | "low" | "mid" | "high";
   cap: "all" | "small" | "mid" | "large";
 };
 
-export const DEFAULT_PREFS: Prefs = { board: "all", price: "all", cap: "all" };
+export const DEFAULT_PREFS: Prefs = { style: "early", board: "all", price: "all", cap: "all" };
+
+const STYLES: StyleId[] = ["early", "trend", "breakout", "value"];
 
 export function parsePrefs(data: unknown): Prefs | null {
   if (typeof data !== "object" || data === null) return null;
   const raw = data as Record<string, unknown>;
   const next = { ...DEFAULT_PREFS };
+  if (raw.style == null) next.style = "early";
+  else if (STYLES.includes(raw.style as StyleId)) next.style = raw.style as StyleId;
+  else return null;
   if (raw.board === "all" || raw.board === "main" || raw.board === "cyb" || raw.board === "kcb") next.board = raw.board;
-  else return null;
+  else if (raw.board != null) return null;
   if (raw.price === "all" || raw.price === "low" || raw.price === "mid" || raw.price === "high") next.price = raw.price;
-  else return null;
+  else if (raw.price != null) return null;
   if (raw.cap === "all" || raw.cap === "small" || raw.cap === "mid" || raw.cap === "large") next.cap = raw.cap;
-  else return null;
+  else if (raw.cap != null) return null;
   return next;
 }
-
-/** 偏好只缩小范围，不改启动前期的涨幅和量能门槛。 */
-/** 偏好只缩小范围，不改启动前期的涨幅和量能门槛。 */
 export function matchPrefs(quote: Quote, prefs: Prefs): boolean {
   if (prefs.board === "main" && quote.board !== "sh" && quote.board !== "sz") return false;
   if (prefs.board === "cyb" && quote.board !== "cyb") return false;

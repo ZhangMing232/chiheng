@@ -7,7 +7,7 @@ import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
 
-type Pick = { quote: Quote; reasons: string[] };
+type Pick = { quote: Quote; reasons: string[]; buy: number; sell: number; stop: number; hit: boolean };
 
 function levels(trade: { entry: number; stop?: number; target?: number }, rules: EarlyRules) {
   if (trade.stop && trade.target) return { stop: trade.stop, target: trade.target };
@@ -111,84 +111,42 @@ export function Picks({
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shrink-0 rounded bg-fg px-2 py-1 text-xs text-bg">{dayLabel(date)}</span>
-            <h2 className="truncate text-base font-semibold">精选 {lockedToday ? lockedToday.trades.length : featured.length} 只</h2>
+            <h2 className="truncate font-serif text-lg font-semibold">精选 {featured.length} 只</h2>
           </div>
-          <span className="shrink-0 text-xs text-muted">{lockedToday ? "参考价已锁定" : "尾盘锁定参考价"}</span>
+          <span className="shrink-0 text-xs text-muted">打到买入价才追踪</span>
         </div>
-        {lockedToday ? (
-          lockedToday.trades.length === 0 ? (
-            <p className="border-t border-line px-4 py-6 text-sm text-muted">今天已经锁定，一只都没有，记为空仓。</p>
-          ) : (
-            <ul>
-              {lockedToday.trades.slice(0, 3).map((trade) => {
-                const live = byId.get(trade.id);
-                const chased = live != null && live.price > trade.entry;
-                return (
-                  <li key={trade.id} className="border-t border-line">
-                    <button type="button" onClick={() => onOpen(trade.id)} className="block w-full px-4 py-4 text-left transition-colors hover:bg-surface-2">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="truncate text-base font-semibold">
-                            {trade.name}
-                            <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (chased ? "bg-up text-bg" : "bg-down-soft text-down")}>{chased ? "别追" : "可买"}</span>
-                          </div>
-                          <div className="mt-1 text-xs text-muted">{trade.code}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted">参考买入价</div>
-                          <div className="font-medium tabular-nums">低于 {fmtPrice(trade.entry)}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted">目标卖出价</div>
-                          <div className="font-medium tabular-nums">{fmtPrice(levels(trade, rules).target)}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted">止损价</div>
-                          <div className="font-medium tabular-nums">{fmtPrice(levels(trade, rules).stop)}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted">现价</div>
-                          <div className="text-lg font-semibold tabular-nums">{live ? fmtPrice(live.price) : "—"}</div>
-                        </div>
-                      </div>
-                      {chased ? <p className="mt-2 text-sm">现价已高于参考价，不要追。</p> : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )
-        ) : featured.length === 0 ? (
-          <p className="border-t border-line px-4 py-6 text-sm text-muted">
-            成交额要到全天 5000 万才入选，上午经常还没有。尾盘 14:40 以后才锁定买入价。
-          </p>
+        {featured.length === 0 ? (
+          <p className="border-t border-line px-4 py-6 text-sm text-muted">这套策略现在没有符合的股票。</p>
         ) : (
           <ul>
-            {featured.map((pick) => (
+            {featured.map((pick) => {
+              const tracked = open.some((trade) => trade.id === pick.quote.id);
+              return (
               <li key={pick.quote.id} className="border-t border-line">
                 <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full px-4 py-4 text-left transition-colors hover:bg-surface-2">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="truncate text-base font-semibold">
                         {pick.quote.name}
-                        <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-muted">观察</span>
-                        <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-muted">
-                          {BOARD_LABEL[pick.quote.board]}
+                        <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (tracked ? "bg-down-soft text-down" : pick.hit ? "bg-up text-bg" : "bg-surface-2 text-muted")}>
+                          {tracked ? "追踪中" : pick.hit ? "已到买入价" : "等待买入"}
                         </span>
                       </div>
-                      <div className="mt-1 text-xs text-muted">{pick.quote.code}</div>
+                      <div className="mt-1 text-xs text-muted">
+                        {pick.quote.code} · {BOARD_LABEL[pick.quote.board]}
+                      </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-muted">参考买入价</div>
-                      <div className="font-medium tabular-nums">低于 {fmtPrice(pick.quote.price)}</div>
+                      <div className="text-xs text-muted">买入价</div>
+                      <div className="font-medium tabular-nums">{fmtPrice(pick.buy)}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-muted">目标卖出价</div>
-                      <div className="font-medium tabular-nums">{fmtPrice(planExit(pick.quote.price, pick.quote.d20, rules).target)}</div>
+                      <div className="text-xs text-muted">卖出价</div>
+                      <div className="font-medium tabular-nums">{fmtPrice(pick.sell)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted">止损价</div>
-                      <div className="font-medium tabular-nums">{fmtPrice(planExit(pick.quote.price, pick.quote.d20, rules).stop)}</div>
+                      <div className="font-medium tabular-nums">{fmtPrice(pick.stop)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted">现价</div>
@@ -198,7 +156,8 @@ export function Picks({
                   {pick.reasons[0] ? <p className="mt-2 text-sm text-pretty text-muted">{pick.reasons.join("。")}</p> : null}
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -206,11 +165,11 @@ export function Picks({
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="px-4 py-3">
           <h2 className="font-serif text-lg font-semibold">等待卖出信号的股票池 共 {open.length} 只</h2>
-          <p className="mt-1 text-sm text-muted">止损是把当日允许的涨幅跌回去。止盈是 20 日涨到这套策略的上限。都没碰到，最多 8 个交易日收盘卖。</p>
+          <p className="mt-1 text-sm text-muted">已经按买入价记入。现价到卖出价就卖，到止损价也卖。都没碰到，最多 8 个交易日收盘结束。</p>
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
-            {ready && !onServer ? "还没有调入的股票。尾盘锁定后才会出现在这里。" : onServer ? "服务器还没有锁定的股票。" : "正在读取记录。"}
+            {ready && !onServer ? "还没有打到买入价的股票。" : onServer ? "服务器还没有打到买入价的股票。" : "正在读取记录。"}
           </p>
         ) : (
           <ul>
@@ -227,7 +186,7 @@ export function Picks({
                         <span className="font-normal text-muted">({trade.code})</span>
                       </div>
                       <div className="mt-2 text-xs text-muted">
-                        买入信号 {trade.day} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 目标 {fmtPrice(levels(trade, rules).target)}
+                        买入 {trade.day} {trade.signalTime} · 买入价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 卖出 {fmtPrice(levels(trade, rules).target)}
                       </div>
                     </div>
                     <div className="text-right">
