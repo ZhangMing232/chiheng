@@ -76,17 +76,17 @@ function North({ legs }: { legs: NorthLeg[] }) {
   );
 }
 
-function fmtLots(lots: number): string {
-  const wan = lots / 10_000;
-  if (wan >= 10_000) return `${(wan / 10_000).toFixed(2)}亿手`;
-  return `${Math.round(wan)}万手`;
+function flowWord(value: number): string {
+  if (value > 0) return "净流入";
+  if (value < 0) return "净流出";
+  return "持平";
 }
 
 function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
   const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
   const amount = tape.reduce((total, row) => total + row.amount, 0);
-  const volume = tape.reduce((total, row) => total + row.volume, 0);
-  const share = amount > 0 && parts.length > 0 ? (sum("main") / amount) * 100 : null;
+  const main = parts.length > 0 ? sum("main") : null;
+  const share = amount > 0 && main != null ? (main / amount) * 100 : null;
   const rows: { name: string; key: keyof Omit<MarketPart, "name"> }[] = [
     { name: "主力", key: "main" },
     { name: "超大单", key: "super" },
@@ -106,17 +106,10 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
               {tape.map((row) => `${row.name} ${fmtWan(row.amount)}`).join(" · ") || "上证和深成"}
             </div>
           </div>
-          <div>
-            <div className="text-xs text-muted">成交量</div>
-            <div className="text-xl font-semibold tabular-nums leading-tight">{volume > 0 ? fmtLots(volume) : "—"}</div>
-            <div className="mt-1 text-xs text-muted">没有按股数分的净量</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-muted">主力净额</div>
-            <div className={toneClass(parts.length ? sum("main") : null) + " text-xl font-semibold tabular-nums leading-tight"}>
-              {parts.length ? fmtWan(sum("main")) : "—"}
-            </div>
-            <div className="mt-1 text-xs text-muted">{share == null ? "占成交额 —" : `占成交额 ${share.toFixed(2)}%`}</div>
+          <div className="col-span-2 text-right">
+            <div className="text-xs text-muted">{main == null ? "主力" : `主力${flowWord(main)}`}</div>
+            <div className={toneClass(main) + " text-xl font-semibold tabular-nums leading-tight"}>{main == null ? "—" : fmtWan(main)}</div>
+            <div className="mt-1 text-xs text-muted">{share == null ? "占成交额 —" : `占成交额 ${Math.abs(share).toFixed(2)}%`}</div>
           </div>
         </div>
       {parts.length === 0 ? (
@@ -127,7 +120,7 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
             <thead className="text-sm text-muted">
               <tr>
                 <th className="px-4 py-2 font-normal">成分</th>
-                <th className="px-4 py-2 text-right font-normal">合计</th>
+                <th className="px-4 py-2 text-right font-normal">合计净流入</th>
                 {parts.map((part) => (
                   <th key={part.name} className="px-4 py-2 text-right font-normal">
                     {part.name}
@@ -139,10 +132,12 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
               {rows.map((row) => (
                 <tr key={row.key} className={"border-t border-line " + (row.key === "main" || row.key === "retail" ? "font-medium" : "text-muted")}>
                   <td className="px-4 py-2">{row.name}</td>
-                  <td className={toneClass(sum(row.key)) + " px-4 py-2 text-right tabular-nums"}>{fmtWan(sum(row.key))}</td>
+                  <td className={toneClass(sum(row.key)) + " px-4 py-2 text-right tabular-nums"}>
+                    {flowWord(sum(row.key))} {fmtWan(sum(row.key))}
+                  </td>
                   {parts.map((part) => (
                     <td key={part.name} className={toneClass(part[row.key]) + " px-4 py-2 text-right tabular-nums"}>
-                      {fmtWan(part[row.key])}
+                      {flowWord(part[row.key])} {fmtWan(part[row.key])}
                     </td>
                   ))}
                 </tr>
