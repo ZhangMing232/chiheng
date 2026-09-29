@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dayLocked } from "../src/lib/market/journal-book.ts";
+import { readRules } from "../src/lib/market/rules-file.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { evaluate } from "../src/lib/market/model.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
@@ -19,6 +20,7 @@ type Day = {
   savedAt: number;
   signalTime: string;
   status?: "provisional" | "locked";
+  ruleVersion?: number;
   indexEntry: number | null;
   indexExit: number | null;
   trades: Trade[];
@@ -71,6 +73,7 @@ function weekdaysBetween(from: string, to: string): number {
   return count;
 }
 
+const rules = await readRules();
 const phase = sessionPhase();
 const time = formatClock(Date.now());
 const closeWindow = time >= "14:40" && time < "15:00";
@@ -85,11 +88,12 @@ if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
     const indices = await loadIndices();
     const index = indices.find((item) => item.id === "sh000300");
     const live = universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0);
+    const same = existing != null && (existing.ruleVersion ?? 1) === rules.version;
     const trades: Trade[] = [];
     if (live) {
       for (const quote of universe.quotes) {
-        if (!evaluate("early", quote, true, true) || !(quote.price > 0)) continue;
-        const prior = existing?.trades.find((trade) => trade.id === quote.id);
+        if (!evaluate("early", quote, true, true, rules) || !(quote.price > 0)) continue;
+        const prior = same ? existing?.trades.find((trade) => trade.id === quote.id) : undefined;
         trades.push({
           id: quote.id,
           code: quote.code,
@@ -104,9 +108,10 @@ if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
       const next: Day = {
         date: phase.date,
         savedAt: Date.now(),
-        signalTime: existing?.signalTime && existing.signalTime >= "14:40" ? existing.signalTime : phase.sealed ? "15:00" : time,
+        signalTime: same && existing?.signalTime && existing.signalTime >= "14:40" ? existing.signalTime : phase.sealed ? "15:00" : time,
         status: phase.sealed ? "locked" : "provisional",
-        indexEntry: existing?.indexEntry ?? (index && index.price > 0 ? index.price : null),
+        ruleVersion: rules.version,
+        indexEntry: (same ? existing?.indexEntry : null) ?? (index && index.price > 0 ? index.price : null),
         indexExit: null,
         trades,
       };

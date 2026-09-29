@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
+import { readRules, writeRules } from "@/lib/market/rules-file";
+import { parseRules } from "@/lib/market/rules";
 import type { PaperDay } from "@/lib/paper";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
 
@@ -307,3 +309,13 @@ export const getServerJournal = createServerFn({ method: "GET" }).handler(async 
     return { days: [] as PaperDay[] };
   }
 });
+
+export const getRules = createServerFn({ method: "GET" }).handler(async () => readRules());
+
+export const saveRules = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const parsed = parseRules(data);
+    if (!parsed) throw new Error("规则填得不完整，区间要左边小于右边");
+    return parsed;
+  })
+  .handler(async ({ data }) => writeRules(data));

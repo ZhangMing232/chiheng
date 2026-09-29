@@ -4,6 +4,7 @@ import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
 import { dayLocked, liveGate, lotShares, netReturn, stopPrice, yuan } from "@/lib/market/journal-book";
 import { useAccount } from "@/lib/account";
 import { usePlan } from "@/lib/plan";
+import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
 
@@ -20,6 +21,7 @@ export function Picks({
   picks,
   quotes,
   serverDays,
+  rules,
   benchmark,
   onOpen,
 }: {
@@ -27,6 +29,7 @@ export function Picks({
   picks: Pick[];
   quotes: Quote[];
   serverDays: PaperDay[];
+  rules: EarlyRules;
   benchmark: { name: string; price: number; pct: number } | null;
   onOpen: (id: string) => void;
 }) {
@@ -64,6 +67,7 @@ export function Picks({
         ...trade,
         day: day.date,
         signalTime: day.signalTime ?? "",
+        ruleVersion: day.ruleVersion ?? 1,
         ret: netReturn(trade.entry, trade.exit!),
         indexRet: day.indexEntry && day.indexExit ? day.indexExit / day.indexEntry - 1 : null,
       })),
@@ -86,7 +90,9 @@ export function Picks({
   }, 0);
   const excesses = closed.filter((trade) => trade.ret != null && trade.indexRet != null);
   const excess = excesses.length === 0 ? null : excesses.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / excesses.length;
-  const gate = liveGate(days.length, closed);
+  const counted = closed.filter((trade) => trade.ruleVersion === rules.version);
+  const countedDays = days.filter((day) => (day.ruleVersion ?? 1) === rules.version).length;
+  const gate = liveGate(countedDays, counted, rules);
   const featured = picks.slice(0, 3);
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
 
@@ -96,9 +102,7 @@ export function Picks({
         <h2 className="text-base font-semibold">资金</h2>
         <p className={"mt-1 font-medium " + (gate.ok ? "" : "text-up")}>{gate.ok ? "真钱：可以按小仓位做" : "真钱：不允许"}</p>
         <p className="mt-1 text-pretty text-muted">
-          {gate.ok
-            ? `${gate.reason}。个股仍按单只仓位，最多 3 只。`
-            : `${gate.reason}。开关关上时，真钱不买下面的个股，只买沪深300ETF（510300）。指数也会跌，但这不是在没证明的名单里来回换。`}
+          {gate.reason}。筛选条件改了之后，只统计第 {rules.version} 版。{gate.ok ? "个股仍按单只仓位，最多 3 只。" : "开关关上时，真钱不买下面的个股，只买沪深300ETF（510300）。指数也会跌。"}
         </p>
         {benchmark ? (
           <div className="mt-3 flex items-baseline justify-between gap-3 rounded-md border border-line px-3 py-2">

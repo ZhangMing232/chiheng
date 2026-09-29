@@ -16,6 +16,7 @@ export type PaperDay = {
   savedAt: number;
   signalTime: string;
   status?: "provisional" | "locked";
+  ruleVersion?: number;
   indexEntry: number | null;
   indexExit: number | null;
   trades: PaperTrade[];

@@ -1,4 +1,5 @@
 import type { Board, Quote } from "@/lib/market/types";
+import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 
 export type StrategyId = "early" | "t1" | "blend" | "value" | "momentum" | "flow" | "rebound" | "active" | "custom";
 
@@ -45,7 +46,7 @@ export const STRATEGIES: { id: StrategyId; name: string; hint: string; holdDays:
     id: "early",
     name: "启动前期",
     holdDays: 8,
-    hint: "只留这一套，门槛不再改。今日涨 1% 到 4.5%，5 日 0 到 8%，20 日还在 -3% 到 12%，60 日在 -10% 到 25%，量比 1.2 到 2.8，换手 1.5% 到 12%，收盘成交额至少 5000 万，不碰涨跌停和 ST。预计持股 5 到 10 个交易日。",
+    hint: "规则可以改。默认今日涨 1% 到 4.5%，5 日 0 到 8%，20 日 -3% 到 12%，60 日 -10% 到 25%，量比 1.2 到 2.8，换手 1.5% 到 12%，成交额至少 5000 万，不碰涨跌停和 ST。改筛选条件后从下一笔记录重新计数。",
   },
   {
     id: "blend",
@@ -262,22 +263,25 @@ function scoreT1(quote: Quote, live: boolean, tail: boolean): Scored | null {
   ]);
 }
 
-function scoreEarly(quote: Quote, live: boolean, strict: boolean): Scored | null {
+function scoreEarly(quote: Quote, live: boolean, strict: boolean, rules: EarlyRules = DEFAULT_RULES): Scored | null {
   if (!live || quote.st || quote.price < 4 || quote.cap < 40) return null;
   if (quote.chg == null || quote.d5 == null || quote.d20 == null || quote.d60 == null) return null;
   if (!notSealedUp(quote) || !notSealedDown(quote)) return null;
-  if (quote.chg < 1 || quote.chg > 4.5) return null;
-  if (quote.d5 < 0 || quote.d5 > 8) return null;
-  if (quote.d20 < -3 || quote.d20 > 12) return null;
-  if (quote.d60 < -10 || quote.d60 > 25) return null;
-  if (quote.volRatio < 1.2 || quote.volRatio > 2.8) return null;
-  if (quote.turnover < 1.5 || quote.turnover > 12) return null;
-  if (quote.amount < (strict ? 5000 : 1500)) return null;
+  if (quote.chg < rules.chgMin || quote.chg > rules.chgMax) return null;
+  if (quote.d5 < rules.d5Min || quote.d5 > rules.d5Max) return null;
+  if (quote.d20 < rules.d20Min || quote.d20 > rules.d20Max) return null;
+  if (quote.d60 < rules.d60Min || quote.d60 > rules.d60Max) return null;
+  if (quote.volRatio < rules.volMin || quote.volRatio > rules.volMax) return null;
+  if (quote.turnover < rules.turnMin || quote.turnover > rules.turnMax) return null;
+  if (quote.amount < (strict ? rules.amountMin : Math.min(rules.amountMin, 1500))) return null;
 
-  const early = clamp(((12 - quote.d20) / 15) * 40, 0, 40);
-  const fresh = clamp(((8 - quote.d5) / 8) * 30, 0, 30);
-  const vol = quote.volRatio <= 2 ? 20 : 10;
-  const day = clamp(((4.5 - quote.chg) / 3.5) * 10, 0, 10);
+  const span20 = Math.max(1, rules.d20Max - rules.d20Min);
+  const span5 = Math.max(1, rules.d5Max - rules.d5Min);
+  const spanChg = Math.max(0.5, rules.chgMax - rules.chgMin);
+  const early = clamp(((rules.d20Max - quote.d20) / span20) * 40, 0, 40);
+  const fresh = clamp(((rules.d5Max - quote.d5) / span5) * 30, 0, 30);
+  const vol = quote.volRatio <= (rules.volMin + rules.volMax) / 2 ? 20 : 10;
+  const day = clamp(((rules.chgMax - quote.chg) / spanChg) * 10, 0, 10);
   return done([
     { t: `20 日 ${pct(quote.d20)}，还没走远`, p: early },
     { t: `5 日 ${pct(quote.d5)}，刚转强`, p: fresh },
@@ -460,10 +464,16 @@ function scoreActive(quote: Quote, live: boolean): Scored | null {
   ]);
 }
 
-export function evaluate(id: StrategyId, quote: Quote, live: boolean, tail = false): Scored | null {
+export function evaluate(
+  id: StrategyId,
+  quote: Quote,
+  live: boolean,
+  tail = false,
+  rules: EarlyRules = DEFAULT_RULES,
+): Scored | null {
   switch (id) {
     case "early":
-      return scoreEarly(quote, live, tail);
+      return scoreEarly(quote, live, tail, rules);
     case "t1":
       return scoreT1(quote, live, tail);
     case "blend":

@@ -1,13 +1,23 @@
-export const ROUND_TRIP_COST = 0.0015;
-export const LIVE_MIN_DAYS = 60;
-export const LIVE_MIN_CLOSED = 20;
+import type { EarlyRules } from "@/lib/market/rules";
+import { DEFAULT_RULES } from "@/lib/market/rules";
 
-export function liveGate(days: number, closed: { ret: number | null; indexRet: number | null }[]): { ok: boolean; reason: string } {
-  if (days < LIVE_MIN_DAYS) return { ok: false, reason: `交易日记录 ${days}/${LIVE_MIN_DAYS}` };
+export const ROUND_TRIP_COST = 0.0015;
+
+export function liveGate(
+  days: number,
+  closed: { ret: number | null; indexRet: number | null }[],
+  rules: Pick<EarlyRules, "minDays" | "minClosed"> = DEFAULT_RULES,
+): { ok: boolean; reason: string } {
+  if (rules.minDays > 0 && days < rules.minDays) return { ok: false, reason: `交易日记录 ${days}/${rules.minDays}` };
   const paired = closed.filter((trade) => trade.ret != null && trade.indexRet != null);
-  if (paired.length < LIVE_MIN_CLOSED) return { ok: false, reason: `能对比沪深300的闭环 ${paired.length}/${LIVE_MIN_CLOSED}` };
-  const excess = paired.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / paired.length;
-  if (!(excess > 0)) return { ok: false, reason: "扣费后没有跑赢沪深300" };
+  if (rules.minClosed > 0 && paired.length < rules.minClosed) {
+    return { ok: false, reason: `能对比沪深300的闭环 ${paired.length}/${rules.minClosed}` };
+  }
+  if (rules.minClosed > 0 && paired.length > 0) {
+    const excess = paired.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / paired.length;
+    if (!(excess > 0)) return { ok: false, reason: "扣费后没有跑赢沪深300" };
+  }
+  if (rules.minDays === 0 && rules.minClosed === 0) return { ok: true, reason: "检验已关掉，仓位仍按你填的比例" };
   return { ok: true, reason: "可以按计划的小仓位做，不要加大" };
 }
 

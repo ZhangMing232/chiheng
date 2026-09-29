@@ -4,6 +4,7 @@ import { Detail } from "@/components/screener/detail";
 import { Stance, HoldNote } from "@/components/screener/stance";
 import { Journal } from "@/components/screener/paper";
 import { Picks } from "@/components/screener/picks";
+import { RulesPanel } from "@/components/screener/rules-panel";
 import { fmtCap, fmtMultiple, fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import {
   BOARD_LABEL,
@@ -25,6 +26,7 @@ import type { Board, IndexQuote, Quote, SessionInfo, Universe } from "@/lib/mark
 import { getIndices, getUniverse } from "@/lib/market/quotes.functions";
 import { useWatch } from "@/lib/watchlist";
 import type { PaperDay } from "@/lib/paper";
+import type { EarlyRules } from "@/lib/market/rules";
 
 const BOARDS: Board[] = ["sh", "sz", "cyb", "kcb"];
 const INDEX_LABEL: Record<string, string> = {
@@ -60,6 +62,7 @@ export type ScreenerInitial = {
   universe: Universe | null;
   indices: IndexQuote[];
   journal: PaperDay[];
+  rules: EarlyRules;
   error: string | null;
   phase: SessionInfo;
 };
@@ -203,6 +206,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [phase, setPhase] = useState(initial.phase);
   const [refreshing, setRefreshing] = useState(false);
   const strategy = "early" as StrategyId;
+  const [rules, setRules] = useState(initial.rules);
   const [filters, setFilters] = useState<Filters>(() => emptyFilters());
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -267,7 +271,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     const rows: Row[] = [];
     for (const quote of pool) {
       if (!passesFilters(quote, filters, idle)) continue;
-      const scored = strategy === "custom" ? null : evaluate(strategy, quote, live, strategy === "early" ? true : phase.sealed || tail);
+      const scored = strategy === "custom" ? null : evaluate(strategy, quote, live, strategy === "early" ? true : phase.sealed || tail, rules);
       if (tab === "scan" && strategy !== "custom" && !scored) continue;
       rows.push({
         quote,
@@ -279,7 +283,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       (a, b) => compareMetric(metricOf(a, sortKey), metricOf(b, sortKey), sortDir) || b.quote.cap - a.quote.cap,
     );
     return rows;
-  }, [quotes, ids, tab, filters, idle, live, tail, phase.sealed, strategy, sortKey, sortDir]);
+  }, [quotes, ids, tab, filters, idle, live, tail, phase.sealed, strategy, sortKey, sortDir, rules]);
 
   const shown = ranked.slice(0, visible);
   const selected = quotes.find((quote) => quote.id === selectedId) ?? null;
@@ -343,6 +347,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           <div className="mt-3">
             <Stance phase={phase} strategy={strategy} />
           </div>
+          <RulesPanel rules={rules} onSaved={setRules} />
           <Journal
             quotes={quotes}
             live={live}
@@ -351,6 +356,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             signalTime={formatClock(Date.now())}
             bookReady={Boolean(universe && !universe.stale && !universe.partial)}
             indexPrice={indices.find((item) => item.id === "sh000300")?.price ?? null}
+            rules={rules}
           />
           {strategy === "t1" && !live ? (
             <p className="mt-2 max-w-3xl text-sm text-pretty text-fg">开盘前没有今天的成交，这套已停用的门槛也不会变成可以买的名单。</p>
@@ -385,6 +391,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             quotes={quotes}
             picks={ranked.slice(0, 3).map((row) => ({ quote: row.quote, reasons: row.reasons }))}
             serverDays={initial.journal}
+            rules={rules}
             benchmark={(() => {
               const etf = indices.find((item) => item.id === "sh510300");
               const index = indices.find((item) => item.id === "sh000300");

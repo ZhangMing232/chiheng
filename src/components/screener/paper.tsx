@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { evaluate } from "@/lib/market/model";
 import { dayLocked } from "@/lib/market/journal-book";
+import type { EarlyRules } from "@/lib/market/rules";
 import { getKline } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperTrade } from "@/lib/paper";
@@ -31,6 +32,7 @@ export function Journal({
   signalTime,
   bookReady,
   indexPrice,
+  rules,
 }: {
   quotes: Quote[];
   live: boolean;
@@ -39,6 +41,7 @@ export function Journal({
   signalTime: string;
   bookReady: boolean;
   indexPrice: number | null;
+  rules: EarlyRules;
 }) {
   const days = usePaper((state) => state.days);
   const recordDay = usePaper((state) => state.recordDay);
@@ -63,10 +66,11 @@ export function Journal({
     if (!sealed && !closeWindow) return;
     const existing = usePaper.getState().days.find((day) => day.date === date);
     if (existing && dayLocked(existing)) return;
-    const prior = new Map(existing?.trades.map((trade) => [trade.id, trade.entry]) ?? []);
+    const same = existing && (existing.ruleVersion ?? 1) === rules.version;
+    const prior = new Map(same ? existing.trades.map((trade) => [trade.id, trade.entry]) : []);
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
-      if (!evaluate("early", quote, true, true) || !(quote.price > 0)) continue;
+      if (!evaluate("early", quote, true, true, rules) || !(quote.price > 0)) continue;
       const kept = prior.get(quote.id);
       trades.push({
         id: quote.id,
@@ -81,13 +85,14 @@ export function Journal({
     recordDay({
       date,
       savedAt: Date.now(),
-      signalTime: existing?.signalTime || (sealed ? "15:00" : signalTime),
+      signalTime: same ? existing.signalTime : sealed ? "15:00" : signalTime,
       status: sealed ? "locked" : "provisional",
-      indexEntry: existing?.indexEntry ?? indexPrice,
-      indexExit: existing?.indexExit ?? null,
+      ruleVersion: rules.version,
+      indexEntry: same ? (existing.indexEntry ?? indexPrice) : indexPrice,
+      indexExit: same ? existing.indexExit : null,
       trades,
     });
-  }, [ready, sealed, live, bookReady, date, signalTime, quotes, indexPrice, recordDay]);
+  }, [ready, sealed, live, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules]);
 
   const openKey = days
     .flatMap((day) => [
