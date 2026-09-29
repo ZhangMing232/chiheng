@@ -1,5 +1,4 @@
 import type { Prefs } from "@/lib/market/prefs";
-import { STYLES } from "@/lib/market/strategies";
 
 const BOARDS: { id: Prefs["board"]; label: string }[] = [
   { id: "all", label: "不限" },
@@ -57,16 +56,14 @@ function Row<T extends string>({
 
 export function PrefsBar({ prefs, onChange }: { prefs: Prefs; onChange: (next: Prefs) => void }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface px-5 py-4 shadow-card">
-      <h2 className="font-serif text-lg font-semibold">策略和范围</h2>
-      <p className="mt-1 text-sm text-muted">五套同时记账。精选上面那一排是各套持仓，点一下就换。每套最多 10 只，满了就不再新开。</p>
-      <div className="mt-3 flex flex-col gap-3">
-        <Row label="策略" value={prefs.style} options={STYLES.map((item) => ({ id: item.id, label: item.name }))} onPick={(style) => onChange({ ...prefs, style })} />
-        <p className="text-sm text-muted">{STYLES.find((item) => item.id === prefs.style)?.hint}</p>
+    <details className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+      <summary className="cursor-pointer text-sm font-medium">筛选范围</summary>
+      <p className="mt-2 text-xs text-muted">只影响名单里出现谁。五套的账仍然分开记，每套最多 10 只。</p>
+      <div className="mt-3 flex flex-col gap-3 pb-1">
         <Row label="板块" value={prefs.board} options={BOARDS} onPick={(board) => onChange({ ...prefs, board })} />
         <Row label="股价" value={prefs.price} options={PRICES} onPick={(price) => onChange({ ...prefs, price })} />
         <Row label="市值" value={prefs.cap} options={CAPS} onPick={(cap) => onChange({ ...prefs, cap })} />
       </div>
-    </section>
+    </details>
   );
 }

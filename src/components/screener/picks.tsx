@@ -124,23 +124,29 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-2xl bg-fg px-4 py-4 text-bg shadow-card">
-        <div className="text-xs tracking-widest text-surface">现在</div>
-        <h2 className="mt-1 font-serif text-xl font-semibold text-pretty">{now.title}</h2>
-        <p className="mt-1 text-sm text-pretty text-surface">{now.body}</p>
+      <section className="rounded-2xl border border-line border-l-4 border-l-up bg-surface px-4 py-3 shadow-card">
+        <div className="text-xs tracking-widest text-muted">现在</div>
+        <h2 className="mt-1 font-serif text-lg font-semibold text-pretty">{now.title}</h2>
+        <p className="mt-1 text-sm text-pretty text-muted">{now.body}</p>
       </section>
-      <div className="flex flex-wrap gap-2">
-        {books.map((book) => (
-          <button
-            key={book.id}
-            type="button"
-            onClick={() => onStyle(book.id)}
-            className={"rounded-full px-3 py-1 text-xs " + (book.id === style ? "bg-fg text-bg" : "bg-surface-2 text-muted")}
-          >
-            {book.name} {book.n}/{MAX_POSITIONS}
-            {book.n >= MAX_POSITIONS ? " 满" : ""}
-          </button>
-        ))}
+      <div>
+        <div className="flex gap-1 overflow-x-auto scroll-slim rounded-2xl bg-surface-2 p-1">
+          {books.map((book) => (
+            <button
+              key={book.id}
+              type="button"
+              onClick={() => onStyle(book.id)}
+              className={"shrink-0 rounded-xl px-3 py-2 text-left text-xs " + (book.id === style ? "bg-fg text-bg" : "text-muted")}
+            >
+              <div className="font-medium">{book.name}</div>
+              <div className="mt-0.5 tabular-nums">
+                {book.n}/{MAX_POSITIONS}
+                {book.n >= MAX_POSITIONS ? " 满" : ""}
+              </div>
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 px-1 text-xs text-pretty text-muted">{STYLES.find((item) => item.id === style)?.hint}</p>
       </div>
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-center justify-between gap-3 px-4 py-3">

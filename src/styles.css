@@ -26,7 +26,9 @@
 
   body {
     margin: 0;
-    background: var(--color-bg);
+    background:
+      radial-gradient(1200px 480px at 50% -180px, rgb(197 54 44 / 0.08), transparent 60%),
+      var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
     line-height: 1.5;
