@@ -207,10 +207,14 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
         const hit = quote.price <= plan.stop ? "stop" : quote.price >= plan.target ? "target" : null;
         if (!hit) continue;
         const key = `${day.date}:${trade.id}:${hit}`;
-        if (alerts.has(key)) continue;
-        alerts.add(key);
-        alertsChanged = true;
-        (hit === "stop" ? stops : targets).push(label);
+        if (!alerts.has(key)) {
+          alerts.add(key);
+          alertsChanged = true;
+          (hit === "stop" ? stops : targets).push(label);
+        }
+        trade.exit = hit === "stop" ? plan.stop : plan.target;
+        trade.exitDate = phase.date;
+        changed = true;
       }
     }
     notifyNames("到止损价", stops);

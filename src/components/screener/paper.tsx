@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { STYLE_IDS, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
-import { boardLimit, planExit } from "@/lib/market/model";
+import { boardLimit, limitTag, planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import { getKline } from "@/lib/market/quotes.functions";
@@ -72,19 +72,31 @@ export function Journal({
         });
       }
     }
-    if (trades.length === 0) return;
-    const existing = book.find((day) => day.date === date);
-    recordDay({
-      date,
-      savedAt: Date.now(),
-      signalTime: existing?.signalTime ?? signalTime,
-      status: matching ? "provisional" : "locked",
-      ruleVersion: rules.version,
-      indexEntry: existing?.indexEntry ?? indexPrice,
-      indexExit: existing?.indexExit ?? null,
-      trades,
-    });
-  }, [ready, live, matching, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules, prefs, relay]);
+    if (trades.length > 0) {
+      const existing = book.find((day) => day.date === date);
+      recordDay({
+        date,
+        savedAt: Date.now(),
+        signalTime: existing?.signalTime ?? signalTime,
+        status: matching ? "provisional" : "locked",
+        ruleVersion: rules.version,
+        indexEntry: existing?.indexEntry ?? indexPrice,
+        indexExit: existing?.indexExit ?? null,
+        trades,
+      });
+    }
+    for (const day of book) {
+      if (day.date >= date) continue;
+      for (const trade of day.trades) {
+        if (trade.exit != null) continue;
+        const quote = quotes.find((item) => item.id === trade.id);
+        if (!quote || limitTag(quote) === "跌停") continue;
+        const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
+        if (quote.price <= plan.stop) settle(day.date, trade.id, plan.stop, date, trade.entry);
+        else if (quote.price >= plan.target) settle(day.date, trade.id, plan.target, date, trade.entry);
+      }
+    }
+  }, [ready, live, matching, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules, prefs, relay, settle]);
 
   const openKey = days
     .flatMap((day) => [

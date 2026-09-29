@@ -18,7 +18,7 @@ npm run build:mac
 npm run install:mac
 ```
 
-`install:mac` 会在登录时启动，崩了会再拉起来。页面在 http://127.0.0.1:8787 。账写在本机 `data/journal.json`，不进 Git。每天收盘后另存一份到本机用户目录的 `chiheng-backup`。打到买入价、止损价或卖出价时，Mac 会弹出一条通知，不会下单。到期该卖也会提醒一次。资金页只供复盘，不改变买入条件。选股页抬头写着上次记账时间，超过 3 分钟没有更新会标成记账中断。改了代码要重新 `npm run build:mac`，再执行一次 `npm run install:mac`。
+`install:mac` 会在登录时启动，崩了会再拉起来。页面在 http://127.0.0.1:8787 。账写在本机 `data/journal.json`，不进 Git。每天收盘后另存一份到本机用户目录的 `chiheng-backup`。打到买入价、止损价或卖出价时，账本自动成交，同时弹一条通知。通知只是提醒，成交记在本机账上，不会发到券商。到期该卖也会自动记一笔，并提醒一次。资金页只供复盘，不改变买入条件。选股页抬头写着上次记账时间，超过 3 分钟没有更新会标成记账中断。改了代码要重新 `npm run build:mac`，再执行一次 `npm run install:mac`。
 
 只想先手动看一眼：`npm run serve`。开发用 `npm run dev`（http://127.0.0.1:8080），不会自动记账。
 

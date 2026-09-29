@@ -8,7 +8,7 @@ import { signedPct, toneClass } from "@/lib/market/format";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
-import { getIndices, getRecorder, getRelay, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
+import { getIndices, getRecorder, getRelay, getServerJournal, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
@@ -55,6 +55,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [prefs, setPrefs] = useState(initial.prefs);
   const [recorder, setRecorder] = useState(initial.recorder);
+  const [journal, setJournal] = useState(initial.journal);
   const [now, setNow] = useState(() => Date.now());
   const [relay, setRelay] = useState<Listed[]>([]);
   const rules = initial.rules;
@@ -70,6 +71,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       setIndices(nextIndices);
       setRelay(nextRelay);
       setRecorder(await getRecorder());
+      setJournal((await getServerJournal()).days);
       setError(nextUniverse.stale ? "行情源不稳定，先显示上一轮数据" : null);
       setPhase(sessionPhase());
     } catch (err) {
@@ -173,7 +175,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             hit: row.hit,
             block: row.block,
           }))}
-          serverDays={initial.journal}
+          serverDays={journal}
           rules={rules}
           style={prefs.style}
           marketOpen={phase.open}
