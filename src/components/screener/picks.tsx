@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { nowAction } from "@/lib/market/action";
-import { MAX_POSITIONS, bookRisk, styleOf } from "@/lib/market/strategies";
+import { MAX_POSITIONS, STYLES, bookRisk, styleOf } from "@/lib/market/strategies";
 import { BOARD_LABEL, TRACK_NEED, limitTag, planExit } from "@/lib/market/model";
-import { dayLocked, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
+import { liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
@@ -29,8 +29,9 @@ export function Picks({
   rules,
   style,
   marketOpen,
-  tail,
+  tailHalf,
   pause,
+  onStyle,
   onOpen,
 }: {
   date: string;
@@ -41,12 +42,19 @@ export function Picks({
   style: "early" | "trend" | "breakout" | "value" | "relay";
   benchmark: { name: string; price: number; pct: number } | null;
   marketOpen: boolean;
-  tail: boolean;
+  tailHalf: boolean;
   pause: string;
+  onStyle: (style: "early" | "trend" | "breakout" | "value" | "relay") => void;
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
-  const days = (serverDays.length > 0 ? serverDays : browserDays)
+  const source = serverDays.length > 0 ? serverDays : browserDays;
+  const books = STYLES.map((item) => ({
+    id: item.id,
+    name: item.name,
+    n: source.flatMap((day) => day.trades).filter((trade) => trade.exit == null && styleOf(trade) === item.id).length,
+  }));
+  const days = source
     .map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) === style) }))
     .filter((day) => day.trades.length > 0);
   const onServer = serverDays.length > 0;
@@ -96,7 +104,7 @@ export function Picks({
   const indexRows = counted.filter((trade) => trade.indexRet != null);
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
   const featured = picks;
-  const lockedToday = days.find((day) => day.date === date && dayLocked(day));
+  const preview = style === "relay" && !tailHalf;
   const sellable = open.filter((trade) => trade.day < date);
   const stops = sellable.filter((trade) => trade.live != null && limitTag(trade.live) !== "跌停" && trade.live.price <= levels(trade, rules).stop);
   const due = sellable.filter((trade) => trade.live != null && limitTag(trade.live) !== "跌停" && trade.live.price >= levels(trade, rules).target);
@@ -107,9 +115,10 @@ export function Picks({
   const now = nowAction({
     stopNames: stops.map((trade) => trade.name),
     dueNames: due.map((trade) => trade.name),
-    lockedCount: lockedToday?.trades.length ?? 0,
-    tail,
+    openCount: open.length,
+    tailHalf,
     marketOpen,
+    relay: style === "relay",
     pause,
   });
 
@@ -120,13 +129,26 @@ export function Picks({
         <h2 className="mt-1 font-serif text-xl font-semibold text-pretty">{now.title}</h2>
         <p className="mt-1 text-sm text-pretty text-surface">{now.body}</p>
       </section>
+      <div className="flex flex-wrap gap-2">
+        {books.map((book) => (
+          <button
+            key={book.id}
+            type="button"
+            onClick={() => onStyle(book.id)}
+            className={"rounded-full px-3 py-1 text-xs " + (book.id === style ? "bg-fg text-bg" : "bg-surface-2 text-muted")}
+          >
+            {book.name} {book.n}/{MAX_POSITIONS}
+            {book.n >= MAX_POSITIONS ? " 满" : ""}
+          </button>
+        ))}
+      </div>
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shrink-0 rounded bg-fg px-2 py-1 text-xs text-bg">{dayLabel(date)}</span>
             <h2 className="truncate font-serif text-lg font-semibold">精选 {featured.length} 只</h2>
           </div>
-          <span className="shrink-0 text-xs text-muted">打到买入价才追踪</span>
+          <span className="shrink-0 text-xs text-muted">{preview ? "14:30 前是预览" : "打到买入价才追踪"}</span>
         </div>
         {featured.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
@@ -136,6 +158,7 @@ export function Picks({
           <ul>
             {featured.map((pick) => {
               const tracked = open.some((trade) => trade.id === pick.quote.id);
+              const estimate = preview && !tracked;
               return (
               <li key={pick.quote.id} className="border-t border-line">
                 <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full px-4 py-3 text-left transition-colors hover:bg-surface-2">
@@ -144,7 +167,7 @@ export function Picks({
                       <div className="truncate text-base font-semibold">
                         {pick.quote.name}
                         <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (tracked ? "bg-down-soft text-down" : pick.hit && open.length >= MAX_POSITIONS ? "bg-surface-2 text-muted" : pick.hit ? "bg-up text-bg" : "bg-surface-2 text-muted")}>
-                          {tracked ? "追踪中" : pick.hit && open.length >= MAX_POSITIONS ? "仓位已满" : pick.hit ? "已到买入价" : "等待买入"}
+                          {tracked ? "追踪中" : pick.hit && open.length >= MAX_POSITIONS ? "仓位已满" : estimate ? "尾盘再定" : pick.hit ? "已到买入价" : "等待买入"}
                         </span>
                       </div>
                       <div className="mt-0.5 text-xs text-muted">
@@ -158,15 +181,15 @@ export function Picks({
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2 rounded-xl bg-surface-2 px-3 py-2">
                     <div>
-                      <div className="text-xs text-muted">买入价</div>
+                      <div className="text-xs text-muted">{estimate ? "预估价" : "买入价"}</div>
                       <div className="font-medium tabular-nums">{fmtPrice(pick.buy)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted">卖出价</div>
+                      <div className="text-xs text-muted">{estimate ? "预计卖出" : "卖出价"}</div>
                       <div className="font-medium tabular-nums">{fmtPrice(pick.sell)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted">止损价</div>
+                      <div className="text-xs text-muted">{estimate ? "预计止损" : "止损价"}</div>
                       <div className="font-medium tabular-nums">{fmtPrice(pick.stop)}</div>
                     </div>
                   </div>

@@ -189,9 +189,14 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           rules={rules}
           style={prefs.style}
           marketOpen={phase.open}
-          tail={phase.tail}
+          tailHalf={phase.tailHalf}
           pause={phase.label}
           benchmark={null}
+          onStyle={(style) => {
+            const next = { ...prefs, style };
+            setPrefs(next);
+            void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
+          }}
           onOpen={setSelectedId}
         />
       </main>
