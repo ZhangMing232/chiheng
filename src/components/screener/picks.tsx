@@ -120,38 +120,29 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-2xl border border-line bg-surface px-4 py-3">
-        <div className="text-xs text-muted">现在</div>
-        <h2 className="mt-0.5 text-base font-semibold text-pretty">{now.title}</h2>
-        <p className="mt-1 text-sm text-pretty text-muted">{now.body}</p>
-      </section>
-      <div>
-        <div className="flex gap-1 overflow-x-auto scroll-slim rounded-2xl bg-surface-2 p-1">
-          {books.map((book) => (
-            <button
-              key={book.id}
-              type="button"
-              onClick={() => onStyle(book.id)}
-              className={"shrink-0 rounded-xl px-3 py-2 text-left text-xs " + (book.id === style ? "bg-fg text-bg" : "text-muted")}
-            >
-              <div className="font-medium">{book.name}</div>
-              <div className="mt-0.5 tabular-nums">
-                {book.n}/{MAX_POSITIONS}
-                {book.n >= MAX_POSITIONS ? " 满" : ""}
-              </div>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 px-1 text-xs text-pretty text-muted">{STYLES.find((item) => item.id === style)?.hint}</p>
+      <div className="flex gap-4 overflow-x-auto scroll-slim border-b border-line">
+        {books.map((book) => (
+          <button
+            key={book.id}
+            type="button"
+            onClick={() => onStyle(book.id)}
+            className={"shrink-0 border-b-2 pb-2 text-sm " + (book.id === style ? "border-fg font-medium text-fg" : "border-transparent text-muted")}
+          >
+            {book.name}
+            <span className="ml-1 tabular-nums">{book.n}</span>
+          </button>
+        ))}
       </div>
-      <section className="rounded-2xl border border-line bg-surface shadow-card">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-xs text-muted">{dayLabel(date)}</span>
-            <h2 className="truncate font-serif text-lg font-semibold">精选 {featured.length} 只</h2>
-          </div>
-          <span className="shrink-0 text-xs text-muted">
-            {preview ? "14:30 前是预览" : style === "relay" ? "14:30 已冻结" : "打到买入价才追踪"}
+      <p className="text-sm text-pretty">
+        <span className="font-medium">{now.title}</span>
+        <span className="text-muted"> {now.body}</span>
+      </p>
+      <p className="text-xs text-muted">{STYLES.find((item) => item.id === style)?.hint}</p>
+      <section className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+          <h2 className="text-base font-semibold">精选 {featured.length}</h2>
+          <span className="text-xs text-muted">
+            {dayLabel(date)} · {preview ? "14:30 前是预览" : style === "relay" ? "14:30 已冻结" : "打到买入价才追踪"}
           </span>
         </div>
         {featured.length === 0 ? (
@@ -159,63 +150,67 @@ export function Picks({
             {style === "relay" ? "今天没有三个够强的概念板块，或者次强已经贴着涨停、买不进。" : "这套策略现在没有符合的股票。"}
           </p>
         ) : (
-          <ul>
-            {featured.map((pick) => {
-              const tracked = open.some((trade) => trade.id === pick.quote.id);
-              const estimate = preview && !tracked;
-              const elsewhere = STYLES.filter((item) => item.id !== style)
-                .filter((item) =>
-                  source.some((day) =>
-                    day.trades.some((trade) => trade.exit == null && trade.id === pick.quote.id && styleOf(trade) === item.id),
-                  ),
-                )
-                .map((item) => item.name);
-              const badge = tracked
-                ? "追踪中"
-                : pick.hit && open.length >= MAX_POSITIONS
-                  ? "仓位已满"
-                  : pick.block === "limit"
-                    ? "涨停买不进"
-                    : pick.block === "away"
-                      ? "不追"
-                      : estimate
-                        ? "尾盘再定"
-                        : pick.hit
-                          ? "已到买入价"
-                          : "等待买入";
-              return (
-              <li key={pick.quote.id} className="border-t border-line">
-                <button type="button" onClick={() => onOpen(pick.quote.id)} className="grid w-full grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(3.4rem,1fr))] items-baseline gap-x-2 px-4 py-3 text-left transition-colors hover:bg-surface-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold">{pick.quote.name}</div>
-                    <div className="mt-0.5 truncate text-xs text-muted">
-                      {pick.quote.code} · {badge}
-                      {elsewhere.length > 0 ? ` · ${elsewhere.join("、")}` : ""}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted">现价</div>
-                    <div className="font-semibold tabular-nums">{fmtPrice(pick.quote.price)}</div>
-                    <div className={toneClass(pick.quote.chg) + " text-xs tabular-nums"}>{signedPct(pick.quote.chg)}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted">{estimate ? "预估买" : "买入"}</div>
-                    <div className="font-medium tabular-nums">{fmtPrice(pick.buy)}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted">{estimate ? "预估卖" : "卖出"}</div>
-                    <div className="font-medium tabular-nums">{fmtPrice(pick.sell)}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted">{estimate ? "预估止损" : "止损"}</div>
-                    <div className="font-medium tabular-nums">{fmtPrice(pick.stop)}</div>
-                  </div>
-                  {pick.reasons[0] ? <p className="col-span-full mt-1 truncate text-xs text-muted">{pick.reasons[0]}</p> : null}
-                </button>
-              </li>
-              );
-            })}
-          </ul>
+          <div className="overflow-x-auto border-t border-line">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead className="text-xs text-muted">
+                <tr className="border-b border-line">
+                  <th className="sticky left-0 bg-surface px-4 py-2 text-left font-normal">名称</th>
+                  <th className="px-3 py-2 text-right font-normal">现价</th>
+                  <th className="px-3 py-2 text-right font-normal">{preview ? "预估买入" : "买入"}</th>
+                  <th className="px-3 py-2 text-right font-normal">{preview ? "预估卖出" : "卖出"}</th>
+                  <th className="px-3 py-2 text-right font-normal">{preview ? "预估止损" : "止损"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {featured.map((pick) => {
+                  const tracked = open.some((trade) => trade.id === pick.quote.id);
+                  const estimate = preview && !tracked;
+                  const elsewhere = STYLES.filter((item) => item.id !== style)
+                    .filter((item) =>
+                      source.some((day) =>
+                        day.trades.some((trade) => trade.exit == null && trade.id === pick.quote.id && styleOf(trade) === item.id),
+                      ),
+                    )
+                    .map((item) => item.name);
+                  const badge = tracked
+                    ? "追踪中"
+                    : pick.hit && open.length >= MAX_POSITIONS
+                      ? "仓位已满"
+                      : pick.block === "limit"
+                        ? "涨停买不进"
+                        : pick.block === "away"
+                          ? "不追"
+                          : estimate
+                            ? "尾盘再定"
+                            : pick.hit
+                              ? "已到买入价"
+                              : "等待买入";
+                  return (
+                    <tr key={pick.quote.id} className="border-b border-line last:border-0">
+                      <td className="sticky left-0 bg-surface px-4 py-2.5">
+                        <button type="button" onClick={() => onOpen(pick.quote.id)} className="block max-w-48 text-left">
+                          <div className="truncate font-medium">{pick.quote.name}</div>
+                          <div className="truncate text-xs text-muted">
+                            {pick.quote.code} · {badge}
+                            {elsewhere.length > 0 ? ` · ${elsewhere.join("、")}` : ""}
+                          </div>
+                        </button>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full text-right">
+                          <div className="font-medium tabular-nums">{fmtPrice(pick.quote.price)}</div>
+                          <div className={toneClass(pick.quote.chg) + " text-xs tabular-nums"}>{signedPct(pick.quote.chg)}</div>
+                        </button>
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(pick.buy)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(pick.sell)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(pick.stop)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -229,37 +224,44 @@ export function Picks({
             {ready && !onServer ? "还没有打到买入价的股票。" : onServer ? "服务器还没有打到买入价的股票。" : "正在读取记录。"}
           </p>
         ) : (
-          <ul>
-            {open.map((trade) => (
-              <li key={`${trade.day}-${trade.id}`} className="border-t border-line px-4 py-3">
-                <button type="button" onClick={() => onOpen(trade.id)} className="grid w-full grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(3.4rem,1fr))] items-baseline gap-x-2 text-left">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold">{trade.name}</div>
-                    <div className="mt-0.5 truncate text-xs text-muted">
-                      {trade.code} · {trade.day >= date ? "T+1" : trade.live && limitTag(trade.live) === "跌停" ? "跌停" : trade.live && trade.live.price <= levels(trade, rules).stop ? "止损" : trade.live && trade.live.price >= levels(trade, rules).target ? "卖出" : "持有"}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted">现价</div>
-                    <div className="font-semibold tabular-nums">{trade.live ? fmtPrice(trade.live.price) : "—"}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted">今日</div>
-                    <div className={toneClass(trade.live?.chg) + " font-semibold tabular-nums"}>{signedPct(trade.live?.chg)}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted">买入以来</div>
-                    <div className={toneClass(trade.ret == null ? null : trade.ret * 100) + " font-semibold tabular-nums"}>
-                      {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
-                    </div>
-                  </div>
-                  <p className="col-span-full mt-1 truncate text-xs text-muted">
-                    买入 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 卖出 {fmtPrice(levels(trade, rules).target)}
-                  </p>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto border-t border-line">
+            <table className="w-full min-w-[36rem] text-sm">
+              <thead className="text-xs text-muted">
+                <tr className="border-b border-line">
+                  <th className="sticky left-0 bg-surface px-4 py-2 text-left font-normal">名称</th>
+                  <th className="px-3 py-2 text-right font-normal">现价</th>
+                  <th className="px-3 py-2 text-right font-normal">今日</th>
+                  <th className="px-3 py-2 text-right font-normal">买入以来</th>
+                  <th className="px-3 py-2 text-right font-normal">买入价</th>
+                  <th className="px-3 py-2 text-right font-normal">卖出</th>
+                  <th className="px-3 py-2 text-right font-normal">止损</th>
+                </tr>
+              </thead>
+              <tbody>
+                {open.map((trade) => {
+                  const state = trade.day >= date ? "T+1" : trade.live && limitTag(trade.live) === "跌停" ? "跌停" : trade.live && trade.live.price <= levels(trade, rules).stop ? "止损" : trade.live && trade.live.price >= levels(trade, rules).target ? "卖出" : "持有";
+                  return (
+                    <tr key={`${trade.day}-${trade.id}`} className="border-b border-line last:border-0">
+                      <td className="sticky left-0 bg-surface px-4 py-2.5">
+                        <button type="button" onClick={() => onOpen(trade.id)} className="block text-left">
+                          <div className="font-medium">{trade.name}</div>
+                          <div className="text-xs text-muted">{trade.code} · {state}</div>
+                        </button>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-medium tabular-nums">{trade.live ? fmtPrice(trade.live.price) : "—"}</td>
+                      <td className={toneClass(trade.live?.chg) + " px-3 py-2.5 text-right tabular-nums"}>{signedPct(trade.live?.chg)}</td>
+                      <td className={toneClass(trade.ret == null ? null : trade.ret * 100) + " px-3 py-2.5 text-right tabular-nums"}>
+                        {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(trade.entry)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(levels(trade, rules).target)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtPrice(levels(trade, rules).stop)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

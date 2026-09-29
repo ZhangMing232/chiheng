@@ -132,18 +132,16 @@ export function Frame({
               </Link>
               <TopNav />
             </div>
-            {aside ? (
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {aside}
-                <ThemeMode />
-                <TypeSize />
-              </div>
-            ) : (
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <ThemeMode />
-                <TypeSize />
-              </div>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {aside}
+              <details className="relative">
+                <summary className="cursor-pointer list-none rounded-full px-2 py-1 text-xs text-muted [&::-webkit-details-marker]:hidden">显示</summary>
+                <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded-xl border border-line bg-surface p-2 shadow-card">
+                  <ThemeMode />
+                  <TypeSize />
+                </div>
+              </details>
+            </div>
           </div>
           {extra}
         </div>
