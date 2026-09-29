@@ -3,11 +3,41 @@ import { DEFAULT_RULES } from "@/lib/market/rules";
 
 export const ROUND_TRIP_COST = 0.0015;
 
+export function maxDrawdown(returns: number[]): number {
+  let peak = 0;
+  let equity = 0;
+  let worst = 0;
+  for (const value of returns) {
+    equity += value;
+    if (equity > peak) peak = equity;
+    worst = Math.max(worst, peak - equity);
+  }
+  return worst;
+}
+
+export function losingStreak(returns: number[]): number {
+  let streak = 0;
+  for (let index = returns.length - 1; index >= 0; index -= 1) {
+    if (returns[index] < 0) streak += 1;
+    else break;
+  }
+  return streak;
+}
+
 export function liveGate(
   days: number,
   closed: { ret: number | null; indexRet: number | null }[],
-  rules: Pick<EarlyRules, "minDays" | "minClosed"> = DEFAULT_RULES,
+  orderedReturns: number[],
+  rules: Pick<EarlyRules, "minDays" | "minClosed" | "maxDrawdownPct" | "maxLosingStreak"> = DEFAULT_RULES,
 ): { ok: boolean; reason: string } {
+  const streak = losingStreak(orderedReturns);
+  if (rules.maxLosingStreak > 0 && streak >= rules.maxLosingStreak) {
+    return { ok: false, reason: `这版已连续亏损 ${streak} 笔，先停止新开仓` };
+  }
+  const drawdown = maxDrawdown(orderedReturns);
+  if (rules.maxDrawdownPct > 0 && orderedReturns.length >= 5 && drawdown > rules.maxDrawdownPct / 100) {
+    return { ok: false, reason: `这版回撤 ${(drawdown * 100).toFixed(1)}%，超过 ${rules.maxDrawdownPct}%，先停止新开仓` };
+  }
   if (rules.minDays > 0 && days < rules.minDays) return { ok: false, reason: `交易日记录 ${days}/${rules.minDays}` };
   const paired = closed.filter((trade) => trade.ret != null && trade.indexRet != null);
   if (rules.minClosed > 0 && paired.length < rules.minClosed) {
@@ -17,8 +47,8 @@ export function liveGate(
     const excess = paired.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / paired.length;
     if (!(excess > 0)) return { ok: false, reason: "扣费后没有跑赢沪深300" };
   }
-  if (rules.minDays === 0 && rules.minClosed === 0) return { ok: true, reason: "检验已关掉，仓位仍按你填的比例" };
-  return { ok: true, reason: "可以按计划的小仓位做，不要加大" };
+  if (rules.minDays === 0 && rules.minClosed === 0) return { ok: true, reason: "样本检验已关掉。连亏和回撤仍会停手" };
+  return { ok: true, reason: "可以按计划的小仓位做。连亏或回撤变大就会再关上" };
 }
 
 export function dayLocked(day: { status?: string; signalTime?: string }): boolean {

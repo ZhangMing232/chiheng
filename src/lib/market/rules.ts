@@ -15,6 +15,8 @@ export type EarlyRules = {
   amountMin: number;
   minDays: number;
   minClosed: number;
+  maxDrawdownPct: number;
+  maxLosingStreak: number;
 };
 
 export const DEFAULT_RULES: EarlyRules = {
@@ -34,6 +36,8 @@ export const DEFAULT_RULES: EarlyRules = {
   amountMin: 5000,
   minDays: 60,
   minClosed: 20,
+  maxDrawdownPct: 8,
+  maxLosingStreak: 3,
 };
 
 const KEYS = [
@@ -52,6 +56,8 @@ const KEYS = [
   "amountMin",
   "minDays",
   "minClosed",
+  "maxDrawdownPct",
+  "maxLosingStreak",
 ] as const;
 
 function num(value: unknown): number | null {
@@ -65,7 +71,10 @@ export function parseRules(data: unknown): EarlyRules | null {
   const next = { ...DEFAULT_RULES, version: 1 };
   for (const key of KEYS) {
     const value = num(raw[key]);
-    if (value == null) return null;
+    if (value == null) {
+      if (key === "maxDrawdownPct" || key === "maxLosingStreak") continue;
+      return null;
+    }
     next[key] = value;
   }
   if (!(next.chgMin < next.chgMax)) return null;
@@ -75,6 +84,8 @@ export function parseRules(data: unknown): EarlyRules | null {
   if (!(next.volMin < next.volMax)) return null;
   if (!(next.turnMin < next.turnMax)) return null;
   if (!(next.amountMin > 0) || next.minDays < 0 || next.minClosed < 0) return null;
+  if (next.maxDrawdownPct < 0 || next.maxDrawdownPct > 100) return null;
+  if (next.maxLosingStreak < 0 || next.maxLosingStreak > 20) return null;
   return next;
 }
 

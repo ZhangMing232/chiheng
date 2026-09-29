@@ -92,7 +92,11 @@ export function Picks({
   const excess = excesses.length === 0 ? null : excesses.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / excesses.length;
   const counted = closed.filter((trade) => trade.ruleVersion === rules.version);
   const countedDays = days.filter((day) => (day.ruleVersion ?? 1) === rules.version).length;
-  const gate = liveGate(countedDays, counted, rules);
+  const ordered = counted
+    .filter((trade) => trade.ret != null)
+    .sort((a, b) => (a.exitDate ?? "").localeCompare(b.exitDate ?? ""))
+    .map((trade) => trade.ret!);
+  const gate = liveGate(countedDays, counted, ordered, rules);
   const featured = picks.slice(0, 3);
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
 

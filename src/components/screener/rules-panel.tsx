@@ -19,8 +19,24 @@ function Range({
     <div>
       <div className="mb-1 text-xs text-muted">{label}</div>
       <div className="grid grid-cols-2 gap-2">
-        <input className={field} inputMode="decimal" value={min} onChange={(event) => onChange(Number(event.target.value), max)} />
-        <input className={field} inputMode="decimal" value={max} onChange={(event) => onChange(min, Number(event.target.value))} />
+        <input
+          className={field}
+          inputMode="decimal"
+          value={Number.isFinite(min) ? min : ""}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (Number.isFinite(next)) onChange(next, max);
+          }}
+        />
+        <input
+          className={field}
+          inputMode="decimal"
+          value={Number.isFinite(max) ? max : ""}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (Number.isFinite(next)) onChange(min, next);
+          }}
+        />
       </div>
     </div>
   );
@@ -66,14 +82,62 @@ export function RulesPanel({ rules, onSaved }: { rules: EarlyRules; onSaved: (ne
         <Range label="换手 %" min={draft.turnMin} max={draft.turnMax} onChange={(min, max) => patch({ turnMin: min, turnMax: max })} />
         <label>
           <span className="mb-1 block text-xs text-muted">成交额至少（万元）</span>
-          <input className={field} inputMode="numeric" value={draft.amountMin} onChange={(event) => patch({ amountMin: Number(event.target.value) })} />
+          <input
+            className={field}
+            inputMode="numeric"
+            value={draft.amountMin}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (Number.isFinite(next)) patch({ amountMin: next });
+            }}
+          />
         </label>
         <label>
-          <span className="mb-1 block text-xs text-muted">真钱：记录天数 / 闭环笔数，填 0 就是关掉检验</span>
+          <span className="mb-1 block text-xs text-muted">真钱要满的记录天数 / 闭环笔数，填 0 关掉</span>
           <div className="grid grid-cols-2 gap-2">
-            <input className={field} inputMode="numeric" value={draft.minDays} onChange={(event) => patch({ minDays: Number(event.target.value) })} />
-            <input className={field} inputMode="numeric" value={draft.minClosed} onChange={(event) => patch({ minClosed: Number(event.target.value) })} />
+            <input
+              className={field}
+              inputMode="numeric"
+              value={draft.minDays}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (Number.isFinite(next)) patch({ minDays: next });
+              }}
+            />
+            <input
+              className={field}
+              inputMode="numeric"
+              value={draft.minClosed}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (Number.isFinite(next)) patch({ minClosed: next });
+              }}
+            />
           </div>
+        </label>
+        <label>
+          <span className="mb-1 block text-xs text-muted">回撤超过多少 % 就停（0 表示不看）</span>
+          <input
+            className={field}
+            inputMode="decimal"
+            value={draft.maxDrawdownPct}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (Number.isFinite(next)) patch({ maxDrawdownPct: next });
+            }}
+          />
+        </label>
+        <label>
+          <span className="mb-1 block text-xs text-muted">连续亏损几笔就停（0 表示不看）</span>
+          <input
+            className={field}
+            inputMode="numeric"
+            value={draft.maxLosingStreak}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (Number.isFinite(next)) patch({ maxLosingStreak: next });
+            }}
+          />
         </label>
       </div>
       <div className="mt-3 flex items-center gap-3">
