@@ -9,6 +9,8 @@ import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
 import { loadFlow } from "@/lib/market/flow";
+import { loadHotMoney } from "@/lib/market/hotmoney";
+import { loadIndexFutures } from "@/lib/market/index-futures";
 import { ensureUserBook, readUserBook } from "@/lib/market/book-file";
 import { sessionPhase } from "@/lib/market/session";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
@@ -359,6 +361,10 @@ export const getSymbolNews = createServerFn({ method: "GET" })
   });
 
 export const getFlow = createServerFn({ method: "GET" }).handler(async () => loadFlow());
+
+export const getHotMoney = createServerFn({ method: "GET" }).handler(async () => loadHotMoney());
+
+export const getIndexFutures = createServerFn({ method: "GET" }).handler(async () => loadIndexFutures());
 
 export const getKline = createServerFn({ method: "GET" })
   .validator((data: unknown) => {
