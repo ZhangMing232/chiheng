@@ -76,7 +76,7 @@ export function Picks({
       .filter((trade) => trade.exit == null)
       .map((trade) => {
         const live = byId.get(trade.id);
-        const ret = live && trade.entry > 0 ? netReturn(trade.entry, live.price) : null;
+        const ret = live && trade.entry > 0 ? live.price / trade.entry - 1 : null;
         return { ...trade, day: day.date, signalTime: day.signalTime ?? "", live, ret };
       }),
   );
@@ -263,21 +263,11 @@ export function Picks({
                         买入 {trade.day} {trade.signalTime} · 买入价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 卖出 {fmtPrice(levels(trade, rules).target)}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <div className={toneClass(trade.ret == null ? null : trade.ret * 100) + " text-lg font-semibold tabular-nums"}>
                         {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
                       </div>
-                      <div className="text-xs text-muted">
-                        {trade.day >= date
-                          ? "今日买入，不能卖"
-                          : trade.live && limitTag(trade.live) === "跌停"
-                            ? "跌停卖不出"
-                            : trade.live && trade.live.price <= levels(trade, rules).stop
-                              ? "止损信号"
-                              : trade.live && trade.live.price >= levels(trade, rules).target
-                                ? "卖出信号"
-                                : "调入以来"}
-                      </div>
+                      <div className="text-xs text-muted">买入以来</div>
                     </div>
                   </div>
                 </button>
