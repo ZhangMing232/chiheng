@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { PosterButton } from "@/components/screener/poster-button";
 import { fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { drawFlowPoster } from "@/lib/market/flow-poster";
 import { getFlow } from "@/lib/market/quotes.functions";
-import { readMarket, type FlowBook, type FlowRow, type MarketPart, type MarketTape, type NorthLeg } from "@/lib/market/flow";
+import { readMarket, type FlowRow, type MarketPart, type MarketTape, type NorthLeg } from "@/lib/market/flow";
 
 export const Route = createFileRoute("/flow")({
   loader: async () => {
@@ -192,19 +192,6 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
 
 function FlowPage() {
   const { book, error } = Route.useLoaderData();
-  const [poster, setPoster] = useState<{ url: string; filename: string } | null>(null);
-  const [posterError, setPosterError] = useState<string | null>(null);
-
-  function makePoster(current: FlowBook) {
-    try {
-      const drawn = drawFlowPoster(current);
-      setPoster({ url: drawn.canvas.toDataURL("image/png"), filename: drawn.filename });
-      setPosterError(null);
-    } catch (err) {
-      setPoster(null);
-      setPosterError(err instanceof Error ? err.message : "汇总图没有生成");
-    }
-  }
 
   return (
     <Frame>
@@ -212,18 +199,7 @@ function FlowPage() {
         {error ? <p className="text-sm text-up">{error}</p> : null}
         {book ? (
           <>
-            <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={() => makePoster(book)} className="rounded-full border border-line bg-surface px-4 py-2 text-sm">
-                生成汇总图
-              </button>
-              {poster ? (
-                <a href={poster.url} download={poster.filename} className="text-sm text-muted">
-                  保存图片
-                </a>
-              ) : null}
-            </div>
-            {posterError ? <p className="text-sm text-up">{posterError}</p> : null}
-            {poster ? <img src={poster.url} alt="资金汇总" className="w-full rounded-xl border border-line" /> : null}
+            <PosterButton draw={() => drawFlowPoster(book)} />
             <Market parts={book.market} tape={book.tape} />
             <North legs={book.north} />
             <List title="行业净流入" rows={book.sectorsIn} />
