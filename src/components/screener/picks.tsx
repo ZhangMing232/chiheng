@@ -198,8 +198,8 @@ export function Picks({
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <div className="text-xs text-muted">现价</div>
                       <div className="text-lg font-semibold tabular-nums leading-tight">{fmtPrice(pick.quote.price)}</div>
+                      <div className={toneClass(pick.quote.chg) + " text-xs tabular-nums"}>{signedPct(pick.quote.chg)}</div>
                     </div>
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2 rounded-xl bg-surface-2 px-3 py-2">
@@ -263,11 +263,19 @@ export function Picks({
                         买入 {trade.day} {trade.signalTime} · 买入价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 卖出 {fmtPrice(levels(trade, rules).target)}
                       </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <div className={toneClass(trade.ret == null ? null : trade.ret * 100) + " text-lg font-semibold tabular-nums"}>
-                        {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
+                    <div className="flex shrink-0 gap-4 text-right">
+                      <div>
+                        <div className={toneClass(trade.live?.chg) + " text-lg font-semibold tabular-nums"}>
+                          {signedPct(trade.live?.chg)}
+                        </div>
+                        <div className="text-xs text-muted">今日</div>
                       </div>
-                      <div className="text-xs text-muted">买入以来</div>
+                      <div>
+                        <div className={toneClass(trade.ret == null ? null : trade.ret * 100) + " text-lg font-semibold tabular-nums"}>
+                          {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
+                        </div>
+                        <div className="text-xs text-muted">买入以来</div>
+                      </div>
                     </div>
                   </div>
                 </button>
