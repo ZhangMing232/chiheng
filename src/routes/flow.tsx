@@ -84,6 +84,7 @@ function Market({ parts }: { parts: MarketPart[] }) {
     { name: "大单", key: "big" },
     { name: "中单", key: "mid" },
     { name: "小单", key: "small" },
+    { name: "散户", key: "retail" },
   ];
   return (
     <section className="rounded-2xl border border-line bg-surface">
@@ -123,6 +124,23 @@ function Market({ parts }: { parts: MarketPart[] }) {
           </table>
         </div>
       )}
+      <div className="border-t border-line px-4 py-3">
+        <h3 className="text-sm font-semibold">另外三类</h3>
+        <ul className="mt-2 text-sm">
+          <li className="flex justify-between gap-3 border-t border-line py-2">
+            <span>机构</span>
+            <span className="text-right text-muted">没有全市场席位净额。主力不是机构。</span>
+          </li>
+          <li className="flex justify-between gap-3 border-t border-line py-2">
+            <span>外资</span>
+            <span className="text-right text-muted">北向净买入不公布，下面只有成交额。</span>
+          </li>
+          <li className="flex justify-between gap-3 border-t border-line py-2">
+            <span>国家队</span>
+            <span className="text-right text-muted">汇金、证金没有盘中净流入。</span>
+          </li>
+        </ul>
+      </div>
     </section>
   );
 }

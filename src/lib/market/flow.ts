@@ -23,6 +23,8 @@ export type MarketPart = {
   big: number;
   mid: number;
   small: number;
+  /** 万元。散户是这笔统计里主力以外的成交，和主力大致互为相反数。 */
+  retail: number;
 };
 
 export type FlowBook = {
@@ -131,6 +133,7 @@ async function marketPart(code: string, name: string): Promise<MarketPart | null
     big: wanYuan(row.bigFlow),
     mid: wanYuan(row.normalFlow),
     small: wanYuan(row.smallFlow),
+    retail: wanYuan(num(row.retailIn) != null && num(row.retailOut) != null ? Number(row.retailIn) - Number(row.retailOut) : null),
   };
 }
 
