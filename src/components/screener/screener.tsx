@@ -15,12 +15,12 @@ import type { PaperDay } from "@/lib/paper";
 import type { EarlyRules } from "@/lib/market/rules";
 
 function RecordLine({ at, ok, now }: { at: number | null; ok: boolean; now: number }) {
-  if (at == null) return <div className="text-muted">还没有记账</div>;
+  if (at == null) return <span>还没有记账</span>;
   const stale = now - at > 3 * 60_000;
   const clock = formatClock(at);
-  if (!ok) return <div className="text-up">记账失败 {clock}</div>;
-  if (stale) return <div className="text-up">记账中断 {clock}</div>;
-  return <div className="tabular-nums text-muted">上次记账 {clock}</div>;
+  if (!ok) return <span className="text-up">记账失败 {clock}</span>;
+  if (stale) return <span className="text-up">记账中断 {clock}</span>;
+  return <span className="tabular-nums">上次记账 {clock}</span>;
 }
 
 const INDEX_LABEL: Record<string, string> = {
@@ -123,9 +123,9 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   return (
     <Frame
       aside={
-        <div className="text-right text-xs leading-4">
-          <div>{phase.label}</div>
-          <div className="tabular-nums text-muted">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</div>
+        <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
+          <span className="text-fg">{phase.label}</span>
+          <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</span>
           <RecordLine at={recorder.at} ok={recorder.ok} now={now} />
         </div>
       }

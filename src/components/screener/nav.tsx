@@ -100,7 +100,7 @@ export function TypeSize() {
 export function TopNav() {
   const path = useRouterState({ select: (state) => state.location.pathname });
   return (
-    <nav className="flex rounded-full bg-surface-2 p-0.5">
+    <nav className="flex min-w-0 flex-1 overflow-x-auto rounded-full bg-surface-2 p-0.5 scroll-slim">
       {LINKS.map((link) => (
         <Link
           key={link.to}
@@ -138,40 +138,38 @@ export function Frame({
   }
   return (
     <div className="min-h-screen">
+      <div className="mx-auto flex max-w-3xl justify-center px-4 pt-8 pb-3 md:px-6">
+        <Link to="/" className="flex flex-col items-center gap-2">
+          <svg viewBox="0 0 32 32" className="size-14" aria-hidden>
+            <rect width="32" height="32" rx="8" fill="#0c0c0e" />
+            <path d="M7 16h7M18 16h7" stroke="#8d9198" strokeWidth="1.3" strokeLinecap="square" />
+            <polygon points="9.7,25.7 7.3,23.3 22.3,7 24.7,9.4" fill="#f0535e" />
+          </svg>
+          <span className="text-2xl font-semibold tracking-tight">赤轨</span>
+        </Link>
+      </div>
       <header className="sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-4 md:px-6">
-          <div className="flex justify-center py-4">
-            <Link to="/" className="flex flex-col items-center gap-2">
-              <svg viewBox="0 0 32 32" className="size-14" aria-hidden>
-                <rect width="32" height="32" rx="8" fill="#0c0c0e" />
-                <path d="M7 16h7M18 16h7" stroke="#8d9198" strokeWidth="1.3" strokeLinecap="square" />
-                <polygon points="9.7,25.7 7.3,23.3 22.3,7 24.7,9.4" fill="#f0535e" />
-              </svg>
-              <span className="text-2xl font-semibold tracking-tight">赤轨</span>
-            </Link>
-          </div>
-          <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 pb-2">
+          <div className="flex items-center gap-2 py-2">
             <TopNav />
-            <div className="flex shrink-0 items-center gap-2">
-              {aside}
-              <button
-                type="button"
-                onClick={() => void refresh()}
-                disabled={refreshing}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-sm disabled:opacity-60"
-              >
-                <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
-                刷新
-              </button>
-              <details className="relative">
-                <summary className="cursor-pointer list-none rounded-full px-2 py-1 text-xs text-muted [&::-webkit-details-marker]:hidden">显示</summary>
-                <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded-xl border border-line bg-surface p-2 shadow-card">
-                  <ThemeMode />
-                  <TypeSize />
-                </div>
-              </details>
-            </div>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-line px-3 text-sm disabled:opacity-60"
+            >
+              <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
+              刷新
+            </button>
+            <details className="relative shrink-0">
+              <summary className="cursor-pointer list-none rounded-full px-2 py-1 text-xs text-muted [&::-webkit-details-marker]:hidden">显示</summary>
+              <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded-xl border border-line bg-surface p-2 shadow-card">
+                <ThemeMode />
+                <TypeSize />
+              </div>
+            </details>
           </div>
+          {aside ? <div className="pb-2">{aside}</div> : null}
           {extra}
         </div>
       </header>
