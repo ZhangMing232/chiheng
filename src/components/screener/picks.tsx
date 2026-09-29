@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
+import { dayLocked, netReturn } from "@/lib/market/journal-book";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
 
@@ -46,7 +47,7 @@ export function Picks({
       .filter((trade) => trade.exit == null)
       .map((trade) => {
         const live = byId.get(trade.id);
-        const ret = live && trade.entry > 0 ? live.price / trade.entry - 1 : null;
+        const ret = live && trade.entry > 0 ? netReturn(trade.entry, live.price) : null;
         return { ...trade, day: day.date, signalTime: day.signalTime ?? "", live, ret };
       }),
   );
@@ -57,11 +58,12 @@ export function Picks({
         ...trade,
         day: day.date,
         signalTime: day.signalTime ?? "",
-        ret: trade.exit! / trade.entry - 1,
+        ret: netReturn(trade.entry, trade.exit!),
       })),
   );
-  const wins = closed.filter((trade) => trade.ret > 0).length;
+  const wins = closed.filter((trade) => trade.ret != null && trade.ret > 0).length;
   const featured = picks.slice(0, 3);
+  const lockedToday = days.find((day) => day.date === date && dayLocked(day));
 
   return (
     <div className="mb-4 flex flex-col gap-3">
@@ -71,10 +73,44 @@ export function Picks({
             <span className="shrink-0 rounded bg-fg px-2 py-1 text-xs text-bg">{dayLabel(date)}</span>
             <h2 className="truncate text-base font-semibold">精选 {featured.length} 只</h2>
           </div>
-          <span className="shrink-0 text-xs text-muted">观察，不是下单</span>
+          <span className="shrink-0 text-xs text-muted">{lockedToday ? "买入价已锁定" : "尚未锁定"}</span>
         </div>
-        {featured.length === 0 ? (
-          <p className="border-t border-line px-4 py-6 text-sm text-muted">此刻没有刚启动、又还没走远的股票。</p>
+        {lockedToday ? (
+          lockedToday.trades.length === 0 ? (
+            <p className="border-t border-line px-4 py-6 text-sm text-muted">今天已经锁定，一只都没有，记为空仓。</p>
+          ) : (
+            <ul>
+              {lockedToday.trades.slice(0, 3).map((trade) => {
+                const live = byId.get(trade.id);
+                const chased = live != null && live.price > trade.entry;
+                return (
+                  <li key={trade.id} className="border-t border-line">
+                    <button type="button" onClick={() => onOpen(trade.id)} className="block w-full px-4 py-3 text-left">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-semibold">{trade.name}</div>
+                          <div className="mt-1 text-xs text-muted">{trade.code}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-muted">参考买入价</div>
+                          <div className="font-medium tabular-nums">低于 {fmtPrice(trade.entry)}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-muted">现价</div>
+                          <div className="text-lg font-semibold tabular-nums">{live ? fmtPrice(live.price) : "—"}</div>
+                        </div>
+                      </div>
+                      {chased ? <p className="mt-2 text-sm">现价已高于参考价，不要追。</p> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        ) : featured.length === 0 ? (
+          <p className="border-t border-line px-4 py-6 text-sm text-muted">
+            成交额要到全天 5000 万才入选，上午经常还没有。尾盘 14:40 以后才锁定买入价。
+          </p>
         ) : (
           <ul>
             {featured.map((pick) => (
@@ -99,7 +135,7 @@ export function Picks({
                       <div className="text-lg font-semibold tabular-nums">{fmtPrice(pick.quote.price)}</div>
                     </div>
                   </div>
-                  {pick.reasons[0] ? <p className="mt-2 text-sm text-pretty text-muted">{pick.reasons.join("。")}</p> : null}
+                  {pick.reasons[0] ? <p className="mt-2 text-sm text-pretty text-muted">{pick.reasons.join("。")} 价格还没锁定。</p> : null}
                 </button>
               </li>
             ))}
@@ -114,7 +150,7 @@ export function Picks({
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
-            {ready && !onServer ? "还没有记下的持仓。早盘 9:25–9:30 或尾盘 14:40 以后打开这一页，才会写入信号。" : onServer ? "服务器还没有记下持仓。电脑开着时，到点会自动写入 data/journal.json。" : "正在读取本机记录。"}
+            {ready && !onServer ? "还没有锁定的持仓。尾盘 14:40 以后才会写下买入价。" : onServer ? "服务器还没有锁定今天的名单。电脑开着时，尾盘或收盘后写入 data/journal.json。" : "正在读取本机记录。"}
           </p>
         ) : (
           <ul>
@@ -167,8 +203,8 @@ export function Picks({
         </div>
         <p className="px-4 pb-3 text-xs text-pretty text-muted">
           {days.length < TRACK_NEED
-            ? `未满 ${TRACK_NEED} 个交易日，上面的数字不能当成胜率。默认仍然空仓。`
-            : "这是这套冻住规则自己的记录，不是买卖指令。"}
+            ? `未满 ${TRACK_NEED} 个交易日，上面的数字不能当成胜率。闭环已扣约 0.15% 费用。默认仍然空仓。`
+            : "闭环已扣约 0.15% 费用。这是这套冻住规则自己的记录，不是买卖指令。"}
         </p>
         {closed.length === 0 && open.length === 0 ? null : (
           <div className="overflow-x-auto border-t border-line">
@@ -214,7 +250,9 @@ export function Picks({
                       <div>{fmtPrice(trade.exit!)}</div>
                       <div className="text-xs text-muted">{trade.exitDate?.slice(5)}</div>
                     </td>
-                    <td className={"px-4 py-3 text-right tabular-nums " + toneClass(trade.ret * 100)}>{signedPct(trade.ret * 100)}</td>
+                    <td className={"px-4 py-3 text-right tabular-nums " + toneClass(trade.ret == null ? null : trade.ret * 100)}>
+                      {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

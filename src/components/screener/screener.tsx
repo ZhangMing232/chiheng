@@ -266,7 +266,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     const rows: Row[] = [];
     for (const quote of pool) {
       if (!passesFilters(quote, filters, idle)) continue;
-      const scored = strategy === "custom" ? null : evaluate(strategy, quote, live, phase.sealed || tail);
+      const scored = strategy === "custom" ? null : evaluate(strategy, quote, live, strategy === "early" ? true : phase.sealed || tail);
       if (tab === "scan" && strategy !== "custom" && !scored) continue;
       rows.push({
         quote,

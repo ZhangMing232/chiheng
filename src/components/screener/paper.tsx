@@ -58,21 +58,19 @@ export function Journal({
 
   useEffect(() => {
     if (!ready || !live || !bookReady || !date) return;
-    if (!sealed && !signalTime) return;
-    const openWindow = signalTime >= "09:25" && signalTime <= "09:30";
     const closeWindow = signalTime >= "14:40" && signalTime < "15:00";
-    if (!sealed && !openWindow && !closeWindow) return;
-    const strict = sealed || closeWindow;
+    if (!sealed && !closeWindow) return;
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
-      if (!evaluate("early", quote, true, strict) || !(quote.price > 0)) continue;
+      if (!evaluate("early", quote, true, true) || !(quote.price > 0)) continue;
       trades.push({ id: quote.id, code: quote.code, name: quote.name, entry: quote.price, exit: null, exitDate: null });
     }
     if (!sealed && trades.length === 0) return;
     recordDay({
       date,
       savedAt: Date.now(),
-      signalTime: signalTime || "15:00",
+      signalTime: sealed ? "15:00" : signalTime,
+      status: "locked",
       indexEntry: indexPrice,
       indexExit: null,
       trades,
@@ -100,8 +98,7 @@ export function Journal({
             const data = await getKline({ data: { id: trade.id } });
             const next = barAfter(data.bars ?? [], day.date, CHECK_DAYS);
             if (!next || !(next.c > 0)) continue;
-            const entryBar = (data.bars ?? []).find((bar) => normDate(bar.date) === day.date);
-            settle(day.date, trade.id, next.c, normDate(next.date), entryBar && entryBar.c > 0 ? entryBar.c : trade.entry);
+            settle(day.date, trade.id, next.c, normDate(next.date), trade.entry);
           } catch {
             // 还没走到第 8 个交易日，或日线暂时没返回。
           }

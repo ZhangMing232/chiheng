@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { dayLocked } from "../src/lib/market/journal-book.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { evaluate } from "../src/lib/market/model.ts";
 import { formatClock, sessionPhase } from "../src/lib/market/session.ts";
@@ -17,10 +18,13 @@ type Day = {
   date: string;
   savedAt: number;
   signalTime: string;
+  status?: "provisional" | "locked";
   indexEntry: number | null;
   indexExit: number | null;
   trades: Trade[];
 };
+
+type Book = { days: Day[]; nextSettleAt?: number };
 
 const bookPath = join(process.cwd(), "data", "journal.json");
 const CHECK_DAYS = 8;
@@ -41,87 +45,105 @@ function barAfter(bars: { date: string; c: number }[], date: string, sessions: n
   return null;
 }
 
-async function readBook(): Promise<Day[]> {
+async function readBook(): Promise<Book> {
   try {
-    const parsed = JSON.parse(await readFile(bookPath, "utf8")) as { days?: Day[] };
-    return Array.isArray(parsed.days) ? parsed.days : [];
+    const parsed = JSON.parse(await readFile(bookPath, "utf8")) as Book;
+    return { days: Array.isArray(parsed.days) ? parsed.days : [], nextSettleAt: parsed.nextSettleAt };
   } catch {
-    return [];
+    return { days: [] };
   }
 }
 
-async function writeBook(days: Day[]) {
+async function writeBook(book: Book) {
   await mkdir(join(process.cwd(), "data"), { recursive: true });
-  await writeFile(bookPath, JSON.stringify({ days }, null, 2));
+  await writeFile(bookPath, JSON.stringify(book, null, 2));
+}
+
+function weekdaysBetween(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00+08:00`);
+  const end = Date.parse(`${to}T00:00:00+08:00`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  let count = 0;
+  for (let cursor = start + 24 * 60 * 60 * 1000; cursor <= end; cursor += 24 * 60 * 60 * 1000) {
+    const weekday = new Date(cursor).toLocaleDateString("en-US", { timeZone: "Asia/Shanghai", weekday: "short" });
+    if (weekday !== "Sat" && weekday !== "Sun") count += 1;
+  }
+  return count;
 }
 
 const phase = sessionPhase();
 const time = formatClock(Date.now());
-const openWindow = time >= "09:25" && time <= "09:30";
 const closeWindow = time >= "14:40" && time < "15:00";
-let days = await readBook();
+const book = await readBook();
+let days = book.days;
 let changed = false;
 
-if (!phase.date) {
-  console.log("no session date");
-} else if (phase.sealed || openWindow || closeWindow) {
+if (phase.date && (phase.sealed || closeWindow)) {
   const existing = days.find((day) => day.date === phase.date);
-  if (!existing) {
+  if (!existing || !dayLocked(existing)) {
     const universe = await loadUniverse(true);
     const indices = await loadIndices();
     const index = indices.find((item) => item.id === "sh000300");
     const live = universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0);
-    const strict = phase.sealed || closeWindow;
     const trades: Trade[] = [];
     if (live) {
       for (const quote of universe.quotes) {
-        if (!evaluate("early", quote, true, strict) || !(quote.price > 0)) continue;
+        if (!evaluate("early", quote, true, true) || !(quote.price > 0)) continue;
+        const prior = existing?.trades.find((trade) => trade.id === quote.id);
         trades.push({
           id: quote.id,
           code: quote.code,
           name: quote.name,
-          entry: quote.price,
+          entry: prior && prior.entry > 0 ? prior.entry : quote.price,
           exit: null,
           exitDate: null,
         });
       }
     }
     if (phase.sealed || trades.length > 0) {
-      days = [
-        {
-          date: phase.date,
-          savedAt: Date.now(),
-          signalTime: phase.sealed ? "15:00" : time,
-          indexEntry: index && index.price > 0 ? index.price : null,
-          indexExit: null,
-          trades,
-        },
-        ...days,
-      ].slice(0, 80);
+      const next: Day = {
+        date: phase.date,
+        savedAt: Date.now(),
+        signalTime: existing?.signalTime && existing.signalTime >= "14:40" ? existing.signalTime : phase.sealed ? "15:00" : time,
+        status: "locked",
+        indexEntry: existing?.indexEntry ?? (index && index.price > 0 ? index.price : null),
+        indexExit: null,
+        trades,
+      };
+      days = existing ? days.map((day) => (day.date === phase.date ? next : day)) : [next, ...days].slice(0, 80);
       changed = true;
-      console.log(`recorded ${phase.date} ${trades.length}`);
+      console.log(`locked ${phase.date} ${trades.length}`);
     } else {
-      console.log(`${time} window empty, not locked`);
+      console.log(`${time} tail empty, not locked`);
     }
   }
 }
 
-const settleWindow = phase.sealed && time >= "15:10" && time <= "15:40";
-if (settleWindow) {
+const pending = days.some(
+  (day) => day.trades.some((trade) => trade.exit == null) || (day.indexEntry != null && day.indexExit == null),
+);
+const settleDue = pending && (book.nextSettleAt == null || Date.now() >= book.nextSettleAt);
+if (settleDue && phase.date) {
+  let stillOpen = false;
   for (const day of days) {
+    if (weekdaysBetween(day.date, phase.date) < CHECK_DAYS) {
+      if (day.trades.some((trade) => trade.exit == null)) stillOpen = true;
+      continue;
+    }
     for (const trade of day.trades) {
       if (trade.exit != null) continue;
       try {
         const data = await loadKline(trade.id);
         const next = barAfter(data.bars, day.date, CHECK_DAYS);
-        if (!next || !(next.c > 0)) continue;
-        const entryBar = data.bars.find((bar) => normDate(bar.date) === day.date);
+        if (!next || !(next.c > 0)) {
+          stillOpen = true;
+          continue;
+        }
         trade.exit = next.c;
         trade.exitDate = normDate(next.date);
-        if (entryBar && entryBar.c > 0) trade.entry = entryBar.c;
         changed = true;
       } catch {
-        // 日线还没到结算日。
+        stillOpen = true;
       }
     }
     if (day.indexExit == null && day.indexEntry != null) {
@@ -131,13 +153,15 @@ if (settleWindow) {
         if (next && next.c > 0) {
           day.indexExit = next.c;
           changed = true;
-        }
+        } else stillOpen = true;
       } catch {
-        // 沪深 300 日线暂时没有。
+        stillOpen = true;
       }
     }
   }
+  book.nextSettleAt = Date.now() + (stillOpen ? 30 * 60_000 : 12 * 60 * 60_000);
+  changed = true;
 }
 
-if (changed) await writeBook(days);
+if (changed) await writeBook({ days, nextSettleAt: book.nextSettleAt });
 else console.log(`${time} ${phase.label} no change`);

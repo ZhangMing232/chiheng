@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { dayLocked } from "@/lib/market/journal-book";
 
 export type PaperTrade = {
   id: string;
@@ -14,6 +15,7 @@ export type PaperDay = {
   date: string;
   savedAt: number;
   signalTime: string;
+  status?: "provisional" | "locked";
   indexEntry: number | null;
   indexExit: number | null;
   trades: PaperTrade[];
@@ -36,11 +38,19 @@ export const usePaper = create<PaperState>()(
           set({ days: [day, ...get().days].slice(0, 80) });
           return;
         }
-        if (existing.indexEntry == null && day.indexEntry != null) {
-          set({
-            days: get().days.map((item) => (item.date === day.date ? { ...item, indexEntry: day.indexEntry } : item)),
-          });
+        if (dayLocked(existing)) {
+          if (existing.indexEntry == null && day.indexEntry != null) {
+            set({
+              days: get().days.map((item) =>
+                item.date === day.date ? { ...item, indexEntry: day.indexEntry } : item,
+              ),
+            });
+          }
+          return;
         }
+        set({
+          days: get().days.map((item) => (item.date === day.date ? day : item)),
+        });
       },
       settle: (date, id, exit, exitDate, entry) => {
         set({
