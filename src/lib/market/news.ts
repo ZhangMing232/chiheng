@@ -165,6 +165,7 @@ export type StockArticle = {
   title: string;
   tone: NewsTone;
   url: string;
+  kind: "news" | "ann";
 };
 
 const QUOTE_REFERER = "https://quote.eastmoney.com/";
@@ -199,33 +200,80 @@ export async function searchStocks(keyword: string): Promise<StockHit[]> {
   return rows;
 }
 
-/** 一只股票最近的资讯。只有标题，用词分成利好、利空或没说清。 */
+/** 一只股票最近的资讯和公告。标题用词分成利好、利空或没说清。 */
 export async function loadStockArticles(id: string): Promise<StockArticle[]> {
   const hit = stockCache.get(id);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.rows;
   const code = emMarketCode(id);
   if (!code) return [];
+  const [news, anns] = await Promise.all([loadHeadlines(code), loadAnnouncements(id.slice(2))]);
+  const seen = new Set<string>();
+  const rows = [...news, ...anns]
+    .filter((item) => {
+      if (seen.has(item.title)) return false;
+      seen.add(item.title);
+      return true;
+    })
+    .sort((a, b) => b.time.localeCompare(a.time));
+  stockCache.set(id, { at: Date.now(), rows });
+  return rows;
+}
+
+export async function stockChg(ids: string[]): Promise<Map<string, number | null>> {
+  const names = await namesOf(ids).catch(() => new Map<string, { name: string; chg: number | null }>());
+  return new Map(ids.map((id) => [id, names.get(id)?.chg ?? null]));
+}
+
+function clock(value: string): string {
+  const match = value.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+  return match ? `${match[1]} ${match[2]}` : value.slice(0, 16);
+}
+
+async function loadHeadlines(code: string): Promise<StockArticle[]> {
   const raw = await getText(
-    `https://np-listapi.eastmoney.com/comm/web/getListInfo?client=web&biz=web_news&mTypeAndCode=${code}&page_index=1&page_size=20&type=1&req_trace=1`,
+    `https://np-listapi.eastmoney.com/comm/web/getListInfo?client=web&biz=web_news&mTypeAndCode=${code}&page_index=1&page_size=15&type=1&req_trace=1`,
     QUOTE_REFERER,
   );
   const parsed = JSON.parse(raw) as {
     data?: { list?: { Art_Code?: string; Art_ShowTime?: string; Art_Title?: string; Art_OriginUrl?: string }[] };
   };
-  const rows = (parsed.data?.list ?? []).flatMap((item) => {
+  return (parsed.data?.list ?? []).flatMap((item) => {
     const title = (item.Art_Title ?? "").trim();
     if (!title) return [];
     const url = item.Art_OriginUrl ?? "";
     return [
       {
         id: String(item.Art_Code ?? title),
-        time: item.Art_ShowTime ?? "",
+        time: clock(item.Art_ShowTime ?? ""),
         title,
         tone: toneOf(title),
         url: url.startsWith("http://") || url.startsWith("https://") ? url : "",
+        kind: "news" as const,
       },
     ];
   });
-  stockCache.set(id, { at: Date.now(), rows });
-  return rows;
+}
+
+async function loadAnnouncements(code: string): Promise<StockArticle[]> {
+  if (!/^\d{6}$/.test(code)) return [];
+  const raw = await getText(
+    `https://np-anotice-stock.eastmoney.com/api/security/ann?page_size=8&page_index=1&ann_type=A&stock_list=${code}&client_source=web`,
+    "https://data.eastmoney.com/",
+  );
+  const parsed = JSON.parse(raw) as { data?: { list?: { art_code?: string; title?: string; notice_date?: string }[] } };
+  return (parsed.data?.list ?? []).flatMap((item) => {
+    const title = (item.title ?? "").trim();
+    const art = item.art_code ?? "";
+    if (!title || !art) return [];
+    return [
+      {
+        id: art,
+        time: clock(item.notice_date ?? ""),
+        title,
+        tone: toneOf(title),
+        url: `https://data.eastmoney.com/notices/detail/${code}/${art}.html`,
+        kind: "ann" as const,
+      },
+    ];
+  });
 }

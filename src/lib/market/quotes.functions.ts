@@ -7,7 +7,7 @@ import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
-import { loadNews, loadStockArticles, searchStocks, type StockArticle, type StockHit } from "@/lib/market/news";
+import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
 import { loadFlow } from "@/lib/market/flow";
 import { sessionPhase } from "@/lib/market/session";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
@@ -297,6 +297,10 @@ export const getRelay = createServerFn({ method: "GET" }).handler(async () => {
 
 export const getNews = createServerFn({ method: "GET" }).handler(async () => loadNews());
 
+function countTone(articles: StockArticle[], tone: StockArticle["tone"]): number {
+  return articles.filter((item) => item.tone === tone).length;
+}
+
 export const getSymbolNews = createServerFn({ method: "GET" })
   .validator((data: unknown) => {
     const q =
@@ -310,7 +314,14 @@ export const getSymbolNews = createServerFn({ method: "GET" })
       const matches = await searchStocks(data.q).catch(() => [] as StockHit[]);
       const picked = matches[0] ?? null;
       const articles = picked ? await loadStockArticles(picked.id).catch(() => [] as StockArticle[]) : [];
-      return { q: data.q, matches, picked, articles, groups: [] as { id: string; name: string; code: string; articles: StockArticle[] }[] };
+      const chg = picked ? ((await stockChg([picked.id])).get(picked.id) ?? null) : null;
+      return {
+        q: data.q,
+        matches,
+        picked: picked ? { ...picked, chg } : null,
+        articles,
+        groups: [] as { id: string; name: string; code: string; chg: number | null; articles: StockArticle[] }[],
+      };
     }
     let days: { trades?: { id?: string; code?: string; name?: string; exit?: number | null }[] }[] = [];
     try {
@@ -334,10 +345,14 @@ export const getSymbolNews = createServerFn({ method: "GET" })
     const groups = await Promise.all(
       held.map(async (trade) => ({
         ...trade,
-        articles: (await loadStockArticles(trade.id).catch(() => [] as StockArticle[])).slice(0, 6),
+        articles: (await loadStockArticles(trade.id).catch(() => [] as StockArticle[])).slice(0, 8),
       })),
     );
-    return { q: "", matches: [] as StockHit[], picked: null as StockHit | null, articles: [] as StockArticle[], groups };
+    const moves = await stockChg(groups.map((group) => group.id));
+    const withChg = groups
+      .map((group) => ({ ...group, chg: moves.get(group.id) ?? null }))
+      .sort((a, b) => countTone(b.articles, "bad") - countTone(a.articles, "bad"));
+    return { q: "", matches: [] as StockHit[], picked: null, articles: [] as StockArticle[], groups: withChg };
   });
 
 export const getFlow = createServerFn({ method: "GET" }).handler(async () => loadFlow());

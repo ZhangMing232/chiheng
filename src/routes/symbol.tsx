@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { signedPct, toneClass } from "@/lib/market/format";
 import { getSymbolNews } from "@/lib/market/quotes.functions";
-import type { NewsTone } from "@/lib/market/news";
+import type { NewsTone, StockArticle } from "@/lib/market/news";
 
 const TONE_LABEL: Record<NewsTone, string> = { good: "利好", bad: "利空", flat: "未表态" };
+const KIND_LABEL = { news: "资讯", ann: "公告" };
+
+function tally(articles: StockArticle[]) {
+  return {
+    bad: articles.filter((item) => item.tone === "bad").length,
+    good: articles.filter((item) => item.tone === "good").length,
+    ann: articles.filter((item) => item.kind === "ann").length,
+  };
+}
 
 export const Route = createFileRoute("/symbol")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -20,6 +30,7 @@ function SymbolPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [value, setValue] = useState(search.q);
+  useEffect(() => setValue(search.q), [search.q]);
 
   return (
     <Frame>
@@ -41,7 +52,7 @@ function SymbolPage() {
           搜索
         </button>
       </form>
-      <p className="text-xs text-muted">按标题用词分成利好或利空，不是研报，也不改买入价。</p>
+      <p className="text-xs text-muted">资讯和公告按标题用词分成利好或利空。有利空的持仓排在前面。不改买入价。</p>
       {data.q && data.matches.length > 1 ? (
         <div className="flex gap-2 overflow-x-auto scroll-slim">
           {data.matches.map((item) => (
@@ -62,6 +73,7 @@ function SymbolPage() {
       {data.q ? (
         <ArticleList
           title={data.picked ? `${data.picked.name} ${data.picked.code}` : `没有找到「${data.q}」`}
+          chg={data.picked?.chg ?? null}
           articles={data.articles}
           empty={data.picked ? "这只股票暂时没有消息。" : "换一个代码或名称。"}
         />
@@ -72,6 +84,7 @@ function SymbolPage() {
           <ArticleList
             key={group.id}
             title={`${group.name} ${group.code}`}
+            chg={group.chg}
             articles={group.articles}
             empty="暂时没有消息。"
           />
@@ -83,16 +96,30 @@ function SymbolPage() {
 
 function ArticleList({
   title,
+  chg,
   articles,
   empty,
 }: {
   title: string;
-  articles: { id: string; time: string; title: string; tone: NewsTone; url: string }[];
+  chg: number | null;
+  articles: StockArticle[];
   empty: string;
 }) {
+  const counts = tally(articles);
   return (
     <section className="overflow-hidden rounded-xl border border-line bg-surface">
-      <h2 className="border-b border-line px-4 py-3 text-base font-semibold">{title}</h2>
+      <div className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-semibold">{title}</h2>
+          {articles.length > 0 ? (
+            <p className="mt-0.5 text-xs text-muted">
+              <span className={counts.bad > 0 ? "text-down" : ""}>利空 {counts.bad}</span>
+              {` · 利好 ${counts.good} · 公告 ${counts.ann}`}
+            </p>
+          ) : null}
+        </div>
+        <span className={toneClass(chg) + " shrink-0 tabular-nums"}>{signedPct(chg)}</span>
+      </div>
       {articles.length === 0 ? (
         <p className="px-4 py-6 text-sm text-muted">{empty}</p>
       ) : (
@@ -100,7 +127,10 @@ function ArticleList({
           {articles.map((item) => (
             <li key={item.id} className="border-b border-line px-4 py-3 last:border-0">
               <div className="flex items-baseline justify-between gap-3 text-xs text-muted">
-                <span className={item.tone === "good" ? "text-up" : item.tone === "bad" ? "text-down" : ""}>{TONE_LABEL[item.tone]}</span>
+                <span>
+                  <span className="mr-2">{KIND_LABEL[item.kind]}</span>
+                  <span className={item.tone === "good" ? "text-up" : item.tone === "bad" ? "text-down" : ""}>{TONE_LABEL[item.tone]}</span>
+                </span>
                 <span className="tabular-nums">{item.time.slice(5, 16)}</span>
               </div>
               {item.url ? (
