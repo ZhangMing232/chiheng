@@ -81,14 +81,6 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
 
   ctx.fillStyle = "#070b10";
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "#101820";
-  ctx.lineWidth = 1;
-  for (let x = 80; x < W; x += 80) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
-    ctx.stroke();
-  }
 
   ctx.fillStyle = INK;
   ctx.fillRect(56, 56, 36, 8);
