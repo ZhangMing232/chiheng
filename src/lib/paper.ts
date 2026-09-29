@@ -13,6 +13,7 @@ export type PaperTrade = {
 export type PaperDay = {
   date: string;
   savedAt: number;
+  signalTime: string;
   indexEntry: number | null;
   indexExit: number | null;
   trades: PaperTrade[];

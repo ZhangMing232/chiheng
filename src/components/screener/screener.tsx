@@ -3,6 +3,7 @@ import { RefreshCw, Search, Star } from "lucide-react";
 import { Detail } from "@/components/screener/detail";
 import { Stance, HoldNote } from "@/components/screener/stance";
 import { Journal } from "@/components/screener/paper";
+import { Picks } from "@/components/screener/picks";
 import { fmtCap, fmtMultiple, fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import {
   BOARD_LABEL,
@@ -344,6 +345,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             live={live}
             sealed={phase.sealed}
             date={phase.date}
+            signalTime={formatClock(Date.now())}
             bookReady={Boolean(universe && !universe.stale && !universe.partial)}
             indexPrice={indices.find((item) => item.id === "sh000300")?.price ?? null}
           />
@@ -375,6 +377,12 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         </aside>
 
         <section className="min-w-0 lg:col-span-9">
+          <Picks
+            date={phase.date}
+            quotes={quotes}
+            picks={ranked.slice(0, 3).map((row) => ({ quote: row.quote, reasons: row.reasons }))}
+            onOpen={setSelectedId}
+          />
           <details className="mb-3 rounded-lg border border-line bg-surface lg:hidden">
             <summary className="flex h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium">
               筛选条件

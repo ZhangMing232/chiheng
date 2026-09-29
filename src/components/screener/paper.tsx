@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { signedPct } from "@/lib/market/format";
-import { evaluate, TRACK_NEED } from "@/lib/market/model";
+import { evaluate } from "@/lib/market/model";
 import { getKline } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperTrade } from "@/lib/paper";
@@ -28,6 +27,7 @@ export function Journal({
   live,
   sealed,
   date,
+  signalTime,
   bookReady,
   indexPrice,
 }: {
@@ -35,6 +35,7 @@ export function Journal({
   live: boolean;
   sealed: boolean;
   date: string;
+  signalTime: string;
   bookReady: boolean;
   indexPrice: number | null;
 }) {
@@ -56,14 +57,27 @@ export function Journal({
   }, []);
 
   useEffect(() => {
-    if (!ready || !sealed || !live || !bookReady || !date) return;
+    if (!ready || !live || !bookReady || !date) return;
+    if (!sealed && !signalTime) return;
+    const openWindow = signalTime >= "09:25" && signalTime <= "09:30";
+    const closeWindow = signalTime >= "14:40" && signalTime < "15:00";
+    if (!sealed && !openWindow && !closeWindow) return;
+    const strict = sealed || closeWindow;
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
-      if (!evaluate("early", quote, true, true) || !(quote.price > 0)) continue;
+      if (!evaluate("early", quote, true, strict) || !(quote.price > 0)) continue;
       trades.push({ id: quote.id, code: quote.code, name: quote.name, entry: quote.price, exit: null, exitDate: null });
     }
-    recordDay({ date, savedAt: Date.now(), indexEntry: indexPrice, indexExit: null, trades });
-  }, [ready, sealed, live, bookReady, date, quotes, indexPrice, recordDay]);
+    if (!sealed && trades.length === 0) return;
+    recordDay({
+      date,
+      savedAt: Date.now(),
+      signalTime: signalTime || "15:00",
+      indexEntry: indexPrice,
+      indexExit: null,
+      trades,
+    });
+  }, [ready, sealed, live, bookReady, date, signalTime, quotes, indexPrice, recordDay]);
 
   const openKey = days
     .flatMap((day) => [
@@ -108,52 +122,5 @@ export function Journal({
     };
   }, [ready, openKey, settle, settleIndex]);
 
-  const logged = days.length;
-  const settled = days.flatMap((day) =>
-    day.trades
-      .filter((trade) => trade.exit != null && trade.entry > 0 && day.indexExit != null && day.indexEntry)
-      .map((trade) => ({
-        ...trade,
-        date: day.date,
-        stock: trade.exit! / trade.entry - 1,
-        index: day.indexExit! / day.indexEntry! - 1,
-      })),
-  );
-
-  return (
-    <section className="mt-3 max-w-3xl rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-medium">和沪深 300 比</h2>
-        <span className="tabular-nums text-xs text-muted">
-          {logged}/{TRACK_NEED} 个交易日
-        </span>
-      </div>
-      <p className="mt-2 text-pretty text-muted">
-        每个交易日 15:00 后，把当天通过启动前期的名单和沪深 300 一起记下。持股按 8 个交易日结算，落在 5 到 10 天里面。记满 {TRACK_NEED}{" "}
-        个交易日之前，不计算成功率，默认空仓。
-      </p>
-      {logged < TRACK_NEED ? (
-        <p className="mt-2">还差 {TRACK_NEED - logged} 个交易日。现在这些记录不能用来判断这套规则赚不赚钱。</p>
-      ) : (
-        <p className="mt-2">已经记满 {TRACK_NEED} 个交易日，可以看下面每一笔相对沪深 300 的涨跌。这仍然不是买卖指令。</p>
-      )}
-      {days[0]?.date === date ? (
-        <p className="mt-2">
-          {date} 已记下 {days[0].trades.length} 只
-          {days[0].trades.length === 0 ? "，当天是空仓。" : `：${days[0].trades.map((trade) => trade.name).join("、")}`}
-        </p>
-      ) : (
-        <p className="mt-2 text-muted">{sealed ? "今天的名单还没写下。" : "未到收盘，今天先不记。"}</p>
-      )}
-      {settled.length > 0 && logged >= TRACK_NEED ? (
-        <ul className="mt-2 flex flex-col gap-1 text-muted">
-          {settled.slice(0, 8).map((trade) => (
-            <li key={`${trade.date}-${trade.id}`} className="tabular-nums">
-              {trade.name} {signedPct(trade.stock * 100)}，沪深 300 {signedPct(trade.index * 100)}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
-  );
+  return null;
 }
