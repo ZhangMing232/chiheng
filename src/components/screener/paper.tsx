@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { quoteOrder, slotsLeft } from "@/lib/market/strategies";
+import { quoteOrder, slotsLeft, styleOf } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
@@ -53,7 +53,7 @@ export function Journal({
     const held = book.flatMap((day) => day.trades);
     const room = slotsLeft(held, prefs.style);
     if (room <= 0) return;
-    const openIds = new Set(held.filter((trade) => trade.exit == null && (trade.style ?? "early") === prefs.style).map((trade) => trade.id));
+    const openIds = new Set(held.filter((trade) => trade.exit == null && styleOf(trade) === prefs.style).map((trade) => trade.id));
     const hits: { score: number; trade: PaperTrade }[] = [];
     for (const quote of quotes) {
       if (openIds.has(quote.id)) continue;

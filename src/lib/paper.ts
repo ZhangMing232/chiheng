@@ -41,8 +41,11 @@ export const usePaper = create<PaperState>()(
           set({ days: [day, ...get().days].slice(0, 80) });
           return;
         }
-        const ids = new Set(existing.trades.map((trade) => `${trade.style ?? "early"}:${trade.id}`));
-        const extras = day.trades.filter((trade) => !ids.has(`${trade.style ?? "early"}:${trade.id}`));
+        const ids = new Set(existing.trades.flatMap((trade) => {
+          const style = trade.style;
+          return style ? [`${style}:${trade.id}`] : [];
+        }));
+        const extras = day.trades.filter((trade) => trade.style && !ids.has(`${trade.style}:${trade.id}`));
         if (extras.length === 0) return;
         set({
           days: get().days.map((item) =>
@@ -70,6 +73,6 @@ export const usePaper = create<PaperState>()(
         });
       },
     }),
-    { name: "chiheng-paper-v2", skipHydration: true },
+    { name: "chiheng-paper-v3", skipHydration: true },
   ),
 );

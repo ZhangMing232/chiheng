@@ -8,7 +8,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { planExit } from "../src/lib/market/model.ts";
-import { quoteOrder, slotsLeft } from "../src/lib/market/strategies.ts";
+import { quoteOrder, slotsLeft, styleOf } from "../src/lib/market/strategies.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
 type Trade = {
@@ -59,6 +59,9 @@ const time = formatClock(Date.now());
 const book = await readBook();
 let days = book.days;
 let changed = false;
+const tagged = days.map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) != null) }));
+if (tagged.some((day, index) => day.trades.length !== days[index].trades.length)) changed = true;
+days = tagged.filter((day) => day.trades.length > 0);
 
 if (phase.date && isTradingDay(phase.date) && (phase.open || phase.sealed)) {
   const universe = await loadUniverse(true);
@@ -69,7 +72,7 @@ if (phase.date && isTradingDay(phase.date) && (phase.open || phase.sealed)) {
     const held = days.flatMap((day) => day.trades);
     const room = slotsLeft(held, prefs.style);
     const openIds = new Set(
-      held.filter((trade) => trade.exit == null && (trade.style ?? "early") === prefs.style).map((trade) => trade.id),
+      held.filter((trade) => trade.exit == null && styleOf(trade) === prefs.style).map((trade) => trade.id),
     );
     const existing = days.find((day) => day.date === phase.date);
     const hits: { score: number; trade: Trade }[] = [];
