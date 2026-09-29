@@ -9,7 +9,7 @@ import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
-import { boardLimit, planExit } from "../src/lib/market/model.ts";
+import { boardLimit, limitTag, planExit } from "../src/lib/market/model.ts";
 import { STYLE_IDS, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
@@ -42,11 +42,33 @@ type Book = { days: Day[]; nextSettleAt?: number };
 
 const bookPath = join(process.cwd(), "data", "journal.json");
 const pulsePath = join(process.cwd(), "data", "recorder.json");
+const alertPath = join(process.cwd(), "data", "sell-alerts.json");
 const backupDir = join(homedir(), "chiheng-backup");
 
 function notify(body: string) {
   if (process.platform !== "darwin") return;
   execFile("osascript", ["-e", `display notification ${JSON.stringify(body)} with title ${JSON.stringify("赤衡")}`], () => undefined);
+}
+
+function notifyNames(label: string, names: string[]) {
+  if (names.length === 0) return;
+  const shown = names.slice(0, 3);
+  const more = names.length > shown.length ? `等 ${names.length} 只` : "";
+  notify(`${shown.join("、")}${more} ${label}`);
+}
+
+async function readAlerts(): Promise<Set<string>> {
+  try {
+    const parsed = JSON.parse(await readFile(alertPath, "utf8")) as { sells?: unknown };
+    return new Set(Array.isArray(parsed.sells) ? parsed.sells.filter((item) => typeof item === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+async function writeAlerts(sells: Set<string>) {
+  await mkdir(join(process.cwd(), "data"), { recursive: true });
+  await writeFile(alertPath, JSON.stringify({ sells: [...sells] }));
 }
 
 async function mark(ok: boolean) {
@@ -91,6 +113,8 @@ const prefs = await readPrefs();
 const phase = sessionPhase();
 const time = formatClock(Date.now());
 const book = await readBook();
+const alerts = await readAlerts();
+let alertsChanged = false;
 let days = book.days;
 let changed = false;
 const tagged = days.map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) != null) }));
@@ -169,6 +193,28 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
     } else {
       console.log(`${time} no buy`);
     }
+    const stops: string[] = [];
+    const targets: string[] = [];
+    for (const day of days) {
+      if (day.date >= phase.date) continue;
+      for (const trade of day.trades) {
+        if (trade.exit != null) continue;
+        const quote = universe.quotes.find((item) => item.id === trade.id);
+        if (!quote || limitTag(quote) === "跌停") continue;
+        const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
+        const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
+        const label = `${style} ${trade.name}`.trim();
+        const hit = quote.price <= plan.stop ? "stop" : quote.price >= plan.target ? "target" : null;
+        if (!hit) continue;
+        const key = `${day.date}:${trade.id}:${hit}`;
+        if (alerts.has(key)) continue;
+        alerts.add(key);
+        alertsChanged = true;
+        (hit === "stop" ? stops : targets).push(label);
+      }
+    }
+    notifyNames("到止损价", stops);
+    notifyNames("到卖出价", targets);
   }
 }
 
@@ -178,6 +224,7 @@ const pending = days.some(
 const settleDue = pending && (book.nextSettleAt == null || Date.now() >= book.nextSettleAt);
 if (settleDue && phase.date) {
   let stillOpen = false;
+  const due: string[] = [];
   for (const day of days) {
     for (const trade of day.trades) {
       if (trade.exit != null) continue;
@@ -200,6 +247,13 @@ if (settleDue && phase.date) {
         trade.exit = filled.price;
         trade.exitDate = filled.date;
         changed = true;
+        const key = `${day.date}:${trade.id}:${filled.reason}`;
+        if (filled.reason === "time" && !alerts.has(key)) {
+          alerts.add(key);
+          alertsChanged = true;
+          const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
+          due.push(`${style} ${trade.name}`.trim());
+        }
       } catch {
         stillOpen = true;
       }
@@ -219,10 +273,12 @@ if (settleDue && phase.date) {
   }
   book.nextSettleAt = Date.now() + (stillOpen ? 30 * 60_000 : 12 * 60 * 60_000);
   changed = true;
+  notifyNames("到期该卖", due);
 }
 
 if (changed) await writeBook({ days, nextSettleAt: book.nextSettleAt });
 else console.log(`${time} ${phase.label} no change`);
+if (alertsChanged) await writeAlerts(alerts);
 
 await mark(true);
 const backupDate = phase.date || new Date().toISOString().slice(0, 10);
