@@ -124,7 +124,7 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-2xl border border-line border-l-4 border-l-up bg-surface px-4 py-3 shadow-card">
+      <section className="rounded-2xl border border-line border-l-4 border-l-[#5ad7ff] bg-surface px-4 py-3 shadow-card">
         <div className="text-xs tracking-widest text-muted">现在</div>
         <h2 className="mt-1 font-serif text-lg font-semibold text-pretty">{now.title}</h2>
         <p className="mt-1 text-sm text-pretty text-muted">{now.body}</p>

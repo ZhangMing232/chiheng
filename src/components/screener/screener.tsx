@@ -108,7 +108,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-4 md:px-6">
           <div className="flex items-center justify-between gap-3 py-3">
             <div className="min-w-0">
