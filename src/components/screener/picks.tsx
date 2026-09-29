@@ -269,15 +269,21 @@ export function Picks({
                         买入 {trade.day} {trade.signalTime} · 买入价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 卖出 {fmtPrice(levels(trade, rules).target)}
                       </div>
                     </div>
-                    <div className="flex shrink-0 gap-4 text-right">
+                    <div className="flex shrink-0 gap-3 text-right">
                       <div>
-                        <div className={toneClass(trade.live?.chg) + " text-lg font-semibold tabular-nums"}>
+                        <div className="text-lg font-semibold tabular-nums leading-tight">
+                          {trade.live ? fmtPrice(trade.live.price) : "—"}
+                        </div>
+                        <div className="text-xs text-muted">现价</div>
+                      </div>
+                      <div>
+                        <div className={toneClass(trade.live?.chg) + " text-lg font-semibold tabular-nums leading-tight"}>
                           {signedPct(trade.live?.chg)}
                         </div>
                         <div className="text-xs text-muted">今日</div>
                       </div>
                       <div>
-                        <div className={toneClass(trade.ret == null ? null : trade.ret * 100) + " text-lg font-semibold tabular-nums"}>
+                        <div className={toneClass(trade.ret == null ? null : trade.ret * 100) + " text-lg font-semibold tabular-nums leading-tight"}>
                           {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
                         </div>
                         <div className="text-xs text-muted">买入以来</div>
@@ -327,9 +333,9 @@ export function Picks({
               <thead className="text-left text-xs text-muted">
                 <tr className="border-b border-line">
                   <th className="px-4 py-2 font-medium">名称</th>
-                  <th className="px-3 py-2 font-medium">买入</th>
-                  <th className="px-3 py-2 font-medium">卖出</th>
-                  <th className="px-4 py-2 text-right font-medium">闭环</th>
+                  <th className="px-3 py-2 font-medium">买入价</th>
+                  <th className="px-3 py-2 font-medium">卖出价</th>
+                  <th className="px-4 py-2 text-right font-medium">收益率</th>
                 </tr>
               </thead>
               <tbody>
@@ -345,8 +351,13 @@ export function Picks({
                         {trade.day.slice(5)} {trade.signalTime}
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-muted">持有中</td>
-                    <td className="px-4 py-3 text-right text-muted">—</td>
+                    <td className="px-3 py-3 tabular-nums">
+                      <div>{fmtPrice(levels(trade, rules).target)}</div>
+                      <div className="text-xs text-muted">还没卖</div>
+                    </td>
+                    <td className={"px-4 py-3 text-right tabular-nums " + toneClass(trade.ret == null ? null : trade.ret * 100)}>
+                      {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
+                    </td>
                   </tr>
                 ))}
                 {closed.slice(0, 8).map((trade) => (
@@ -363,7 +374,7 @@ export function Picks({
                     </td>
                     <td className="px-3 py-3 tabular-nums">
                       <div>{fmtPrice(trade.exit!)}</div>
-                      <div className="text-xs text-muted">{trade.exitDate?.slice(5)}</div>
+                      <div className="text-xs text-muted">成交 {trade.exitDate?.slice(5)}</div>
                     </td>
                     <td className={"px-4 py-3 text-right tabular-nums " + toneClass(trade.ret == null ? null : trade.ret * 100)}>
                       {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
