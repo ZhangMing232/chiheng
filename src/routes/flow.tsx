@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { getFlow } from "@/lib/market/quotes.functions";
-import type { FlowRow, MarketPart, NorthLeg } from "@/lib/market/flow";
+import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/market/flow";
 
 export const Route = createFileRoute("/flow")({
   loader: async () => {
@@ -124,6 +124,15 @@ function Market({ parts }: { parts: MarketPart[] }) {
           </table>
         </div>
       )}
+      {parts.length > 0 ? (
+        <ul className="border-t border-line px-4 py-3 text-sm text-muted">
+          {readMarket(parts).map((line) => (
+            <li key={line} className="py-1 text-pretty">
+              {line}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="border-t border-line px-4 py-3">
         <h3 className="text-sm font-semibold">另外三类</h3>
         <ul className="mt-2 text-sm">

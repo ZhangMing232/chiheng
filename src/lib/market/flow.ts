@@ -27,6 +27,37 @@ export type MarketPart = {
   retail: number;
 };
 
+/** 主力与散户是同一笔成交的两边。真正的差别在单子大小和沪深是否同向。 */
+export function readMarket(parts: MarketPart[]): string[] {
+  if (parts.length === 0) return [];
+  const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
+  const lines = ["主力净额和散户净额是同一笔成交的两边，不是两群人。散户净流入大约等于主力净流出。"];
+  const superNet = sum("super");
+  const big = sum("big");
+  if (superNet * big < 0) {
+    lines.push(
+      superNet > 0
+        ? "主力内部不一致：超大单在进，大单在出。只看主力净额会把这个差别抹平。"
+        : "主力内部不一致：超大单在出，大单在进。只看主力净额会把这个差别抹平。",
+    );
+  } else {
+    lines.push("超大单和大单同向，主力内部没有对着做。");
+  }
+  const mid = sum("mid");
+  const small = sum("small");
+  if (mid * small < 0) {
+    lines.push(small > 0 ? "散户这边也不齐：小单在进，中单在出。" : "散户这边也不齐：小单在出，中单在进。");
+  }
+  const sh = parts.find((part) => part.name === "沪市");
+  const sz = parts.find((part) => part.name === "深市");
+  if (sh && sz && sh.main * sz.main < 0) {
+    lines.push(sh.main > 0 ? "沪市主力在进，深市主力在出。不要合成一个方向。" : "沪市主力在出，深市主力在进。不要合成一个方向。");
+  } else if (sh && sz && (sh.main !== 0 || sz.main !== 0)) {
+    lines.push(Math.abs(sh.main) >= Math.abs(sz.main) ? "两市主力同向，幅度主要在沪市。" : "两市主力同向，幅度主要在深市。");
+  }
+  return lines;
+}
+
 export type FlowBook = {
   sectorsIn: FlowRow[];
   sectorsOut: FlowRow[];
