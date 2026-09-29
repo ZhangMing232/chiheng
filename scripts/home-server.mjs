@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 
 const entry = ".output/server/index.mjs";
 if (!existsSync(entry)) {
-  console.error("还没有构建。在项目目录运行：npm install && npm run build");
+  console.error("还没有本机构建。在项目目录运行：npm install && npm run build:mac");
   process.exit(1);
 }
 
