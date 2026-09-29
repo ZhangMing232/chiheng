@@ -202,54 +202,36 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
   );
 }
 
-function seatLine(seat: HotSeat) {
-  const word = seat.netWan > 0 ? "净买" : "净卖";
-  const stocks = seat.stocks
-    .map((stock) => `${stock.name} ${stock.netWan > 0 ? "净买" : "净卖"}${fmtWan(stock.netWan)}`)
-    .join(" · ");
-  return { word, stocks };
-}
-
 function Hot({ book }: { book: HotBook | null }) {
   return (
     <section className="rounded-2xl border border-line bg-surface">
       <div className="px-4 py-3">
         <h2 className="text-base font-semibold">游资</h2>
-        <p className="mt-1 text-xs text-muted">龙虎榜营业部的买入和卖出。机构席位、沪股通、深股通不放这里。收盘后才有。{book?.date ? ` ${book.date}` : ""}</p>
+        <p className="mt-1 text-xs text-muted">
+          一行一个席位，红是净买，绿是净卖。对得上的才用别名，其余用路名。机构和拉萨放在最后。收盘后才有。
+          {book?.date ? ` ${book.date}` : ""}
+        </p>
       </div>
-      {!book || (book.buys.length === 0 && book.sells.length === 0) ? (
+      {!book || book.seats.length === 0 ? (
         <p className="border-t border-line px-4 py-6 text-sm text-muted">游资龙虎榜暂时没有。</p>
       ) : (
-        <div className="grid border-t border-line md:grid-cols-2 md:divide-x md:divide-line">
-          <SeatList title="净买入" seats={book.buys} />
-          <SeatList title="净卖出" seats={book.sells} />
-        </div>
+        <ul className="border-t border-line">
+          {book.seats.map((seat) => (
+            <li key={seat.name} className="grid grid-cols-[5.5rem_1fr] gap-3 border-t border-line px-4 py-3 first:border-t-0">
+              <div className="font-medium">{seat.name}</div>
+              <p className="text-sm leading-6">
+                {seat.stocks.map((stock) => (
+                  <span key={stock.name} className={toneClass(stock.netWan) + " mr-3 inline-block"}>
+                    {stock.name} {stock.netWan > 0 ? "净买" : "净卖"}
+                    {fmtWan(Math.abs(stock.netWan))}
+                  </span>
+                ))}
+              </p>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
-  );
-}
-
-function SeatList({ title, seats }: { title: string; seats: HotSeat[] }) {
-  return (
-    <div className="min-w-0 px-4 py-3">
-      <h3 className="text-sm font-medium">{title}</h3>
-      <ul>
-        {seats.map((seat) => {
-          const line = seatLine(seat);
-          return (
-            <li key={seat.name} className="border-t border-line py-2">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate font-medium">{seat.name}</span>
-                <span className={toneClass(seat.netWan) + " shrink-0 tabular-nums"}>
-                  {line.word} {fmtWan(seat.netWan)}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-muted">{line.stocks}</p>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
   );
 }
 
@@ -322,7 +304,7 @@ function FlowPage() {
             <List title="个股净流出" rows={book.stocksOut} hint="已去掉新股和 ST。" />
           </>
         ) : null}
-        <PosterButton draw={() => drawHotPoster(hot ?? { date: "", buys: [], sells: [] })} />
+        <PosterButton draw={() => drawHotPoster(hot ?? { date: "", seats: [] })} />
         <Hot book={hot} />
         <PosterButton draw={() => drawFuturesPoster(futures ?? { date: "", rows: [] })} />
         <Futures book={futures} />

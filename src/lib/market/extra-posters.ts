@@ -32,61 +32,94 @@ function lots(n: number): string {
   return `${Math.round(abs)}手`;
 }
 
+const FACE = '"PingFang SC","Hiragino Sans GB","WenQuanYi Zen Hei","Noto Sans SC",sans-serif';
+
 export function drawHotPoster(book: HotBook) {
-  const { canvas, ctx } = openPoster();
-  const date = book.date || fileDate("");
-  paintMark(ctx, dayFromDate(date));
-  paintTitle(ctx, "游资龙虎榜", "红是净买入，绿是净卖出。机构席位不在这里。");
-  let y = paintCards(ctx, 212, [
-    { label: "净买入", value: String(book.buys.length), color: RED, note: "席位" },
-    { label: "净卖出", value: String(book.sells.length), color: GREEN, note: "席位" },
-    { label: "日期", value: dayFromDate(date), color: INK, note: "收盘后公布" },
-  ]);
-  y += 28;
-  const colW = (POSTER_W - 112 - 24) / 2;
-  const rightX = 56 + colW + 24;
-  paintSection(ctx, y, "买入", RED, 56);
-  y = paintSection(ctx, y, "卖出", GREEN, rightX);
-  const n = Math.max(book.buys.length, book.sells.length, 1);
-  for (let index = 0; index < Math.min(n, 8); index += 1) {
-    const h = 108;
-    ctx.strokeStyle = LINE;
+  const width = 1080;
+  const probe = document.createElement("canvas").getContext("2d");
+  if (!probe) throw new Error("画布不可用");
+  probe.font = `28px ${FACE}`;
+  const labelW = 210;
+  const textW = width - labelW - 72;
+  const rows = book.seats.map((seat) => ({
+    name: seat.name,
+    lines: wrapStocks(probe, seat.stocks, textW),
+  }));
+  const lineH = 40;
+  const headerH = 132;
+  const body = rows.reduce((sum, row) => sum + Math.max(72, row.lines.length * lineH + 28), 0);
+  const height = headerH + body + 56;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("画布不可用");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#e10600";
+  ctx.fillRect(0, 0, width, headerH);
+  ctx.fillStyle = "#fff";
+  ctx.font = `700 56px ${FACE}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`${dayFromDate(book.date || fileDate(""))}游资龙虎榜`, width / 2, 58);
+  ctx.font = `24px ${FACE}`;
+  ctx.fillStyle = "#ffe08a";
+  ctx.fillText("红是净买    绿是净卖", width / 2, 104);
+
+  let y = headerH;
+  for (const row of rows) {
+    const h = Math.max(72, row.lines.length * lineH + 28);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, y, width, h);
+    ctx.strokeStyle = "#f0c4c4";
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(56, y);
-    ctx.lineTo(56 + colW, y);
-    ctx.moveTo(rightX, y);
-    ctx.lineTo(POSTER_W - 56, y);
+    ctx.moveTo(28, y + h);
+    ctx.lineTo(width - 28, y + h);
     ctx.stroke();
-    seat(ctx, 56, y, colW, book.buys[index]);
-    seat(ctx, rightX, y, colW, book.sells[index]);
+    ctx.fillStyle = "#1a1a1a";
+    ctx.font = `700 30px ${FACE}`;
+    ctx.textAlign = "center";
+    ctx.fillText(fit(ctx, row.name, labelW - 24), labelW / 2, y + h / 2);
+    ctx.textAlign = "left";
+    ctx.font = `28px ${FACE}`;
+    row.lines.forEach((line, index) => {
+      let x = labelW + 12;
+      const ly = y + 22 + lineH / 2 + index * lineH;
+      for (const piece of line) {
+        ctx.fillStyle = piece.color;
+        ctx.fillText(piece.text, x, ly);
+        x += ctx.measureText(piece.text).width;
+      }
+    });
     y += h;
   }
-  y = paintFoot(ctx, y + 8, "一只股票可能因多个上榜原因被重复统计，已按席位加总。");
-  return { canvas: cropPoster(canvas, y), filename: `赤轨-游资-${fileDate(date)}.png` };
+  ctx.strokeStyle = "#e10600";
+  ctx.lineWidth = 18;
+  ctx.strokeRect(9, 9, width - 18, height - 18);
+  return { canvas, filename: `赤轨-游资-${fileDate(book.date || "")}.png` };
 }
 
-function seat(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, row?: { name: string; netWan: number; stocks: { name: string; netWan: number }[] }) {
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  if (!row) {
-    ctx.fillStyle = MUTED;
-    ctx.font = `22px "PingFang SC","WenQuanYi Zen Hei",sans-serif`;
-    ctx.fillText("—", x, y + 28);
-    return;
+function wrapStocks(ctx: CanvasRenderingContext2D, stocks: { name: string; netWan: number }[], maxWidth: number): { text: string; color: string }[][] {
+  const pieces = stocks.map((stock) => ({
+    text: `${stock.name} ${stock.netWan > 0 ? "净买" : "净卖"}${wan(stock.netWan)}   `,
+    color: stock.netWan > 0 ? "#e10600" : "#12823a",
+  }));
+  const lines: { text: string; color: string }[][] = [[]];
+  let used = 0;
+  for (const piece of pieces) {
+    const w = ctx.measureText(piece.text).width;
+    const line = lines[lines.length - 1];
+    if (line.length > 0 && used + w > maxWidth) {
+      lines.push([piece]);
+      used = w;
+    } else {
+      line.push(piece);
+      used += w;
+    }
   }
-  ctx.fillStyle = INK;
-  ctx.font = `600 24px "PingFang SC","WenQuanYi Zen Hei",sans-serif`;
-  ctx.fillText(fit(ctx, row.name, width * 0.62), x, y + 24);
-  ctx.textAlign = "right";
-  ctx.fillStyle = row.netWan > 0 ? RED : GREEN;
-  ctx.fillText(row.netWan > 0 ? `净买 ${wan(row.netWan)}` : `净卖 ${wan(row.netWan)}`, x + width, y + 24);
-  ctx.textAlign = "left";
-  ctx.font = `20px "PingFang SC","WenQuanYi Zen Hei",sans-serif`;
-  const line = row.stocks
-    .map((stock) => `${stock.name} ${stock.netWan > 0 ? "净买" : "净卖"}${wan(stock.netWan)}`)
-    .join("  ");
-  ctx.fillStyle = MUTED;
-  ctx.fillText(fit(ctx, line || "—", width), x, y + 64);
+  return lines.filter((line) => line.length > 0);
 }
 
 export function drawFuturesPoster(book: FutBook) {
