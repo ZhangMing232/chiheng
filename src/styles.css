@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "WenQuanYi Zen Hei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+  --font-serif: "Iowan Old Style", Palatino, "Palatino Linotype", "Songti SC", "Noto Serif SC",
+    serif;
+  --color-bg: #f2eee6;
+  --color-fg: #1b1914;
+  --color-muted: #6f675c;
+  --color-surface: #faf7f1;
+  --color-surface-2: #efe8db;
+  --color-line: #e0d6c6;
+  --color-up: #c5362c;
+  --color-down: #1b7a4e;
+  --color-up-soft: #f6e4e1;
+  --color-down-soft: #e3f2ea;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.scroll-slim {
+  scrollbar-width: none;
+}
+.scroll-slim::-webkit-scrollbar {
+  display: none;
+}
