@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { screen } from "@/lib/market/model";
+import { screen, planExit } from "@/lib/market/model";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { dayLocked, exitFill, nthClose } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
@@ -53,16 +53,20 @@ export function Journal({
     const existing = usePaper.getState().days.find((day) => day.date === date);
     if (existing && dayLocked(existing)) return;
     const same = existing && (existing.ruleVersion ?? 1) === rules.version;
-    const prior = new Map(same ? existing.trades.map((trade) => [trade.id, trade.entry]) : []);
+    const prior = new Map(same ? existing.trades.map((trade) => [trade.id, trade]) : []);
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
       if (!screen(quote, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
       const kept = prior.get(quote.id);
+      const entry = kept && kept.entry > 0 ? kept.entry : quote.price;
+      const plan = kept?.stop && kept?.target ? { stop: kept.stop, target: kept.target } : planExit(entry, quote.d20, rules);
       trades.push({
         id: quote.id,
         code: quote.code,
         name: quote.name,
-        entry: kept && kept > 0 ? kept : quote.price,
+        entry,
+        stop: plan.stop,
+        target: plan.target,
         exit: null,
         exitDate: null,
       });
@@ -99,7 +103,9 @@ export function Journal({
           if (trade.exit != null) continue;
           try {
             const data = await getKline({ data: { id: trade.id } });
-            const filled = exitFill(data.bars ?? [], day.date, trade.entry);
+            const plan =
+              trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
+            const filled = exitFill(data.bars ?? [], day.date, trade.entry, plan.stop, plan.target);
             if (!filled) continue;
             settle(day.date, trade.id, filled.price, filled.date, trade.entry);
           } catch {
@@ -120,7 +126,7 @@ export function Journal({
     return () => {
       cancel = true;
     };
-  }, [ready, openKey, settle, settleIndex]);
+  }, [ready, openKey, settle, settleIndex, rules]);
 
   return null;
 }

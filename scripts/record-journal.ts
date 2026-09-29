@@ -7,7 +7,7 @@ import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
-import { screen } from "../src/lib/market/model.ts";
+import { screen, planExit } from "../src/lib/market/model.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
 type Trade = {
@@ -15,6 +15,8 @@ type Trade = {
   code: string;
   name: string;
   entry: number;
+  stop?: number;
+  target?: number;
   exit: number | null;
   exitDate: string | null;
 };
@@ -70,11 +72,15 @@ if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
       for (const quote of universe.quotes) {
         if (!screen(quote, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
         const prior = same ? existing?.trades.find((trade) => trade.id === quote.id) : undefined;
+        const entry = prior && prior.entry > 0 ? prior.entry : quote.price;
+        const plan = prior?.stop && prior?.target ? { stop: prior.stop, target: prior.target } : planExit(entry, quote.d20, rules);
         trades.push({
           id: quote.id,
           code: quote.code,
           name: quote.name,
-          entry: prior && prior.entry > 0 ? prior.entry : quote.price,
+          entry,
+          stop: plan.stop,
+          target: plan.target,
           exit: null,
           exitDate: null,
         });
@@ -111,7 +117,8 @@ if (settleDue && phase.date) {
       if (trade.exit != null) continue;
       try {
         const data = await loadKline(trade.id);
-        const filled = exitFill(data.bars, day.date, trade.entry);
+        const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
+        const filled = exitFill(data.bars, day.date, trade.entry, plan.stop, plan.target);
         if (!filled) {
           stillOpen = true;
           continue;

@@ -19,7 +19,7 @@ export function nowAction(input: {
     };
   }
   if (input.lockedCount > 0) {
-    return { title: "只买还没涨过参考价的", body: "标着「别追」的不要买。跌到止损价就卖，涨到目标价也卖。" };
+    return { title: "只买还没涨过参考价的", body: "标着「别追」的不要买。跌回启动幅度就止损，20 日涨到策略上限就止盈。" };
   }
   if (input.tail) {
     return { title: "尾盘正在锁定买入价", body: "这一轮锁定之后，参考价不再改。" };

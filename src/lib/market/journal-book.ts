@@ -1,23 +1,8 @@
 import { DEFAULT_RULES, type EarlyRules } from "./rules.ts";
+import { HOLD_SESSIONS } from "./model.ts";
 
 export const ROUND_TRIP_COST = 0.0015;
-/** 目标卖出价比参考买入价高 8%。盘中最高价碰到就按这个价记卖出。 */
-export const TARGET_GAIN = 0.08;
-/** 止损比参考买入价低 5%。亏损比目标小，这样单笔亏不过单笔赚。 */
-export const STOP_LOSS_PCT = 5;
-/** 8 个交易日内没碰到目标价或止损价，就用第 8 天的收盘价卖。不是 60 天。 */
-export const HOLD_SESSIONS = 8;
-
-export function targetPrice(entry: number): number {
-  if (!(entry > 0)) return 0;
-  return Math.round(entry * (1 + TARGET_GAIN) * 100) / 100;
-}
-
-export function lossPrice(entry: number): number {
-  const price = stopPrice(entry, STOP_LOSS_PCT);
-  if (price == null) return 0;
-  return Math.round(price * 100) / 100;
-}
+export { HOLD_SESSIONS };
 
 function normDay(value: string): string {
   const match = value.match(/(\d{4})-?(\d{2})-?(\d{2})/);
@@ -28,11 +13,11 @@ export function exitFill(
   bars: { date: string; h?: number; l?: number; c: number }[],
   entryDate: string,
   entry: number,
+  stop: number,
+  target: number,
 ): { date: string; price: number; reason: "target" | "stop" | "time" } | null {
-  const target = targetPrice(entry);
-  const stop = lossPrice(entry);
   const start = bars.findIndex((bar) => normDay(bar.date) === normDay(entryDate));
-  if (start < 0 || !(target > 0) || !(stop > 0)) return null;
+  if (start < 0 || !(entry > 0) || !(stop > 0) || !(target > stop)) return null;
   let left = HOLD_SESSIONS;
   for (let cursor = start + 1; cursor < bars.length && left > 0; cursor += 1) {
     const bar = bars[cursor];

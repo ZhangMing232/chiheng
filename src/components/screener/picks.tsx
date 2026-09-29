@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { nowAction } from "@/lib/market/action";
-import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
-import { dayLocked, liveGate, lossPrice, maxDrawdown, netReturn, targetPrice } from "@/lib/market/journal-book";
+import { BOARD_LABEL, TRACK_NEED, planExit } from "@/lib/market/model";
+import { dayLocked, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
 
 type Pick = { quote: Quote; reasons: string[] };
+
+function levels(trade: { entry: number; stop?: number; target?: number }, rules: EarlyRules) {
+  if (trade.stop && trade.target) return { stop: trade.stop, target: trade.target };
+  return planExit(trade.entry, null, rules);
+}
 
 function dayLabel(date: string): string {
   const match = date.match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -85,8 +90,8 @@ export function Picks({
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
   const featured = picks.slice(0, 3);
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
-  const stops = open.filter((trade) => trade.live != null && trade.live.price <= lossPrice(trade.entry));
-  const due = open.filter((trade) => trade.live != null && trade.live.price >= targetPrice(trade.entry));
+  const stops = open.filter((trade) => trade.live != null && trade.live.price <= levels(trade, rules).stop);
+  const due = open.filter((trade) => trade.live != null && trade.live.price >= levels(trade, rules).target);
   const now = nowAction({
     stopNames: stops.map((trade) => trade.name),
     dueNames: due.map((trade) => trade.name),
@@ -135,11 +140,11 @@ export function Picks({
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-muted">目标卖出价</div>
-                          <div className="font-medium tabular-nums">{fmtPrice(targetPrice(trade.entry))}</div>
+                          <div className="font-medium tabular-nums">{fmtPrice(levels(trade, rules).target)}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-muted">止损价</div>
-                          <div className="font-medium tabular-nums">{fmtPrice(lossPrice(trade.entry))}</div>
+                          <div className="font-medium tabular-nums">{fmtPrice(levels(trade, rules).stop)}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-muted">现价</div>
@@ -179,11 +184,11 @@ export function Picks({
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted">目标卖出价</div>
-                      <div className="font-medium tabular-nums">{fmtPrice(targetPrice(pick.quote.price))}</div>
+                      <div className="font-medium tabular-nums">{fmtPrice(planExit(pick.quote.price, pick.quote.d20, rules).target)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted">止损价</div>
-                      <div className="font-medium tabular-nums">{fmtPrice(lossPrice(pick.quote.price))}</div>
+                      <div className="font-medium tabular-nums">{fmtPrice(planExit(pick.quote.price, pick.quote.d20, rules).stop)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted">现价</div>
@@ -201,7 +206,7 @@ export function Picks({
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="px-4 py-3">
           <h2 className="font-serif text-lg font-semibold">等待卖出信号的股票池 共 {open.length} 只</h2>
-          <p className="mt-1 text-sm text-muted">跌到止损价就卖，涨到目标价也卖。8 个交易日内都没碰到，第 8 天收盘卖。</p>
+          <p className="mt-1 text-sm text-muted">止损是把当日允许的涨幅跌回去。止盈是 20 日涨到这套策略的上限。都没碰到，最多 8 个交易日收盘卖。</p>
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
@@ -216,13 +221,13 @@ export function Picks({
                     <div>
                       <div className="font-semibold">
                         {trade.name}{" "}
-                        <span className={"rounded-full px-2 py-0.5 text-xs font-normal " + (trade.live && (trade.live.price <= lossPrice(trade.entry) || trade.live.price >= targetPrice(trade.entry)) ? "bg-up text-bg" : "bg-down-soft text-down")}>
-                          {trade.live && trade.live.price <= lossPrice(trade.entry) ? "止损" : trade.live && trade.live.price >= targetPrice(trade.entry) ? "卖出" : "持有"}
+                        <span className={"rounded-full px-2 py-0.5 text-xs font-normal " + (trade.live && (trade.live.price <= levels(trade, rules).stop || trade.live.price >= levels(trade, rules).target) ? "bg-up text-bg" : "bg-down-soft text-down")}>
+                          {trade.live && trade.live.price <= levels(trade, rules).stop ? "止损" : trade.live && trade.live.price >= levels(trade, rules).target ? "卖出" : "持有"}
                         </span>{" "}
                         <span className="font-normal text-muted">({trade.code})</span>
                       </div>
                       <div className="mt-2 text-xs text-muted">
-                        买入信号 {trade.day} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(lossPrice(trade.entry))} · 目标 {fmtPrice(targetPrice(trade.entry))}
+                        买入信号 {trade.day} {trade.signalTime} · 参考价 {fmtPrice(trade.entry)} · 止损 {fmtPrice(levels(trade, rules).stop)} · 目标 {fmtPrice(levels(trade, rules).target)}
                       </div>
                     </div>
                     <div className="text-right">
@@ -230,9 +235,9 @@ export function Picks({
                         {trade.ret == null ? "—" : signedPct(trade.ret * 100)}
                       </div>
                       <div className="text-xs text-muted">
-                        {trade.live && trade.live.price <= lossPrice(trade.entry)
+                        {trade.live && trade.live.price <= levels(trade, rules).stop
                           ? "止损信号"
-                          : trade.live && trade.live.price >= targetPrice(trade.entry)
+                          : trade.live && trade.live.price >= levels(trade, rules).target
                             ? "卖出信号"
                             : "调入以来"}
                       </div>

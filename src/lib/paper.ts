@@ -7,6 +7,8 @@ export type PaperTrade = {
   code: string;
   name: string;
   entry: number;
+  stop?: number;
+  target?: number;
   exit: number | null;
   exitDate: string | null;
 };

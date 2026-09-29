@@ -3,8 +3,31 @@ import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 
 export type Scored = { score: number; reasons: string[] };
 
+/** 启动前期的卖出检查最多这么多个交易日。落在 5 到 10 天里。20 日只用来判断走没走远，不是持股天数。 */
+export const HOLD_SESSIONS = 8;
+
 /** 样本要满这么多交易日，上涨占比才不算太短。不是持股天数。 */
 export const TRACK_NEED = 60;
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * 止损和止盈都从这套策略的区间来，不另写固定百分比。
+ * 止损：把策略允许的当日启动幅度跌回去，启动就不成立。
+ * 止盈：20 日涨幅碰到策略上限，就不再是「还没走远」。不知道当时的 20 日涨幅时，用整段区间。
+ * 止盈至少不小于止损幅度，避免目标价落在止损价里面。
+ */
+export function planExit(entry: number, d20: number | null, rules: EarlyRules = DEFAULT_RULES): { stop: number; target: number } {
+  const stopPct = Math.max(rules.chgMax, 0.5) / 100;
+  const room = d20 == null ? rules.d20Max - rules.d20Min : rules.d20Max - d20;
+  const targetPct = Math.max(room, rules.chgMax) / 100;
+  return {
+    stop: round2(entry * (1 - stopPct)),
+    target: round2(entry * (1 + targetPct)),
+  };
+}
 
 export const BOARD_LABEL: Record<Board, string> = {
   sh: "沪市",
@@ -64,7 +87,7 @@ function pct(n: number | null): string {
 /**
  * 启动前期：刚转强、20 日还没走远。条件收窄是为了少追、少接飞刀，不是为了把历史涨幅调到最好看。
  * 涨跌停和 ST 直接排除。门槛来自 rules，改规则会换版本。
- * 卖出不在这里：跌 5% 止损，涨 8% 止盈，否则第 8 个交易日收盘卖。
+ * 卖出看 planExit：跌回当日允许的启动幅度就止损，20 日涨到策略上限就止盈，否则最多 8 个交易日收盘卖。
  */
 export function screen(quote: Quote, live: boolean, rules: EarlyRules = DEFAULT_RULES): Scored | null {
   if (!live || quote.st || quote.price < 4 || quote.cap < 40) return null;
