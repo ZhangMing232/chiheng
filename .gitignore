@@ -4,6 +4,7 @@ dist
 .vercel
 .grok
 screenshots
+attachments
 *.log
 .env
 .env.*
