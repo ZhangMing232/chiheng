@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { nowAction } from "@/lib/market/action";
 import { MAX_POSITIONS, STYLES, styleOf } from "@/lib/market/strategies";
@@ -243,9 +244,11 @@ export function Picks({
                   return (
                     <tr key={`${trade.day}-${trade.id}`} className="border-b border-line last:border-0">
                       <td className="sticky left-0 bg-surface px-4 py-2.5">
-                        <button type="button" onClick={() => onOpen(trade.id)} className="block text-left">
-                          <div className="font-medium">{trade.name}</div>
-                          <div className="text-xs text-muted">{trade.code} · {state}</div>
+                        <Link to="/symbol" search={{ q: trade.code }} className="font-medium">
+                          {trade.name}
+                        </Link>
+                        <button type="button" onClick={() => onOpen(trade.id)} className="block text-left text-xs text-muted">
+                          {trade.code} · {state}
                         </button>
                       </td>
                       <td className="px-3 py-2.5 text-right font-medium tabular-nums">
