@@ -62,8 +62,10 @@ export type MarketTape = {
   name: string;
   /** 成交额，万元。 */
   amount: number;
-  /** 成交量，手。 */
+  /** 今日成交量，手。 */
   volume: number;
+  /** 上一交易日成交量，手。没有则是 null。 */
+  prevVolume: number | null;
 };
 
 export type FlowBook = {
@@ -183,12 +185,28 @@ async function loadMarket(): Promise<MarketPart[]> {
 }
 
 async function loadTape(): Promise<MarketTape[]> {
-  const res = await fetch("https://web.sqt.gtimg.cn/utf8/q=sh000001,sz399001", {
-    headers: { "user-agent": "Mozilla/5.0" },
-    signal: AbortSignal.timeout(12_000),
-  });
-  if (!res.ok) return [];
-  const text = await res.text();
+  const [quoteRes, shRes, szRes] = await Promise.all([
+    fetch("https://web.sqt.gtimg.cn/utf8/q=sh000001,sz399001", {
+      headers: { "user-agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(12_000),
+    }),
+    fetch("https://proxy.finance.qq.com/ifzqgtimg/appstock/app/kline/kline?param=sh000001,day,,,5,", {
+      headers: { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" },
+      signal: AbortSignal.timeout(12_000),
+    }),
+    fetch("https://proxy.finance.qq.com/ifzqgtimg/appstock/app/kline/kline?param=sz399001,day,,,5,", {
+      headers: { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" },
+      signal: AbortSignal.timeout(12_000),
+    }),
+  ]);
+  if (!quoteRes.ok) return [];
+  const bars = new Map<string, string[][]>();
+  for (const res of [shRes, szRes]) {
+    if (!res.ok) continue;
+    const body = (await res.json()) as { data?: Record<string, { day?: string[][] }> };
+    for (const [code, node] of Object.entries(body.data ?? {})) bars.set(code, node.day ?? []);
+  }
+  const text = await quoteRes.text();
   const names: Record<string, string> = { sh000001: "上证", sz399001: "深成" };
   const rows: MarketTape[] = [];
   for (const line of text.split(";")) {
@@ -199,7 +217,17 @@ async function loadTape(): Promise<MarketTape[]> {
     const amountYuan = num(slash?.split("/")[2]);
     const volume = num(parts[6]);
     if (amountYuan == null || volume == null) continue;
-    rows.push({ name: names[match[1]] ?? match[1], amount: amountYuan / 10_000, volume });
+    const stamp = parts[30] ?? "";
+    const today = stamp.length >= 8 ? `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}` : "";
+    const days = bars.get(match[1]) ?? [];
+    const last = days.at(-1);
+    const prior = last && last[0] === today ? days.at(-2) : last;
+    rows.push({
+      name: names[match[1]] ?? match[1],
+      amount: amountYuan / 10_000,
+      volume,
+      prevVolume: prior ? num(prior[5]) : null,
+    });
   }
   return rows;
 }

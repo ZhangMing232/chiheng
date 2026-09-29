@@ -85,6 +85,10 @@ function flowWord(value: number): string {
 function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
   const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
   const amount = tape.reduce((total, row) => total + row.amount, 0);
+  const volume = tape.reduce((total, row) => total + row.volume, 0);
+  const prevVolume = tape.every((row) => row.prevVolume != null) ? tape.reduce((total, row) => total + (row.prevVolume ?? 0), 0) : null;
+  const volumeChg = prevVolume != null && prevVolume > 0 ? volume / prevVolume - 1 : null;
+  const volumeWord = volumeChg == null ? null : volumeChg > 0.005 ? "放量" : volumeChg < -0.005 ? "缩量" : "持平";
   const main = parts.length > 0 ? sum("main") : null;
   const share = amount > 0 && main != null ? (main / amount) * 100 : null;
   const rows: { name: string; key: keyof Omit<MarketPart, "name"> }[] = [
@@ -103,7 +107,8 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
             <div className="text-xs text-muted">成交额</div>
             <div className="text-xl font-semibold tabular-nums leading-tight">{amount > 0 ? fmtWan(amount) : "—"}</div>
             <div className="mt-1 text-xs text-muted">
-              {tape.map((row) => `${row.name} ${fmtWan(row.amount)}`).join(" · ") || "上证和深成"}
+              {volumeWord == null ? "和上一交易日比不出来" : `${volumeWord} ${Math.abs((volumeChg ?? 0) * 100).toFixed(1)}%`}
+              {tape.length > 0 ? ` · ${tape.map((row) => `${row.name} ${fmtWan(row.amount)}`).join(" · ")}` : ""}
             </div>
           </div>
           <div className="col-span-2 text-right">
