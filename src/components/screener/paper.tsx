@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { evaluate } from "@/lib/market/model";
+import { screen } from "@/lib/market/model";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { dayLocked, exitFill, nthClose } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
@@ -45,6 +45,7 @@ export function Journal({
     };
   }, []);
 
+  // 尾盘先记临时价，收盘才锁定。同一版规则里，已经写下的买入价不跟着刷新改。
   useEffect(() => {
     if (!ready || !live || !bookReady || !date) return;
     const closeWindow = signalTime >= "14:40" && signalTime < "15:00";
@@ -55,7 +56,7 @@ export function Journal({
     const prior = new Map(same ? existing.trades.map((trade) => [trade.id, trade.entry]) : []);
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
-      if (!evaluate("early", quote, true, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
+      if (!screen(quote, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
       const kept = prior.get(quote.id);
       trades.push({
         id: quote.id,

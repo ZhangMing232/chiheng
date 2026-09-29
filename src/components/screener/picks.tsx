@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
+import { nowAction } from "@/lib/market/action";
 import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
 import { dayLocked, liveGate, maxDrawdown, netReturn, targetPrice } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
@@ -85,15 +86,12 @@ export function Picks({
   const featured = picks.slice(0, 3);
   const lockedToday = days.find((day) => day.date === date && dayLocked(day));
   const due = open.filter((trade) => trade.live != null && trade.live.price >= targetPrice(trade.entry));
-  const now = due.length
-    ? { title: `先卖 ${due.map((trade) => trade.name).join("、")}`, body: "现价已经到目标卖出价。卖完再看新的买入。" }
-    : lockedToday && lockedToday.trades.length
-      ? { title: "只买还没涨过参考价的", body: "标着「别追」的不要买。到了目标价再卖。" }
-      : tail
-        ? { title: "尾盘正在锁定买入价", body: "这一轮锁定之后，参考价不再改。" }
-        : marketOpen
-          ? { title: "现在只观察，先别买", body: "买入价要到 14:40 以后才锁定。" }
-          : { title: "还没开盘", body: "下面是按偏好筛出来的观察，买入价还没锁定。" };
+  const now = nowAction({
+    dueNames: due.map((trade) => trade.name),
+    lockedCount: lockedToday?.trades.length ?? 0,
+    tail,
+    marketOpen,
+  });
 
   return (
     <div className="flex flex-col gap-3">

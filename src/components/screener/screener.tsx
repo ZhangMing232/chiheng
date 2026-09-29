@@ -5,7 +5,7 @@ import { Journal } from "@/components/screener/paper";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
-import { evaluate, isIdleBook } from "@/lib/market/model";
+import { isIdleBook, screen } from "@/lib/market/model";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { formatClock, sessionPhase } from "@/lib/market/session";
@@ -89,7 +89,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const ranked = useMemo(() => {
     const rows: { quote: Quote; score: number; reasons: string[] }[] = [];
     for (const quote of quotes) {
-      const scored = evaluate("early", quote, live, true, rules);
+      const scored = screen(quote, live, rules);
       if (!scored || !matchPrefs(quote, prefs)) continue;
       rows.push({ quote, score: scored.score, reasons: scored.reasons });
     }

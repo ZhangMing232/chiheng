@@ -21,6 +21,8 @@ export function parsePrefs(data: unknown): Prefs | null {
   return next;
 }
 
+/** 偏好只缩小范围，不改启动前期的涨幅和量能门槛。 */
+/** 偏好只缩小范围，不改启动前期的涨幅和量能门槛。 */
 export function matchPrefs(quote: Quote, prefs: Prefs): boolean {
   if (prefs.board === "main" && quote.board !== "sh" && quote.board !== "sz") return false;
   if (prefs.board === "cyb" && quote.board !== "cyb") return false;

@@ -1,12 +1,13 @@
+// 本机服务每分钟跑一次。14:40–15:00 只记临时名单，15:00 才锁定。
+// 目标价碰到就结算；否则等第 8 个交易日收盘。买入价写入后不再改。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { dayLocked } from "../src/lib/market/journal-book.ts";
-import { exitFill, nthClose } from "../src/lib/market/journal-book.ts";
+import { dayLocked, exitFill, nthClose } from "../src/lib/market/journal-book.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
-import { evaluate } from "../src/lib/market/model.ts";
+import { screen } from "../src/lib/market/model.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
 type Trade = {
@@ -32,23 +33,6 @@ type Day = {
 type Book = { days: Day[]; nextSettleAt?: number };
 
 const bookPath = join(process.cwd(), "data", "journal.json");
-const CHECK_DAYS = 8;
-
-function normDate(value: string): string {
-  const match = value.match(/(\d{4})-?(\d{2})-?(\d{2})/);
-  return match ? `${match[1]}-${match[2]}-${match[3]}` : value;
-}
-
-function barAfter(bars: { date: string; c: number }[], date: string, sessions: number) {
-  const index = bars.findIndex((bar) => normDate(bar.date) === date);
-  if (index < 0) return null;
-  let left = sessions;
-  for (let cursor = index + 1; cursor < bars.length; cursor += 1) {
-    left -= 1;
-    if (left === 0) return bars[cursor];
-  }
-  return null;
-}
 
 async function readBook(): Promise<Book> {
   try {
@@ -62,18 +46,6 @@ async function readBook(): Promise<Book> {
 async function writeBook(book: Book) {
   await mkdir(join(process.cwd(), "data"), { recursive: true });
   await writeFile(bookPath, JSON.stringify(book, null, 2));
-}
-
-function weekdaysBetween(from: string, to: string): number {
-  const start = Date.parse(`${from}T00:00:00+08:00`);
-  const end = Date.parse(`${to}T00:00:00+08:00`);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
-  let count = 0;
-  for (let cursor = start + 24 * 60 * 60 * 1000; cursor <= end; cursor += 24 * 60 * 60 * 1000) {
-    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date(cursor));
-    if (isTradingDay(date)) count += 1;
-  }
-  return count;
 }
 
 const rules = await readRules();
@@ -96,7 +68,7 @@ if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
     const trades: Trade[] = [];
     if (live) {
       for (const quote of universe.quotes) {
-        if (!evaluate("early", quote, true, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
+        if (!screen(quote, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
         const prior = same ? existing?.trades.find((trade) => trade.id === quote.id) : undefined;
         trades.push({
           id: quote.id,

@@ -1,7 +1,9 @@
 import { DEFAULT_RULES, type EarlyRules } from "./rules.ts";
 
 export const ROUND_TRIP_COST = 0.0015;
+/** 目标卖出价比参考买入价高 8%。盘中最高价碰到就按这个价记卖出。 */
 export const TARGET_GAIN = 0.08;
+/** 8 个交易日内没碰到目标价，就用第 8 天的收盘价卖。不是 60 天。 */
 export const HOLD_SESSIONS = 8;
 
 export function targetPrice(entry: number): number {
@@ -69,6 +71,7 @@ export function losingStreak(returns: number[]): number {
   return streak;
 }
 
+/** 真钱开关。天数和笔数不够、没跑赢指数、连亏或回撤过大，都不开。 */
 export function liveGate(
   days: number,
   closed: { ret: number | null; indexRet: number | null }[],
