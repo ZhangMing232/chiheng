@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { getFlow } from "@/lib/market/quotes.functions";
-import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/market/flow";
+import { readMarket, type FlowRow, type MarketPart, type MarketTape, type NorthLeg } from "@/lib/market/flow";
 
 export const Route = createFileRoute("/flow")({
   loader: async () => {
@@ -76,8 +76,17 @@ function North({ legs }: { legs: NorthLeg[] }) {
   );
 }
 
-function Market({ parts }: { parts: MarketPart[] }) {
+function fmtLots(lots: number): string {
+  const wan = lots / 10_000;
+  if (wan >= 10_000) return `${(wan / 10_000).toFixed(2)}亿手`;
+  return `${Math.round(wan)}万手`;
+}
+
+function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
   const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
+  const amount = tape.reduce((total, row) => total + row.amount, 0);
+  const volume = tape.reduce((total, row) => total + row.volume, 0);
+  const share = amount > 0 && parts.length > 0 ? (sum("main") / amount) * 100 : null;
   const rows: { name: string; key: keyof Omit<MarketPart, "name"> }[] = [
     { name: "主力", key: "main" },
     { name: "超大单", key: "super" },
@@ -88,17 +97,27 @@ function Market({ parts }: { parts: MarketPart[] }) {
   ];
   return (
     <section className="rounded-2xl border border-line bg-surface">
-        <div className="flex items-end justify-between gap-3 px-4 py-3">
+        <h2 className="px-4 pt-3 text-base font-semibold">大盘</h2>
+        <div className="grid grid-cols-3 gap-3 px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold">大盘资金</h2>
-            <p className="mt-1 text-xs text-muted">上证加深证成指。主力是超大单加大单。</p>
-          </div>
-          {parts.length > 0 ? (
-            <div className="text-right">
-              <div className="text-xs text-muted">主力合计</div>
-              <div className={toneClass(sum("main")) + " text-2xl font-semibold tabular-nums leading-none"}>{fmtWan(sum("main"))}</div>
+            <div className="text-xs text-muted">成交额</div>
+            <div className="text-xl font-semibold tabular-nums leading-tight">{amount > 0 ? fmtWan(amount) : "—"}</div>
+            <div className="mt-1 text-xs text-muted">
+              {tape.map((row) => `${row.name} ${fmtWan(row.amount)}`).join(" · ") || "上证和深成"}
             </div>
-          ) : null}
+          </div>
+          <div>
+            <div className="text-xs text-muted">成交量</div>
+            <div className="text-xl font-semibold tabular-nums leading-tight">{volume > 0 ? fmtLots(volume) : "—"}</div>
+            <div className="mt-1 text-xs text-muted">没有按股数分的净量</div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-muted">主力净额</div>
+            <div className={toneClass(parts.length ? sum("main") : null) + " text-xl font-semibold tabular-nums leading-tight"}>
+              {parts.length ? fmtWan(sum("main")) : "—"}
+            </div>
+            <div className="mt-1 text-xs text-muted">{share == null ? "占成交额 —" : `占成交额 ${share.toFixed(2)}%`}</div>
+          </div>
         </div>
       {parts.length === 0 ? (
         <p className="border-t border-line px-4 py-6 text-sm text-muted">大盘资金暂时拉不下来。</p>
@@ -170,7 +189,7 @@ function FlowPage() {
         {error ? <p className="text-sm text-up">{error}</p> : null}
         {book ? (
           <>
-            <Market parts={book.market} />
+            <Market parts={book.market} tape={book.tape} />
             <North legs={book.north} />
             <List title="行业净流入" rows={book.sectorsIn} />
             <List title="行业净流出" rows={book.sectorsOut} />

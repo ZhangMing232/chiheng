@@ -58,6 +58,14 @@ export function readMarket(parts: MarketPart[]): string[] {
   return lines;
 }
 
+export type MarketTape = {
+  name: string;
+  /** 成交额，万元。 */
+  amount: number;
+  /** 成交量，手。 */
+  volume: number;
+};
+
 export type FlowBook = {
   sectorsIn: FlowRow[];
   sectorsOut: FlowRow[];
@@ -65,6 +73,7 @@ export type FlowBook = {
   stocksOut: FlowRow[];
   north: NorthLeg[];
   market: MarketPart[];
+  tape: MarketTape[];
   asOf: number;
 };
 
@@ -173,6 +182,28 @@ async function loadMarket(): Promise<MarketPart[]> {
   return rows.filter((row): row is MarketPart => row != null);
 }
 
+async function loadTape(): Promise<MarketTape[]> {
+  const res = await fetch("https://web.sqt.gtimg.cn/utf8/q=sh000001,sz399001", {
+    headers: { "user-agent": "Mozilla/5.0" },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!res.ok) return [];
+  const text = await res.text();
+  const names: Record<string, string> = { sh000001: "上证", sz399001: "深成" };
+  const rows: MarketTape[] = [];
+  for (const line of text.split(";")) {
+    const match = line.match(/_([a-z]{2}\d+)="(.*)"/);
+    if (!match) continue;
+    const parts = match[2].split("~");
+    const slash = parts.find((part) => part.split("/").length === 3);
+    const amountYuan = num(slash?.split("/")[2]);
+    const volume = num(parts[6]);
+    if (amountYuan == null || volume == null) continue;
+    rows.push({ name: names[match[1]] ?? match[1], amount: amountYuan / 10_000, volume });
+  }
+  return rows;
+}
+
 /** 腾讯行业和个股的主力净流入。大约一分钟更新一次。 */
 export async function loadFlow(): Promise<FlowBook> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.book;
@@ -186,7 +217,11 @@ export async function loadFlow(): Promise<FlowBook> {
     rank(stock("down")),
     rank(stock("up")),
   ]);
-  const [north, market] = await Promise.all([loadNorth().catch(() => [] as NorthLeg[]), loadMarket().catch(() => [] as MarketPart[])]);
+  const [north, market, tape] = await Promise.all([
+    loadNorth().catch(() => [] as NorthLeg[]),
+    loadMarket().catch(() => [] as MarketPart[]),
+    loadTape().catch(() => [] as MarketTape[]),
+  ]);
   const book: FlowBook = {
     sectorsIn: take(sectorsIn, "sector", 8),
     sectorsOut: take(sectorsOut, "sector", 8),
@@ -194,6 +229,7 @@ export async function loadFlow(): Promise<FlowBook> {
     stocksOut: take(stocksOut, "stock", 8),
     north,
     market,
+    tape,
     asOf: Date.now(),
   };
   cache = { at: book.asOf, book };
