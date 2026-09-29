@@ -143,8 +143,12 @@ export function Frame({
           <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 py-2">
             <div className="flex min-w-0 items-center gap-3">
               <Link to="/" className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight">
-                <span className="size-2 rounded-full bg-up" aria-hidden />
-                赤衡
+                <svg viewBox="0 0 32 32" className="size-6" aria-hidden>
+                  <rect width="32" height="32" rx="8" fill="#161c25" />
+                  <path d="M6 16h20" stroke="#8b95a6" strokeWidth="1.4" strokeLinecap="round" />
+                  <circle cx="20" cy="16" r="2.2" fill="#f0535e" />
+                </svg>
+                候价
               </Link>
               <TopNav />
             </div>

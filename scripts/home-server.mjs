@@ -41,4 +41,4 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 server.on("exit", (code) => process.exit(code ?? 0));
 
-console.log(`赤衡在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);
+console.log(`候价在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);
