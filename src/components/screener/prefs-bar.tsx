@@ -42,8 +42,8 @@ function Row<T extends string>({
             type="button"
             onClick={() => onPick(option.id)}
             className={
-              "h-10 rounded-full border px-3 text-sm " +
-              (value === option.id ? "border-fg bg-fg text-bg" : "border-line bg-surface text-fg")
+              "h-10 rounded-full px-3 text-sm " +
+              (value === option.id ? "bg-fg text-bg" : "bg-surface-2 text-fg")
             }
           >
             {option.label}
@@ -56,8 +56,8 @@ function Row<T extends string>({
 
 export function PrefsBar({ prefs, onChange }: { prefs: Prefs; onChange: (next: Prefs) => void }) {
   return (
-    <section className="rounded-lg border border-line bg-surface px-4 py-3">
-      <h2 className="text-base font-semibold">选股偏好</h2>
+    <section className="rounded-2xl border border-line bg-surface px-5 py-4 shadow-card">
+      <h2 className="font-serif text-lg font-semibold">选股偏好</h2>
       <p className="mt-1 text-sm text-muted">先选板块、股价和市值。精选按这个范围出，之后锁定的名单也按这个范围。</p>
       <div className="mt-3 flex flex-col gap-3">
         <Row label="板块" value={prefs.board} options={BOARDS} onPick={(board) => onChange({ ...prefs, board })} />

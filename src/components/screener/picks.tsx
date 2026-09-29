@@ -97,12 +97,12 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-lg border border-line bg-surface px-4 py-3">
-        <div className="text-xs text-muted">现在</div>
-        <h2 className="mt-1 text-xl font-semibold text-pretty">{now.title}</h2>
-        <p className="mt-1 text-sm text-pretty text-muted">{now.body}</p>
+      <section className="rounded-2xl bg-fg px-5 py-5 text-bg shadow-card">
+        <div className="text-xs tracking-widest text-surface">现在</div>
+        <h2 className="mt-2 font-serif text-2xl font-semibold text-pretty">{now.title}</h2>
+        <p className="mt-2 text-sm text-pretty text-surface">{now.body}</p>
       </section>
-      <section className="rounded-lg border border-line bg-surface">
+      <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shrink-0 rounded bg-fg px-2 py-1 text-xs text-bg">{dayLabel(date)}</span>
@@ -120,12 +120,12 @@ export function Picks({
                 const chased = live != null && live.price > trade.entry;
                 return (
                   <li key={trade.id} className="border-t border-line">
-                    <button type="button" onClick={() => onOpen(trade.id)} className="block w-full px-4 py-3 text-left">
+                    <button type="button" onClick={() => onOpen(trade.id)} className="block w-full px-4 py-4 text-left transition-colors hover:bg-surface-2">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <div className="truncate text-base font-semibold">
                             {trade.name}
-                            <span className="ml-2 rounded bg-fg px-1.5 py-0.5 text-xs font-normal text-bg">{chased ? "别追" : "可买"}</span>
+                            <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (chased ? "bg-up text-bg" : "bg-down-soft text-down")}>{chased ? "别追" : "可买"}</span>
                           </div>
                           <div className="mt-1 text-xs text-muted">{trade.code}</div>
                         </div>
@@ -157,13 +157,13 @@ export function Picks({
           <ul>
             {featured.map((pick) => (
               <li key={pick.quote.id} className="border-t border-line">
-                <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full px-4 py-3 text-left">
+                <button type="button" onClick={() => onOpen(pick.quote.id)} className="block w-full px-4 py-4 text-left transition-colors hover:bg-surface-2">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="truncate text-base font-semibold">
                         {pick.quote.name}
-                        <span className="ml-2 rounded border border-line px-1.5 py-0.5 text-xs font-normal text-muted">观察</span>
-                        <span className="ml-2 rounded border border-line px-1.5 py-0.5 text-xs font-normal text-muted">
+                        <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-muted">观察</span>
+                        <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-muted">
                           {BOARD_LABEL[pick.quote.board]}
                         </span>
                       </div>
@@ -190,9 +190,9 @@ export function Picks({
         )}
       </section>
 
-      <section className="rounded-lg border border-line bg-surface">
+      <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="px-4 py-3">
-          <h2 className="text-base font-semibold">等待卖出信号的股票池 共 {open.length} 只</h2>
+          <h2 className="font-serif text-lg font-semibold">等待卖出信号的股票池 共 {open.length} 只</h2>
           <p className="mt-1 text-sm text-muted">现价到了目标卖出价就卖。8 个交易日内没到，就在第 8 天收盘卖。60 个交易日只是样本够不够，不是持股期限。</p>
         </div>
         {open.length === 0 ? (
@@ -208,7 +208,7 @@ export function Picks({
                     <div>
                       <div className="font-semibold">
                         {trade.name}{" "}
-                        <span className={"rounded px-1.5 py-0.5 text-xs font-normal " + (trade.live && trade.live.price >= targetPrice(trade.entry) ? "bg-fg text-bg" : "border border-line text-muted")}>
+                        <span className={"rounded-full px-2 py-0.5 text-xs font-normal " + (trade.live && trade.live.price >= targetPrice(trade.entry) ? "bg-up text-bg" : "bg-down-soft text-down")}>
                           {trade.live && trade.live.price >= targetPrice(trade.entry) ? "卖出" : "持有"}
                         </span>{" "}
                         <span className="font-normal text-muted">({trade.code})</span>
@@ -231,27 +231,27 @@ export function Picks({
         )}
       </section>
 
-      <section className="rounded-lg border border-line bg-surface">
+      <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-baseline justify-between gap-3 px-4 py-3">
-          <h2 className="text-base font-semibold">历史信号</h2>
+          <h2 className="font-serif text-lg font-semibold">历史信号</h2>
           <span className="text-xs text-muted">已记录 {days.length} 天</span>
         </div>
-        <div className="grid grid-cols-2 gap-3 border-t border-line px-4 py-3 sm:grid-cols-4">
-          <div>
+        <div className="grid grid-cols-2 gap-2 px-4 py-4 sm:grid-cols-4">
+          <div className="rounded-xl bg-surface-2 px-3 py-3">
             <div className="text-xl font-semibold tabular-nums">{closed.length === 0 ? "—" : `${((wins / closed.length) * 100).toFixed(2)}%`}</div>
             <div className="text-xs text-muted">上涨占比</div>
           </div>
-          <div>
+          <div className="rounded-xl bg-surface-2 px-3 py-3">
             <div className={"text-xl font-semibold tabular-nums " + toneClass(closed.length ? cum * 100 : null)}>
               {closed.length === 0 ? "—" : signedPct(cum * 100)}
             </div>
             <div className="text-xs text-muted">累计收益</div>
           </div>
-          <div>
+          <div className="rounded-xl bg-surface-2 px-3 py-3">
             <div className="text-xl font-semibold tabular-nums">{ordered.length === 0 ? "—" : signedPct(-maxDrawdown(ordered) * 100)}</div>
             <div className="text-xs text-muted">最大回撤</div>
           </div>
-          <div>
+          <div className="rounded-xl bg-surface-2 px-3 py-3">
             <div className={"text-xl font-semibold tabular-nums " + toneClass(indexCum == null ? null : indexCum * 100)}>
               {indexCum == null ? "—" : signedPct(indexCum * 100)}
             </div>

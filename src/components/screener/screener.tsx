@@ -103,13 +103,13 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
 
   return (
     <div className="min-h-screen">
-      <div className="h-1 bg-up" />
-      <header className="border-b border-line">
-        <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-4 md:px-6">
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 md:px-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-semibold leading-none">赤衡</h1>
-              <p className="mt-2 text-sm text-muted">按板块、股价和市值，每天精选刚启动的股票。</p>
+              <div className="mb-3 h-1 w-10 rounded-full bg-up" />
+              <h1 className="font-serif text-4xl leading-none font-semibold tracking-tight">赤衡</h1>
+              <p className="mt-3 max-w-sm text-sm text-pretty text-muted">按板块、股价和市值，每天精选刚启动的股票。</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="text-right text-sm">
@@ -120,7 +120,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
                 type="button"
                 onClick={() => void refresh(true)}
                 disabled={refreshing}
-                className="inline-flex h-11 items-center gap-2 rounded-md bg-fg px-4 text-sm font-medium text-bg disabled:opacity-60"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-fg px-4 text-sm font-medium text-bg disabled:opacity-60"
               >
                 <RefreshCw className={cx("size-4", refreshing && "animate-spin")} />
                 刷新
@@ -128,21 +128,27 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             </div>
           </div>
           {indices.length > 0 ? (
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex gap-2 overflow-x-auto scroll-slim pb-1">
               {indices.map((item) => (
-                <div key={item.id} className="min-w-32 shrink-0 rounded-lg border border-line bg-surface px-3 py-2">
+                <div
+                  key={item.id}
+                  className={cx(
+                    "min-w-32 shrink-0 rounded-2xl px-3 py-2",
+                    item.pct >= 0 ? "bg-up-soft" : "bg-down-soft",
+                  )}
+                >
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-xs text-muted">{INDEX_LABEL[item.id] ?? item.name}</span>
                     <span className={cx("text-xs tabular-nums", toneClass(item.pct))}>{signedPct(item.pct)}</span>
                   </div>
-                  <div className="text-lg font-medium tabular-nums">{fmtPrice(item.price)}</div>
+                  <div className={cx("text-lg font-medium tabular-nums", toneClass(item.pct))}>{fmtPrice(item.price)}</div>
                 </div>
               ))}
             </div>
           ) : null}
         </div>
       </header>
-      <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-4 md:px-6">
+      <main className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 md:px-6">
         <Journal
           quotes={quotes}
           live={live}

@@ -77,7 +77,7 @@ export function Detail({
         aria-label="关闭详情"
         onClick={onClose}
       />
-      <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto border-line bg-surface xl:static xl:max-w-none xl:border-l">
+      <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto bg-surface shadow-card xl:static xl:max-w-none xl:border-l xl:border-line">
         <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-4">
           <div className="min-w-0">
             <div className="text-xs text-muted">
@@ -85,12 +85,12 @@ export function Detail({
               {quote.st ? " · ST" : ""}
               {tag ? ` · ${tag}` : ""}
             </div>
-            <h2 className="truncate text-xl font-semibold">{quote.name}</h2>
+            <h2 className="truncate font-serif text-2xl font-semibold">{quote.name}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex size-11 items-center justify-center rounded-md border border-line"
+            className="inline-flex size-11 items-center justify-center rounded-full bg-surface-2"
             aria-label="关闭"
           >
             <X className="size-4" />
