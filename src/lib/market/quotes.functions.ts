@@ -7,6 +7,7 @@ import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
+import { loadNews } from "@/lib/market/news";
 import { sessionPhase } from "@/lib/market/session";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
 
@@ -292,6 +293,8 @@ export const getRelay = createServerFn({ method: "GET" }).handler(async () => {
   const phase = sessionPhase();
   return loadRelay(phase.tailHalf, phase.date);
 });
+
+export const getNews = createServerFn({ method: "GET" }).handler(async () => loadNews());
 
 export const getKline = createServerFn({ method: "GET" })
   .validator((data: unknown) => {

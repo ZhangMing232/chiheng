@@ -4,6 +4,7 @@ import { Detail } from "@/components/screener/detail";
 import { Journal } from "@/components/screener/paper";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
+import { TopNav } from "@/components/screener/nav";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
@@ -113,6 +114,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           <div className="flex items-center justify-between gap-3 py-3">
             <div className="min-w-0">
               <h1 className="font-serif text-2xl leading-none font-semibold tracking-tight">赤衡</h1>
+              <TopNav />
               <p className="mt-1 truncate text-xs text-muted">五套分开记账。打到买入价才记，打到卖出价或止损价再卖。</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
