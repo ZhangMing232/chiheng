@@ -105,7 +105,7 @@ if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
         date: phase.date,
         savedAt: Date.now(),
         signalTime: existing?.signalTime && existing.signalTime >= "14:40" ? existing.signalTime : phase.sealed ? "15:00" : time,
-        status: "locked",
+        status: phase.sealed ? "locked" : "provisional",
         indexEntry: existing?.indexEntry ?? (index && index.price > 0 ? index.price : null),
         indexExit: null,
         trades,

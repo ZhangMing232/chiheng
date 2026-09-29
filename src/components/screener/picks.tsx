@@ -134,8 +134,10 @@ export function Picks({
         </div>
         <div className="mt-3 grid grid-cols-3 gap-3">
           <div>
-            <div className="text-xs text-muted">单只金额</div>
-            <div className="font-medium tabular-nums">{yuan(budget)}</div>
+            <div className="text-xs text-muted">{gate.ok ? "单只金额" : "510300 可买"}</div>
+            <div className="font-medium tabular-nums">
+              {gate.ok ? yuan(budget) : benchmark ? `${lotShares(capital, benchmark.price)} 股` : "—"}
+            </div>
           </div>
           <div>
             <div className="text-xs text-muted">已结算盈亏</div>
@@ -177,7 +179,7 @@ export function Picks({
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-muted">{gate.ok ? "参考买入价" : "纸面价，不能买"}</div>
-                          <div className="font-medium tabular-nums">低于 {fmtPrice(trade.entry)}</div>
+                          <div className="font-medium tabular-nums">{gate.ok ? `低于 ${fmtPrice(trade.entry)}` : fmtPrice(trade.entry)}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-muted">现价</div>
@@ -212,7 +214,7 @@ export function Picks({
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted">{gate.ok ? "参考买入价" : "纸面价，不能买"}</div>
-                      <div className="font-medium tabular-nums">低于 {fmtPrice(pick.quote.price)}</div>
+                      <div className="font-medium tabular-nums">{gate.ok ? `低于 ${fmtPrice(pick.quote.price)}` : fmtPrice(pick.quote.price)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-muted">现价</div>

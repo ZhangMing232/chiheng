@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { evaluate } from "@/lib/market/model";
+import { dayLocked } from "@/lib/market/journal-book";
 import { getKline } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperTrade } from "@/lib/paper";
@@ -60,19 +61,30 @@ export function Journal({
     if (!ready || !live || !bookReady || !date) return;
     const closeWindow = signalTime >= "14:40" && signalTime < "15:00";
     if (!sealed && !closeWindow) return;
+    const existing = usePaper.getState().days.find((day) => day.date === date);
+    if (existing && dayLocked(existing)) return;
+    const prior = new Map(existing?.trades.map((trade) => [trade.id, trade.entry]) ?? []);
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
       if (!evaluate("early", quote, true, true) || !(quote.price > 0)) continue;
-      trades.push({ id: quote.id, code: quote.code, name: quote.name, entry: quote.price, exit: null, exitDate: null });
+      const kept = prior.get(quote.id);
+      trades.push({
+        id: quote.id,
+        code: quote.code,
+        name: quote.name,
+        entry: kept && kept > 0 ? kept : quote.price,
+        exit: null,
+        exitDate: null,
+      });
     }
     if (!sealed && trades.length === 0) return;
     recordDay({
       date,
       savedAt: Date.now(),
-      signalTime: sealed ? "15:00" : signalTime,
-      status: "locked",
-      indexEntry: indexPrice,
-      indexExit: null,
+      signalTime: existing?.signalTime || (sealed ? "15:00" : signalTime),
+      status: sealed ? "locked" : "provisional",
+      indexEntry: existing?.indexEntry ?? indexPrice,
+      indexExit: existing?.indexExit ?? null,
       trades,
     });
   }, [ready, sealed, live, bookReady, date, signalTime, quotes, indexPrice, recordDay]);
