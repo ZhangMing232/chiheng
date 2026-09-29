@@ -1,6 +1,5 @@
 import type { FlowBook, FlowRow, MarketPart } from "./flow";
-import { FONT, GREEN, INK, LINE, MUTED, POSTER_W, RED, beginPoster, openPoster, paintMark, paintTitle, themeName } from "./poster";
-import { paintCards, paintSized, wrapLines } from "./poster";
+import { FONT, GREEN, INK, MUTED, POSTER_W, RED, beginPoster, edge, openPoster, paintCards, paintFoot, paintHairline, paintHead, paintSection, paintSized, rightEdge, themeName } from "./poster";
 
 const W = POSTER_W;
 
@@ -68,9 +67,8 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
   const showTable = book.market.length > 0;
   beginPoster();
   const { canvas, ctx } = openPoster();
-
-  paintMark(ctx, headline(book.asOf));
-  paintTitle(ctx, "资金汇总", "红是净流入    绿是净流出");
+  const left = edge();
+  const right = rightEdge();
 
   const cards: { label: string; value: string; color: string; note: string }[] = [
     {
@@ -92,33 +90,30 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
       note: amount > 0 && book.market.length ? `占成交额 ${((Math.abs(main) / amount) * 100).toFixed(2)}%` : "暂无",
     },
   ];
-  let y = paintCards(ctx, 212, cards) + 28;
+  let y = paintHead(ctx, headline(book.asOf), "资金汇总", "红是净流入    绿是净流出");
+  y = paintCards(ctx, y + 16, cards) + 24;
   if (showTable) {
-    y = sectionTitle(ctx, y, "成分");
+    y = paintSection(ctx, y, "成分", RED);
     const cols = ["合计", ...book.market.map((part) => part.name)];
-    const colW = (W - 112 - 140) / cols.length;
+    const colW = (right - left - 120) / cols.length;
     ctx.fillStyle = MUTED;
     ctx.font = `20px ${FONT}`;
     cols.forEach((name, index) => {
       ctx.textAlign = "right";
-      ctx.fillText(name, 196 + colW * (index + 1) - 8, y + 22);
+      ctx.fillText(name, left + 120 + colW * (index + 1) - 8, y + 22);
     });
     y += 48;
     for (const row of keys) {
-      ctx.strokeStyle = LINE;
-      ctx.beginPath();
-      ctx.moveTo(56, y);
-      ctx.lineTo(W - 56, y);
-      ctx.stroke();
+      paintHairline(ctx, y, left, right);
       ctx.textAlign = "left";
       ctx.fillStyle = row.key === "main" || row.key === "retail" ? INK : MUTED;
       ctx.font = `${row.key === "main" || row.key === "retail" ? 600 : 400} 24px ${FONT}`;
-      ctx.fillText(row.label, 56, y + 26);
+      ctx.fillText(row.label, left, y + 26);
       const values = [book.market.reduce((sum, part) => sum + part[row.key], 0), ...book.market.map((part) => part[row.key])];
       values.forEach((value, index) => {
         ctx.textAlign = "right";
         ctx.fillStyle = tone(value);
-        paintSized(ctx, netText(value), 196 + colW * (index + 1) - 8, y + 26, colW - 16, 24, 16);
+        paintSized(ctx, netText(value), left + 120 + colW * (index + 1) - 8, y + 26, colW - 16, 24, 16);
       });
       y += 52;
     }
@@ -129,24 +124,11 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
   y += 20;
   y = pair(ctx, y, "个股流入", book.stocksIn, "个股流出", book.stocksOut);
 
-  y += 36;
-  ctx.strokeStyle = LINE;
-  ctx.beginPath();
-  ctx.moveTo(56, y);
-  ctx.lineTo(W - 56, y);
-  ctx.stroke();
-  ctx.textAlign = "left";
-  ctx.fillStyle = MUTED;
-  ctx.font = `22px ${FONT}`;
+  y += 20;
   const north = book.north.length
     ? book.north.map((leg) => `${leg.name} 成交额 ${absWan(leg.amount)}`).join("    ") + "    净流入不公布"
     : "北向成交额暂时没有    净流入不公布";
-  const northLines = wrapLines(ctx, north, W - 112);
-  northLines.forEach((line, index) => ctx.fillText(line, 56, y + 36 + index * 30));
-  const foot = y + 36 + northLines.length * 30;
-  ctx.fillStyle = "#5d6b7c";
-  ctx.font = `20px ${FONT}`;
-  ctx.fillText(`赤轨 · ${themeName()} · 复盘用 · 不是买卖依据`, 56, foot + 8);
+  const foot = paintFoot(ctx, y, north);
 
   const height = foot + 48;
   const out = document.createElement("canvas");
@@ -158,55 +140,30 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
   return { canvas: out, filename: `赤轨-资金-${themeName()}-${fileDate(book.asOf)}.png` };
 }
 
-function sectionTitle(ctx: CanvasRenderingContext2D, y: number, title: string): number {
-  ctx.fillStyle = RED;
-  ctx.fillRect(56, y + 8, 18, 4);
-  ctx.fillStyle = INK;
-  ctx.font = `600 26px ${FONT}`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText(title, 84, y + 12);
-  return y + 40;
-}
-
-function pair(ctx: CanvasRenderingContext2D, y: number, left: string, leftRows: FlowRow[], right: string, rightRows: FlowRow[]): number {
-  const colW = (W - 112 - 24) / 2;
-  const rightX = 56 + colW + 24;
-  y = Math.max(sectionTitle(ctx, y, left), sectionTitleAt(ctx, y, right, rightX));
+function pair(ctx: CanvasRenderingContext2D, y: number, leftTitle: string, leftRows: FlowRow[], rightTitle: string, rightRows: FlowRow[]): number {
+  const left = edge();
+  const right = rightEdge();
+  const colW = (right - left - 24) / 2;
+  const rightX = left + colW + 24;
+  y = Math.max(paintSection(ctx, y, leftTitle, RED, left), paintSection(ctx, y, rightTitle, GREEN, rightX));
   for (let index = 0; index < 6; index += 1) {
-    ctx.strokeStyle = LINE;
-    ctx.beginPath();
-    ctx.moveTo(56, y);
-    ctx.lineTo(56 + colW, y);
-    ctx.moveTo(rightX, y);
-    ctx.lineTo(W - 56, y);
-    ctx.stroke();
-    entry(ctx, 56, y, colW, index, leftRows[index]);
+    paintHairline(ctx, y, left, left + colW);
+    paintHairline(ctx, y, rightX, right);
+    entry(ctx, left, y, colW, index, leftRows[index]);
     entry(ctx, rightX, y, colW, index, rightRows[index]);
     y += 52;
   }
   return y;
 }
 
-function sectionTitleAt(ctx: CanvasRenderingContext2D, y: number, title: string, x: number): number {
-  ctx.fillStyle = GREEN;
-  ctx.fillRect(x, y + 8, 18, 4);
-  ctx.fillStyle = INK;
-  ctx.font = `600 26px ${FONT}`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText(title, x + 28, y + 12);
-  return y + 40;
-}
-
 function entry(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, index: number, row: FlowRow | undefined) {
   ctx.textBaseline = "middle";
   ctx.font = `22px ${FONT}`;
   ctx.textAlign = "left";
-  ctx.fillStyle = "#5d6b7c";
+  ctx.fillStyle = MUTED;
   ctx.fillText(String(index + 1).padStart(2, "0"), x, y + 26);
   if (!row) {
-    ctx.fillStyle = "#5d6b7c";
+    ctx.fillStyle = MUTED;
     ctx.fillText("—", x + 44, y + 26);
     return;
   }

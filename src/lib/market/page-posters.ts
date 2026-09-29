@@ -4,22 +4,22 @@ import {
   FONT,
   GREEN,
   INK,
-  LINE,
   MUTED,
-  POSTER_W,
   RED,
   beginPoster,
   cropPoster,
   dayFromDate,
+  edge,
   fileDate,
   fit,
   openPoster,
   paintCards,
   paintFoot,
-  paintMark,
+  paintHairline,
+  paintHead,
   paintSection,
-  paintTitle,
   paintSized,
+  rightEdge,
   themeName,
   toneColor,
   wrapLines,
@@ -38,52 +38,50 @@ export type PickPosterRow = {
 export function drawPicksPoster(input: { date: string; styleName: string; openCount: number; rows: PickPosterRow[] }) {
   beginPoster();
   const { canvas, ctx } = openPoster();
-  paintMark(ctx, dayFromDate(input.date));
-  paintTitle(ctx, input.styleName, "打到买入价才记。红涨绿跌。");
+  const left = edge();
+  const right = rightEdge();
   const waiting = input.rows.filter((row) => row.badge === "等待买入").length;
-  let y = paintCards(ctx, 212, [
+  let y = paintHead(ctx, dayFromDate(input.date), input.styleName, "打到买入价才记。红涨绿跌。");
+  y = paintCards(ctx, y + 16, [
     { label: "精选", value: String(input.rows.length), color: INK, note: input.styleName },
     { label: "这套持仓", value: String(input.openCount), color: INK, note: "打到买入价才算" },
     { label: "等待买入", value: String(waiting), color: waiting ? RED : INK, note: "还没到价" },
   ]);
-  y += 28;
+  y += 24;
   y = paintSection(ctx, y, "精选", RED);
+  const span = right - left;
   ctx.font = `20px ${FONT}`;
   ctx.fillStyle = MUTED;
   ctx.textAlign = "left";
-  ctx.fillText("名称", 56, y + 16);
+  ctx.fillText("名称", left, y + 16);
   ctx.textAlign = "right";
-  ctx.fillText("现价", 520, y + 16);
-  ctx.fillText("涨跌", 680, y + 16);
-  ctx.fillText("买入", 860, y + 16);
-  ctx.fillText("状态", POSTER_W - 56, y + 16);
+  ctx.fillText("现价", left + span * 0.55, y + 16);
+  ctx.fillText("涨跌", left + span * 0.7, y + 16);
+  ctx.fillText("买入", left + span * 0.84, y + 16);
+  ctx.fillText("状态", right, y + 16);
   y += 40;
   const rows = input.rows.slice(0, 10);
   if (rows.length === 0) {
     ctx.textAlign = "left";
     ctx.fillStyle = MUTED;
     ctx.font = `24px ${FONT}`;
-    ctx.fillText("这套策略现在没有符合的股票。", 56, y + 20);
+    ctx.fillText("这套策略现在没有符合的股票。", left, y + 20);
     y += 52;
   }
   for (const row of rows) {
-    ctx.strokeStyle = LINE;
-    ctx.beginPath();
-    ctx.moveTo(56, y);
-    ctx.lineTo(POSTER_W - 56, y);
-    ctx.stroke();
+    paintHairline(ctx, y, left, right);
     ctx.textAlign = "left";
     ctx.fillStyle = INK;
-    paintSized(ctx, `${row.name} ${row.code}`, 56, y + 26, 360, 24, 16);
+    paintSized(ctx, `${row.name} ${row.code}`, left, y + 26, span * 0.4, 24, 16);
     ctx.textAlign = "right";
     ctx.fillStyle = INK;
-    paintSized(ctx, fmtPrice(row.price), 560, y + 26, 90, 24, 16);
+    paintSized(ctx, fmtPrice(row.price), left + span * 0.55, y + 26, span * 0.12, 24, 16);
     ctx.fillStyle = toneColor(row.chg);
-    paintSized(ctx, signedPct(row.chg), 700, y + 26, 110, 24, 16);
+    paintSized(ctx, signedPct(row.chg), left + span * 0.7, y + 26, span * 0.12, 24, 16);
     ctx.fillStyle = INK;
-    paintSized(ctx, fmtPrice(row.buy), 860, y + 26, 90, 24, 16);
+    paintSized(ctx, fmtPrice(row.buy), left + span * 0.84, y + 26, span * 0.12, 24, 16);
     ctx.fillStyle = MUTED;
-    paintSized(ctx, row.badge, POSTER_W - 56, y + 26, 140, 22, 14);
+    paintSized(ctx, row.badge, right, y + 26, span * 0.14, 22, 14);
     y += 52;
   }
   y = paintFoot(ctx, y + 20, `卖出价写在账上，图里只列买入价。共 ${input.rows.length} 只。`);
@@ -100,9 +98,8 @@ export function drawNewsPoster(input: {
 }) {
   beginPoster();
   const { canvas, ctx } = openPoster();
-  paintMark(ctx, dayFromDate(input.date));
-  paintTitle(ctx, "消息汇总", "按标题用词。不是研报，不改买入价。");
-  let y = paintCards(ctx, 212, [
+  let y = paintHead(ctx, dayFromDate(input.date), "消息汇总", "按标题用词。不是研报，不改买入价。");
+  y = paintCards(ctx, y + 16, [
     { label: "利好", value: String(input.goodStocks.length), color: RED, note: "点到名的个股" },
     { label: "利空", value: String(input.badStocks.length), color: GREEN, note: "点到名的个股" },
     { label: "快讯", value: String(input.total), color: INK, note: "这批条数" },
@@ -133,9 +130,8 @@ export function drawSymbolPoster(input: {
 }) {
   beginPoster();
   const { canvas, ctx } = openPoster();
-  paintMark(ctx, dayFromDate(input.date));
-  paintTitle(ctx, fit(ctx, input.title, 900), "资讯和公告。红是利好，绿是利空。");
-  let y = paintCards(ctx, 212, [
+  let y = paintHead(ctx, dayFromDate(input.date), fit(ctx, input.title, rightEdge() - edge()), "资讯和公告。红是利好，绿是利空。");
+  y = paintCards(ctx, y + 16, [
     { label: "今日", value: signedPct(input.chg), color: toneColor(input.chg), note: "现价涨跌" },
     { label: "利好", value: String(input.good), color: input.good ? RED : INK, note: "标题用词" },
     { label: "利空", value: String(input.bad), color: input.bad ? GREEN : INK, note: `公告 ${input.ann} 条` },
@@ -147,24 +143,20 @@ export function drawSymbolPoster(input: {
     ctx.fillStyle = MUTED;
     ctx.font = `24px ${FONT}`;
     ctx.textAlign = "left";
-    ctx.fillText("暂时没有消息。", 56, y + 20);
+    ctx.fillText("暂时没有消息。", edge(), y + 20);
     y += 52;
   }
   for (const line of lines) {
-    ctx.strokeStyle = LINE;
-    ctx.beginPath();
-    ctx.moveTo(56, y);
-    ctx.lineTo(POSTER_W - 56, y);
-    ctx.stroke();
+    paintHairline(ctx, y, edge(), rightEdge());
     ctx.textAlign = "left";
     ctx.fillStyle = line.tone === "good" ? RED : line.tone === "bad" ? GREEN : MUTED;
     ctx.font = `22px ${FONT}`;
-    ctx.fillText(line.label, 56, y + 26);
+    ctx.fillText(line.label, edge(), y + 26);
     ctx.font = `24px ${FONT}`;
-    const textLines = wrapLines(ctx, line.text, POSTER_W - 230);
+    const textLines = wrapLines(ctx, line.text, rightEdge() - edge() - 150);
     const h = Math.max(52, textLines.length * 32 + 16);
     ctx.fillStyle = INK;
-    textLines.forEach((text, index) => ctx.fillText(text, 168, y + 26 + index * 32));
+    textLines.forEach((text, index) => ctx.fillText(text, edge() + 120, y + 26 + index * 32));
     y += h;
   }
   y = paintFoot(ctx, y + 16, "用词判断不是研报。");
@@ -180,24 +172,21 @@ export function articleLine(item: StockArticle): { label: string; text: string; 
 function twoCols(
   ctx: CanvasRenderingContext2D,
   y: number,
-  left: string,
+  leftTitle: string,
   leftRows: { name: string; value: string; color: string }[],
-  right: string,
+  rightTitle: string,
   rightRows: { name: string; value: string; color: string }[],
 ): number {
-  const colW = (POSTER_W - 112 - 24) / 2;
-  const rightX = 56 + colW + 24;
-  paintSection(ctx, y, left, RED, 56);
-  y = paintSection(ctx, y, right, GREEN, rightX);
+  const left = edge();
+  const right = rightEdge();
+  const colW = (right - left - 24) / 2;
+  const rightX = left + colW + 24;
+  paintSection(ctx, y, leftTitle, RED, left);
+  y = paintSection(ctx, y, rightTitle, GREEN, rightX);
   for (let index = 0; index < 6; index += 1) {
-    ctx.strokeStyle = LINE;
-    ctx.beginPath();
-    ctx.moveTo(56, y);
-    ctx.lineTo(56 + colW, y);
-    ctx.moveTo(rightX, y);
-    ctx.lineTo(POSTER_W - 56, y);
-    ctx.stroke();
-    cell(ctx, 56, y, colW, index, leftRows[index]);
+    paintHairline(ctx, y, left, left + colW);
+    paintHairline(ctx, y, rightX, right);
+    cell(ctx, left, y, colW, index, leftRows[index]);
     cell(ctx, rightX, y, colW, index, rightRows[index]);
     y += 52;
   }
@@ -207,7 +196,7 @@ function twoCols(
 function cell(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, index: number, row?: { name: string; value: string; color: string }) {
   ctx.font = `22px ${FONT}`;
   ctx.textAlign = "left";
-  ctx.fillStyle = "#5d6b7c";
+  ctx.fillStyle = MUTED;
   ctx.fillText(String(index + 1).padStart(2, "0"), x, y + 26);
   if (!row) {
     ctx.fillText("—", x + 44, y + 26);

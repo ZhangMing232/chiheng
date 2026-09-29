@@ -3,21 +3,20 @@ import type { HotBook } from "./hotmoney";
 import {
   GREEN,
   INK,
-  LINE,
   MUTED,
-  POSTER_W,
   RED,
   beginPoster,
   cropPoster,
   dayFromDate,
+  edge,
   fileDate,
-  fit,
   openPoster,
   paintCards,
   paintFoot,
-  paintMark,
+  paintHairline,
+  paintHead,
   paintSection,
-  paintTitle,
+  rightEdge,
   themeName,
   wrapLines,
 } from "./poster";
@@ -41,29 +40,23 @@ export function drawHotPoster(book: HotBook) {
   beginPoster();
   const { canvas, ctx } = openPoster();
   const date = book.date || fileDate("");
-  paintMark(ctx, dayFromDate(date));
-  paintTitle(ctx, "游资龙虎榜", "红是净买    绿是净卖");
-  let y = 220;
-  const labelW = 248;
-  const textX = 56 + labelW;
-  const textW = POSTER_W - textX - 56;
+  const left = edge();
+  const right = rightEdge();
+  let y = paintHead(ctx, dayFromDate(date), "游资龙虎榜", "红是净买    绿是净卖");
+  const labelW = 220;
+  const textX = left + labelW;
+  const textW = right - textX;
   for (const seat of book.seats) {
     ctx.font = `26px ${FACE}`;
     const nameLines = wrapLines(ctx, seat.name, labelW - 20);
     const stockLines = wrapStocks(ctx, seat.stocks, textW);
     const h = Math.max(nameLines.length * 36, stockLines.length * 40, 40) + 28;
-    ctx.strokeStyle = LINE;
-    ctx.beginPath();
-    ctx.moveTo(56, y);
-    ctx.lineTo(POSTER_W - 56, y);
-    ctx.stroke();
-    ctx.fillStyle = RED;
-    ctx.fillRect(56, y + 16, 18, 4);
+    paintHairline(ctx, y, left, right);
     ctx.fillStyle = INK;
     ctx.font = `26px ${FACE}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    nameLines.forEach((line, index) => ctx.fillText(line, 82, y + 28 + index * 36));
+    nameLines.forEach((line, index) => ctx.fillText(line, left, y + 28 + index * 36));
     stockLines.forEach((line, index) => {
       let x = textX;
       const ly = y + 28 + index * 40;
@@ -105,8 +98,9 @@ export function drawFuturesPoster(book: FutBook) {
   beginPoster();
   const { canvas, ctx } = openPoster();
   const date = book.date || fileDate("");
-  paintMark(ctx, dayFromDate(date));
-  paintTitle(ctx, "股指期货持仓", "前20名会员多单和空单。公布的是代客，不是机构专户。");
+  const left = edge();
+  const right = rightEdge();
+  let y = paintHead(ctx, dayFromDate(date), "股指期货持仓", "前20名会员多单和空单。公布的是代客，不是机构专户。");
   const cards = book.rows.slice(0, 4).map((row) => {
     const net = row.longLots - row.shortLots;
     return {
@@ -116,46 +110,43 @@ export function drawFuturesPoster(book: FutBook) {
       note: row.contract,
     };
   });
-  let y = paintCards(ctx, 212, cards.length ? cards : [{ label: "持仓", value: "—", color: INK, note: "暂时没有" }]);
-  y += 28;
+  y = paintCards(ctx, y + 16, cards.length ? cards : [{ label: "持仓", value: "—", color: INK, note: "暂时没有" }]);
+  y += 24;
   y = paintSection(ctx, y, "主力合约", RED);
-  ctx.font = `20px "PingFang SC","WenQuanYi Zen Hei",sans-serif`;
+  const span = right - left;
+  ctx.font = `20px ${FACE}`;
   ctx.fillStyle = MUTED;
   ctx.textAlign = "right";
-  ctx.fillText("多单", 620, y + 8);
-  ctx.fillText("空单", 820, y + 8);
-  ctx.fillText("净持仓", POSTER_W - 56, y + 8);
+  ctx.fillText("多单", left + span * 0.52, y + 8);
+  ctx.fillText("空单", left + span * 0.74, y + 8);
+  ctx.fillText("净持仓", right, y + 8);
   y += 36;
   for (const row of book.rows) {
     const net = row.longLots - row.shortLots;
-    ctx.strokeStyle = LINE;
-    ctx.beginPath();
-    ctx.moveTo(56, y);
-    ctx.lineTo(POSTER_W - 56, y);
-    ctx.stroke();
+    paintHairline(ctx, y, left, right);
     ctx.textAlign = "left";
     ctx.fillStyle = INK;
-    ctx.font = `24px "PingFang SC","WenQuanYi Zen Hei",sans-serif`;
-    ctx.fillText(`${row.name} ${row.contract}`, 56, y + 26);
+    ctx.font = `24px ${FACE}`;
+    ctx.fillText(`${row.name} ${row.contract}`, left, y + 26);
     ctx.textAlign = "right";
     ctx.fillStyle = RED;
-    ctx.fillText(lots(row.longLots), 620, y + 26);
+    ctx.fillText(lots(row.longLots), left + span * 0.52, y + 26);
     ctx.fillStyle = GREEN;
-    ctx.fillText(lots(row.shortLots), 820, y + 26);
+    ctx.fillText(lots(row.shortLots), left + span * 0.74, y + 26);
     ctx.fillStyle = net > 0 ? RED : net < 0 ? GREEN : INK;
-    ctx.fillText(net > 0 ? `净多 ${lots(net)}` : net < 0 ? `净空 ${lots(net)}` : "持平", POSTER_W - 56, y + 26);
+    ctx.fillText(net > 0 ? `净多 ${lots(net)}` : net < 0 ? `净空 ${lots(net)}` : "持平", right, y + 26);
     y += 52;
-    ctx.font = `20px "PingFang SC","WenQuanYi Zen Hei",sans-serif`;
+    ctx.font = `20px ${FACE}`;
     ctx.textAlign = "left";
     ctx.fillStyle = MUTED;
     const longLine = `多 ${row.longTop.map((item) => `${item.name} ${lots(item.lots)}`).join("  ")}`;
     const shortLine = `空 ${row.shortTop.map((item) => `${item.name} ${lots(item.lots)}`).join("  ")}`;
-    for (const line of wrapLines(ctx, longLine, POSTER_W - 112)) {
-      ctx.fillText(line, 56, y + 8);
+    for (const line of wrapLines(ctx, longLine, span)) {
+      ctx.fillText(line, left, y + 8);
       y += 28;
     }
-    for (const line of wrapLines(ctx, shortLine, POSTER_W - 112)) {
-      ctx.fillText(line, 56, y + 8);
+    for (const line of wrapLines(ctx, shortLine, span)) {
+      ctx.fillText(line, left, y + 8);
       y += 28;
     }
     y += 12;
