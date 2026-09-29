@@ -1,4 +1,5 @@
 import type { FlowBook, FlowRow, MarketPart } from "./flow";
+import { paintCards, paintSized, wrapLines } from "./poster";
 
 const W = 1080;
 const RED = "#f0535e";
@@ -71,7 +72,7 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
     { label: "散户", key: "retail" },
   ];
   const showTable = book.market.length > 0;
-  const H = 2200;
+  const H = 3600;
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -125,27 +126,7 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
       note: amount > 0 && book.market.length ? `占成交额 ${((Math.abs(main) / amount) * 100).toFixed(2)}%` : "暂无",
     },
   ];
-  const gap = 16;
-  const cardW = (W - 112 - gap * 2) / 3;
-  cards.forEach((card, index) => {
-    const x = 56 + index * (cardW + gap);
-    ctx.fillStyle = CARD;
-    ctx.fillRect(x, 212, cardW, 148);
-    ctx.strokeStyle = LINE;
-    ctx.strokeRect(x + 0.5, 212.5, cardW - 1, 147);
-    ctx.fillStyle = MUTED;
-    ctx.font = `22px ${FONT}`;
-    ctx.textAlign = "left";
-    ctx.fillText(card.label, x + 20, 240);
-    ctx.fillStyle = card.color;
-    ctx.font = `600 40px ${FONT}`;
-    ctx.fillText(fit(ctx, card.value, cardW - 36), x + 20, 288);
-    ctx.fillStyle = MUTED;
-    ctx.font = `18px ${FONT}`;
-    ctx.fillText(fit(ctx, card.note, cardW - 36), x + 20, 328);
-  });
-
-  let y = 392;
+  let y = paintCards(ctx, 212, cards) + 28;
   if (showTable) {
     y = sectionTitle(ctx, y, "成分");
     const cols = ["合计", ...book.market.map((part) => part.name)];
@@ -171,8 +152,7 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
       values.forEach((value, index) => {
         ctx.textAlign = "right";
         ctx.fillStyle = tone(value);
-        ctx.font = `24px ${FONT}`;
-        ctx.fillText(fit(ctx, netText(value), colW - 16), 196 + colW * (index + 1) - 8, y + 26);
+        paintSized(ctx, netText(value), 196 + colW * (index + 1) - 8, y + 26, colW - 16, 24, 16);
       });
       y += 52;
     }
@@ -195,12 +175,14 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
   const north = book.north.length
     ? book.north.map((leg) => `${leg.name} 成交额 ${absWan(leg.amount)}`).join("    ") + "    净流入不公布"
     : "北向成交额暂时没有    净流入不公布";
-  ctx.fillText(fit(ctx, north, W - 112), 56, y + 36);
+  const northLines = wrapLines(ctx, north, W - 112);
+  northLines.forEach((line, index) => ctx.fillText(line, 56, y + 36 + index * 30));
+  const foot = y + 36 + northLines.length * 30;
   ctx.fillStyle = "#5d6b7c";
   ctx.font = `20px ${FONT}`;
-  ctx.fillText("赤轨 · 复盘用 · 不是买卖依据", 56, y + 72);
+  ctx.fillText("赤轨 · 复盘用 · 不是买卖依据", 56, foot + 8);
 
-  const height = y + 108;
+  const height = foot + 48;
   const out = document.createElement("canvas");
   out.width = W;
   out.height = height;
@@ -264,8 +246,8 @@ function entry(ctx: CanvasRenderingContext2D, x: number, y: number, width: numbe
   }
   ctx.font = `24px ${FONT}`;
   ctx.fillStyle = INK;
-  ctx.fillText(fit(ctx, row.name, width * 0.46), x + 44, y + 26);
+  paintSized(ctx, row.name, x + 44, y + 26, width * 0.48, 24, 16);
   ctx.textAlign = "right";
   ctx.fillStyle = tone(row.inflow);
-  ctx.fillText(netText(row.inflow), x + width, y + 26);
+  paintSized(ctx, netText(row.inflow), x + width, y + 26, width * 0.48, 24, 16);
 }

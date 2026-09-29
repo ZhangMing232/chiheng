@@ -18,7 +18,9 @@ import {
   paintMark,
   paintSection,
   paintTitle,
+  paintSized,
   toneColor,
+  wrapLines,
 } from "./poster";
 
 export type PickPosterRow = {
@@ -69,16 +71,16 @@ export function drawPicksPoster(input: { date: string; styleName: string; openCo
     ctx.stroke();
     ctx.textAlign = "left";
     ctx.fillStyle = INK;
-    ctx.font = `24px ${FONT}`;
-    ctx.fillText(fit(ctx, `${row.name}  ${row.code}`, 280), 56, y + 26);
+    paintSized(ctx, `${row.name} ${row.code}`, 56, y + 26, 360, 24, 16);
     ctx.textAlign = "right";
-    ctx.fillText(fmtPrice(row.price), 520, y + 26);
-    ctx.fillStyle = toneColor(row.chg);
-    ctx.fillText(signedPct(row.chg), 680, y + 26);
     ctx.fillStyle = INK;
-    ctx.fillText(fmtPrice(row.buy), 860, y + 26);
+    paintSized(ctx, fmtPrice(row.price), 560, y + 26, 90, 24, 16);
+    ctx.fillStyle = toneColor(row.chg);
+    paintSized(ctx, signedPct(row.chg), 700, y + 26, 110, 24, 16);
+    ctx.fillStyle = INK;
+    paintSized(ctx, fmtPrice(row.buy), 860, y + 26, 90, 24, 16);
     ctx.fillStyle = MUTED;
-    ctx.fillText(fit(ctx, row.badge, 150), POSTER_W - 56, y + 26);
+    paintSized(ctx, row.badge, POSTER_W - 56, y + 26, 140, 22, 14);
     y += 52;
   }
   y = paintFoot(ctx, y + 20, `卖出价写在账上，图里只列买入价。共 ${input.rows.length} 只。`);
@@ -153,10 +155,12 @@ export function drawSymbolPoster(input: {
     ctx.fillStyle = line.tone === "good" ? RED : line.tone === "bad" ? GREEN : MUTED;
     ctx.font = `22px ${FONT}`;
     ctx.fillText(line.label, 56, y + 26);
-    ctx.fillStyle = INK;
     ctx.font = `24px ${FONT}`;
-    ctx.fillText(fit(ctx, line.text, POSTER_W - 220), 160, y + 26);
-    y += 52;
+    const textLines = wrapLines(ctx, line.text, POSTER_W - 230);
+    const h = Math.max(52, textLines.length * 32 + 16);
+    ctx.fillStyle = INK;
+    textLines.forEach((text, index) => ctx.fillText(text, 168, y + 26 + index * 32));
+    y += h;
   }
   y = paintFoot(ctx, y + 16, "用词判断不是研报。");
   return { canvas: cropPoster(canvas, y), filename: `赤轨-个股-${fileDate(input.date)}.png` };
@@ -206,8 +210,8 @@ function cell(ctx: CanvasRenderingContext2D, x: number, y: number, width: number
   }
   ctx.font = `24px ${FONT}`;
   ctx.fillStyle = INK;
-  ctx.fillText(fit(ctx, row.name, width * 0.5), x + 44, y + 26);
+  paintSized(ctx, row.name, x + 44, y + 26, width * 0.5, 24, 16);
   ctx.textAlign = "right";
   ctx.fillStyle = row.color;
-  ctx.fillText(fit(ctx, row.value, width * 0.4), x + width, y + 26);
+  paintSized(ctx, row.value, x + width, y + 26, width * 0.42, 22, 14);
 }

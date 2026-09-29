@@ -33,11 +33,11 @@ export function fit(ctx: CanvasRenderingContext2D, text: string, max: number): s
 export function openPoster(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
   canvas.width = POSTER_W;
-  canvas.height = 2400;
+  canvas.height = 4800;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("画布不可用");
   ctx.fillStyle = "#070b10";
-  ctx.fillRect(0, 0, POSTER_W, 2400);
+  ctx.fillRect(0, 0, POSTER_W, 4800);
   ctx.textBaseline = "middle";
   return { canvas, ctx };
 }
@@ -67,6 +67,31 @@ export function paintTitle(ctx: CanvasRenderingContext2D, title: string, sub: st
   ctx.fillText(sub, 56, 176);
 }
 
+export function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const char of text) {
+    const next = line + char;
+    if (line && ctx.measureText(next).width > maxWidth) {
+      lines.push(line);
+      line = char.trim() ? char : "";
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+export function paintSized(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, size: number, min = 16) {
+  let next = size;
+  ctx.font = `${next}px ${FONT}`;
+  while (next > min && ctx.measureText(text).width > maxWidth) {
+    next -= 2;
+    ctx.font = `${next}px ${FONT}`;
+  }
+  ctx.fillText(ctx.measureText(text).width > maxWidth ? fit(ctx, text, maxWidth) : text, x, y);
+}
 export function paintCards(
   ctx: CanvasRenderingContext2D,
   y: number,
@@ -74,24 +99,27 @@ export function paintCards(
 ): number {
   const gap = 16;
   const cardW = (POSTER_W - 112 - gap * (cards.length - 1)) / cards.length;
+  const inner = cardW - 40;
+  ctx.font = `18px ${FONT}`;
+  const notes = cards.map((card) => wrapLines(ctx, card.note, inner).slice(0, 2));
+  const cardH = 132 + Math.max(...notes.map((lines) => lines.length), 1) * 22;
   cards.forEach((card, index) => {
     const x = 56 + index * (cardW + gap);
     ctx.fillStyle = CARD;
-    ctx.fillRect(x, y, cardW, 148);
+    ctx.fillRect(x, y, cardW, cardH);
     ctx.strokeStyle = LINE;
-    ctx.strokeRect(x + 0.5, y + 0.5, cardW - 1, 147);
+    ctx.strokeRect(x + 0.5, y + 0.5, cardW - 1, cardH - 1);
     ctx.fillStyle = MUTED;
     ctx.font = `22px ${FONT}`;
     ctx.textAlign = "left";
     ctx.fillText(card.label, x + 20, y + 28);
     ctx.fillStyle = card.color;
-    ctx.font = `600 40px ${FONT}`;
-    ctx.fillText(fit(ctx, card.value, cardW - 36), x + 20, y + 76);
+    paintSized(ctx, card.value, x + 20, y + 76, inner, 36, 18);
     ctx.fillStyle = MUTED;
     ctx.font = `18px ${FONT}`;
-    ctx.fillText(fit(ctx, card.note, cardW - 36), x + 20, y + 116);
+    notes[index].forEach((line, lineIndex) => ctx.fillText(line, x + 20, y + 112 + lineIndex * 22));
   });
-  return y + 148;
+  return y + cardH;
 }
 
 export function paintSection(ctx: CanvasRenderingContext2D, y: number, label: string, color: string, x = 56): number {
@@ -113,11 +141,13 @@ export function paintFoot(ctx: CanvasRenderingContext2D, y: number, note: string
   ctx.textAlign = "left";
   ctx.fillStyle = MUTED;
   ctx.font = `22px ${FONT}`;
-  ctx.fillText(fit(ctx, note, POSTER_W - 112), 56, y + 36);
+  const lines = wrapLines(ctx, note, POSTER_W - 112);
+  lines.forEach((line, index) => ctx.fillText(line, 56, y + 36 + index * 30));
+  const foot = y + 36 + lines.length * 30;
   ctx.fillStyle = "#5d6b7c";
   ctx.font = `20px ${FONT}`;
-  ctx.fillText("赤轨 · 复盘用 · 不是买卖依据", 56, y + 72);
-  return y + 108;
+  ctx.fillText("赤轨 · 复盘用 · 不是买卖依据", 56, foot + 8);
+  return foot + 40;
 }
 
 export function cropPoster(canvas: HTMLCanvasElement, height: number): HTMLCanvasElement {
