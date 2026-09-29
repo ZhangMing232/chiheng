@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { getFlow } from "@/lib/market/quotes.functions";
-import type { FlowRow, NorthLeg } from "@/lib/market/flow";
+import type { FlowRow, MarketPart, NorthLeg } from "@/lib/market/flow";
 
 export const Route = createFileRoute("/flow")({
   loader: async () => {
@@ -76,6 +76,57 @@ function North({ legs }: { legs: NorthLeg[] }) {
   );
 }
 
+function Market({ parts }: { parts: MarketPart[] }) {
+  const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
+  const rows: { name: string; key: keyof Omit<MarketPart, "name"> }[] = [
+    { name: "主力", key: "main" },
+    { name: "超大单", key: "super" },
+    { name: "大单", key: "big" },
+    { name: "中单", key: "mid" },
+    { name: "小单", key: "small" },
+  ];
+  return (
+    <section className="rounded-2xl border border-line bg-surface">
+      <div className="px-4 py-3">
+        <h2 className="text-base font-semibold">大盘资金</h2>
+        <p className="mt-1 text-sm text-muted">上证指数加深证成指的今日净流入。主力是超大单加大单，单笔不少于 20 万或 6 万股。不是全市场逐只相加。</p>
+      </div>
+      {parts.length === 0 ? (
+        <p className="border-t border-line px-4 py-6 text-sm text-muted">大盘资金暂时拉不下来。</p>
+      ) : (
+        <div className="overflow-x-auto border-t border-line">
+          <table className="w-full text-left">
+            <thead className="text-sm text-muted">
+              <tr>
+                <th className="px-4 py-2 font-normal">成分</th>
+                <th className="px-4 py-2 text-right font-normal">合计</th>
+                {parts.map((part) => (
+                  <th key={part.name} className="px-4 py-2 text-right font-normal">
+                    {part.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key} className="border-t border-line">
+                  <td className="px-4 py-2">{row.name}</td>
+                  <td className={toneClass(sum(row.key)) + " px-4 py-2 text-right tabular-nums"}>{fmtWan(sum(row.key))}</td>
+                  {parts.map((part) => (
+                    <td key={part.name} className={toneClass(part[row.key]) + " px-4 py-2 text-right tabular-nums"}>
+                      {fmtWan(part[row.key])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function FlowPage() {
   const { book, error } = Route.useLoaderData();
   return (
@@ -84,6 +135,7 @@ function FlowPage() {
         {error ? <p className="text-sm text-up">{error}</p> : null}
         {book ? (
           <>
+            <Market parts={book.market} />
             <North legs={book.north} />
             <List title="行业净流入" rows={book.sectorsIn} />
             <List title="行业净流出" rows={book.sectorsOut} />

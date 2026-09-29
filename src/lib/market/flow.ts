@@ -15,12 +15,23 @@ export type NorthLeg = {
   leader: string;
 };
 
+export type MarketPart = {
+  name: string;
+  /** 万元。主力 = 超大单 + 大单。 */
+  main: number;
+  super: number;
+  big: number;
+  mid: number;
+  small: number;
+};
+
 export type FlowBook = {
   sectorsIn: FlowRow[];
   sectorsOut: FlowRow[];
   stocksIn: FlowRow[];
   stocksOut: FlowRow[];
   north: NorthLeg[];
+  market: MarketPart[];
   asOf: number;
 };
 
@@ -96,6 +107,38 @@ async function loadNorth(): Promise<NorthLeg[]> {
   return rows.filter((row): row is NorthLeg => row != null);
 }
 
+function wanYuan(value: unknown): number {
+  const n = num(value);
+  return n == null ? 0 : n / 10_000;
+}
+
+async function marketPart(code: string, name: string): Promise<MarketPart | null> {
+  const res = await fetch(
+    `https://proxy.finance.qq.com/cgi/cgi-bin/fundflow/hsfundtab?code=${code}&type=todayFundFlow&klineNeedDay=1`,
+    {
+      headers: { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" },
+      signal: AbortSignal.timeout(12_000),
+    },
+  );
+  if (!res.ok) return null;
+  const body = (await res.json()) as { data?: { todayFundFlow?: Record<string, unknown> } };
+  const row = body.data?.todayFundFlow;
+  if (!row) return null;
+  return {
+    name,
+    main: wanYuan(row.mainNetIn),
+    super: wanYuan(row.superFlow),
+    big: wanYuan(row.bigFlow),
+    mid: wanYuan(row.normalFlow),
+    small: wanYuan(row.smallFlow),
+  };
+}
+
+async function loadMarket(): Promise<MarketPart[]> {
+  const rows = await Promise.all([marketPart("sh000001", "沪市"), marketPart("sz399001", "深市")]);
+  return rows.filter((row): row is MarketPart => row != null);
+}
+
 /** 腾讯行业和个股的主力净流入。大约一分钟更新一次。 */
 export async function loadFlow(): Promise<FlowBook> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.book;
@@ -109,13 +152,14 @@ export async function loadFlow(): Promise<FlowBook> {
     rank(stock("down")),
     rank(stock("up")),
   ]);
-  const north = await loadNorth().catch(() => [] as NorthLeg[]);
+  const [north, market] = await Promise.all([loadNorth().catch(() => [] as NorthLeg[]), loadMarket().catch(() => [] as MarketPart[])]);
   const book: FlowBook = {
     sectorsIn: take(sectorsIn, "sector", 8),
     sectorsOut: take(sectorsOut, "sector", 8),
     stocksIn: take(stocksIn, "stock", 8),
     stocksOut: take(stocksOut, "stock", 8),
     north,
+    market,
     asOf: Date.now(),
   };
   cache = { at: book.asOf, book };
