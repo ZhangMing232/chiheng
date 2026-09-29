@@ -1,14 +1,8 @@
 import type { FlowBook, FlowRow, MarketPart } from "./flow";
+import { FONT, GREEN, INK, LINE, MUTED, POSTER_W, RED, beginPoster, openPoster, paintMark, paintTitle, themeName } from "./poster";
 import { paintCards, paintSized, wrapLines } from "./poster";
 
-const W = 1080;
-const RED = "#f0535e";
-const GREEN = "#2fbf8a";
-const INK = "#e8eef6";
-const MUTED = "#8b97a8";
-const LINE = "#243044";
-const CARD = "#121820";
-const FONT = '"PingFang SC","Hiragino Sans GB","WenQuanYi Zen Hei","Noto Sans SC",sans-serif';
+const W = POSTER_W;
 
 function absWan(wan: number): string {
   const abs = Math.abs(wan);
@@ -72,39 +66,11 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
     { label: "散户", key: "retail" },
   ];
   const showTable = book.market.length > 0;
-  const H = 3600;
+  beginPoster();
+  const { canvas, ctx } = openPoster();
 
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("画布不可用");
-
-  ctx.fillStyle = "#070b10";
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = INK;
-  ctx.fillRect(56, 56, 36, 8);
-  ctx.fillStyle = RED;
-  ctx.fillRect(100, 44, 36, 8);
-
-  ctx.fillStyle = INK;
-  ctx.font = `600 28px ${FONT}`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText("赤轨", 152, 54);
-  ctx.fillStyle = MUTED;
-  ctx.font = `26px ${FONT}`;
-  ctx.textAlign = "right";
-  ctx.fillText(headline(book.asOf), W - 56, 54);
-
-  ctx.textAlign = "left";
-  ctx.fillStyle = INK;
-  ctx.font = `600 64px ${FONT}`;
-  ctx.fillText("资金汇总", 56, 128);
-  ctx.fillStyle = MUTED;
-  ctx.font = `24px ${FONT}`;
-  ctx.fillText("红是净流入    绿是净流出", 56, 176);
+  paintMark(ctx, headline(book.asOf));
+  paintTitle(ctx, "资金汇总", "红是净流入    绿是净流出");
 
   const cards: { label: string; value: string; color: string; note: string }[] = [
     {
@@ -180,7 +146,7 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
   const foot = y + 36 + northLines.length * 30;
   ctx.fillStyle = "#5d6b7c";
   ctx.font = `20px ${FONT}`;
-  ctx.fillText("赤轨 · 复盘用 · 不是买卖依据", 56, foot + 8);
+  ctx.fillText(`赤轨 · ${themeName()} · 复盘用 · 不是买卖依据`, 56, foot + 8);
 
   const height = foot + 48;
   const out = document.createElement("canvas");
@@ -189,7 +155,7 @@ export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; fil
   const next = out.getContext("2d");
   if (!next) throw new Error("画布不可用");
   next.drawImage(canvas, 0, 0, W, height, 0, 0, W, height);
-  return { canvas: out, filename: `赤轨-资金-${fileDate(book.asOf)}.png` };
+  return { canvas: out, filename: `赤轨-资金-${themeName()}-${fileDate(book.asOf)}.png` };
 }
 
 function sectionTitle(ctx: CanvasRenderingContext2D, y: number, title: string): number {

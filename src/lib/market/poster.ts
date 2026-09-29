@@ -1,11 +1,62 @@
 export const POSTER_W = 1080;
-export const RED = "#f0535e";
-export const GREEN = "#2fbf8a";
-export const INK = "#e8eef6";
-export const MUTED = "#8b97a8";
-export const LINE = "#243044";
-export const CARD = "#121820";
 export const FONT = '"PingFang SC","Hiragino Sans GB","WenQuanYi Zen Hei","Noto Sans SC",sans-serif';
+
+type Chrome = "mark" | "bar" | "rail" | "grid" | "frame" | "gold" | "glow" | "split";
+
+type PosterTheme = {
+  name: string;
+  chrome: Chrome;
+  bg: string;
+  up: string;
+  down: string;
+  ink: string;
+  muted: string;
+  line: string;
+  card: string;
+  accent: string;
+};
+
+const THEMES: PosterTheme[] = [
+  { name: "夜轨", chrome: "mark", bg: "#070b10", up: "#f0535e", down: "#2fbf8a", ink: "#e8eef6", muted: "#8b97a8", line: "#243044", card: "#121820", accent: "#f0535e" },
+  { name: "青图", chrome: "grid", bg: "#061018", up: "#ff5d6c", down: "#2ee6c7", ink: "#e7fbff", muted: "#7f9aa8", line: "#16404a", card: "#0c1c24", accent: "#39d6e8" },
+  { name: "金线", chrome: "gold", bg: "#0c0a07", up: "#e25b4a", down: "#3dba8b", ink: "#f6edd9", muted: "#a89880", line: "#3a3124", card: "#16130e", accent: "#d4b483" },
+  { name: "赤条", chrome: "bar", bg: "#10080c", up: "#ff4d5a", down: "#2fbf8a", ink: "#f7eef0", muted: "#c9a8ae", line: "#3a2430", card: "#1a1016", accent: "#e1062e" },
+  { name: "侧轨", chrome: "rail", bg: "#090d14", up: "#ff6b6b", down: "#4ecdc4", ink: "#eef3f8", muted: "#8ea0b3", line: "#243246", card: "#121a26", accent: "#4ecdc4" },
+  { name: "霜格", chrome: "frame", bg: "#14181e", up: "#ff6a74", down: "#5dcaa5", ink: "#f2f5f8", muted: "#9aa6b2", line: "#2c3542", card: "#1c232c", accent: "#d7e2ee" },
+  { name: "墨金", chrome: "split", bg: "#050505", up: "#ff4d4d", down: "#1f9d78", ink: "#f3f3f3", muted: "#8a8a8a", line: "#2a2a2a", card: "#141414", accent: "#e6c27a" },
+  { name: "极光", chrome: "glow", bg: "#07110f", up: "#ff6b81", down: "#2ee6a6", ink: "#e9fff6", muted: "#86a89a", line: "#1a3a32", card: "#0d1c18", accent: "#7cf0c4" },
+];
+
+let cursor = -1;
+let active = THEMES[0];
+
+export let RED = active.up;
+export let GREEN = active.down;
+export let INK = active.ink;
+export let MUTED = active.muted;
+export let LINE = active.line;
+export let CARD = active.card;
+export let BG = active.bg;
+
+export function themeName(): string {
+  return active.name;
+}
+
+/** 每次生成换一套，不连着重复。 */
+export function beginPoster(): PosterTheme {
+  let index = Math.floor(Math.random() * THEMES.length);
+  if (index === cursor) index = (index + 1) % THEMES.length;
+  cursor = index;
+  active = THEMES[index];
+  RED = active.up;
+  GREEN = active.down;
+  INK = active.ink;
+  MUTED = active.muted;
+  LINE = active.line;
+  CARD = active.card;
+  BG = active.bg;
+  return active;
+}
 
 export function toneColor(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n) || n === 0) return INK;
@@ -36,35 +87,81 @@ export function openPoster(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingC
   canvas.height = 4800;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("画布不可用");
-  ctx.fillStyle = "#070b10";
+  ctx.fillStyle = BG;
   ctx.fillRect(0, 0, POSTER_W, 4800);
   ctx.textBaseline = "middle";
+  paintChrome(ctx);
   return { canvas, ctx };
 }
 
+function paintChrome(ctx: CanvasRenderingContext2D) {
+  if (active.chrome === "grid") {
+    ctx.strokeStyle = active.accent;
+    ctx.globalAlpha = 0.08;
+    for (let x = 40; x < POSTER_W; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 4800);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (active.chrome === "frame") {
+    ctx.strokeStyle = active.accent;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(28, 28, POSTER_W - 56, 4744);
+    ctx.lineWidth = 1;
+  }
+  if (active.chrome === "rail") {
+    ctx.fillStyle = active.accent;
+    ctx.fillRect(0, 0, 18, 4800);
+  }
+  if (active.chrome === "bar") {
+    ctx.fillStyle = active.accent;
+    ctx.fillRect(0, 0, POSTER_W, 210);
+  }
+  if (active.chrome === "gold" || active.chrome === "split") {
+    ctx.fillStyle = active.accent;
+    ctx.fillRect(56, 96, POSTER_W - 112, active.chrome === "split" ? 2 : 3);
+  }
+}
+
 export function paintMark(ctx: CanvasRenderingContext2D, date: string) {
-  ctx.fillStyle = INK;
-  ctx.fillRect(56, 56, 36, 8);
-  ctx.fillStyle = RED;
-  ctx.fillRect(100, 44, 36, 8);
-  ctx.fillStyle = INK;
+  const onBar = active.chrome === "bar";
+  const ink = onBar ? "#ffffff" : INK;
+  const accent = onBar ? "#ffffff" : RED;
+  if (!onBar) {
+    ctx.fillStyle = active.chrome === "gold" || active.chrome === "split" ? active.accent : INK;
+    ctx.fillRect(56, 56, 36, 8);
+    ctx.fillStyle = accent;
+    ctx.fillRect(100, 44, 36, 8);
+  }
+  ctx.fillStyle = ink;
   ctx.font = `600 28px ${FONT}`;
   ctx.textAlign = "left";
-  ctx.fillText("赤轨", 152, 54);
-  ctx.fillStyle = MUTED;
+  ctx.fillText("赤轨", onBar ? 56 : 152, 54);
+  ctx.fillStyle = onBar ? "rgba(255,255,255,0.82)" : MUTED;
   ctx.font = `26px ${FONT}`;
   ctx.textAlign = "right";
   ctx.fillText(date, POSTER_W - 56, 54);
 }
 
 export function paintTitle(ctx: CanvasRenderingContext2D, title: string, sub: string) {
+  const onBar = active.chrome === "bar";
   ctx.textAlign = "left";
-  ctx.fillStyle = INK;
+  ctx.fillStyle = onBar ? "#ffffff" : INK;
   ctx.font = `600 64px ${FONT}`;
   ctx.fillText(title, 56, 128);
-  ctx.fillStyle = MUTED;
+  ctx.fillStyle = onBar ? "rgba(255,255,255,0.82)" : MUTED;
   ctx.font = `24px ${FONT}`;
   ctx.fillText(sub, 56, 176);
+  if (active.chrome === "glow") {
+    const grad = ctx.createLinearGradient(56, 198, 420, 198);
+    grad.addColorStop(0, active.accent);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(56, 196, 360, 4);
+  }
 }
 
 export function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -146,7 +243,7 @@ export function paintFoot(ctx: CanvasRenderingContext2D, y: number, note: string
   const foot = y + 36 + lines.length * 30;
   ctx.fillStyle = "#5d6b7c";
   ctx.font = `20px ${FONT}`;
-  ctx.fillText("赤轨 · 复盘用 · 不是买卖依据", 56, foot + 8);
+  ctx.fillText(`赤轨 · ${active.name} · 复盘用 · 不是买卖依据`, 56, foot + 8);
   return foot + 40;
 }
 

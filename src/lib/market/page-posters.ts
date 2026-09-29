@@ -8,6 +8,7 @@ import {
   MUTED,
   POSTER_W,
   RED,
+  beginPoster,
   cropPoster,
   dayFromDate,
   fileDate,
@@ -19,6 +20,7 @@ import {
   paintSection,
   paintTitle,
   paintSized,
+  themeName,
   toneColor,
   wrapLines,
 } from "./poster";
@@ -34,6 +36,7 @@ export type PickPosterRow = {
 };
 
 export function drawPicksPoster(input: { date: string; styleName: string; openCount: number; rows: PickPosterRow[] }) {
+  beginPoster();
   const { canvas, ctx } = openPoster();
   paintMark(ctx, dayFromDate(input.date));
   paintTitle(ctx, input.styleName, "打到买入价才记。红涨绿跌。");
@@ -84,7 +87,7 @@ export function drawPicksPoster(input: { date: string; styleName: string; openCo
     y += 52;
   }
   y = paintFoot(ctx, y + 20, `卖出价写在账上，图里只列买入价。共 ${input.rows.length} 只。`);
-  return { canvas: cropPoster(canvas, y), filename: `赤轨-选股-${fileDate(input.date)}.png` };
+  return { canvas: cropPoster(canvas, y), filename: `赤轨-选股-${themeName()}-${fileDate(input.date)}.png` };
 }
 
 export function drawNewsPoster(input: {
@@ -95,6 +98,7 @@ export function drawNewsPoster(input: {
   badStocks: { name: string; chg: number | null }[];
   total: number;
 }) {
+  beginPoster();
   const { canvas, ctx } = openPoster();
   paintMark(ctx, dayFromDate(input.date));
   paintTitle(ctx, "消息汇总", "按标题用词。不是研报，不改买入价。");
@@ -115,7 +119,7 @@ export function drawNewsPoster(input: {
     input.badBoards.map((row) => ({ name: row.name, value: `${row.n} 条`, color: GREEN })),
   );
   y = paintFoot(ctx, y + 12, "利好在左，利空在右。每边最多六条。");
-  return { canvas: cropPoster(canvas, y), filename: `赤轨-消息-${fileDate(input.date)}.png` };
+  return { canvas: cropPoster(canvas, y), filename: `赤轨-消息-${themeName()}-${fileDate(input.date)}.png` };
 }
 
 export function drawSymbolPoster(input: {
@@ -127,6 +131,7 @@ export function drawSymbolPoster(input: {
   ann: number;
   lines: { label: string; text: string; tone: NewsTone }[];
 }) {
+  beginPoster();
   const { canvas, ctx } = openPoster();
   paintMark(ctx, dayFromDate(input.date));
   paintTitle(ctx, fit(ctx, input.title, 900), "资讯和公告。红是利好，绿是利空。");
@@ -163,7 +168,7 @@ export function drawSymbolPoster(input: {
     y += h;
   }
   y = paintFoot(ctx, y + 16, "用词判断不是研报。");
-  return { canvas: cropPoster(canvas, y), filename: `赤轨-个股-${fileDate(input.date)}.png` };
+  return { canvas: cropPoster(canvas, y), filename: `赤轨-个股-${themeName()}-${fileDate(input.date)}.png` };
 }
 
 export function articleLine(item: StockArticle): { label: string; text: string; tone: NewsTone } {

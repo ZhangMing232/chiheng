@@ -7,6 +7,7 @@ import {
   MUTED,
   POSTER_W,
   RED,
+  beginPoster,
   cropPoster,
   dayFromDate,
   fileDate,
@@ -17,6 +18,7 @@ import {
   paintMark,
   paintSection,
   paintTitle,
+  themeName,
   wrapLines,
 } from "./poster";
 
@@ -36,6 +38,7 @@ function lots(n: number): string {
 const FACE = '"PingFang SC","Hiragino Sans GB","WenQuanYi Zen Hei","Noto Sans SC",sans-serif';
 
 export function drawHotPoster(book: HotBook) {
+  beginPoster();
   const { canvas, ctx } = openPoster();
   const date = book.date || fileDate("");
   paintMark(ctx, dayFromDate(date));
@@ -74,7 +77,7 @@ export function drawHotPoster(book: HotBook) {
     y += h;
   }
   y = paintFoot(ctx, y + 12, "一行一个席位。对得上营业部的才用别名。");
-  return { canvas: cropPoster(canvas, y), filename: `赤轨-游资-${fileDate(date)}.png` };
+  return { canvas: cropPoster(canvas, y), filename: `赤轨-游资-${themeName()}-${fileDate(date)}.png` };
 }
 
 function wrapStocks(ctx: CanvasRenderingContext2D, stocks: { name: string; netWan: number }[], maxWidth: number): { text: string; color: string }[][] {
@@ -99,6 +102,7 @@ function wrapStocks(ctx: CanvasRenderingContext2D, stocks: { name: string; netWa
 }
 
 export function drawFuturesPoster(book: FutBook) {
+  beginPoster();
   const { canvas, ctx } = openPoster();
   const date = book.date || fileDate("");
   paintMark(ctx, dayFromDate(date));
@@ -157,5 +161,5 @@ export function drawFuturesPoster(book: FutBook) {
     y += 12;
   }
   y = paintFoot(ctx, y, "单位是手。净持仓是前20名多单合计减去空单合计。");
-  return { canvas: cropPoster(canvas, y), filename: `赤轨-期指-${fileDate(date)}.png` };
+  return { canvas: cropPoster(canvas, y), filename: `赤轨-期指-${themeName()}-${fileDate(date)}.png` };
 }
