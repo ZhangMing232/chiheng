@@ -88,10 +88,18 @@ function Market({ parts }: { parts: MarketPart[] }) {
   ];
   return (
     <section className="rounded-2xl border border-line bg-surface">
-      <div className="px-4 py-3">
-        <h2 className="text-base font-semibold">大盘资金</h2>
-        <p className="mt-1 text-sm text-muted">上证指数加深证成指的今日净流入。主力是超大单加大单，单笔不少于 20 万或 6 万股。不是全市场逐只相加。</p>
-      </div>
+        <div className="flex items-end justify-between gap-3 px-4 py-3">
+          <div>
+            <h2 className="text-base font-semibold">大盘资金</h2>
+            <p className="mt-1 text-xs text-muted">上证加深证成指。主力是超大单加大单。</p>
+          </div>
+          {parts.length > 0 ? (
+            <div className="text-right">
+              <div className="text-xs text-muted">主力合计</div>
+              <div className={toneClass(sum("main")) + " text-2xl font-semibold tabular-nums leading-none"}>{fmtWan(sum("main"))}</div>
+            </div>
+          ) : null}
+        </div>
       {parts.length === 0 ? (
         <p className="border-t border-line px-4 py-6 text-sm text-muted">大盘资金暂时拉不下来。</p>
       ) : (
@@ -110,7 +118,7 @@ function Market({ parts }: { parts: MarketPart[] }) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className="border-t border-line">
+                <tr key={row.key} className={"border-t border-line " + (row.key === "main" || row.key === "retail" ? "font-medium" : "text-muted")}>
                   <td className="px-4 py-2">{row.name}</td>
                   <td className={toneClass(sum(row.key)) + " px-4 py-2 text-right tabular-nums"}>{fmtWan(sum(row.key))}</td>
                   {parts.map((part) => (
