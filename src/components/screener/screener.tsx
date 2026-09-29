@@ -190,6 +190,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           }))}
           serverDays={initial.journal}
           rules={rules}
+          style={prefs.style}
           marketOpen={phase.open}
           tail={phase.tail}
           benchmark={null}

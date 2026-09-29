@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { quoteOrder } from "@/lib/market/strategies";
+import { quoteOrder, slotsLeft } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
@@ -50,23 +50,34 @@ export function Journal({
   useEffect(() => {
     if (!ready || !live || !bookReady || !date) return;
     const book = usePaper.getState().days;
-    const openIds = new Set(book.flatMap((day) => day.trades.filter((trade) => trade.exit == null).map((trade) => trade.id)));
-    const trades: PaperTrade[] = [];
+    const held = book.flatMap((day) => day.trades);
+    const room = slotsLeft(held, prefs.style);
+    if (room <= 0) return;
+    const openIds = new Set(held.filter((trade) => trade.exit == null && (trade.style ?? "early") === prefs.style).map((trade) => trade.id));
+    const hits: { score: number; trade: PaperTrade }[] = [];
     for (const quote of quotes) {
       if (openIds.has(quote.id)) continue;
       const order = quoteOrder(prefs.style, quote, rules);
       if (!order?.hit || !matchPrefs(quote, prefs)) continue;
-      trades.push({
-        id: quote.id,
-        code: quote.code,
-        name: quote.name,
-        entry: order.buy,
-        stop: order.stop,
-        target: order.sell,
-        exit: null,
-        exitDate: null,
+      hits.push({
+        score: order.score,
+        trade: {
+          id: quote.id,
+          code: quote.code,
+          name: quote.name,
+          entry: order.buy,
+          stop: order.stop,
+          target: order.sell,
+          style: prefs.style,
+          exit: null,
+          exitDate: null,
+        },
       });
     }
+    const trades = hits
+      .sort((a, b) => b.score - a.score)
+      .slice(0, room)
+      .map((item) => item.trade);
     if (trades.length === 0) return;
     const existing = book.find((day) => day.date === date);
     recordDay({

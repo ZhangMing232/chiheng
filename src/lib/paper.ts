@@ -8,6 +8,7 @@ export type PaperTrade = {
   entry: number;
   stop?: number;
   target?: number;
+  style?: "early" | "trend" | "breakout" | "value";
   exit: number | null;
   exitDate: string | null;
 };
@@ -40,8 +41,8 @@ export const usePaper = create<PaperState>()(
           set({ days: [day, ...get().days].slice(0, 80) });
           return;
         }
-        const ids = new Set(existing.trades.map((trade) => trade.id));
-        const extras = day.trades.filter((trade) => !ids.has(trade.id));
+        const ids = new Set(existing.trades.map((trade) => `${trade.style ?? "early"}:${trade.id}`));
+        const extras = day.trades.filter((trade) => !ids.has(`${trade.style ?? "early"}:${trade.id}`));
         if (extras.length === 0) return;
         set({
           days: get().days.map((item) =>

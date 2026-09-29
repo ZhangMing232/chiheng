@@ -132,6 +132,18 @@ function valueOrder(quote: Quote): Order | null {
   };
 }
 
+export const MAX_POSITIONS = 10;
+
+export function styleOf(trade: { style?: string }): StyleId {
+  if (trade.style === "trend" || trade.style === "breakout" || trade.style === "value" || trade.style === "early") return trade.style;
+  return "early";
+}
+
+export function slotsLeft(trades: { style?: string; exit: number | null }[], style: StyleId): number {
+  const open = trades.filter((trade) => trade.exit == null && styleOf(trade) === style).length;
+  return Math.max(0, MAX_POSITIONS - open);
+}
+
 export function quoteOrder(style: StyleId, quote: Quote, rules: EarlyRules): Order | null {
   if (style === "trend") return trendOrder(quote);
   if (style === "breakout") return breakoutOrder(quote);

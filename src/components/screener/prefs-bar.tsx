@@ -59,7 +59,7 @@ export function PrefsBar({ prefs, onChange }: { prefs: Prefs; onChange: (next: P
   return (
     <section className="rounded-2xl border border-line bg-surface px-5 py-4 shadow-card">
       <h2 className="font-serif text-lg font-semibold">策略和范围</h2>
-      <p className="mt-1 text-sm text-muted">先选策略。买入价和卖出价按这套策略算，每只股票不一样。打到买入价才记账。</p>
+      <p className="mt-1 text-sm text-muted">买入价和卖出价按这套策略算。每个策略最多 10 只持仓，账分开记，满了就不再新开。</p>
       <div className="mt-3 flex flex-col gap-3">
         <Row label="策略" value={prefs.style} options={STYLES.map((item) => ({ id: item.id, label: item.name }))} onPick={(style) => onChange({ ...prefs, style })} />
         <p className="text-sm text-muted">{STYLES.find((item) => item.id === prefs.style)?.hint}</p>

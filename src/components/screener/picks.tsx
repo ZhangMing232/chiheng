@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { nowAction } from "@/lib/market/action";
+import { MAX_POSITIONS, styleOf } from "@/lib/market/strategies";
 import { BOARD_LABEL, TRACK_NEED, planExit } from "@/lib/market/model";
 import { dayLocked, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
@@ -26,6 +27,7 @@ export function Picks({
   quotes,
   serverDays,
   rules,
+  style,
   marketOpen,
   tail,
   onOpen,
@@ -35,13 +37,16 @@ export function Picks({
   quotes: Quote[];
   serverDays: PaperDay[];
   rules: EarlyRules;
+  style: "early" | "trend" | "breakout" | "value";
   benchmark: { name: string; price: number; pct: number } | null;
   marketOpen: boolean;
   tail: boolean;
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
-  const days = serverDays.length > 0 ? serverDays : browserDays;
+  const days = (serverDays.length > 0 ? serverDays : browserDays)
+    .map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) === style) }))
+    .filter((day) => day.trades.length > 0);
   const onServer = serverDays.length > 0;
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -128,8 +133,8 @@ export function Picks({
                     <div className="min-w-0">
                       <div className="truncate text-base font-semibold">
                         {pick.quote.name}
-                        <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (tracked ? "bg-down-soft text-down" : pick.hit ? "bg-up text-bg" : "bg-surface-2 text-muted")}>
-                          {tracked ? "追踪中" : pick.hit ? "已到买入价" : "等待买入"}
+                        <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (tracked ? "bg-down-soft text-down" : pick.hit && open.length >= MAX_POSITIONS ? "bg-surface-2 text-muted" : pick.hit ? "bg-up text-bg" : "bg-surface-2 text-muted")}>
+                          {tracked ? "追踪中" : pick.hit && open.length >= MAX_POSITIONS ? "仓位已满" : pick.hit ? "已到买入价" : "等待买入"}
                         </span>
                       </div>
                       <div className="mt-1 text-xs text-muted">
@@ -164,7 +169,7 @@ export function Picks({
 
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="px-4 py-3">
-          <h2 className="font-serif text-lg font-semibold">等待卖出信号的股票池 共 {open.length} 只</h2>
+          <h2 className="font-serif text-lg font-semibold">等待卖出信号的股票池 共 {open.length}/{MAX_POSITIONS} 只</h2>
           <p className="mt-1 text-sm text-muted">已经按买入价记入。现价到卖出价就卖，到止损价也卖。都没碰到，最多 8 个交易日收盘结束。</p>
         </div>
         {open.length === 0 ? (
@@ -211,7 +216,7 @@ export function Picks({
 
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-baseline justify-between gap-3 px-4 py-3">
-          <h2 className="font-serif text-lg font-semibold">历史信号</h2>
+          <h2 className="font-serif text-lg font-semibold">这套策略的历史信号</h2>
           <span className="text-xs text-muted">已记录 {days.length} 天</span>
         </div>
         <div className="grid grid-cols-2 gap-2 px-4 py-4 sm:grid-cols-4">
