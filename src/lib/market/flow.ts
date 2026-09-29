@@ -7,11 +7,20 @@ export type FlowRow = {
   leader: string;
 };
 
+export type NorthLeg = {
+  name: string;
+  date: string;
+  /** 成交额，万元。净流入没有公布。 */
+  amount: number;
+  leader: string;
+};
+
 export type FlowBook = {
   sectorsIn: FlowRow[];
   sectorsOut: FlowRow[];
   stocksIn: FlowRow[];
   stocksOut: FlowRow[];
+  north: NorthLeg[];
   asOf: number;
 };
 
@@ -56,6 +65,37 @@ function take(list: Raw[], kind: "sector" | "stock", limit: number): FlowRow[] {
   return rows;
 }
 
+async function loadNorth(): Promise<NorthLeg[]> {
+  const legs: { type: string; name: string }[] = [
+    { type: "001", name: "沪股通" },
+    { type: "003", name: "深股通" },
+  ];
+  const rows = await Promise.all(
+    legs.map(async (leg) => {
+      const url =
+        "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_MUTUAL_DEAL_HISTORY" +
+        "&columns=TRADE_DATE,DEAL_AMT,LEAD_STOCKS_NAME" +
+        `&filter=(MUTUAL_TYPE=%22${leg.type}%22)&pageNumber=1&pageSize=1&sortColumns=TRADE_DATE&sortTypes=-1`;
+      const res = await fetch(url, {
+        headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { result?: { data?: { TRADE_DATE?: string; DEAL_AMT?: number; LEAD_STOCKS_NAME?: string }[] } };
+      const row = body.result?.data?.[0];
+      const amount = num(row?.DEAL_AMT);
+      if (!row || amount == null) return null;
+      return {
+        name: leg.name,
+        date: String(row.TRADE_DATE ?? "").slice(0, 10),
+        amount: amount * 100,
+        leader: String(row.LEAD_STOCKS_NAME ?? ""),
+      };
+    }),
+  );
+  return rows.filter((row): row is NorthLeg => row != null);
+}
+
 /** 腾讯行业和个股的主力净流入。大约一分钟更新一次。 */
 export async function loadFlow(): Promise<FlowBook> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.book;
@@ -69,11 +109,13 @@ export async function loadFlow(): Promise<FlowBook> {
     rank(stock("down")),
     rank(stock("up")),
   ]);
+  const north = await loadNorth().catch(() => [] as NorthLeg[]);
   const book: FlowBook = {
     sectorsIn: take(sectorsIn, "sector", 8),
     sectorsOut: take(sectorsOut, "sector", 8),
     stocksIn: take(stocksIn, "stock", 8),
     stocksOut: take(stocksOut, "stock", 8),
+    north,
     asOf: Date.now(),
   };
   cache = { at: book.asOf, book };
