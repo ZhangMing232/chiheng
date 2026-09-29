@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import { readRules, writeRules } from "@/lib/market/rules-file";
 import { parseRules } from "@/lib/market/rules";
+import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
+import { parsePrefs } from "@/lib/market/prefs";
 import type { PaperDay } from "@/lib/paper";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
 
@@ -319,3 +321,13 @@ export const saveRules = createServerFn({ method: "POST" })
     return parsed;
   })
   .handler(async ({ data }) => writeRules(data));
+
+export const getPrefs = createServerFn({ method: "GET" }).handler(async () => readPrefs());
+
+export const savePrefs = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const parsed = parsePrefs(data);
+    if (!parsed) throw new Error("偏好没填对");
+    return parsed;
+  })
+  .handler(async ({ data }) => writePrefs(data));

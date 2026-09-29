@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { evaluate } from "@/lib/market/model";
+import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { dayLocked, exitFill, nthClose } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import { getKline } from "@/lib/market/quotes.functions";
@@ -15,6 +16,7 @@ export function Journal({
   bookReady,
   indexPrice,
   rules,
+  prefs,
 }: {
   quotes: Quote[];
   live: boolean;
@@ -24,6 +26,7 @@ export function Journal({
   bookReady: boolean;
   indexPrice: number | null;
   rules: EarlyRules;
+  prefs: Prefs;
 }) {
   const days = usePaper((state) => state.days);
   const recordDay = usePaper((state) => state.recordDay);
@@ -52,7 +55,7 @@ export function Journal({
     const prior = new Map(same ? existing.trades.map((trade) => [trade.id, trade.entry]) : []);
     const trades: PaperTrade[] = [];
     for (const quote of quotes) {
-      if (!evaluate("early", quote, true, true, rules) || !(quote.price > 0)) continue;
+      if (!evaluate("early", quote, true, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
       const kept = prior.get(quote.id);
       trades.push({
         id: quote.id,
@@ -74,7 +77,7 @@ export function Journal({
       indexExit: same ? existing.indexExit : null,
       trades,
     });
-  }, [ready, sealed, live, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules]);
+  }, [ready, sealed, live, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules, prefs]);
 
   const openKey = days
     .flatMap((day) => [

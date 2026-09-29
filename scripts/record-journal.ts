@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { dayLocked } from "../src/lib/market/journal-book.ts";
 import { exitFill, nthClose } from "../src/lib/market/journal-book.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
+import { readPrefs } from "../src/lib/market/prefs-file.ts";
+import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { evaluate } from "../src/lib/market/model.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
@@ -75,6 +77,7 @@ function weekdaysBetween(from: string, to: string): number {
 }
 
 const rules = await readRules();
+const prefs = await readPrefs();
 const phase = sessionPhase();
 const time = formatClock(Date.now());
 const closeWindow = time >= "14:40" && time < "15:00";
@@ -93,7 +96,7 @@ if (phase.date && isTradingDay(phase.date) && (phase.sealed || closeWindow)) {
     const trades: Trade[] = [];
     if (live) {
       for (const quote of universe.quotes) {
-        if (!evaluate("early", quote, true, true, rules) || !(quote.price > 0)) continue;
+        if (!evaluate("early", quote, true, true, rules) || !matchPrefs(quote, prefs) || !(quote.price > 0)) continue;
         const prior = same ? existing?.trades.find((trade) => trade.id === quote.id) : undefined;
         trades.push({
           id: quote.id,

@@ -3,11 +3,13 @@ import { RefreshCw } from "lucide-react";
 import { Detail } from "@/components/screener/detail";
 import { Journal } from "@/components/screener/paper";
 import { Picks } from "@/components/screener/picks";
+import { PrefsBar } from "@/components/screener/prefs-bar";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { evaluate, isIdleBook } from "@/lib/market/model";
+import { matchPrefs, type Prefs } from "@/lib/market/prefs";
+import { getIndices, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
-import { getIndices, getUniverse } from "@/lib/market/quotes.functions";
 import type { PaperDay } from "@/lib/paper";
 import type { EarlyRules } from "@/lib/market/rules";
 
@@ -29,6 +31,7 @@ export type ScreenerInitial = {
   indices: IndexQuote[];
   journal: PaperDay[];
   rules: EarlyRules;
+  prefs: Prefs;
   error: string | null;
   phase: SessionInfo;
 };
@@ -40,6 +43,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [phase, setPhase] = useState(initial.phase);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [prefs, setPrefs] = useState(initial.prefs);
   const rules = initial.rules;
 
   const refresh = useCallback(async (force: boolean) => {
@@ -86,12 +90,12 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     const rows: { quote: Quote; score: number; reasons: string[] }[] = [];
     for (const quote of quotes) {
       const scored = evaluate("early", quote, live, true, rules);
-      if (!scored) continue;
+      if (!scored || !matchPrefs(quote, prefs)) continue;
       rows.push({ quote, score: scored.score, reasons: scored.reasons });
     }
     rows.sort((a, b) => b.score - a.score || b.quote.cap - a.quote.cap);
     return rows;
-  }, [quotes, live, rules]);
+  }, [quotes, live, rules, prefs]);
 
   const selected = quotes.find((quote) => quote.id === selectedId) ?? null;
   const selectedRow = ranked.find((row) => row.quote.id === selectedId);
@@ -105,7 +109,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-3xl font-semibold leading-none">赤衡</h1>
-              <p className="mt-2 text-sm text-muted">每天选出刚启动、还没走远的股票。</p>
+              <p className="mt-2 text-sm text-muted">按板块、股价和市值，每天精选刚启动的股票。</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="text-right text-sm">
@@ -148,8 +152,16 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           bookReady={Boolean(universe && !universe.stale && !universe.partial)}
           indexPrice={indices.find((item) => item.id === "sh000300")?.price ?? null}
           rules={rules}
+          prefs={prefs}
         />
         {error ? <p className="text-sm text-up">{error}</p> : null}
+        <PrefsBar
+          prefs={prefs}
+          onChange={(next) => {
+            setPrefs(next);
+            void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
+          }}
+        />
         <Picks
           date={phase.date}
           quotes={quotes}
