@@ -60,6 +60,63 @@ export const Route = createFileRoute("/news")({
   component: NewsPage,
 });
 
+function ToneSide({
+  title,
+  tone,
+  boards,
+  stocks,
+  held,
+  picked,
+  empty,
+}: {
+  title: string;
+  tone: "good" | "bad";
+  boards: { code: string; name: string; n: number }[];
+  stocks: { id: string; name: string; code: string; chg: number | null; title: string }[];
+  held: Set<string>;
+  picked: Set<string>;
+  empty: string;
+}) {
+  const quiet = tone === "good" ? "text-up" : "text-down";
+  return (
+    <div className="min-w-0 px-4 py-3">
+      <h2 className={"text-base font-semibold " + quiet}>{title}</h2>
+      {boards.length === 0 && stocks.length === 0 ? (
+        <p className="mt-2 text-sm text-muted">{empty}</p>
+      ) : (
+        <>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {boards.map((board) => (
+              <span key={board.code} className="rounded-md bg-surface-2 px-2 py-1 text-sm">
+                {board.name}
+                {board.n > 1 ? <span className="text-muted"> {board.n}</span> : null}
+              </span>
+            ))}
+          </div>
+          <ul className="mt-2">
+            {stocks.map((stock) => {
+              const mark = held.has(stock.id) ? "持仓" : picked.has(stock.id) ? "精选" : "";
+              return (
+                <li key={stock.id} className="border-t border-line py-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="min-w-0 truncate">
+                      {stock.name}
+                      <span className="ml-1.5 text-muted">{stock.code}</span>
+                      {mark ? <span className={"ml-1.5 " + quiet}>{mark}</span> : null}
+                    </div>
+                    <div className={toneClass(stock.chg) + " shrink-0 tabular-nums"}>{signedPct(stock.chg)}</div>
+                  </div>
+                  <p className="truncate text-muted">{stock.title}</p>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function NewsPage() {
   const { news, held, picked, failed } = Route.useLoaderData();
   const heldSet = new Set(held);
@@ -71,73 +128,29 @@ function NewsPage() {
 
   return (
     <Frame>
-        <section className="rounded-2xl border border-line bg-surface px-4 py-3">
-          <h2 className="font-serif text-lg font-semibold">利好</h2>
-          <p className="mt-1 text-sm text-muted">按快讯用词归类，不是研报。点名的板块和个股列在下面。和持仓或精选重叠的会标出来。不改变买入价。</p>
-          {good.boards.length === 0 && good.stocks.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">{failed ? "消息暂时拉不下来。" : "这批快讯里没有判成利好的板块或个股。"}</p>
-          ) : (
-            <div className="mt-3 flex flex-col gap-3">
-              <div>
-                <div className="text-xs text-muted">板块</div>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {good.boards.map((board) => (
-                    <span key={board.code} className="rounded-full bg-up-soft px-2 py-0.5 text-xs text-up">
-                      {board.name}
-                      {board.n > 1 ? ` ${board.n}` : ""}
-                    </span>
-                  ))}
-                  {good.boards.length === 0 ? <span className="text-xs text-muted">没有点名板块</span> : null}
-                </div>
-              </div>
-              <ul className="flex flex-col gap-2">
-                {good.stocks.map((stock) => {
-                  const mark = heldSet.has(stock.id) ? "持仓" : pickedSet.has(stock.id) ? "精选" : "";
-                  return (
-                    <li key={stock.id} className="rounded-xl bg-surface-2 px-3 py-2">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <div className="min-w-0 truncate font-medium">
-                          {stock.name}
-                          <span className="ml-2 text-xs font-normal text-muted">{stock.code}</span>
-                          {mark ? (
-                            <span className={"ml-2 rounded-full px-2 py-0.5 text-xs font-normal " + (mark === "持仓" ? "bg-up-soft text-up" : "bg-[#123044] text-[#5ad7ff]")}>
-                              {mark}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className={toneClass(stock.chg) + " shrink-0 text-sm tabular-nums"}>{signedPct(stock.chg)}</div>
-                      </div>
-                      <p className="mt-1 text-xs text-pretty text-muted">{stock.title}</p>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+        <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <p className="border-b border-line px-4 py-2 text-sm text-muted">按快讯用词归类，不是研报，也不改买入价。</p>
+          <div className="grid md:grid-cols-2 md:divide-x md:divide-line">
+            <ToneSide
+              title="利好"
+              tone="good"
+              boards={good.boards}
+              stocks={good.stocks}
+              held={heldSet}
+              picked={pickedSet}
+              empty={failed ? "消息暂时拉不下来。" : "这批没有判成利好的。"}
+            />
+            <ToneSide
+              title="利空"
+              tone="bad"
+              boards={bad.boards}
+              stocks={bad.stocks}
+              held={heldSet}
+              picked={pickedSet}
+              empty="这批没有判成利空的。"
+            />
+          </div>
         </section>
-        {bad.boards.length > 0 || bad.stocks.length > 0 ? (
-          <section className="rounded-2xl border border-line bg-surface px-4 py-3">
-            <h2 className="font-serif text-lg font-semibold">利空</h2>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {bad.boards.map((board) => (
-                <span key={board.code} className="rounded-full bg-down-soft px-2 py-0.5 text-xs text-down">
-                  {board.name}
-                  {board.n > 1 ? ` ${board.n}` : ""}
-                </span>
-              ))}
-            </div>
-            <ul className="mt-2 flex flex-col gap-1">
-              {bad.stocks.map((stock) => (
-                <li key={stock.id} className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate">
-                    {stock.name} <span className="text-xs text-muted">{stock.code}</span>
-                  </span>
-                  <span className={toneClass(stock.chg) + " shrink-0 tabular-nums"}>{signedPct(stock.chg)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
         <section className="rounded-2xl border border-line bg-surface">
           <div className="px-4 py-3">
             <h2 className="font-serif text-lg font-semibold">7x24</h2>
