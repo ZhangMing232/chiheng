@@ -305,7 +305,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             <div className="min-w-0">
               <p className="font-serif text-xs tracking-widest text-muted">CHI HENG</p>
               <h1 className="text-3xl font-semibold leading-none">赤衡</h1>
-              <p className="mt-2 text-sm text-pretty text-muted">只留启动前期。持股 5 到 10 天。记满 60 个交易日前，默认空仓。</p>
+              <p className="mt-2 text-sm text-pretty text-muted">AI选好股。每天给出参考买入价，到期看卖出信号。</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="text-right text-sm">
@@ -341,81 +341,43 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         </div>
       </header>
 
-      <main className="mx-auto grid min-w-0 max-w-7xl grid-cols-1 gap-4 px-4 py-4 md:px-6 lg:grid-cols-12">
-        <section className="min-w-0 lg:col-span-12">
-          <p className="max-w-3xl text-sm text-pretty text-muted">{meta.hint}</p>
-          <div className="mt-3">
+      <main className="mx-auto flex min-w-0 max-w-3xl flex-col gap-4 px-4 py-4 md:px-6">
+        <Journal
+          quotes={quotes}
+          live={live}
+          sealed={phase.sealed}
+          date={phase.date}
+          signalTime={formatClock(Date.now())}
+          bookReady={Boolean(universe && !universe.stale && !universe.partial)}
+          indexPrice={indices.find((item) => item.id === "sh000300")?.price ?? null}
+          rules={rules}
+        />
+        {universe?.partial ? <p className="text-sm text-up">科创板这一轮没有合上，列表暂时只有沪深主板和创业板。</p> : null}
+        {error ? <p className="text-sm text-up">{error}</p> : null}
+        <Picks
+          date={phase.date}
+          quotes={quotes}
+          picks={ranked.slice(0, 3).map((row) => ({ quote: row.quote, reasons: row.reasons }))}
+          serverDays={initial.journal}
+          rules={rules}
+          benchmark={(() => {
+            const etf = indices.find((item) => item.id === "sh510300");
+            const index = indices.find((item) => item.id === "sh000300");
+            const row = etf ?? index;
+            return row ? { name: INDEX_LABEL[row.id] ?? row.name, price: row.price, pct: row.pct } : null;
+          })()}
+          onOpen={setSelectedId}
+        />
+        <details className="rounded-lg border border-line bg-surface">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium">偏好、规则和全部名单</summary>
+          <div className="flex flex-col gap-4 border-t border-line px-4 py-4">
+            <p className="text-sm text-pretty text-muted">{meta.hint}</p>
             <Stance phase={phase} strategy={strategy} />
-          </div>
-          <RulesPanel rules={rules} onSaved={setRules} />
-          <Journal
-            quotes={quotes}
-            live={live}
-            sealed={phase.sealed}
-            date={phase.date}
-            signalTime={formatClock(Date.now())}
-            bookReady={Boolean(universe && !universe.stale && !universe.partial)}
-            indexPrice={indices.find((item) => item.id === "sh000300")?.price ?? null}
-            rules={rules}
-          />
-          {strategy === "t1" && !live ? (
-            <p className="mt-2 max-w-3xl text-sm text-pretty text-fg">开盘前没有今天的成交，这套已停用的门槛也不会变成可以买的名单。</p>
-          ) : idle ? (
-            <p className="mt-2 max-w-3xl text-sm text-pretty text-fg">
-              现在几乎没有成交。换手、量比、成交额和主力净流入先不参与硬性筛选，排序主要看估值和 5/20/60 日涨跌。开盘后会自动计入。
-            </p>
-          ) : null}
-          {universe?.partial ? (
-            <p className="mt-2 text-sm text-up">科创板这一轮没有合上，列表暂时只有沪深主板和创业板。</p>
-          ) : null}
-          {error ? <p className="mt-2 text-sm text-up">{error}</p> : null}
-        </section>
-
-        <aside className="hidden lg:col-span-3 lg:block">
-          <div className="sticky top-4 rounded-lg border border-line bg-surface p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-medium">再收窄</h2>
-              {filtersDirty(filters) ? (
-                <button type="button" className="text-sm text-muted" onClick={() => patchFilters(emptyFilters())}>
-                  清空
-                </button>
-              ) : null}
-            </div>
+            <RulesPanel rules={rules} onSaved={setRules} />
             <FiltersForm filters={filters} idle={idle} onChange={patchFilters} />
           </div>
-        </aside>
 
-        <section className="min-w-0 lg:col-span-9">
-          <Picks
-            date={phase.date}
-            quotes={quotes}
-            picks={ranked.slice(0, 3).map((row) => ({ quote: row.quote, reasons: row.reasons }))}
-            serverDays={initial.journal}
-            rules={rules}
-            benchmark={(() => {
-              const etf = indices.find((item) => item.id === "sh510300");
-              const index = indices.find((item) => item.id === "sh000300");
-              const row = etf ?? index;
-              return row ? { name: INDEX_LABEL[row.id] ?? row.name, price: row.price, pct: row.pct } : null;
-            })()}
-            onOpen={setSelectedId}
-          />
-          <details className="mb-3 rounded-lg border border-line bg-surface lg:hidden">
-            <summary className="flex h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium">
-              筛选条件
-              <span className="text-muted">{filtersDirty(filters) ? "已修改" : "默认"}</span>
-            </summary>
-            <div className="border-t border-line px-4 py-4">
-              <FiltersForm filters={filters} idle={idle} onChange={patchFilters} />
-              {filtersDirty(filters) ? (
-                <button type="button" className="mt-4 text-sm text-muted" onClick={() => patchFilters(emptyFilters())}>
-                  清空筛选
-                </button>
-              ) : null}
-            </div>
-          </details>
-
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-3 flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex rounded-md border border-line bg-surface p-1">
               <button
                 type="button"
@@ -637,10 +599,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
               ) : null}
             </>
           )}
-          <p className="mt-4 text-xs text-pretty text-muted">
-            覆盖沪市、深市、创业板和科创板，北证暂未纳入。默认建议是空仓。节假日未单独排除。数据有延迟，赤衡不是投资顾问。
+          <p className="px-4 pb-4 text-xs text-pretty text-muted">
+            上面三块是每天要看的。这里是全部名单。数据有延迟，不是投资建议。
           </p>
-        </section>
+        </details>
       </main>
 
       {selected ? (
