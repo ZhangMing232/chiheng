@@ -10,3 +10,6 @@ data
 .env
 .env.*
 .DS_Store
+
+赤轨.app
+scripts/app-icon.png
