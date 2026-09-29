@@ -58,6 +58,8 @@ export type SessionInfo = {
   open: boolean;
   /** 连续竞价或收盘集合竞价之后，限价单才可能成交。9:15–9:30 和午休不算。 */
   matching: boolean;
+  /** 14:30 之后，含收盘。次日补涨只在这段买入。 */
+  tailHalf: boolean;
   tail: boolean;
   entry: "none" | "open" | "close";
   nextSell: string;

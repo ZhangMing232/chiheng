@@ -8,7 +8,8 @@ export type PaperTrade = {
   entry: number;
   stop?: number;
   target?: number;
-  style?: "early" | "trend" | "breakout" | "value";
+  style?: "early" | "trend" | "breakout" | "value" | "relay";
+  hold?: number;
   exit: number | null;
   exitDate: string | null;
 };

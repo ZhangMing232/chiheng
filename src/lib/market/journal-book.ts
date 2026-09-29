@@ -17,11 +17,12 @@ export function exitFill(
   stop: number,
   target: number,
   limitPct = 10,
+  sessions = HOLD_SESSIONS,
 ): { date: string; price: number; reason: "target" | "stop" | "time" } | null {
   const start = bars.findIndex((bar) => normDay(bar.date) === normDay(entryDate));
   if (start < 0 || !(entry > 0) || !(stop > 0) || !(target > stop)) return null;
   let prev = bars[start].c;
-  let left = HOLD_SESSIONS;
+  let left = sessions;
   let extra = 5;
   for (let cursor = start + 1; cursor < bars.length && (left > 0 || extra > 0); cursor += 1) {
     const bar = bars[cursor];

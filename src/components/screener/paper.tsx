@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { STYLE_IDS, takeBuys, watchList } from "@/lib/market/strategies";
+import { STYLE_IDS, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { boardLimit, planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
@@ -18,6 +18,7 @@ export function Journal({
   indexPrice,
   rules,
   prefs,
+  relay,
 }: {
   quotes: Quote[];
   live: boolean;
@@ -28,6 +29,7 @@ export function Journal({
   indexPrice: number | null;
   rules: EarlyRules;
   prefs: Prefs;
+  relay: Listed[];
 }) {
   const days = usePaper((state) => state.days);
   const recordDay = usePaper((state) => state.recordDay);
@@ -53,7 +55,8 @@ export function Journal({
     const held = book.flatMap((day) => day.trades);
     const trades: PaperTrade[] = [];
     for (const style of STYLE_IDS) {
-      const list = watchList(quotes, style, rules, (quote) => matchPrefs(quote, prefs));
+      const list =
+        style === "relay" ? relay.filter((row) => matchPrefs(row.quote, prefs)) : watchList(quotes, style, rules, (quote) => matchPrefs(quote, prefs));
       for (const row of takeBuys(list, held, style)) {
         trades.push({
           id: row.quote.id,
@@ -63,6 +66,7 @@ export function Journal({
           stop: row.stop,
           target: row.sell,
           style,
+          hold: style === "relay" ? 1 : undefined,
           exit: null,
           exitDate: null,
         });
@@ -80,7 +84,7 @@ export function Journal({
       indexExit: existing?.indexExit ?? null,
       trades,
     });
-  }, [ready, live, matching, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules, prefs]);
+  }, [ready, live, matching, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules, prefs, relay]);
 
   const openKey = days
     .flatMap((day) => [
@@ -103,7 +107,15 @@ export function Journal({
             const data = await getKline({ data: { id: trade.id } });
             const plan =
               trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
-            const filled = exitFill(data.bars ?? [], day.date, trade.entry, plan.stop, plan.target, boardLimit(trade.id, trade.name));
+            const filled = exitFill(
+              data.bars ?? [],
+              day.date,
+              trade.entry,
+              plan.stop,
+              plan.target,
+              boardLimit(trade.id, trade.name),
+              trade.hold ?? 8,
+            );
             if (!filled) continue;
             settle(day.date, trade.id, filled.price, filled.date, trade.entry);
           } catch {

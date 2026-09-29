@@ -37,7 +37,7 @@ export function Picks({
   quotes: Quote[];
   serverDays: PaperDay[];
   rules: EarlyRules;
-  style: "early" | "trend" | "breakout" | "value";
+  style: "early" | "trend" | "breakout" | "value" | "relay";
   benchmark: { name: string; price: number; pct: number } | null;
   marketOpen: boolean;
   tail: boolean;
@@ -126,7 +126,9 @@ export function Picks({
           <span className="shrink-0 text-xs text-muted">打到买入价才追踪</span>
         </div>
         {featured.length === 0 ? (
-          <p className="border-t border-line px-4 py-6 text-sm text-muted">这套策略现在没有符合的股票。</p>
+          <p className="border-t border-line px-4 py-6 text-sm text-muted">
+            {style === "relay" ? "今天没有三个够强的概念板块，或者次强已经贴着涨停、买不进。" : "这套策略现在没有符合的股票。"}
+          </p>
         ) : (
           <ul>
             {featured.map((pick) => {

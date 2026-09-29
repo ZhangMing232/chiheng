@@ -10,7 +10,7 @@ export type Prefs = {
 
 export const DEFAULT_PREFS: Prefs = { style: "early", board: "all", price: "all", cap: "all" };
 
-const STYLES: StyleId[] = ["early", "trend", "breakout", "value"];
+const STYLES: StyleId[] = ["early", "trend", "breakout", "value", "relay"];
 
 export function parsePrefs(data: unknown): Prefs | null {
   if (typeof data !== "object" || data === null) return null;

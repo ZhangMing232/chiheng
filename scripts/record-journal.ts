@@ -9,6 +9,7 @@ import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { boardLimit, planExit } from "../src/lib/market/model.ts";
 import { STYLE_IDS, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
+import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
 type Trade = {
@@ -18,7 +19,8 @@ type Trade = {
   entry: number;
   stop?: number;
   target?: number;
-  style?: "early" | "trend" | "breakout" | "value";
+  style?: "early" | "trend" | "breakout" | "value" | "relay";
+  hold?: number;
   exit: number | null;
   exitDate: string | null;
 };
@@ -72,8 +74,17 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
     const held = days.flatMap((day) => day.trades);
     const existing = days.find((day) => day.date === phase.date);
     const additions: Trade[] = [];
+    let relay: Awaited<ReturnType<typeof loadRelay>> = [];
+    try {
+      relay = await loadRelay(phase.tailHalf);
+    } catch {
+      relay = [];
+    }
     for (const style of STYLE_IDS) {
-      const list = watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs));
+      const list =
+        style === "relay"
+          ? relay.filter((row) => matchPrefs(row.quote, prefs))
+          : watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs));
       for (const row of takeBuys(list, held, style)) {
         additions.push({
           id: row.quote.id,
@@ -83,6 +94,7 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
           stop: row.stop,
           target: row.sell,
           style,
+          hold: style === "relay" ? 1 : undefined,
           exit: null,
           exitDate: null,
         });
@@ -94,6 +106,7 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
           stop: row.stop,
           target: row.sell,
           style,
+          hold: style === "relay" ? 1 : undefined,
           exit: null,
           exitDate: null,
         });
@@ -133,7 +146,15 @@ if (settleDue && phase.date) {
       try {
         const data = await loadKline(trade.id);
         const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
-        const filled = exitFill(data.bars, day.date, trade.entry, plan.stop, plan.target, boardLimit(trade.id, trade.name));
+        const filled = exitFill(
+          data.bars,
+          day.date,
+          trade.entry,
+          plan.stop,
+          plan.target,
+          boardLimit(trade.id, trade.name),
+          trade.hold ?? 8,
+        );
         if (!filled) {
           stillOpen = true;
           continue;

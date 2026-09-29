@@ -112,9 +112,10 @@ export function sessionPhase(now = Date.now()): SessionInfo {
   const holiday = !isTradingDay(date, weekday);
   const sealed = !holiday && mins >= 15 * 60;
   const matching = !holiday && ((mins >= 9 * 60 + 30 && mins < 11 * 60 + 30) || mins >= 13 * 60);
+  const tailHalf = !holiday && mins >= 14 * 60 + 30;
   const entry = entryOf(date, weekday, mins);
   const tail = entry === "close";
-  const base = { nextSell, date, sealed, entry, tail, matching };
+  const base = { nextSell, date, sealed, entry, tail, matching, tailHalf };
   if (holiday) {
     return { ...base, phase: "closed", label: weekday === "Sat" || weekday === "Sun" ? "周末休市" : "节假日休市", open: false };
   }

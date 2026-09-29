@@ -6,9 +6,9 @@ import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { isIdleBook } from "@/lib/market/model";
-import { watchList } from "@/lib/market/strategies";
+import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
-import { getIndices, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
+import { getIndices, getRelay, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
@@ -45,17 +45,20 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [prefs, setPrefs] = useState(initial.prefs);
+  const [relay, setRelay] = useState<Listed[]>([]);
   const rules = initial.rules;
 
   const refresh = useCallback(async (force: boolean) => {
     setRefreshing(true);
     try {
-      const [nextUniverse, nextIndices] = await Promise.all([
+      const [nextUniverse, nextIndices, nextRelay] = await Promise.all([
         getUniverse({ data: { refresh: force } }),
         getIndices(),
+        getRelay().catch(() => [] as Listed[]),
       ]);
       setUniverse(nextUniverse);
       setIndices(nextIndices);
+      setRelay(nextRelay);
       setError(nextUniverse.stale ? "行情源不稳定，先显示上一轮数据" : null);
       setPhase(sessionPhase());
     } catch (err) {
@@ -67,6 +70,13 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
 
   useEffect(() => {
     const timer = window.setInterval(() => setPhase(sessionPhase()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const pull = () => void getRelay().then(setRelay).catch(() => undefined);
+    pull();
+    const timer = window.setInterval(pull, 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -87,10 +97,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
 
   const quotes = universe?.quotes ?? [];
   const live = !isIdleBook(quotes);
-  const ranked = useMemo(
-    () => watchList(quotes, prefs.style, rules, (quote) => matchPrefs(quote, prefs)),
-    [quotes, rules, prefs],
-  );
+  const ranked = useMemo(() => {
+    if (prefs.style === "relay") return relay.filter((row) => matchPrefs(row.quote, prefs));
+    return watchList(quotes, prefs.style, rules, (quote) => matchPrefs(quote, prefs));
+  }, [quotes, rules, prefs, relay]);
 
   const selected = quotes.find((quote) => quote.id === selectedId) ?? null;
   const selectedRow = ranked.find((row) => row.quote.id === selectedId);
@@ -154,6 +164,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           indexPrice={indices.find((item) => item.id === "sh000300")?.price ?? null}
           rules={rules}
           prefs={prefs}
+          relay={relay}
         />
         {error ? <p className="text-sm text-up">{error}</p> : null}
         <PrefsBar

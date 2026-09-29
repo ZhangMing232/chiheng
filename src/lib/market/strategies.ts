@@ -2,7 +2,7 @@ import { limitPct, limitTag, planExit, screen, type Scored } from "./model.ts";
 import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
 
-export type StyleId = "early" | "trend" | "breakout" | "value";
+export type StyleId = "early" | "trend" | "breakout" | "value" | "relay";
 
 export type Order = Scored & {
   buy: number;
@@ -31,6 +31,11 @@ export const STYLES: { id: StyleId; name: string; hint: string }[] = [
     id: "value",
     name: "低估值",
     hint: "市盈率不超过 18 倍、市净率不超过 2 倍。买入价按市盈率 15 倍折，卖出价按 22 倍折。",
+  },
+  {
+    id: "relay",
+    name: "次日补涨",
+    hint: "收盘前半小时，在当天最强的三个概念板块里，买还能成交的次强，不买龙头和涨停。下一交易日卖。",
   },
 ];
 
@@ -132,11 +137,11 @@ function valueOrder(quote: Quote): Order | null {
   };
 }
 
-export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value"];
+export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "relay"];
 export const MAX_POSITIONS = 10;
 
 export function styleOf(trade: { style?: string }): StyleId | null {
-  if (trade.style === "early" || trade.style === "trend" || trade.style === "breakout" || trade.style === "value") return trade.style;
+  if (trade.style === "early" || trade.style === "trend" || trade.style === "breakout" || trade.style === "value" || trade.style === "relay") return trade.style;
   return null;
 }
 
@@ -205,6 +210,7 @@ export function bookRisk(trades: { style?: string; exit: number | null; entry: n
 }
 
 export function quoteOrder(style: StyleId, quote: Quote, rules: EarlyRules): Order | null {
+  if (style === "relay") return null;
   if (style === "trend") return trendOrder(quote);
   if (style === "breakout") return breakoutOrder(quote);
   if (style === "value") return valueOrder(quote);

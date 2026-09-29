@@ -6,6 +6,8 @@ import { parseRules } from "@/lib/market/rules";
 import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import type { PaperDay } from "@/lib/paper";
+import { loadRelay } from "@/lib/market/sectors";
+import { sessionPhase } from "@/lib/market/session";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
 
 type Raw = Record<string, string | undefined>;
@@ -285,6 +287,8 @@ export const getUniverse = createServerFn({ method: "GET" })
   .handler(async ({ data }) => loadUniverse(data.refresh));
 
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
+
+export const getRelay = createServerFn({ method: "GET" }).handler(async () => loadRelay(sessionPhase().tailHalf));
 
 export const getKline = createServerFn({ method: "GET" })
   .validator((data: unknown) => {
