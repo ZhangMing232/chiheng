@@ -14,7 +14,7 @@ const HEADERS = {
   accept: "application/json,text/plain,*/*",
 };
 
-const INDEX_IDS = ["sh000300", "sh000001", "sz399001", "sz399006", "sh000688"] as const;
+const INDEX_IDS = ["sh510300", "sh000300", "sh000001", "sz399001", "sz399006", "sh000688"] as const;
 
 let universeCache: { at: number; payload: Universe } | null = null;
 let universeInflight: Promise<Universe> | null = null;

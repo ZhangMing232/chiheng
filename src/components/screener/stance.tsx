@@ -75,7 +75,7 @@ export function Stance({ phase, strategy }: { phase: SessionInfo; strategy: Stra
 
   return (
     <section className="max-w-3xl rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-      <p className="font-medium">当前建议：空仓。</p>
+      <p className="font-medium">个股默认空仓。真钱开关没打开之前，只放沪深300ETF。</p>
       <p className="mt-2 text-pretty text-muted">
         买入只看两个时段：早盘 9:25–9:30，尾盘 14:40 以后到收盘。其他时间不要买。{windowText}
         只跟踪启动前期这一套，持股 5 到 10 个交易日。记满 60 个交易日之前，默认空仓。

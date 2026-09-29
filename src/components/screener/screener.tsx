@@ -28,6 +28,7 @@ import type { PaperDay } from "@/lib/paper";
 
 const BOARDS: Board[] = ["sh", "sz", "cyb", "kcb"];
 const INDEX_LABEL: Record<string, string> = {
+  sh510300: "沪深300ETF",
   sh000300: "沪深300",
   sh000001: "上证",
   sz399001: "深成",
@@ -384,6 +385,12 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             quotes={quotes}
             picks={ranked.slice(0, 3).map((row) => ({ quote: row.quote, reasons: row.reasons }))}
             serverDays={initial.journal}
+            benchmark={(() => {
+              const etf = indices.find((item) => item.id === "sh510300");
+              const index = indices.find((item) => item.id === "sh000300");
+              const row = etf ?? index;
+              return row ? { name: INDEX_LABEL[row.id] ?? row.name, price: row.price, pct: row.pct } : null;
+            })()}
             onOpen={setSelectedId}
           />
           <details className="mb-3 rounded-lg border border-line bg-surface lg:hidden">

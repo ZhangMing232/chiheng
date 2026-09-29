@@ -20,12 +20,14 @@ export function Picks({
   picks,
   quotes,
   serverDays,
+  benchmark,
   onOpen,
 }: {
   date: string;
   picks: Pick[];
   quotes: Quote[];
   serverDays: PaperDay[];
+  benchmark: { name: string; price: number; pct: number } | null;
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
@@ -94,8 +96,22 @@ export function Picks({
         <h2 className="text-base font-semibold">资金</h2>
         <p className={"mt-1 font-medium " + (gate.ok ? "" : "text-up")}>{gate.ok ? "真钱：可以按小仓位做" : "真钱：不允许"}</p>
         <p className="mt-1 text-pretty text-muted">
-          {gate.reason}。要同时满足 60 个交易日、至少 20 笔扣费后跑赢沪深 300。这三条现在写死，不根据结果改。单只最多 20% 本金，同时最多 3 只。止损只提醒。
+          {gate.ok
+            ? `${gate.reason}。个股仍按单只仓位，最多 3 只。`
+            : `${gate.reason}。开关关上时，真钱不买下面的个股，只买沪深300ETF（510300）。指数也会跌，但这不是在没证明的名单里来回换。`}
         </p>
+        {benchmark ? (
+          <div className="mt-3 flex items-baseline justify-between gap-3 rounded-md border border-line px-3 py-2">
+            <div>
+              <div className="font-medium">{benchmark.name}</div>
+              <div className="text-xs text-muted">{gate.ok ? "对照基准" : "现在唯一的真钱标的 · 510300"}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-semibold tabular-nums">{fmtPrice(benchmark.price)}</div>
+              <div className={toneClass(benchmark.pct) + " text-xs tabular-nums"}>{signedPct(benchmark.pct)}</div>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label>
             <span className="mb-1 block text-xs text-muted">本金（元）</span>
@@ -139,7 +155,7 @@ export function Picks({
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shrink-0 rounded bg-fg px-2 py-1 text-xs text-bg">{dayLabel(date)}</span>
-            <h2 className="truncate text-base font-semibold">精选 {featured.length} 只</h2>
+            <h2 className="truncate text-base font-semibold">{gate.ok ? `精选 ${featured.length} 只` : "纸面观察"}</h2>
           </div>
           <span className="shrink-0 text-xs text-muted">{lockedToday ? "买入价已锁定" : "尚未锁定"}</span>
         </div>
@@ -160,7 +176,7 @@ export function Picks({
                           <div className="mt-1 text-xs text-muted">{trade.code}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-xs text-muted">参考买入价</div>
+                          <div className="text-xs text-muted">{gate.ok ? "参考买入价" : "纸面价，不能买"}</div>
                           <div className="font-medium tabular-nums">低于 {fmtPrice(trade.entry)}</div>
                         </div>
                         <div className="text-right">
@@ -195,7 +211,7 @@ export function Picks({
                       <div className="mt-1 text-xs text-muted">{pick.quote.code}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-muted">参考买入价</div>
+                      <div className="text-xs text-muted">{gate.ok ? "参考买入价" : "纸面价，不能买"}</div>
                       <div className="font-medium tabular-nums">低于 {fmtPrice(pick.quote.price)}</div>
                     </div>
                     <div className="text-right">
