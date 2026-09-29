@@ -9,6 +9,7 @@ import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
 import { loadFlow } from "@/lib/market/flow";
+import { ensureUserBook, readUserBook } from "@/lib/market/book-file";
 import { sessionPhase } from "@/lib/market/session";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
 
@@ -325,9 +326,11 @@ export const getSymbolNews = createServerFn({ method: "GET" })
     }
     let days: { trades?: { id?: string; code?: string; name?: string; exit?: number | null }[] }[] = [];
     try {
-      const text = await readFile(join(process.cwd(), "data", "journal.json"), "utf8");
-      const parsed = JSON.parse(text) as { days?: typeof days };
-      days = Array.isArray(parsed.days) ? parsed.days : [];
+      const { requireUserId } = await import("@/lib/auth/verify.server");
+      const userId = await requireUserId();
+      await ensureUserBook(userId);
+      const book = await readUserBook<{ trades?: { id?: string; code?: string; name?: string; exit?: number | null }[] }>(userId);
+      days = book.days;
     } catch {
       days = [];
     }
@@ -388,11 +391,13 @@ export const getRecorder = createServerFn({ method: "GET" }).handler(async () =>
 
 export const getServerJournal = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const text = await readFile(join(process.cwd(), "data", "journal.json"), "utf8");
-    const parsed = JSON.parse(text) as { days?: PaperDay[] };
-    return { days: Array.isArray(parsed.days) ? parsed.days : [] };
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const userId = await requireUserId();
+    await ensureUserBook(userId);
+    const book = await readUserBook<PaperDay>(userId);
+    return { days: book.days, personal: true };
   } catch {
-    return { days: [] as PaperDay[] };
+    return { days: [] as PaperDay[], personal: false };
   }
 });
 

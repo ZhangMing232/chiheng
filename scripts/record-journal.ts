@@ -4,6 +4,7 @@ import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
 import { exitFill, nthClose } from "../src/lib/market/journal-book.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
@@ -38,9 +39,8 @@ type Day = {
   trades: Trade[];
 };
 
-type Book = { days: Day[]; nextSettleAt?: number };
+type Book = StoredBook<Day>;
 
-const bookPath = join(process.cwd(), "data", "journal.json");
 const pulsePath = join(process.cwd(), "data", "recorder.json");
 const alertPath = join(process.cwd(), "data", "sell-alerts.json");
 const backupDir = join(homedir(), "chiheng-backup");
@@ -76,14 +76,16 @@ async function mark(ok: boolean) {
   await writeFile(pulsePath, JSON.stringify({ at: Date.now(), ok }));
 }
 
-async function backup(date: string) {
+async function backup(userId: string, date: string) {
+  const from = join(process.cwd(), "data", "books", `${userId}.json`);
   try {
-    await access(bookPath);
+    await access(from);
   } catch {
     return;
   }
-  await mkdir(backupDir, { recursive: true });
-  await copyFile(bookPath, join(backupDir, `journal-${date}.json`));
+  const dir = join(backupDir, userId);
+  await mkdir(dir, { recursive: true });
+  await copyFile(from, join(dir, `journal-${date}.json`));
 }
 
 let failing = false;
@@ -94,48 +96,50 @@ process.on("unhandledRejection", (err) => {
   void mark(false).finally(() => process.exit(1));
 });
 
-async function readBook(): Promise<Book> {
-  try {
-    const parsed = JSON.parse(await readFile(bookPath, "utf8")) as Book;
-    return { days: Array.isArray(parsed.days) ? parsed.days : [], nextSettleAt: parsed.nextSettleAt };
-  } catch {
-    return { days: [] };
-  }
-}
-
-async function writeBook(book: Book) {
-  await mkdir(join(process.cwd(), "data"), { recursive: true });
-  await writeFile(bookPath, JSON.stringify(book, null, 2));
-}
-
 const rules = await readRules();
 const prefs = await readPrefs();
 const phase = sessionPhase();
 const time = formatClock(Date.now());
-const book = await readBook();
 const alerts = await readAlerts();
 let alertsChanged = false;
-let days = book.days;
-let changed = false;
-const tagged = days.map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) != null) }));
-if (tagged.some((day, index) => day.trades.length !== days[index].trades.length)) changed = true;
-days = tagged.filter((day) => day.trades.length > 0);
 
+let universe: Awaited<ReturnType<typeof loadUniverse>> | null = null;
+let indexPrice: number | null = null;
+let relay: Awaited<ReturnType<typeof loadRelay>> = [];
 if (phase.date && isTradingDay(phase.date) && phase.matching) {
-  const universe = await loadUniverse(true);
+  universe = await loadUniverse(true);
   const indices = await loadIndices();
   const index = indices.find((item) => item.id === "sh000300");
-  const live = universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0);
-  if (live) {
+  indexPrice = index && index.price > 0 ? index.price : null;
+  try {
+    relay = await loadRelay(phase.tailHalf, phase.date);
+  } catch {
+    relay = [];
+  }
+}
+
+const klines = new Map<string, Awaited<ReturnType<typeof loadKline>>>();
+async function kline(id: string) {
+  const saved = klines.get(id);
+  if (saved) return saved;
+  const data = await loadKline(id);
+  klines.set(id, data);
+  return data;
+}
+
+async function runBook(userId: string, book: Book): Promise<boolean> {
+  const speak = userId === OWNER_ID;
+  let days = book.days;
+  let changed = false;
+  const tagged = days.map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) != null) }));
+  if (tagged.some((day, index) => day.trades.length !== days[index].trades.length)) changed = true;
+  days = tagged.filter((day) => day.trades.length > 0);
+  const canBuy = !book.joinedAt || !phase.date || book.joinedAt <= phase.date;
+
+  if (canBuy && universe && phase.date && universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0)) {
     const held = days.flatMap((day) => day.trades);
     const existing = days.find((day) => day.date === phase.date);
     const additions: Trade[] = [];
-    let relay: Awaited<ReturnType<typeof loadRelay>> = [];
-    try {
-      relay = await loadRelay(phase.tailHalf, phase.date);
-    } catch {
-      relay = [];
-    }
     for (const style of STYLE_IDS) {
       const list =
         style === "relay"
@@ -177,21 +181,21 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
             signalTime: time,
             status: phase.sealed ? "locked" : "provisional",
             ruleVersion: rules.version,
-            indexEntry: index && index.price > 0 ? index.price : null,
+            indexEntry: indexPrice,
             indexExit: null,
             trades: additions,
           };
       days = existing ? days.map((day) => (day.date === phase.date ? next : day)) : [next, ...days].slice(0, 80);
       changed = true;
-      const shown = additions.slice(0, 3).map((trade) => {
-        const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
-        return `${style} ${trade.name}`.trim();
-      });
-      const more = additions.length > shown.length ? `等 ${additions.length} 只` : "";
-      notify(`${shown.join("、")}${more} 已到买入价`);
-      console.log(`bought ${phase.date} ${additions.length}`);
-    } else {
-      console.log(`${time} no buy`);
+      if (speak) {
+        const shown = additions.slice(0, 3).map((trade) => {
+          const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
+          return `${style} ${trade.name}`.trim();
+        });
+        const more = additions.length > shown.length ? `等 ${additions.length} 只` : "";
+        notify(`${shown.join("、")}${more} 已到买入价`);
+      }
+      console.log(`bought ${userId} ${phase.date} ${additions.length}`);
     }
     const stops: string[] = [];
     const targets: string[] = [];
@@ -206,92 +210,107 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
         const label = `${style} ${trade.name}`.trim();
         const hit = quote.price <= plan.stop ? "stop" : quote.price >= plan.target ? "target" : null;
         if (!hit) continue;
-        const key = `${day.date}:${trade.id}:${hit}`;
+        const key = `${userId}:${day.date}:${trade.id}:${hit}`;
         if (!alerts.has(key)) {
           alerts.add(key);
           alertsChanged = true;
-          (hit === "stop" ? stops : targets).push(label);
+          if (speak) (hit === "stop" ? stops : targets).push(label);
         }
         trade.exit = hit === "stop" ? plan.stop : plan.target;
         trade.exitDate = phase.date;
         changed = true;
       }
     }
-    notifyNames("到止损价", stops);
-    notifyNames("到卖出价", targets);
-  }
-}
-
-const pending = days.some(
-  (day) => day.trades.some((trade) => trade.exit == null) || (day.indexEntry != null && day.indexExit == null),
-);
-const settleDue = pending && (book.nextSettleAt == null || Date.now() >= book.nextSettleAt);
-if (settleDue && phase.date) {
-  let stillOpen = false;
-  const due: string[] = [];
-  for (const day of days) {
-    for (const trade of day.trades) {
-      if (trade.exit != null) continue;
-      try {
-        const data = await loadKline(trade.id);
-        const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
-        const filled = exitFill(
-          data.bars,
-          day.date,
-          trade.entry,
-          plan.stop,
-          plan.target,
-          boardLimit(trade.id, trade.name),
-          trade.hold ?? 8,
-        );
-        if (!filled) {
-          stillOpen = true;
-          continue;
-        }
-        trade.exit = filled.price;
-        trade.exitDate = filled.date;
-        changed = true;
-        const key = `${day.date}:${trade.id}:${filled.reason}`;
-        if (filled.reason === "time" && !alerts.has(key)) {
-          alerts.add(key);
-          alertsChanged = true;
-          const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
-          due.push(`${style} ${trade.name}`.trim());
-        }
-      } catch {
-        stillOpen = true;
-      }
+    if (speak) {
+      notifyNames("到止损价", stops);
+      notifyNames("到卖出价", targets);
     }
-    if (day.indexExit == null && day.indexEntry != null) {
-      try {
-        const data = await loadKline("sh000300");
-        const next = nthClose(data.bars, day.date);
-        if (next) {
-          day.indexExit = next.price;
+  }
+
+  const pending = days.some(
+    (day) => day.trades.some((trade) => trade.exit == null) || (day.indexEntry != null && day.indexExit == null),
+  );
+  const settleDue = pending && (book.nextSettleAt == null || Date.now() >= book.nextSettleAt);
+  let nextSettleAt = book.nextSettleAt;
+  if (settleDue && phase.date) {
+    let stillOpen = false;
+    const due: string[] = [];
+    for (const day of days) {
+      for (const trade of day.trades) {
+        if (trade.exit != null) continue;
+        try {
+          const data = await kline(trade.id);
+          const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
+          const filled = exitFill(
+            data.bars,
+            day.date,
+            trade.entry,
+            plan.stop,
+            plan.target,
+            boardLimit(trade.id, trade.name),
+            trade.hold ?? 8,
+          );
+          if (!filled) {
+            stillOpen = true;
+            continue;
+          }
+          trade.exit = filled.price;
+          trade.exitDate = filled.date;
           changed = true;
-        } else stillOpen = true;
-      } catch {
-        stillOpen = true;
+          const key = `${userId}:${day.date}:${trade.id}:${filled.reason}`;
+          if (filled.reason === "time" && !alerts.has(key)) {
+            alerts.add(key);
+            alertsChanged = true;
+            if (speak) {
+              const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
+              due.push(`${style} ${trade.name}`.trim());
+            }
+          }
+        } catch {
+          stillOpen = true;
+        }
+      }
+      if (day.indexExit == null && day.indexEntry != null) {
+        try {
+          const data = await kline("sh000300");
+          const next = nthClose(data.bars, day.date);
+          if (next) {
+            day.indexExit = next.price;
+            changed = true;
+          } else stillOpen = true;
+        } catch {
+          stillOpen = true;
+        }
       }
     }
+    nextSettleAt = Date.now() + (stillOpen ? 30 * 60_000 : 12 * 60 * 60_000);
+    changed = true;
+    if (speak) notifyNames("到期该卖", due);
   }
-  book.nextSettleAt = Date.now() + (stillOpen ? 30 * 60_000 : 12 * 60 * 60_000);
-  changed = true;
-  notifyNames("到期该卖", due);
+
+  if (changed) await writeUserBook(userId, { joinedAt: book.joinedAt, days, nextSettleAt });
+  return changed;
 }
 
-if (changed) await writeBook({ days, nextSettleAt: book.nextSettleAt });
-else console.log(`${time} ${phase.label} no change`);
+const ids = await listUserIds();
+let any = false;
+for (const userId of ids) {
+  const book = await readUserBook<Day>(userId);
+  if (await runBook(userId, book)) any = true;
+}
+if (!any) console.log(`${time} ${phase.label} no change`);
 if (alertsChanged) await writeAlerts(alerts);
 
 await mark(true);
 const backupDate = phase.date || new Date().toISOString().slice(0, 10);
-const backupPath = join(backupDir, `journal-${backupDate}.json`);
-let backed = false;
-try {
-  await access(backupPath);
-  backed = true;
-} catch {
-  backed = false;
+for (const userId of ids) {
+  const backupPath = join(backupDir, userId, `journal-${backupDate}.json`);
+  let backed = false;
+  try {
+    await access(backupPath);
+    backed = true;
+  } catch {
+    backed = false;
+  }
+  if (any || (phase.sealed && !backed)) await backup(userId, backupDate);
 }
-if (changed || (phase.sealed && !backed)) await backup(backupDate);

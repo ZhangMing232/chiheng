@@ -40,6 +40,7 @@ export type ScreenerInitial = {
   universe: Universe | null;
   indices: IndexQuote[];
   journal: PaperDay[];
+  personal: boolean;
   rules: EarlyRules;
   prefs: Prefs;
   recorder: { at: number | null; ok: boolean };
@@ -176,6 +177,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             block: row.block,
           }))}
           serverDays={journal}
+          personal={initial.personal}
           rules={rules}
           style={prefs.style}
           marketOpen={phase.open}

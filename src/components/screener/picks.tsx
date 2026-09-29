@@ -27,6 +27,7 @@ export function Picks({
   picks,
   quotes,
   serverDays,
+  personal,
   rules,
   style,
   marketOpen,
@@ -39,6 +40,7 @@ export function Picks({
   picks: Pick[];
   quotes: Quote[];
   serverDays: PaperDay[];
+  personal: boolean;
   rules: EarlyRules;
   style: "early" | "trend" | "breakout" | "value" | "relay";
   benchmark: { name: string; price: number; pct: number } | null;
@@ -49,7 +51,7 @@ export function Picks({
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
-  const source = serverDays.length > 0 ? serverDays : browserDays;
+  const source = personal || serverDays.length > 0 ? serverDays : browserDays;
   const books = STYLES.map((item) => ({
     id: item.id,
     name: item.name,
@@ -58,7 +60,7 @@ export function Picks({
   const days = source
     .map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) === style) }))
     .filter((day) => day.trades.length > 0);
-  const onServer = serverDays.length > 0;
+  const onServer = personal || serverDays.length > 0;
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let cancel = false;
