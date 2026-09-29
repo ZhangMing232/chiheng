@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Star, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Area, CartesianGrid, ComposedChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { fmtCap, fmtMultiple, fmtPlain, fmtPrice, fmtWan, signedPct, toneClass } from "@/lib/market/format";
-import { BOARD_LABEL, limitTag, T1_RECORD, type T1Ticket } from "@/lib/market/model";
+import { BOARD_LABEL, limitTag } from "@/lib/market/model";
 import type { Bar, Quote } from "@/lib/market/types";
 import { getKline } from "@/lib/market/quotes.functions";
-import { HoldNote } from "@/components/screener/stance";
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -37,21 +36,13 @@ export function Detail({
   score,
   reasons,
   idle,
-  watched,
-  plan,
-  holdDays,
   onClose,
-  onToggleWatch,
 }: {
   quote: Quote;
   score: number | null;
   reasons: string[];
   idle: boolean;
-  watched: boolean;
-  plan: { headline: string; lines: string[]; ticket: T1Ticket | null; sellDay: string } | null;
-  holdDays: number | null;
   onClose: () => void;
-  onToggleWatch: () => void;
 }) {
   const kline = useQuery({
     queryKey: ["kline", quote.id],
@@ -112,9 +103,6 @@ export function Detail({
                 {fmtPrice(quote.price)}
               </div>
               <div className={cx("tabular-nums", toneClass(quote.chg))}>{signedPct(quote.chg)}</div>
-              <div className="mt-2">
-                <HoldNote days={holdDays} />
-              </div>
             </div>
             <div className="text-right">
               {score != null ? (
@@ -135,54 +123,6 @@ export function Detail({
                 </li>
               ))}
             </ul>
-          ) : null}
-          {plan ? (
-            <div className="rounded-lg border border-line bg-bg px-3 py-3 text-sm">
-              <p className="font-medium">{plan.headline}</p>
-              {plan.ticket ? (
-                <dl className="mt-3 grid grid-cols-1 gap-2">
-                  <div>
-                    <dt className="text-xs text-muted">预期买入价 · 尚未成交</dt>
-                    <dd className="text-lg font-medium tabular-nums">{fmtPrice(plan.ticket.buy)}</dd>
-                    <dd className="text-pretty text-muted">按现价挂限价，不要高于这个价。还没成交，不是持仓成本。</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">昨收</dt>
-                    <dd className="tabular-nums">{fmtPrice(plan.ticket.prev)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">还能买的价格</dt>
-                    <dd className="tabular-nums">
-                      {fmtPrice(plan.ticket.low)} – {fmtPrice(plan.ticket.high)}
-                    </dd>
-                    <dd className="text-pretty text-muted">昨收跌 6% 到 2%。现价在这个区间里，规则才成立。</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">涨过这个价就不要买</dt>
-                    <dd className="tabular-nums">{fmtPrice(plan.ticket.high)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">跌停价，碰到放弃</dt>
-                    <dd className="tabular-nums">{fmtPrice(plan.ticket.limitDown)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">预期卖出价</dt>
-                    <dd className="text-lg font-medium tabular-nums">{fmtPrice(plan.ticket.sell)}</dd>
-                    <dd className="text-pretty text-muted">
-                      买入价加上历史平均毛收益 {T1_RECORD.grossPct}%。不是要提前挂出的目标单，实际到 {plan.sellDay}{" "}
-                      收盘附近卖。买入当天不能卖。
-                    </dd>
-                  </div>
-                </dl>
-              ) : null}
-              {plan.lines.length > 0 && !plan.ticket ? (
-                <ul className="mt-2 flex flex-col gap-1 text-muted">
-                  {plan.lines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
           ) : null}
           <div className="h-52">
             {kline.isLoading ? (
@@ -226,32 +166,15 @@ export function Detail({
               </div>
             ))}
           </dl>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={onToggleWatch}
-              className={cx(
-                "inline-flex h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium",
-                watched ? "bg-fg text-bg" : "border border-line bg-surface text-fg",
-              )}
-            >
-              <Star className="size-4" fill={watched ? "currentColor" : "none"} />
-              {watched ? "已在自选" : "加入自选"}
-            </button>
-            <a
-              className="inline-flex h-11 items-center justify-center rounded-md border border-line text-sm"
-              href={`https://quote.eastmoney.com/${quote.id}.html`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              在东方财富查看这只股票
-            </a>
-          </div>
-          <p className="text-xs text-pretty text-muted">
-            {plan
-              ? "这是次日卖出的执行约束，不是收益承诺。行情有延迟，下单前再看一次盘口。"
-              : "得分只解释这只股票为什么排进来，不是买卖建议。行情来自公开接口，可能有延迟。"}
-          </p>
+          <a
+            className="inline-flex h-11 items-center justify-center rounded-md border border-line text-sm"
+            href={`https://quote.eastmoney.com/${quote.id}.html`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            在东方财富查看这只股票
+          </a>
+          <p className="text-xs text-pretty text-muted">行情有延迟，不是买卖指令。</p>
         </div>
       </aside>
     </div>
