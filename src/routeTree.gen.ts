@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as NewsRouteImport } from './routes/news'
+import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,44 @@ const NewsRoute = NewsRouteImport.update({
   path: '/news',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SymbolRoute = SymbolRouteImport.update({
+  id: '/symbol',
+  path: '/symbol',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
+  '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
+  '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
+  '/symbol': typeof SymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/flow' | '/news'
+  fullPaths: '/' | '/flow' | '/news' | '/symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/flow' | '/news'
-  id: '__root__' | '/' | '/flow' | '/news'
+  to: '/' | '/flow' | '/news' | '/symbol'
+  id: '__root__' | '/' | '/flow' | '/news' | '/symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FlowRoute: typeof FlowRoute
   NewsRoute: typeof NewsRoute
+  SymbolRoute: typeof SymbolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/symbol': {
+      id: '/symbol'
+      path: '/symbol'
+      fullPath: '/symbol'
+      preLoaderRoute: typeof SymbolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FlowRoute: FlowRoute,
   NewsRoute: NewsRoute,
+  SymbolRoute: SymbolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

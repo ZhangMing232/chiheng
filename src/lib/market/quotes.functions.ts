@@ -7,7 +7,7 @@ import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
-import { loadNews } from "@/lib/market/news";
+import { loadNews, loadStockArticles, searchStocks, type StockArticle, type StockHit } from "@/lib/market/news";
 import { loadFlow } from "@/lib/market/flow";
 import { sessionPhase } from "@/lib/market/session";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
@@ -296,6 +296,49 @@ export const getRelay = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const getNews = createServerFn({ method: "GET" }).handler(async () => loadNews());
+
+export const getSymbolNews = createServerFn({ method: "GET" })
+  .validator((data: unknown) => {
+    const q =
+      typeof data === "object" && data !== null && "q" in data && typeof (data as { q?: unknown }).q === "string"
+        ? (data as { q: string }).q.trim().slice(0, 20)
+        : "";
+    return { q };
+  })
+  .handler(async ({ data }) => {
+    if (data.q) {
+      const matches = await searchStocks(data.q).catch(() => [] as StockHit[]);
+      const picked = matches[0] ?? null;
+      const articles = picked ? await loadStockArticles(picked.id).catch(() => [] as StockArticle[]) : [];
+      return { q: data.q, matches, picked, articles, groups: [] as { id: string; name: string; code: string; articles: StockArticle[] }[] };
+    }
+    let days: { trades?: { id?: string; code?: string; name?: string; exit?: number | null }[] }[] = [];
+    try {
+      const text = await readFile(join(process.cwd(), "data", "journal.json"), "utf8");
+      const parsed = JSON.parse(text) as { days?: typeof days };
+      days = Array.isArray(parsed.days) ? parsed.days : [];
+    } catch {
+      days = [];
+    }
+    const held: { id: string; name: string; code: string }[] = [];
+    const seen = new Set<string>();
+    for (const day of days) {
+      for (const trade of day.trades ?? []) {
+        if (trade.exit != null || !trade.id || seen.has(trade.id)) continue;
+        seen.add(trade.id);
+        held.push({ id: trade.id, name: trade.name || trade.id, code: trade.code || trade.id.slice(2) });
+        if (held.length >= 8) break;
+      }
+      if (held.length >= 8) break;
+    }
+    const groups = await Promise.all(
+      held.map(async (trade) => ({
+        ...trade,
+        articles: (await loadStockArticles(trade.id).catch(() => [] as StockArticle[])).slice(0, 6),
+      })),
+    );
+    return { q: "", matches: [] as StockHit[], picked: null as StockHit | null, articles: [] as StockArticle[], groups };
+  });
 
 export const getFlow = createServerFn({ method: "GET" }).handler(async () => loadFlow());
 

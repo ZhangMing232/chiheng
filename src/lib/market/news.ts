@@ -30,11 +30,11 @@ const BAD = ["利空", "减持", "预亏", "亏损", "下滑", "处罚", "立案
 let cache: { at: number; rows: NewsItem[] } | null = null;
 const boardNames = new Map<string, string>();
 
-function getText(url: string): Promise<string> {
+function getText(url: string, referer = "https://kuaixun.eastmoney.com/"): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = https.get(
       url,
-      { headers: { "user-agent": "Mozilla/5.0", referer: "https://kuaixun.eastmoney.com/" }, timeout: 12_000 },
+      { headers: { "user-agent": "Mozilla/5.0", referer }, timeout: 12_000 },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk) => chunks.push(chunk as Buffer));
@@ -149,5 +149,83 @@ export async function loadNews(): Promise<NewsItem[]> {
       }),
     }));
   cache = { at: Date.now(), rows };
+  return rows;
+}
+
+export type StockHit = {
+  id: string;
+  code: string;
+  name: string;
+  board: string;
+};
+
+export type StockArticle = {
+  id: string;
+  time: string;
+  title: string;
+  tone: NewsTone;
+  url: string;
+};
+
+const QUOTE_REFERER = "https://quote.eastmoney.com/";
+const stockCache = new Map<string, { at: number; rows: StockArticle[] }>();
+
+function emMarketCode(id: string): string | null {
+  const match = id.match(/^(sh|sz|bj)(\d{6})$/);
+  if (!match) return null;
+  return `${match[1] === "sh" ? "1" : "0"}.${match[2]}`;
+}
+
+/** 按代码或名称找 A 股。 */
+export async function searchStocks(keyword: string): Promise<StockHit[]> {
+  const q = keyword.trim().slice(0, 20);
+  if (!q) return [];
+  const raw = await getText(
+    `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(q)}&type=14&count=8`,
+    QUOTE_REFERER,
+  );
+  const parsed = JSON.parse(raw) as {
+    QuotationCodeTable?: { Data?: { Code?: string; Name?: string; QuoteID?: string; SecurityTypeName?: string; Classify?: string }[] };
+  };
+  const rows: StockHit[] = [];
+  for (const row of parsed.QuotationCodeTable?.Data ?? []) {
+    if (row.Classify && row.Classify !== "AStock") continue;
+    const code = row.Code ?? "";
+    const quoteId = row.QuoteID ?? "";
+    if (!/^\d{6}$/.test(code) || !/^[01]\.\d{6}$/.test(quoteId)) continue;
+    const market = quoteId.startsWith("1.") ? "sh" : code.startsWith("8") || code.startsWith("4") || code.startsWith("92") ? "bj" : "sz";
+    rows.push({ id: `${market}${code}`, code, name: (row.Name ?? code).trim(), board: row.SecurityTypeName ?? "" });
+  }
+  return rows;
+}
+
+/** 一只股票最近的资讯。只有标题，用词分成利好、利空或没说清。 */
+export async function loadStockArticles(id: string): Promise<StockArticle[]> {
+  const hit = stockCache.get(id);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.rows;
+  const code = emMarketCode(id);
+  if (!code) return [];
+  const raw = await getText(
+    `https://np-listapi.eastmoney.com/comm/web/getListInfo?client=web&biz=web_news&mTypeAndCode=${code}&page_index=1&page_size=20&type=1&req_trace=1`,
+    QUOTE_REFERER,
+  );
+  const parsed = JSON.parse(raw) as {
+    data?: { list?: { Art_Code?: string; Art_ShowTime?: string; Art_Title?: string; Art_OriginUrl?: string }[] };
+  };
+  const rows = (parsed.data?.list ?? []).flatMap((item) => {
+    const title = (item.Art_Title ?? "").trim();
+    if (!title) return [];
+    const url = item.Art_OriginUrl ?? "";
+    return [
+      {
+        id: String(item.Art_Code ?? title),
+        time: item.Art_ShowTime ?? "",
+        title,
+        tone: toneOf(title),
+        url: url.startsWith("http://") || url.startsWith("https://") ? url : "",
+      },
+    ];
+  });
+  stockCache.set(id, { at: Date.now(), rows });
   return rows;
 }

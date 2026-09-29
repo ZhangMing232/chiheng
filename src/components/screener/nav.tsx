@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 const LINKS = [
   { to: "/", label: "选股" },
   { to: "/news", label: "消息" },
+  { to: "/symbol", label: "个股" },
   { to: "/flow", label: "资金" },
 ] as const;
 
