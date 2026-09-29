@@ -5,6 +5,7 @@ dist
 .grok
 screenshots
 attachments
+data
 *.log
 .env
 .env.*

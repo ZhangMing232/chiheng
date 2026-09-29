@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { BOARD_LABEL, TRACK_NEED } from "@/lib/market/model";
 import type { Quote } from "@/lib/market/types";
-import { usePaper } from "@/lib/paper";
+import { usePaper, type PaperDay } from "@/lib/paper";
 
 type Pick = { quote: Quote; reasons: string[] };
 
@@ -16,14 +16,18 @@ export function Picks({
   date,
   picks,
   quotes,
+  serverDays,
   onOpen,
 }: {
   date: string;
   picks: Pick[];
   quotes: Quote[];
+  serverDays: PaperDay[];
   onOpen: (id: string) => void;
 }) {
-  const days = usePaper((state) => state.days);
+  const browserDays = usePaper((state) => state.days);
+  const days = serverDays.length > 0 ? serverDays : browserDays;
+  const onServer = serverDays.length > 0;
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let cancel = false;
@@ -110,7 +114,7 @@ export function Picks({
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
-            {ready ? "还没有记下的持仓。早盘 9:25–9:30 或尾盘 14:40 以后打开这一页，才会写入信号。" : "正在读取本机记录。"}
+            {ready && !onServer ? "还没有记下的持仓。早盘 9:25–9:30 或尾盘 14:40 以后打开这一页，才会写入信号。" : onServer ? "服务器还没有记下持仓。电脑开着时，到点会自动写入 data/journal.json。" : "正在读取本机记录。"}
           </p>
         ) : (
           <ul>

@@ -1,4 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
+import type { PaperDay } from "@/lib/paper";
 import type { Bar, Board, IndexQuote, Quote, Universe } from "@/lib/market/types";
 
 type Raw = Record<string, string | undefined>;
@@ -160,7 +163,7 @@ async function fetchUniverse(): Promise<Universe> {
   };
 }
 
-async function loadUniverse(refresh: boolean): Promise<Universe> {
+export async function loadUniverse(refresh: boolean): Promise<Universe> {
   if (!refresh && universeCache && Date.now() - universeCache.at < TTL_MS) {
     return universeCache.payload;
   }
@@ -209,7 +212,7 @@ function parseIndices(text: string): IndexQuote[] {
   return rows;
 }
 
-async function loadIndices(): Promise<IndexQuote[]> {
+export async function loadIndices(): Promise<IndexQuote[]> {
   if (indexCache && Date.now() - indexCache.at < INDEX_TTL_MS) return indexCache.rows;
   const url = `https://web.sqt.gtimg.cn/utf8/q=${INDEX_IDS.join(",")}`;
   try {
@@ -228,7 +231,7 @@ async function loadIndices(): Promise<IndexQuote[]> {
   }
 }
 
-async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }> {
+export async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }> {
   const hit = klineCache.get(id);
   if (hit && Date.now() - hit.at < 5 * 60_000) return { id, bars: hit.bars };
   const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${id},day,,,120,qfq`;
@@ -294,3 +297,13 @@ export const getKline = createServerFn({ method: "GET" })
     return { id };
   })
   .handler(async ({ data }) => loadKline(data.id));
+
+export const getServerJournal = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const text = await readFile(join(process.cwd(), "data", "journal.json"), "utf8");
+    const parsed = JSON.parse(text) as { days?: PaperDay[] };
+    return { days: Array.isArray(parsed.days) ? parsed.days : [] };
+  } catch {
+    return { days: [] as PaperDay[] };
+  }
+});

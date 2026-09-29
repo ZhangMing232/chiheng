@@ -24,6 +24,7 @@ import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { Board, IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
 import { getIndices, getUniverse } from "@/lib/market/quotes.functions";
 import { useWatch } from "@/lib/watchlist";
+import type { PaperDay } from "@/lib/paper";
 
 const BOARDS: Board[] = ["sh", "sz", "cyb", "kcb"];
 const INDEX_LABEL: Record<string, string> = {
@@ -57,6 +58,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 export type ScreenerInitial = {
   universe: Universe | null;
   indices: IndexQuote[];
+  journal: PaperDay[];
   error: string | null;
   phase: SessionInfo;
 };
@@ -381,6 +383,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             date={phase.date}
             quotes={quotes}
             picks={ranked.slice(0, 3).map((row) => ({ quote: row.quote, reasons: row.reasons }))}
+            serverDays={initial.journal}
             onOpen={setSelectedId}
           />
           <details className="mb-3 rounded-lg border border-line bg-surface lg:hidden">
