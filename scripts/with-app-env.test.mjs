@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -59,9 +59,8 @@ test("an explicit process-env override wins over the file", () => {
   assert.equal(merged.PATH, "/usr/bin");
 });
 
-test("the template ships auth off", () => {
-  assert.deepEqual(readAppEnv(projectRoot()), { VITE_AUTH_ENABLED: "false" });
-});
+// "the template ships auth off" lived here; this repo does not ship
+// .grok/app-env.json, so there is no shipped value to assert.
 
 test("vite loadEnv resolves the wrapped value", () => {
   // What `import.meta.env.VITE_AUTH_ENABLED` becomes: loadEnv prefix-matches
@@ -74,8 +73,15 @@ test("vite loadEnv resolves the wrapped value", () => {
 });
 
 test("the wrapped command runs with the app env applied", async () => {
+  // This repo does not ship .grok/app-env.json, so run the wrapper from a
+  // temp workspace that has one — projectRoot resolves from the script's own
+  // location, so a copy in the temp tree sees the temp .grok.
+  const root = makeWorkspace('{"VITE_AUTH_ENABLED":"false"}');
+  const wrapper = join(root, "scripts", "with-app-env.mjs");
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  copyFileSync(WRAPPER, wrapper);
   const { stdout } = await execFileAsync(process.execPath, [
-    WRAPPER,
+    wrapper,
     process.execPath,
     "-e",
     PRINT_FLAG,
@@ -116,8 +122,14 @@ test("a signal-killed command is never reported as success", async () => {
 test("the CLI still runs when invoked through a symlinked path", async () => {
   // node realpaths import.meta.url but not process.argv[1], so a raw comparison
   // turns the wrapper into a no-op that exits 0 without starting anything.
+  // This repo does not ship .grok/app-env.json, so the wrapper is copied into
+  // a temp workspace that has one before the symlinked invocation.
+  const root = makeWorkspace('{"VITE_AUTH_ENABLED":"false"}');
+  const wrapper = join(root, "scripts", "with-app-env.mjs");
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  copyFileSync(WRAPPER, wrapper);
   const link = join(mkdtempSync(join(tmpdir(), "app-env-link-")), "scripts");
-  symlinkSync(join(projectRoot(), "scripts"), link);
+  symlinkSync(join(root, "scripts"), link);
   const { stdout } = await execFileAsync(process.execPath, [
     join(link, "with-app-env.mjs"),
     process.execPath,
