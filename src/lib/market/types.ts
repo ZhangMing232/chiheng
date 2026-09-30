@@ -53,6 +53,18 @@ export type Quote = {
   st: boolean;
 };
 
+/** 分时图上的一个点。time 是 HHMM 四位文本，price 是点位。 */
+export type TrendPoint = { time: string; price: number };
+
+/** 一只指数最近一个交易日的分钟走势。prevClose 是昨收，画基准线用；拉不到是 null。 */
+export type Trend = {
+  id: string;
+  /** 交易日，YYYYMMDD。 */
+  date: string;
+  prevClose: number | null;
+  points: TrendPoint[];
+};
+
 /** 指数行情，例如沪深 300。用来和个股比「有没有跑赢」。 */
 export type IndexQuote = {
   id: string;

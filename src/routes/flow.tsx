@@ -10,28 +10,30 @@
 
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
 import { INDEX_LABEL } from "@/components/screener/screener";
 import { fmtPrice, fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { limitTag } from "@/lib/market/model";
 import { drawFlowPoster } from "@/lib/market/flow-poster";
-import { getFlow, getHotMoney, getIndexFutures, getIndices, getUniverse } from "@/lib/market/quotes.functions";
+import { getFlow, getHotMoney, getIndexFutures, getIndices, getTrend, getUniverse } from "@/lib/market/quotes.functions";
 import { drawFuturesPoster, drawHotPoster } from "@/lib/market/extra-posters";
 import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/market/flow";
 import type { HotBook } from "@/lib/market/hotmoney";
 import type { FutBook } from "@/lib/market/index-futures";
-import type { IndexQuote, Quote } from "@/lib/market/types";
+import type { IndexQuote, Quote, Trend } from "@/lib/market/types";
 
-/** 资金页路由。进来时同时去拉资金流向、指数、全市场涨跌、游资和股指期货，某一块失败就那一块空着。 */
+/** 资金页路由。进来时同时去拉资金流向、指数、分时、全市场涨跌、游资和股指期货，某一块失败就那一块空着。 */
 export const Route = createFileRoute("/flow")({
   loader: async () => {
-    const [book, hot, futures, indices, universe] = await Promise.all([
+    const [book, hot, futures, indices, universe, trend] = await Promise.all([
       getFlow().catch((error: unknown) => ({ error })),
       getHotMoney().catch(() => null),
       getIndexFutures().catch(() => null),
       getIndices().catch(() => [] as IndexQuote[]),
       getUniverse({ data: { refresh: false } }).catch(() => null),
+      getTrend({ data: { id: "sh000001" } }).catch(() => null),
     ]);
     const quotes = universe?.quotes ?? [];
     if (book && typeof book === "object" && "error" in book) {
@@ -41,10 +43,11 @@ export const Route = createFileRoute("/flow")({
         futures: null as FutBook | null,
         indices,
         quotes,
+        trend,
         error: book.error instanceof Error ? book.error.message : "资金流向暂时拉不下来",
       };
     }
-    return { book, hot, futures, indices, quotes, error: null as string | null };
+    return { book, hot, futures, indices, quotes, trend, error: null as string | null };
   },
   component: FlowPage,
 });
@@ -60,6 +63,7 @@ function SectionTitle({ children }: { children: string }) {
 
 const TABS = [
   { id: "flow-overview", label: "概览" },
+  { id: "flow-trend", label: "走势" },
   { id: "flow-market", label: "大盘资金" },
   { id: "flow-north", label: "北向" },
   { id: "flow-sectors", label: "行业" },
@@ -235,6 +239,64 @@ function flowWord(value: number): string {
   return "持平";
 }
 
+function trendDayLabel(date: string): string {
+  const match = date.match(/^\d{4}(\d{2})(\d{2})$/);
+  if (!match) return date;
+  return `${Number(match[1])}月${Number(match[2])}日`;
+}
+
+/** 大盘分时走势图，学财联社盯盘的分时线。灰虚线是昨收，板块标签是当前净流入靠前的行业快照。 */
+function TrendChart({ trend, sectors }: { trend: Trend; sectors: FlowRow[] }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const last = trend.points[trend.points.length - 1]?.price ?? null;
+  const up = trend.prevClose != null && last != null && last >= trend.prevClose;
+  const chg = trend.prevClose != null && last != null && trend.prevClose > 0 ? (last / trend.prevClose - 1) * 100 : null;
+  const tickInterval = Math.max(1, Math.floor(trend.points.length / 6));
+  const tags = sectors.slice(0, 8);
+  return (
+    <section id="flow-trend" className="scroll-mt-24 rounded-lg border border-line bg-surface">
+      <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <SectionTitle>大盘走势</SectionTitle>
+          <p className="mt-1 text-xs text-muted">上证指数分时，{trendDayLabel(trend.date)}。灰虚线是昨收。板块标签是当前主力净流入靠前的行业（快照，不是历史回放）。</p>
+        </div>
+        {chg != null ? <span className={toneClass(chg) + " shrink-0 text-sm font-medium tabular-nums"}>{signedPct(chg)}</span> : null}
+      </div>
+      {tags.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 border-t border-line px-4 py-2">
+          {tags.map((row) => (
+            <span key={row.id} className={"rounded-sm px-1.5 py-0.5 text-xs " + (row.inflow >= 0 ? "bg-up-soft text-up" : "bg-down-soft text-down")}>
+              {row.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="h-52 border-t border-line">
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trend.points} margin={{ top: 8, right: 10, left: 10, bottom: 0 }}>
+              {trend.prevClose != null ? <ReferenceLine y={trend.prevClose} stroke="var(--color-muted)" strokeDasharray="4 4" /> : null}
+              <XAxis
+                dataKey="time"
+                tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                tickFormatter={(value: string) => `${value.slice(0, 2)}:${value.slice(2)}`}
+                interval={tickInterval}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide domain={["auto", "auto"]} />
+              <Line type="monotone" dataKey="price" stroke={up ? "var(--color-up)" : "var(--color-down)"} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-muted">正在画分时</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function Market({ parts }: { parts: MarketPart[] }) {
   const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
   const rows: { name: string; key: keyof Omit<MarketPart, "name"> }[] = [
@@ -400,7 +462,7 @@ function Futures({ book }: { book: FutBook | null }) {
 }
 
 function FlowPage() {
-  const { book, hot, futures, indices, quotes, error } = Route.useLoaderData();
+  const { book, hot, futures, indices, quotes, trend, error } = Route.useLoaderData();
 
   return (
     <Frame
@@ -425,6 +487,7 @@ function FlowPage() {
           <>
             <PosterButton draw={() => drawFlowPoster(book)} />
             <Overview tape={book.tape} parts={book.market} north={book.north} quotes={quotes} />
+            {trend ? <TrendChart trend={trend} sectors={book.sectorsIn} /> : null}
             <Market parts={book.market} />
           </>
         ) : null}

@@ -22,7 +22,7 @@ import { loadHotMoney } from "@/lib/market/hotmoney";
 import { loadIndexFutures } from "@/lib/market/index-futures";
 import { ensureUserBook, readUserBook } from "@/lib/market/book-file";
 import { sessionPhase } from "@/lib/market/session";
-import type { Bar, IndexQuote, Universe } from "@/lib/market/types";
+import type { Bar, IndexQuote, Trend, TrendPoint, Universe } from "@/lib/market/types";
 import { fetchIndices, fetchUniverse } from "@/lib/market/providers/index";
 
 const TTL_MS = 60_000;
@@ -40,6 +40,7 @@ let universeCache: { at: number; payload: Universe } | null = null;
 let universeInflight: Promise<Universe> | null = null;
 let indexCache: { at: number; rows: IndexQuote[] } | null = null;
 const klineCache = new Map<string, { at: number; bars: Bar[] }>();
+const trendCache = new Map<string, { at: number; trend: Trend }>();
 
 /** 拉全市场 A 股报价。refresh 为 true 时忽略缓存重拉。返回股票列表和时间；只拉到一部分或用了旧数据会标出来。 */
 export async function loadUniverse(refresh: boolean): Promise<Universe> {
@@ -112,6 +113,57 @@ export async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }
   return { id, bars };
 }
 
+/**
+ * 拉一只指数最近一个交易日的分钟走势（分时）。腾讯同一个行情域名的 day/query 接口，
+ * 返回 "HHMM 价格 成交量 累计成交额" 的分钟行。取最后一天（今天；盘前则是上一交易日），
+ * 昨收优先取当天的 prec，没有就用快照行情里的昨收。画大盘分时用，约 30 秒缓存。
+ */
+export async function loadTrend(id: string): Promise<Trend> {
+  const hit = trendCache.get(id);
+  if (hit && Date.now() - hit.at < 30_000) return hit.trend;
+  const url = `https://web.ifzq.gtimg.cn/appstock/app/day/query?code=${id}`;
+  const res = await fetch(url, {
+    headers: KLINE_HEADERS,
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!res.ok) throw new Error("分时暂时拉不下来");
+  const body = (await res.json()) as {
+    data?: Record<
+      string,
+      {
+        data?: Array<{ date?: string; data?: string[]; prec?: string }>;
+        qt?: Record<string, string[]>;
+      }
+    >;
+  };
+  const node = body.data?.[id];
+  const days = node?.data ?? [];
+  const last = days[days.length - 1];
+  if (!last?.data || last.data.length < 2) throw new Error("分时暂时没有数据");
+  const points: TrendPoint[] = [];
+  for (const line of last.data) {
+    const [time, price] = (line ?? "").split(" ");
+    const value = Number(price);
+    if (!/^\d{4}$/.test(time ?? "") || !Number.isFinite(value)) continue;
+    points.push({ time, price: value });
+  }
+  if (points.length < 2) throw new Error("分时暂时没有数据");
+  const qtRow = node?.qt?.[id];
+  const prevClose = Number(last.prec ?? qtRow?.[4] ?? "");
+  const trend: Trend = {
+    id,
+    date: last.date ?? "",
+    prevClose: Number.isFinite(prevClose) && prevClose > 0 ? prevClose : null,
+    points,
+  };
+  trendCache.set(id, { at: Date.now(), trend });
+  if (trendCache.size > 8) {
+    const oldest = trendCache.keys().next().value;
+    if (oldest) trendCache.delete(oldest);
+  }
+  return trend;
+}
+
 function readRefresh(data: unknown): { refresh: boolean } {
   if (
     typeof data === "object" &&
@@ -131,6 +183,18 @@ export const getUniverse = createServerFn({ method: "GET" })
 
 /** 给页面用的指数行情。没有参数。 */
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
+
+/** 给页面用的指数分时走势。id 限常用指数，例如 sh000001。 */
+export const getTrend = createServerFn({ method: "GET" })
+  .validator((data: unknown) => {
+    const id =
+      typeof data === "object" && data !== null && "id" in data && typeof (data as { id?: unknown }).id === "string"
+        ? (data as { id: string }).id
+        : "";
+    if (!(INDEX_IDS as readonly string[]).includes(id)) throw new Error("只支持常用指数的分时");
+    return { id };
+  })
+  .handler(async ({ data }) => loadTrend(data.id));
 
 /** 给页面用的接力选股。按现在是不是尾盘、以及今天的日期去取名单。 */
 export const getRelay = createServerFn({ method: "GET" }).handler(async () => {
