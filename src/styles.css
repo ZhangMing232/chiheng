@@ -17,6 +17,7 @@
   --color-down-soft: #143028;
   --color-brand: #e35d55;
   --color-brand-soft: #38201f;
+  --color-navy: #2b3245;
   --shadow-card: 0 8px 24px rgb(0 0 0 / 0.28);
 }
 
@@ -34,6 +35,7 @@ html[data-theme="light"] {
   --color-down-soft: #e7f6ef;
   --color-brand: #d8261c;
   --color-brand-soft: #fdecea;
+  --color-navy: #2b3245;
   --shadow-card: 0 8px 24px rgb(22 28 37 / 0.08);
 }
 
@@ -52,6 +54,7 @@ html[data-theme="light"] {
     --color-down-soft: #e7f6ef;
     --color-brand: #d8261c;
     --color-brand-soft: #fdecea;
+    --color-navy: #2b3245;
     --shadow-card: 0 8px 24px rgb(22 28 37 / 0.08);
   }
 }

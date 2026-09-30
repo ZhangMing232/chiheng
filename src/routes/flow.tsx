@@ -1,49 +1,117 @@
 /**
  * 这个文件是干什么的：
- * 「资金」页。看大盘成交和主力流向、北向成交额、行业和个股净流入流出。
- * 再往下是游资席位和股指期货持仓。每一块都能单独生成汇总图。
+ * 「资金」页，版面参考财联社盯盘。顶部是指数条和深色子页签，概览一排四个数字
+ * （涨跌家数、两市成交额、主力、北向），再往下是大盘资金明细、北向、行业、
+ * 个股、游资席位和股指期货。每一块都能单独生成汇总图。
  *
  * 你需要知道的：
  * 这里只展示。北向没有盘中净流入。生成图片不会改变买入价。
  */
 
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
-import { fmtWan, signedPct, toneClass } from "@/lib/market/format";
+import { INDEX_LABEL } from "@/components/screener/screener";
+import { fmtPrice, fmtWan, signedPct, toneClass } from "@/lib/market/format";
+import { limitTag } from "@/lib/market/model";
 import { drawFlowPoster } from "@/lib/market/flow-poster";
-import { getFlow, getHotMoney, getIndexFutures } from "@/lib/market/quotes.functions";
+import { getFlow, getHotMoney, getIndexFutures, getIndices, getUniverse } from "@/lib/market/quotes.functions";
 import { drawFuturesPoster, drawHotPoster } from "@/lib/market/extra-posters";
-import { readMarket, type FlowRow, type MarketPart, type MarketTape, type NorthLeg } from "@/lib/market/flow";
-import type { HotBook, HotSeat } from "@/lib/market/hotmoney";
+import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/market/flow";
+import type { HotBook } from "@/lib/market/hotmoney";
 import type { FutBook } from "@/lib/market/index-futures";
+import type { IndexQuote, Quote } from "@/lib/market/types";
 
-/** 资金页路由。进来时同时去拉资金流向、游资和股指期货，某一块失败就那一块空着。 */
+/** 资金页路由。进来时同时去拉资金流向、指数、全市场涨跌、游资和股指期货，某一块失败就那一块空着。 */
 export const Route = createFileRoute("/flow")({
   loader: async () => {
-    const [book, hot, futures] = await Promise.all([
+    const [book, hot, futures, indices, universe] = await Promise.all([
       getFlow().catch((error: unknown) => ({ error })),
       getHotMoney().catch(() => null),
       getIndexFutures().catch(() => null),
+      getIndices().catch(() => [] as IndexQuote[]),
+      getUniverse({ data: { refresh: false } }).catch(() => null),
     ]);
+    const quotes = universe?.quotes ?? [];
     if (book && typeof book === "object" && "error" in book) {
       return {
         book: null,
         hot: null as HotBook | null,
         futures: null as FutBook | null,
+        indices,
+        quotes,
         error: book.error instanceof Error ? book.error.message : "资金流向暂时拉不下来",
       };
     }
-    return { book, hot, futures, error: null as string | null };
+    return { book, hot, futures, indices, quotes, error: null as string | null };
   },
   component: FlowPage,
 });
 
+function cx(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
+}
+
+/** 财联社式章节标题：红色竖条 + 衬线大字。 */
+function SectionTitle({ children }: { children: string }) {
+  return <h2 className="border-l-2 border-brand pl-2 font-serif text-lg font-semibold">{children}</h2>;
+}
+
+const TABS = [
+  { id: "flow-overview", label: "概览" },
+  { id: "flow-market", label: "大盘资金" },
+  { id: "flow-north", label: "北向" },
+  { id: "flow-sectors", label: "行业" },
+  { id: "flow-stocks", label: "个股" },
+  { id: "flow-hot", label: "游资" },
+  { id: "flow-futures", label: "期指" },
+] as const;
+
+/** 深色子页签条，学财联社盯盘的「看盘 / 行情 / 自选」。点一下平滑滚到那一块，滚动时高亮当前块。 */
+function FlowTabs() {
+  const [active, setActive] = useState<string>(TABS[0].id);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        }
+      },
+      { rootMargin: "-10% 0px -75% 0px" },
+    );
+    for (const tab of TABS) {
+      const el = document.getElementById(tab.id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div className="-mx-4 bg-navy px-4 md:-mx-6 md:px-6">
+      <div className="flex gap-5 overflow-x-auto scroll-slim">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              setActive(tab.id);
+              document.getElementById(tab.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className={"shrink-0 border-b-2 py-2 text-sm " + (active === tab.id ? "border-brand font-medium text-white" : "border-transparent text-white/60")}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function List({ title, rows, hint }: { title: string; rows: FlowRow[]; hint?: string }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface">
+    <section className="rounded-lg border border-line bg-surface">
       <div className="px-4 py-3">
-        <h2 className="font-serif text-lg font-semibold">{title}</h2>
+        <SectionTitle>{title}</SectionTitle>
         {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
       </div>
       {rows.length === 0 ? (
@@ -71,8 +139,8 @@ function List({ title, rows, hint }: { title: string; rows: FlowRow[]; hint?: st
 function North({ legs }: { legs: NorthLeg[] }) {
   const total = legs.reduce((sum, leg) => sum + leg.amount, 0);
   return (
-    <section className="rounded-2xl border border-line bg-surface px-4 py-3">
-      <h2 className="font-serif text-lg font-semibold">北向</h2>
+    <section id="flow-north" className="scroll-mt-24 rounded-lg border border-line bg-surface px-4 py-3">
+      <SectionTitle>北向</SectionTitle>
       <p className="mt-1 text-sm text-muted">沪股通和深股通的盘中净流入不再公布，收盘后也没有净买入。这里只有最近一个已公布交易日的成交额。</p>
       {legs.length === 0 ? (
         <p className="mt-3 text-sm text-muted">北向成交额暂时拉不下来。</p>
@@ -100,20 +168,75 @@ function North({ legs }: { legs: NorthLeg[] }) {
   );
 }
 
+/** 概览统计排，学财联社盯盘那排数字：涨跌家数、两市成交额、主力、北向。 */
+function Overview({ tape, parts, north, quotes }: { tape: { name: string; amount: number; prevAmount?: number | null }[]; parts: MarketPart[]; north: NorthLeg[]; quotes: Quote[] }) {
+  const amount = tape.reduce((total, row) => total + row.amount, 0);
+  const prevAmount = tape.every((row) => row.prevAmount != null) ? tape.reduce((total, row) => total + (row.prevAmount ?? 0), 0) : null;
+  const delta = prevAmount == null ? null : amount - prevAmount;
+  const main = parts.length > 0 ? parts.reduce((total, part) => total + part.main, 0) : null;
+  const share = amount > 0 && main != null ? (main / amount) * 100 : null;
+  const up = quotes.filter((quote) => (quote.chg ?? 0) > 0).length;
+  const down = quotes.filter((quote) => (quote.chg ?? 0) < 0).length;
+  const limitUp = quotes.filter((quote) => limitTag(quote) === "涨停").length;
+  const limitDown = quotes.filter((quote) => limitTag(quote) === "跌停").length;
+  const northTotal = north.reduce((sum, leg) => sum + leg.amount, 0);
+  const hasBreadth = quotes.length > 0;
+  const tile = "bg-surface px-4 py-4";
+  const label = "text-xs text-muted";
+  const value = "mt-1 text-2xl font-semibold tabular-nums leading-none";
+  return (
+    <section id="flow-overview" className="scroll-mt-24 overflow-hidden rounded-lg border border-line bg-surface">
+      <div className="grid grid-cols-2 gap-px bg-line md:grid-cols-4">
+        <div className={tile}>
+          <div className={label}>涨跌家数</div>
+          <div className={value}>
+            {hasBreadth ? (
+              <>
+                <span className="text-up tabular-nums">{up}</span>
+                <span className="mx-1 text-base text-muted">:</span>
+                <span className="text-down tabular-nums">{down}</span>
+              </>
+            ) : (
+              "—"
+            )}
+          </div>
+          <div className="mt-2 text-xs text-muted">{hasBreadth ? `涨停 ${limitUp} · 跌停 ${limitDown}` : "全市场行情没拉下来"}</div>
+        </div>
+        <div className={tile}>
+          <div className={label}>两市成交额</div>
+          <div className={value}>{amount > 0 ? fmtWan(amount) : "—"}</div>
+          <div className="mt-2 text-xs text-muted">
+            {delta == null ? "较上日 —" : (
+              <span className={delta > 0 ? "text-up" : delta < 0 ? "text-down" : "text-muted"}>
+                较上日 {delta > 0 ? "+" : ""}
+                {fmtWan(delta)}（{delta > 0 ? "放量" : delta < 0 ? "缩量" : "持平"}）
+              </span>
+            )}
+          </div>
+        </div>
+        <div className={tile}>
+          <div className={label}>{main == null ? "主力" : main > 0 ? "主力净流入" : main < 0 ? "主力净流出" : "主力持平"}</div>
+          <div className={value + " " + toneClass(main)}>{main == null ? "—" : fmtWan(main)}</div>
+          <div className="mt-2 text-xs text-muted">{share == null ? "占成交额 —" : `占成交额 ${Math.abs(share).toFixed(2)}%`}</div>
+        </div>
+        <div className={tile}>
+          <div className={label}>北向成交额</div>
+          <div className={value}>{northTotal > 0 ? fmtWan(northTotal) : "—"}</div>
+          <div className="mt-2 truncate text-xs text-muted">{north.length > 0 ? north.map((leg) => `${leg.name} ${fmtWan(leg.amount)}`).join(" · ") : "最近公布日"}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function flowWord(value: number): string {
   if (value > 0) return "净流入";
   if (value < 0) return "净流出";
   return "持平";
 }
 
-function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
+function Market({ parts }: { parts: MarketPart[] }) {
   const sum = (key: keyof Omit<MarketPart, "name">) => parts.reduce((total, part) => total + part[key], 0);
-  const amount = tape.reduce((total, row) => total + row.amount, 0);
-  const prevAmount = tape.every((row) => row.prevAmount != null) ? tape.reduce((total, row) => total + (row.prevAmount ?? 0), 0) : null;
-  const amountDelta = prevAmount == null ? null : amount - prevAmount;
-  const volumeWord = amountDelta == null ? null : amountDelta > 0 ? "放量" : amountDelta < 0 ? "缩量" : "持平";
-  const main = parts.length > 0 ? sum("main") : null;
-  const share = amount > 0 && main != null ? (main / amount) * 100 : null;
   const rows: { name: string; key: keyof Omit<MarketPart, "name"> }[] = [
     { name: "主力", key: "main" },
     { name: "超大单", key: "super" },
@@ -123,31 +246,11 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
     { name: "散户", key: "retail" },
   ];
   return (
-    <section className="rounded-2xl border border-line bg-surface">
-        <h2 className="px-4 pt-3 text-base font-semibold">大盘</h2>
-        <div className="grid grid-cols-3 gap-px border-b border-line bg-line">
-          <div className="bg-surface px-4 py-4">
-            <div className="text-xs text-muted">成交额</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums leading-none">{amount > 0 ? fmtWan(amount) : "—"}</div>
-            <div className="mt-2 text-xs text-muted">
-              {tape.map((row) => `${row.name} ${fmtWan(row.amount)}`).join(" · ") || "上证和深成"}
-            </div>
-          </div>
-          <div className="bg-surface px-4 py-4">
-            <div className={"text-xs " + (amountDelta == null || amountDelta === 0 ? "text-muted" : amountDelta > 0 ? "text-up" : "text-down")}>
-              {volumeWord ?? "较昨日"}
-            </div>
-            <div className={(amountDelta == null || amountDelta === 0 ? "text-fg" : amountDelta > 0 ? "text-up" : "text-down") + " mt-1 text-2xl font-semibold tabular-nums leading-none"}>
-              {amountDelta == null ? "—" : fmtWan(Math.abs(amountDelta))}
-            </div>
-            <div className="mt-2 text-xs text-muted">比上一交易日</div>
-          </div>
-          <div className="bg-surface px-4 py-4">
-            <div className="text-xs text-muted">{main == null ? "主力" : `主力${flowWord(main)}`}</div>
-            <div className={toneClass(main) + " mt-1 text-2xl font-semibold tabular-nums leading-none"}>{main == null ? "—" : fmtWan(main)}</div>
-            <div className="mt-2 text-xs text-muted">{share == null ? "占成交额 —" : `占成交额 ${Math.abs(share).toFixed(2)}%`}</div>
-          </div>
-        </div>
+    <section id="flow-market" className="scroll-mt-24 rounded-lg border border-line bg-surface">
+      <div className="px-4 pt-3">
+        <SectionTitle>大盘资金</SectionTitle>
+        <p className="mt-1 text-xs text-muted">主力净流入大约一分钟更新。红是净流入，绿是净流出。</p>
+      </div>
       {parts.length === 0 ? (
         <p className="border-t border-line px-4 py-6 text-sm text-muted">大盘资金暂时拉不下来。</p>
       ) : (
@@ -214,9 +317,9 @@ function Market({ parts, tape }: { parts: MarketPart[]; tape: MarketTape[] }) {
 
 function Hot({ book }: { book: HotBook | null }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface">
+    <section id="flow-hot" className="scroll-mt-24 rounded-lg border border-line bg-surface">
       <div className="px-4 py-3">
-        <h2 className="text-base font-semibold">游资</h2>
+        <SectionTitle>游资</SectionTitle>
         <p className="mt-1 text-xs text-muted">
           一行一个席位，红是净买，绿是净卖。对得上的才用别名，其余用路名。机构和拉萨放在最后。收盘后才有。
           {book?.date ? ` ${book.date}` : ""}
@@ -253,9 +356,9 @@ function lotsText(n: number): string {
 
 function Futures({ book }: { book: FutBook | null }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface">
+    <section id="flow-futures" className="scroll-mt-24 rounded-lg border border-line bg-surface">
       <div className="px-4 py-3">
-        <h2 className="text-base font-semibold">股指期货</h2>
+        <SectionTitle>股指期货</SectionTitle>
         <p className="mt-1 text-xs text-muted">中金所前20名会员的多单和空单。公布的是代客，不是单独的机构账户。{book?.date ? ` ${book.date}` : ""}</p>
       </div>
       {!book || book.rows.length === 0 ? (
@@ -297,22 +400,46 @@ function Futures({ book }: { book: FutBook | null }) {
 }
 
 function FlowPage() {
-  const { book, hot, futures, error } = Route.useLoaderData();
+  const { book, hot, futures, indices, quotes, error } = Route.useLoaderData();
 
   return (
-    <Frame>
-        <p className="text-sm text-muted">主力净流入大约一分钟更新。北向没有盘中净流入。红是净流入，绿是净流出。不改变买入价。</p>
+    <Frame
+      extra={
+        indices.length > 0 ? (
+          <div className="flex gap-5 overflow-x-auto scroll-slim pb-2">
+            {indices.map((item) => (
+              <div key={item.id} className="flex shrink-0 items-baseline gap-1.5 text-xs">
+                <span className="text-muted">{INDEX_LABEL[item.id] ?? item.name}</span>
+                <span className={cx("tabular-nums", toneClass(item.pct))}>{item.price > 0 ? fmtPrice(item.price) : "—"}</span>
+                <span className={cx("font-medium tabular-nums", toneClass(item.pct))}>{signedPct(item.pct)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null
+      }
+    >
+        <p className="text-sm text-muted">红是净流入，绿是净流出。不改变买入价。</p>
         {error ? <p className="text-sm text-up">{error}</p> : null}
+        <FlowTabs />
         {book ? (
           <>
             <PosterButton draw={() => drawFlowPoster(book)} />
-            <Market parts={book.market} tape={book.tape} />
-            <North legs={book.north} />
+            <Overview tape={book.tape} parts={book.market} north={book.north} quotes={quotes} />
+            <Market parts={book.market} />
+          </>
+        ) : null}
+        <North legs={book?.north ?? []} />
+        {book ? (
+          <div id="flow-sectors" className="scroll-mt-24 flex flex-col gap-3">
             <List title="行业净流入" rows={book.sectorsIn} />
             <List title="行业净流出" rows={book.sectorsOut} />
+          </div>
+        ) : null}
+        {book ? (
+          <div id="flow-stocks" className="scroll-mt-24 flex flex-col gap-3">
             <List title="个股净流入" rows={book.stocksIn} hint="已去掉新股和 ST。" />
             <List title="个股净流出" rows={book.stocksOut} hint="已去掉新股和 ST。" />
-          </>
+          </div>
         ) : null}
         <PosterButton draw={() => drawHotPoster(hot ?? { date: "", seats: [] })} />
         <Hot book={hot} />

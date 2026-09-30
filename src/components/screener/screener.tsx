@@ -32,7 +32,7 @@ function RecordLine({ at, ok, now }: { at: number | null; ok: boolean; now: numb
   return <span className="tabular-nums">上次记账 {clock}</span>;
 }
 
-const INDEX_LABEL: Record<string, string> = {
+export const INDEX_LABEL: Record<string, string> = {
   sh510300: "沪深300ETF",
   sh000300: "沪深300",
   sh000001: "上证",
