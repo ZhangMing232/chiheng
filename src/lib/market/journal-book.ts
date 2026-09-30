@@ -25,6 +25,8 @@ function normDay(value: string): string {
  * 顺着买入日之后的 K 线，找出第一天该卖的价格。
  * 返回 reason：stop 止损，target 到卖出价，time 持股天数到了按收盘价卖。
  * 还没走到那一天就返回空，账上继续拿着。
+ * 到期那天卖不掉（跌停封死、收盘价缺失）就顺延，最多再给 5 个交易日，
+ * 宽限期最后一天无论如何按收盘价结掉，不让这笔永远挂在账上。
  */
 export function exitFill(
   bars: { date: string; h?: number; l?: number; c: number }[],
@@ -45,20 +47,20 @@ export function exitFill(
     const down = Math.round(prev * (1 - limitPct / 100) * 100) / 100;
     const sealedDown = down > 0 && bar.c <= down + 0.01 && (bar.h == null || bar.h <= down + 0.01);
     prev = bar.c;
-    if (sealedDown) {
-      if (left > 0) left -= 1;
-      else extra -= 1;
-      continue;
-    }
-    const last = left === 1;
+    // last 表示「持股天数已经用完了」。left 减到 0 之后也算到期，
+    // 这样到期那天刚好跌停时，下一个能卖的收盘价就会成交，而不是一直等下去。
+    const last = left === 1 || left === 0;
+    // forced 是宽限期的最后一天。这天即使还封着也按收盘价结掉，避免永久挂账。
+    const forced = extra === 1;
     if (left > 0) left -= 1;
     else extra -= 1;
+    if (sealedDown && !forced) continue;
     const high = bar.h != null && bar.h > 0 ? bar.h : bar.c;
     const low = bar.l != null && bar.l > 0 ? bar.l : bar.c;
     // 买入当日不在这个循环里，满足 T+1。同一天两边都碰到，按先止损。
     if (low <= stop) return { date: normDay(bar.date), price: stop, reason: "stop" };
     if (high >= target) return { date: normDay(bar.date), price: target, reason: "target" };
-    if ((last || left < 0) && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
+    if ((last || forced) && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
   }
   return null;
 }

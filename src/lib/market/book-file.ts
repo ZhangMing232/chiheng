@@ -6,7 +6,7 @@
  * 现在没开注册，这台电脑用的用户是 dev-user。
  * 以前的 data/journal.json 只会复制到 dev-user 一次。新用户从加入当天记空账，不会继承旧成交。
  */
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { shanghaiDate } from "./session.ts";
 
@@ -66,10 +66,24 @@ export async function readUserBook<T>(userId: string): Promise<StoredBook<T>> {
   }
 }
 
-/** 整本账写回磁盘。调用方要先改好内容再写，这里不会合并。 */
+/**
+ * 整本账写回磁盘。调用方要先改好内容再写，这里不会合并。
+ * 先写同一个目录下的 .tmp 文件，落盘之后再改名。改名在同一块磁盘上是一步完成的，
+ * 所以任何时刻读到的要么是上一次完整的账、要么是这一次完整的账，
+ * 不会出现写了一半的坏文件——坏文件会被 readUserBook 当成「没有账」而整本消失。
+ */
 export async function writeUserBook<T>(userId: string, book: StoredBook<T>): Promise<void> {
   await mkdir(booksDir(), { recursive: true });
-  await writeFile(bookPath(userId), JSON.stringify(book, null, 2));
+  const target = bookPath(userId);
+  const staged = `${target}.tmp`;
+  const handle = await open(staged, "w");
+  try {
+    await handle.writeFile(JSON.stringify(book, null, 2), "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await rename(staged, target);
 }
 
 /** 第一次打开时建一本空账。加入日是当天，不复制别人已经记下的成交。 */
