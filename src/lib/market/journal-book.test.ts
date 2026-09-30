@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { exitFill, nthClose } from "@/lib/market/journal-book";
+import { dayReliable, exitFill, nthClose } from "@/lib/market/journal-book";
 
 type Bar = { date: string; h?: number; l?: number; c: number };
 
@@ -81,4 +81,19 @@ test("同一天两边都碰到，按止损算", () => {
 
 test("nthClose 数满交易日就用那天收盘价", () => {
   assert.deepEqual(nthClose(bars(), ENTRY), { date: "2026-03-10", price: 10 });
+});
+
+test("盘中记下的那天可以拿来统计", () => {
+  assert.equal(dayReliable({ signalTime: "09:30" }), true);
+  assert.equal(dayReliable({ signalTime: "14:50" }), true);
+});
+
+test("收盘之后补记的那天不算数", () => {
+  assert.equal(dayReliable({ signalTime: "15:00" }), false);
+  assert.equal(dayReliable({ signalTime: "23:48" }), false);
+});
+
+test("没有 signalTime 的老数据不擅自丢掉", () => {
+  assert.equal(dayReliable({}), true);
+  assert.equal(dayReliable({ signalTime: "" }), true);
 });

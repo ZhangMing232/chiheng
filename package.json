@@ -28,7 +28,8 @@
     "check:auth": "node scripts/check-auth-invariant.mjs",
     "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --import ./scripts/alias.mjs --test 'src/**/*.test.ts'",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "report": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/style-report.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

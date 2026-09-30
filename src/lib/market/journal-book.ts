@@ -139,6 +139,19 @@ export function dayLocked(day: { status?: string; signalTime?: string }): boolea
   return (day.signalTime ?? "") >= "14:40";
 }
 
+/**
+ * 这一天的记录能不能拿来统计。
+ * 记账脚本是每分钟跑一趟的，收盘之后拿到的只有当天收盘快照。
+ * 那种时候记下的成交不是盘中打到价买进去的，是拿收盘价倒推出来的，
+ * 混进样本里会把成绩算歪，所以统计时要跳过。
+ * 没有 signalTime 的老数据判断不了，先当成可信的，不擅自丢掉。
+ */
+export function dayReliable(day: { signalTime?: string }): boolean {
+  const time = day.signalTime ?? "";
+  if (!time) return true;
+  return time >= "09:15" && time < "15:00";
+}
+
 /** 这些钱按这个价最多买多少股。A 股一手 100 股，所以结果一定是 100 的倍数。 */
 export function lotShares(budget: number, price: number): number {
   if (!(budget > 0) || !(price > 0)) return 0;
