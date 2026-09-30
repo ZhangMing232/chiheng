@@ -249,8 +249,12 @@ export function takeBuys(
   dayTrades: { style?: string }[],
 ): Listed[] {
   const openIds = new Set(held.filter((trade) => trade.exit == null && styleOf(trade) === style).map((trade) => trade.id));
+  // 名单自己也可能把同一只股票列两次（接力按概念板块提名，一只票可能同属几个板块），
+  // 只认第一次出现的那行，以最先的为准。
+  const seen = new Set<string>();
   return list
     .filter((row) => row.hit && limitTag(row.quote) !== "涨停" && !openIds.has(row.quote.id))
+    .filter((row) => (seen.has(row.quote.id) ? false : (seen.add(row.quote.id), true)))
     .slice(0, daySlotsLeft(dayTrades, style));
 }
 

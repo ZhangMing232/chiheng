@@ -77,6 +77,14 @@ test("重复选中时以最先那笔为主，不再开第二笔", () => {
   assert.deepEqual(ids(takeBuys([row("sz0001"), row("sz0002")], held, "value", [])), ["sz0002"]);
 });
 
+test("名单内部重复提名只进一次，以最先出现的为准", () => {
+  const first = row("sz0001");
+  const duplicate = { ...row("sz0001"), sell: 15 };
+  const result = takeBuys([first, duplicate, row("sz0002")], [], "relay", []);
+  assert.deepEqual(ids(result), ["sz0001", "sz0002"]);
+  assert.equal(result[0].sell, 12);
+});
+
 test("之前那笔已经卖出，可以重新进", () => {
   const held = [trade("sz0001", "value", 11)];
   assert.deepEqual(ids(takeBuys([row("sz0001")], held, "value", [])), ["sz0001"]);

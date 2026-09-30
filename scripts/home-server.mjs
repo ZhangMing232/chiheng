@@ -22,11 +22,17 @@ if (!existsSync(entry)) {
 const port = process.env.PORT ?? "8787";
 const host = process.env.HOST ?? "0.0.0.0";
 
+let recording = false;
 function record() {
+  // 上一次记账还没跑完就跳过这一分钟，避免两个进程读到同一份旧账、
+  // 各自把同一只股票再记一遍（读-改-写竞争）。
+  if (recording) return;
+  recording = true;
   const child = spawn(process.execPath, ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/record-journal.ts"], {
     stdio: "inherit",
   });
   child.on("exit", (code) => {
+    recording = false;
     if (code) console.error(`record-journal exited ${code}`);
   });
 }
