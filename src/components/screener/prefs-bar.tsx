@@ -50,8 +50,8 @@ function Row<T extends string>({
             type="button"
             onClick={() => onPick(option.id)}
             className={
-              "h-10 rounded-full px-3 text-sm " +
-              (value === option.id ? "bg-fg text-bg" : "bg-surface-2 text-fg")
+              "h-9 rounded-md px-3 text-sm " +
+              (value === option.id ? "bg-brand font-medium text-white" : "bg-surface-2 text-fg")
             }
           >
             {option.label}

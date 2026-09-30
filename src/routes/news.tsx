@@ -176,9 +176,9 @@ function NewsPage() {
             />
           </div>
         </section>
-        <section className="rounded-2xl border border-line bg-surface">
+        <section className="rounded-lg border border-line bg-surface">
           <div className="px-4 py-3">
-            <h2 className="font-serif text-lg font-semibold">7x24</h2>
+            <h2 className="border-l-2 border-brand pl-2 font-serif text-lg font-semibold">7x24 电报</h2>
             <p className="mt-1 text-xs text-muted">利好在前。板块和个股是快讯自己点的名。</p>
           </div>
           {ordered.length === 0 ? (
@@ -187,37 +187,51 @@ function NewsPage() {
             <ul>
               {ordered.map((item) => {
                 return (
-                  <li key={item.id} className="border-t border-line px-4 py-3">
-                    <div className="flex items-center gap-2 text-xs text-muted">
-                      <span className="tabular-nums">{item.time.slice(5, 16)}</span>
-                      <span className={item.tone === "good" ? "text-up" : item.tone === "bad" ? "text-down" : ""}>{TONE_LABEL[item.tone]}</span>
-                    </div>
-                    <h3 className="mt-1 text-sm font-medium text-pretty">{item.title}</h3>
-                    {item.summary && item.summary !== item.title ? (
-                      <p className="mt-1 line-clamp-3 text-xs text-pretty leading-5 text-muted">{item.summary}</p>
-                    ) : null}
-                    {item.boards.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {item.boards.map((board) => (
-                          <span key={board.code} className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-fg">
-                            {board.name}
+                  <li key={item.id} className="border-t border-line px-4 py-3 first:border-t-0">
+                    <div className="flex gap-3">
+                      <div className="w-12 shrink-0">
+                        <div className={"text-sm font-semibold tabular-nums " + (item.tone === "flat" ? "text-muted" : "text-brand")}>{item.time.slice(11, 16)}</div>
+                        <div className="text-xs tabular-nums text-muted">{item.time.slice(5, 10)}</div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={
+                              "shrink-0 rounded-sm px-1.5 py-0.5 text-xs " +
+                              (item.tone === "good" ? "bg-up-soft text-up" : item.tone === "bad" ? "bg-down-soft text-down" : "bg-surface-2 text-muted")
+                            }
+                          >
+                            {TONE_LABEL[item.tone]}
                           </span>
-                        ))}
+                          <h3 className="text-sm font-medium text-pretty">{item.title}</h3>
+                        </div>
+                        {item.summary && item.summary !== item.title ? (
+                          <p className="mt-1 line-clamp-3 text-xs text-pretty leading-5 text-muted">{item.summary}</p>
+                        ) : null}
+                        {item.boards.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {item.boards.map((board) => (
+                              <span key={board.code} className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-xs text-fg">
+                                {board.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {item.stocks.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {item.stocks.map((stock) => {
+                              const mark = heldSet.has(stock.id) ? "持仓" : pickedSet.has(stock.id) ? "精选" : "";
+                              return (
+                                <span key={stock.id} className={"rounded-sm px-1.5 py-0.5 text-xs " + (mark === "持仓" ? "bg-up-soft text-up" : mark === "精选" ? "bg-brand-soft text-brand" : "bg-surface-2 text-muted")}>
+                                  {stock.name} {signedPct(stock.chg)}
+                                  {mark ? ` ${mark}` : ""}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                    {item.stocks.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {item.stocks.map((stock) => {
-                          const mark = heldSet.has(stock.id) ? "持仓" : pickedSet.has(stock.id) ? "精选" : "";
-                          return (
-                            <span key={stock.id} className={"rounded-full px-2 py-0.5 text-xs " + (mark === "持仓" ? "bg-up-soft text-up" : mark === "精选" ? "bg-surface-2 text-fg" : "bg-surface-2 text-muted")}>
-                              {stock.name} {signedPct(stock.chg)}
-                              {mark ? ` ${mark}` : ""}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    ) : null}
+                    </div>
                   </li>
                 );
               })}

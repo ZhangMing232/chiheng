@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 每个页面顶上共用的那一排：赤轨标志、四个入口、刷新，以及字号和明暗。
+ * 每个页面顶上共用的那一排，参考财联社的版面：红色品牌条、扁平页签、刷新，以及字号和明暗。
  * 点「选股 / 消息 / 个股 / 资金」换页，点「显示」改字号和深浅色。
  *
  * 你需要知道的：
@@ -108,16 +108,16 @@ export function TypeSize() {
   );
 }
 
-/** 四个页面入口。你正在看的那一页会高亮。 */
+/** 四个页面入口，财联社式扁平页签：选中的那页标红加底线。 */
 export function TopNav() {
   const path = useRouterState({ select: (state) => state.location.pathname });
   return (
-    <nav className="flex min-w-0 flex-1 overflow-x-auto rounded-full bg-surface-2 p-0.5 scroll-slim">
+    <nav className="flex min-w-0 flex-1 gap-5 overflow-x-auto scroll-slim">
       {LINKS.map((link) => (
         <Link
           key={link.to}
           to={link.to}
-          className={"rounded-full px-3 py-1 text-sm " + (path === link.to ? "bg-surface text-fg" : "text-muted")}
+          className={"shrink-0 border-b-2 py-2 text-sm " + (path === link.to ? "border-brand font-medium text-brand" : "border-transparent text-muted")}
         >
           {link.label}
         </Link>
@@ -126,7 +126,7 @@ export function TopNav() {
   );
 }
 
-/** 每个页面的外壳：标志、导航、刷新和「显示」。aside、extra 是顶栏里额外的一行。 */
+/** 每个页面的外壳：顶部品牌红条、导航、刷新和「显示」。aside、extra 是顶栏里额外的一行。 */
 export function Frame({
   aside,
   extra,
@@ -151,38 +151,45 @@ export function Frame({
   }
   return (
     <div className="min-h-screen">
-      <div className="mx-auto flex max-w-3xl justify-center px-4 pt-8 pb-3 md:px-6">
-        <Link to="/" className="flex flex-col items-center gap-2">
-          <svg viewBox="0 0 72 24" className="h-8 w-20 text-fg" aria-hidden>
-            <rect x="0" y="12" width="30" height="8" fill="currentColor" />
-            <rect x="42" y="2" width="30" height="8" fill="var(--color-up)" />
-          </svg>
-          <span className="text-2xl font-semibold tracking-tight">赤轨</span>
-        </Link>
-      </div>
-      <header className="sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur-md">
-        <div className="mx-auto max-w-3xl px-4 md:px-6">
-          <div className="flex items-center gap-2 py-2">
-            <TopNav />
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              disabled={refreshing}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-line px-3 text-sm disabled:opacity-60"
-            >
-              <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
-              刷新
-            </button>
-            <details className="relative shrink-0">
-              <summary className="cursor-pointer list-none rounded-full px-2 py-1 text-xs text-muted [&::-webkit-details-marker]:hidden">显示</summary>
-              <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded-xl border border-line bg-surface p-2 shadow-card">
-                <ThemeMode />
-                <TypeSize />
-              </div>
-            </details>
+      <header className="sticky top-0 z-20">
+        <div className="bg-brand text-white">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 pt-3 pb-2 md:px-6">
+            <Link to="/" className="flex items-center gap-2">
+              <svg viewBox="0 0 72 24" className="h-6 w-18" aria-hidden>
+                <rect x="0" y="12" width="30" height="8" fill="currentColor" />
+                <rect x="42" y="2" width="30" height="8" fill="currentColor" opacity="0.6" />
+              </svg>
+              <span className="text-xl font-semibold tracking-tight">赤轨</span>
+            </Link>
+            <span className="hidden text-xs text-white/70 sm:inline">A股自动选股</span>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                disabled={refreshing}
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/40 px-3 text-sm text-white disabled:opacity-60"
+              >
+                <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
+                刷新
+              </button>
+              <details className="relative shrink-0">
+                <summary className="cursor-pointer list-none rounded-md border border-white/40 px-2.5 py-1.5 text-xs text-white [&::-webkit-details-marker]:hidden">显示</summary>
+                <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded-md border border-line bg-surface p-2 shadow-card">
+                  <ThemeMode />
+                  <TypeSize />
+                </div>
+              </details>
+            </div>
           </div>
-          {aside ? <div className="pb-2">{aside}</div> : null}
-          {extra}
+        </div>
+        <div className="border-b border-line bg-bg/95 backdrop-blur-md">
+          <div className="mx-auto max-w-3xl px-4 md:px-6">
+            <div className="flex items-center gap-3">
+              <TopNav />
+            </div>
+            {aside ? <div className="pb-2">{aside}</div> : null}
+            {extra}
+          </div>
         </div>
       </header>
       <main className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 md:px-6">{children}</main>

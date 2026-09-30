@@ -152,13 +152,13 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex gap-4 overflow-x-auto scroll-slim border-b border-line">
+      <div className="flex gap-5 overflow-x-auto scroll-slim border-b border-line">
         {books.map((book) => (
           <button
             key={book.id}
             type="button"
             onClick={() => onStyle(book.id)}
-            className={"shrink-0 border-b-2 pb-2 text-sm " + (book.id === style ? "border-fg font-medium text-fg" : "border-transparent text-muted")}
+            className={"shrink-0 border-b-2 pb-2 text-sm " + (book.id === style ? "-mb-px border-brand font-medium text-brand" : "border-transparent text-muted")}
           >
             {book.name}
             <span className="ml-1 tabular-nums">{book.n}</span>
@@ -241,7 +241,8 @@ export function Picks({
                         <button type="button" onClick={() => onOpen(pick.quote.id)} className="block max-w-48 text-left">
                           <div className="truncate font-medium">{pick.quote.name}</div>
                           <div className="truncate text-xs text-muted">
-                            {pick.quote.code} · {badge}
+                            {pick.quote.code} ·{" "}
+                            <span className={badge === "已到买入价" || badge === "追踪中" ? "font-medium text-brand" : ""}>{badge}</span>
                             {elsewhere.length > 0 ? ` · ${elsewhere.join("、")}` : ""}
                           </div>
                         </button>
@@ -266,7 +267,10 @@ export function Picks({
 
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="px-4 py-3">
-          <h2 className="font-serif text-lg font-semibold">今日建仓 {todayTaken}/{MAX_POSITIONS}</h2>
+          <h2 className="font-serif text-lg font-semibold">
+            今日建仓 <span className="text-brand tabular-nums">{todayTaken}</span>
+            <span className="text-muted tabular-nums">/{MAX_POSITIONS}</span>
+          </h2>
           <p className="mt-1 text-xs text-muted">名额按天算，每天最多 {MAX_POSITIONS} 只。打到买入价才记，当天不能卖，跌停卖不出就顺延。当前持有 {open.length} 只。</p>
         </div>
         {open.length === 0 ? (

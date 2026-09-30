@@ -13,7 +13,7 @@ import { Journal } from "@/components/screener/paper";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
-import { signedPct, toneClass } from "@/lib/market/format";
+import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
@@ -143,11 +143,12 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       onRefresh={() => refresh(true)}
       extra={
         indices.length > 0 ? (
-          <div className="flex gap-4 overflow-x-auto scroll-slim pb-2">
+          <div className="flex gap-5 overflow-x-auto scroll-slim pb-2">
             {indices.map((item) => (
               <div key={item.id} className="flex shrink-0 items-baseline gap-1.5 text-xs">
                 <span className="text-muted">{INDEX_LABEL[item.id] ?? item.name}</span>
-                <span className={cx("tabular-nums", toneClass(item.pct))}>{signedPct(item.pct)}</span>
+                <span className={cx("tabular-nums", toneClass(item.pct))}>{item.price > 0 ? fmtPrice(item.price) : "—"}</span>
+                <span className={cx("font-medium tabular-nums", toneClass(item.pct))}>{signedPct(item.pct)}</span>
               </div>
             ))}
           </div>

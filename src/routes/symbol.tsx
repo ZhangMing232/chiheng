@@ -59,9 +59,9 @@ function SymbolPage() {
           onChange={(event) => setValue(event.target.value)}
           placeholder="代码或名称"
           maxLength={20}
-          className="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2 text-sm outline-none"
+          className="min-w-0 flex-1 rounded-md border border-line bg-surface px-4 py-2 text-sm outline-none"
         />
-        <button type="submit" className="rounded-full border border-line bg-surface px-4 py-2 text-sm">
+        <button type="submit" className="rounded-md border border-line bg-surface px-4 py-2 text-sm">
           搜索
         </button>
       </form>
@@ -109,7 +109,7 @@ function SymbolPage() {
                 setValue(item.code);
                 void navigate({ to: "/symbol", search: { q: item.code } });
               }}
-              className={"shrink-0 rounded-full border border-line px-3 py-1 text-xs " + (data.picked?.id === item.id ? "bg-surface text-fg" : "text-muted")}
+              className={"shrink-0 rounded-md border border-line px-3 py-1 text-xs " + (data.picked?.id === item.id ? "border-brand text-brand font-medium" : "text-muted")}
             >
               {item.name} {item.code}
             </button>
