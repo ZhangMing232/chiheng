@@ -88,7 +88,7 @@ export type Universe = {
   /** 太旧了，不能当现价用。 */
   stale: boolean;
   /** 这份名单来自哪个数据源。腾讯是主源，东财是备份。 */
-  source?: "tencent" | "eastmoney";
+  source?: "tencent" | "sina" | "eastmoney";
 };
 
 /** 一根日 K。日期是 YYYY-MM-DD，价格是元，v 是成交量。 */
