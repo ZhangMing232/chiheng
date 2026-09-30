@@ -33,11 +33,11 @@ function dayLabel(date: string): string {
   return `${Number(match[2])}月${Number(match[3])}日`;
 }
 
-function pickBadge(pick: Pick, open: { id: string }[], preview: boolean): string {
+function pickBadge(pick: Pick, open: { id: string }[], preview: boolean, todayTaken: number): string {
   const tracked = open.some((trade) => trade.id === pick.quote.id);
   const estimate = preview && !tracked;
   if (tracked) return "追踪中";
-  if (pick.hit && open.length >= MAX_POSITIONS) return "仓位已满";
+  if (pick.hit && todayTaken >= MAX_POSITIONS) return "已满";
   if (pick.block === "limit") return "涨停买不进";
   if (pick.block === "away") return "不追";
   if (estimate) return "尾盘再定";
@@ -76,11 +76,16 @@ export function Picks({
 }) {
   const browserDays = usePaper((state) => state.days);
   const source = personal || serverDays.length > 0 ? serverDays : browserDays;
+  // 名额是按「天」算的：昨天进的那批占昨天的名额，不影响今天。
+  // 所以标签上的数字和「仓位已满」都只看当天建了几只，
+  // 账上还拿着几只（含前几天没卖出的）单独统计。
+  const todayTrades = source.filter((day) => day.date === date).flatMap((day) => day.trades);
   const books = STYLES.map((item) => ({
     id: item.id,
     name: item.name,
-    n: source.flatMap((day) => day.trades).filter((trade) => trade.exit == null && styleOf(trade) === item.id).length,
+    n: todayTrades.filter((trade) => styleOf(trade) === item.id).length,
   }));
+  const todayTaken = todayTrades.filter((trade) => styleOf(trade) === style).length;
   const days = source
     .map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) === style) }))
     .filter((day) => day.trades.length > 0);
@@ -178,7 +183,7 @@ export function Picks({
               price: pick.quote.price,
               buy: pick.buy,
               sell: pick.sell,
-              badge: pickBadge(pick, open, preview),
+              badge: pickBadge(pick, open, preview, todayTaken),
             })),
           })
         }
@@ -219,8 +224,8 @@ export function Picks({
                     .map((item) => item.name);
                   const badge = tracked
                     ? "追踪中"
-                    : pick.hit && open.length >= MAX_POSITIONS
-                      ? "仓位已满"
+                    : pick.hit && todayTaken >= MAX_POSITIONS
+                      ? "已满"
                       : pick.block === "limit"
                         ? "涨停买不进"
                         : pick.block === "away"
@@ -261,8 +266,8 @@ export function Picks({
 
       <section className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="px-4 py-3">
-          <h2 className="font-serif text-lg font-semibold">股票池 {open.length}/{MAX_POSITIONS}</h2>
-          <p className="mt-1 text-xs text-muted">打到买入价才记。当天不能卖。跌停卖不出就顺延。</p>
+          <h2 className="font-serif text-lg font-semibold">今日建仓 {todayTaken}/{MAX_POSITIONS}</h2>
+          <p className="mt-1 text-xs text-muted">名额按天算，每天最多 {MAX_POSITIONS} 只。打到买入价才记，当天不能卖，跌停卖不出就顺延。当前持有 {open.length} 只。</p>
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">

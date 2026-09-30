@@ -148,17 +148,21 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
   days = tagged.filter((day) => day.trades.length > 0);
   const canBuy = !book.joinedAt || !phase.date || book.joinedAt <= phase.date;
 
-  if (canBuy && universe && phase.date && universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0)) {
+  // sealed 表示已经过了 15:00。收盘后不再记新仓：那时候拿到的是收盘快照，
+  // 用它倒推「盘中是不是打到过买入价」会记下并不存在的成交（22:48 补记那种）。
+  if (canBuy && universe && phase.date && !phase.sealed && universe.quotes.some((quote) => quote.amount > 0 && quote.turnover > 0)) {
     const held = days.flatMap((day) => day.trades);
     const existing = days.find((day) => day.date === phase.date);
+    // 名额按天算：只数这一天已经记下的，前几天还没卖出的不占今天的名额。
+    const todayTrades: Trade[] = existing ? [...existing.trades] : [];
     const additions: Trade[] = [];
     for (const style of STYLE_IDS) {
       const list =
         style === "relay"
           ? relay.filter((row) => matchPrefs(row.quote, prefs))
           : watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs));
-      for (const row of takeBuys(list, held, style)) {
-        additions.push({
+      for (const row of takeBuys(list, held, style, todayTrades)) {
+        const trade: Trade = {
           id: row.quote.id,
           code: row.quote.code,
           name: row.quote.name,
@@ -169,24 +173,15 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           hold: style === "relay" ? 1 : undefined,
           exit: null,
           exitDate: null,
-        });
-        held.push({
-          id: row.quote.id,
-          code: row.quote.code,
-          name: row.quote.name,
-          entry: row.buy,
-          stop: row.stop,
-          target: row.sell,
-          style,
-          hold: style === "relay" ? 1 : undefined,
-          exit: null,
-          exitDate: null,
-        });
+        };
+        additions.push(trade);
+        held.push(trade);
+        todayTrades.push(trade);
       }
     }
     if (additions.length > 0) {
       const next: Day = existing
-        ? { ...existing, trades: [...existing.trades, ...additions] }
+        ? { ...existing, savedAt: Date.now(), trades: [...existing.trades, ...additions] }
         : {
             date: phase.date,
             savedAt: Date.now(),

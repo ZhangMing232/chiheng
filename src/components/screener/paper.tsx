@@ -63,11 +63,13 @@ export function Journal({
     if (!ready || !live || !matching || !bookReady || !date) return;
     const book = usePaper.getState().days;
     const held = book.flatMap((day) => day.trades);
+    // 名额按天算：只数今天已经记下的那几只，前几天还没卖出的不占今天的名额。
+    const todayTrades = book.find((day) => day.date === date)?.trades ?? [];
     const trades: PaperTrade[] = [];
     for (const style of STYLE_IDS) {
       const list =
         style === "relay" ? relay.filter((row) => matchPrefs(row.quote, prefs)) : watchList(quotes, style, rules, (quote) => matchPrefs(quote, prefs));
-      for (const row of takeBuys(list, held, style)) {
+      for (const row of takeBuys(list, held, style, todayTrades)) {
         trades.push({
           id: row.quote.id,
           code: row.quote.code,

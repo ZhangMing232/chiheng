@@ -177,7 +177,7 @@ function valueOrder(quote: Quote): Order | null {
 
 /** 五套策略的固定顺序。页面上的标签就按这个排。 */
 export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "relay"];
-/** 每一套同时最多持有这么多只。满了就不再开新仓。 */
+/** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;
 
 /** 一笔成交属于哪一套。旧账上没有这五套之一的名字时返回空，不塞进任何一套。 */
@@ -186,10 +186,15 @@ export function styleOf(trade: { style?: string }): StyleId | null {
   return null;
 }
 
-/** 这套策略还剩几个仓位。只数还没卖出的（exit 是空）。 */
-export function slotsLeft(trades: { style?: string; exit: number | null }[], style: StyleId): number {
-  const open = trades.filter((trade) => trade.exit == null && styleOf(trade) === style).length;
-  return Math.max(0, MAX_POSITIONS - open);
+/**
+ * 这套策略「这一天」还剩几个名额。
+ * 名额按天算：看的是当天已经记进了几只，不受前几天还没卖出的影响。
+ * 昨天那批占的是昨天的名额，今天照样能进新的。
+ * 当天已经卖出的也算占过名额，不会退回——它进过这一天的池子。
+ */
+export function daySlotsLeft(dayTrades: { style?: string }[], style: StyleId): number {
+  const taken = dayTrades.filter((trade) => styleOf(trade) === style).length;
+  return Math.max(0, MAX_POSITIONS - taken);
 }
 
 /** 观察名单上的一行。block 有值时今天不能按这个价买：limit 是涨停买不进，away 是价格已经离开买入价。 */
@@ -233,15 +238,20 @@ export function watchList(
 
 /**
  * 从观察名单里挑出现在该记入的买单。
- * 条件：现价已经 hit、不是涨停、这套里还没有这只、名额还够。
+ * 条件：现价已经 hit、不是涨停、这套里已经持有的不再重复买、当天的名额还够。
+ * dayTrades 是「这一天」已经记下的成交，用来算当天还剩几个名额；
+ * held 是所有还没卖出的成交，用来排重——同一只已经在手上就只在最早那笔，不再开第二笔。
  */
 export function takeBuys(
   list: Listed[],
   held: { id: string; style?: string; exit: number | null }[],
   style: StyleId,
+  dayTrades: { style?: string }[],
 ): Listed[] {
   const openIds = new Set(held.filter((trade) => trade.exit == null && styleOf(trade) === style).map((trade) => trade.id));
-  return list.filter((row) => row.hit && limitTag(row.quote) !== "涨停" && !openIds.has(row.quote.id)).slice(0, slotsLeft(held, style));
+  return list
+    .filter((row) => row.hit && limitTag(row.quote) !== "涨停" && !openIds.has(row.quote.id))
+    .slice(0, daySlotsLeft(dayTrades, style));
 }
 
 /** 已持仓同时打到止损时，占这套 10 个名额的比例。空着的名额不算。 */
