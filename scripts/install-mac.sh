@@ -40,7 +40,22 @@ cat > "$PLIST" <<EOF
 </plist>
 EOF
 launchctl bootout "gui/$(id -u)/com.chiheng.serve" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
+# bootout 收回旧进程是异步的：紧接着 bootstrap 同一个服务可能撞上旧进程
+# 退出，报 "Bootstrap failed: 5: Input/output error" 并留下没有服务的局面。
+# 等一拍再装，失败就重试几次。
+sleep 1
+installed=0
+for attempt in 1 2 3; do
+  if launchctl bootstrap "gui/$(id -u)" "$PLIST"; then
+    installed=1
+    break
+  fi
+  sleep 2
+done
+if [ "$installed" != 1 ]; then
+  echo "自启安装失败：launchctl bootstrap 三次都没成功。把上面整段输出发回来。" >&2
+  exit 1
+fi
 echo "已安装。打开 http://127.0.0.1:8787"
 echo "以后更新：npm run mac:update"
 echo "看是否在跑：npm run mac:status"
