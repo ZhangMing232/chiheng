@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { STYLE_IDS, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
+import { ACTIVE_STYLES, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { boardLimit, limitTag, planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
@@ -66,7 +66,7 @@ export function Journal({
     // 名额按天算：只数今天已经记下的那几只，前几天还没卖出的不占今天的名额。
     const todayTrades = book.find((day) => day.date === date)?.trades ?? [];
     const trades: PaperTrade[] = [];
-    for (const style of STYLE_IDS) {
+    for (const style of ACTIVE_STYLES) {
       const list =
         style === "relay" ? relay.filter((row) => matchPrefs(row.quote, prefs)) : watchList(quotes, style, rules, (quote) => matchPrefs(quote, prefs));
       for (const row of takeBuys(list, held, style, todayTrades)) {

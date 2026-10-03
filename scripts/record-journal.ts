@@ -23,7 +23,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { boardLimit, limitTag, planExit } from "../src/lib/market/model.ts";
-import { STYLE_IDS, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
+import { ACTIVE_STYLES, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 
@@ -156,7 +156,8 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     // 名额按天算：只数这一天已经记下的，前几天还没卖出的不占今天的名额。
     const todayTrades: Trade[] = existing ? [...existing.trades] : [];
     const additions: Trade[] = [];
-    for (const style of STYLE_IDS) {
+    // 只跑还在用的那几套。停掉的两套仍留在页面上查看，但不再自动建仓。
+    for (const style of ACTIVE_STYLES) {
       const list =
         style === "relay"
           ? relay.filter((row) => matchPrefs(row.quote, prefs))

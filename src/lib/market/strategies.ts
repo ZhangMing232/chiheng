@@ -134,7 +134,9 @@ function breakoutOrder(quote: Quote): Order | null {
   const prev = prevClose(quote);
   if (!tradable(quote) || prev == null || quote.d5 == null || quote.d20 == null) return null;
   if (quote.volRatio < 1.8 || quote.turnover < 2 || quote.amount < 8000) return null;
-  if (quote.d5 < 0 || quote.d5 > 8 || quote.d20 < 0 || quote.d20 > 20) return null;
+  // 20 日涨幅上限从 20% 收到 10%：回测里更早介入的一批平均单笔从 +0.36%
+  // 提到 +0.50%，而且前后半段都为正。已经走远的票不再追。
+  if (quote.d5 < 0 || quote.d5 > 8 || quote.d20 < 0 || quote.d20 > 10) return null;
   if (quote.chg == null || quote.chg < 0 || quote.chg > 7) return null;
   const buy = round2(prev * 1.02);
   const stop = round2(prev);
@@ -154,6 +156,10 @@ function breakoutOrder(quote: Quote): Order | null {
 /**
  * 低估值。市盈率不超过 18 倍，市净率不超过 2 倍，总市值至少 100 亿。
  * 买入价按市盈率 15 倍折算，卖出价按 22 倍折算，止损按 10 倍折算。
+ *
+ * 止损和卖出都要夹在合理区间里：一只票市盈率本来就接近 10 倍时，按 10 倍
+ * 算出来的止损会紧贴在现价（实测过有只到 -0.1% 的），随便一个波动就被扫掉；
+ * 而按 22 倍算出来的目标能到 +114%，短线根本等不到。所以两头都夹住。
  */
 function valueOrder(quote: Quote): Order | null {
   if (!tradable(quote) || quote.pe == null || quote.pb == null || quote.pe <= 0 || quote.pb <= 0) return null;
@@ -162,8 +168,9 @@ function valueOrder(quote: Quote): Order | null {
   if (quote.amount < 3000) return null;
   const buy = round2(quote.price * (Math.min(quote.pe, 15) / quote.pe));
   const entryPe = quote.pe * (buy / quote.price);
-  const sell = round2(buy * (22 / entryPe));
-  const stop = round2(buy * (10 / entryPe));
+  // 目标夹在 +5% ~ +12%，止损夹在 -12% ~ -6%
+  const sell = round2(Math.max(Math.min(buy * (22 / entryPe), buy * 1.12), buy * 1.05));
+  const stop = round2(Math.min(Math.max(buy * (10 / entryPe), buy * 0.88), buy * 0.94));
   if (!(stop < buy && buy < sell)) return null;
   return {
     score: Math.round(40 - quote.pe),
@@ -177,6 +184,12 @@ function valueOrder(quote: Quote): Order | null {
 
 /** 五套策略的固定顺序。页面上的标签就按这个排。 */
 export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "relay"];
+/**
+ * 真正还会买进账的是这几套。另外两套（趋势回踩、启动前期）在一年无前视
+ * 回测里平均单笔亏近 1%（296 只 × 250 个交易日），留着只会越买越亏，
+ * 所以只留在页面上看，不再自动建仓。
+ */
+export const ACTIVE_STYLES: StyleId[] = ["breakout", "value", "relay"];
 /** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;
 
