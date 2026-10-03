@@ -98,6 +98,16 @@ async function loadBoard(board: string, pageSize: number): Promise<Raw[]> {
   return first.list.concat(...rest);
 }
 
+/**
+ * 科创板榜单的一行原始数据按主板的单位对齐。
+ * 只有成交额要改：科创板给的是元，主板给的是万元，差一万倍。解析不了的保持原样，
+ * 让 toQuote 自己按缺值处理，不要在这里塞 0。
+ */
+export function normalizeStarRow(raw: Raw): Raw {
+  const amount = num(raw.turnover, "any");
+  return amount == null ? raw : { ...raw, turnover: String(amount / 1e4) };
+}
+
 /** 拉全市场 A 股报价。主板和科创板分两个榜单，科创板拉不到时标 partial，不拖垮整份名单。 */
 export async function fetchTencentUniverse(): Promise<{ quotes: Quote[]; partial: boolean }> {
   const main = await loadBoard("aStock", 200);
@@ -108,8 +118,16 @@ export async function fetchTencentUniverse(): Promise<{ quotes: Quote[]; partial
   } catch {
     partial = true;
   }
+  // 科创板那个榜单的成交额单位是元，主板榜单是万元。Quote.amount 统一按万元算，
+  // 不换算的话科创板会被放大一万倍：实测键凯科技 688356 接口给 860539935，
+  // 通达信同一天是 860539904 元，也就是 8.6 亿、86054 万元。放大之后
+  // 「突破要 8000 万、低估值要 3000 万」这两道门槛对 617 只科创板全部失效，
+  // 等于只要是科创板就不看成交额了。
+  // 同一批数据里总市值、主力净流入、量比、换手、市盈率市净率的单位都和主板一致，
+  // 只有成交额这一个字段不一样，所以只换它。
+  const starRows = star.map(normalizeStarRow);
   const byId = new Map<string, Quote>();
-  for (const raw of main.concat(star)) {
+  for (const raw of main.concat(starRows)) {
     const quote = toQuote(raw);
     if (!quote || byId.has(quote.id)) continue;
     byId.set(quote.id, quote);
