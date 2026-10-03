@@ -22,8 +22,26 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * 北交所不在选股范围里，两个源都要挡掉，不能只挡一个。
+ *
+ * 原因有两条，都是实测出来的：一是腾讯的榜单接口根本没有北交所（bjs 返回 0 条），
+ * 只有新浪那份名单里有 348 只；只在新浪那边放行的话，换源当天名单会凭空多出
+ * 三百多只，选股结果跟着变，看不出是行情变了还是源变了。二是北交所的票在腾讯源
+ * 里拿不到量比和近 5/20/60 日涨幅，突破和低估值这两套硬性要这些字段，等于一只
+ * 都进不来；补涨走的是板块接口、不看这些字段，一旦选中北交所，第二天结算时
+ * quotes.find 找不到它，这笔就永远挂在账上卖不掉。
+ *
+ * 涨跌停 30%、流动性也偏薄，短线这几套本来就不适合它。回测的样本池同样排除了
+ * 北交所，两边口径一致。以后要放开，得先补一个能给齐字段的源。
+ */
+function withoutBj(quotes: Universe["quotes"]): Universe["quotes"] {
+  return quotes.filter((quote) => !quote.id.startsWith("bj"));
+}
+
 function universeOf(quotes: Universe["quotes"], source: Universe["source"]): Universe {
-  return { quotes, asOf: Date.now(), total: quotes.length, partial: false, stale: false, source };
+  const rows = withoutBj(quotes);
+  return { quotes: rows, asOf: Date.now(), total: rows.length, partial: false, stale: false, source };
 }
 
 /** 拉全市场 A 股报价。先腾讯，失败后新浪，两个都失败才报错。 */

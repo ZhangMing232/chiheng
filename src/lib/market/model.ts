@@ -58,7 +58,9 @@ export function limitPct(quote: Quote): number {
 /** 不看行情、只看代码和名字，算出涨跌停百分比。给还没有 Quote 的地方用。 */
 export function boardLimit(id: string, name: string): number {
   if (name.toUpperCase().includes("ST") || name.includes("退")) return 5;
-  if (id.startsWith("sh688") || id.startsWith("sz300") || id.startsWith("sz301")) return 20;
+  // sh689 是科创板存托凭证（实测只有九号公司 689009），同样 20%。
+  // boardOf 已经把它归到 kcb，这里漏掉会出现「板块是科创、涨跌停按 10%」的错位。
+  if (id.startsWith("sh688") || id.startsWith("sh689") || id.startsWith("sz300") || id.startsWith("sz301")) return 20;
   if (id.startsWith("bj")) return 30;
   return 10;
 }

@@ -111,6 +111,9 @@ function metrics(rows: Row[], i: number) {
   return {
     c,
     prev,
+    open: rows[i].o,
+    low: rows[i].l,
+    prevLow: i - 1 >= 0 ? rows[i - 1].l : rows[i].l,
     chg,
     d5: pct(at(5)),
     d20: pct(at(20)),
@@ -199,11 +202,97 @@ function reversal(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nul
   return { buy, stop, sell, score: -m.d5 };
 }
 
+/**
+ * 放量突破的三个变体。原版已经是最稳的一个，这里试着更早介入、以及
+ * 排除「天量出货」——单日量比过大往往是资金出逃而不是进攻。
+ */
+function breakout2(m: ReturnType<typeof metrics>): Signal | null {
+  if (m.d5 == null || m.d20 == null) return null;
+  if (m.volRatio < 1.8) return null;
+  if (m.amountWan < 8000 || m.c < 4) return null;
+  // 更早期：20 日涨幅压到 10% 以内，避免追已经走远的票
+  if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 10) return null;
+  if (m.chg < 0 || m.chg > 7) return null;
+  const buy = m.prev * 1.02;
+  const stop = m.prev;
+  const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: m.volRatio * 10 };
+}
+
+function breakout3(m: ReturnType<typeof metrics>): Signal | null {
+  if (m.d5 == null || m.d20 == null) return null;
+  // 量比设上限：超过 5 倍是天量，多半是出货，不接
+  if (m.volRatio < 1.8 || m.volRatio > 5) return null;
+  if (m.amountWan < 8000 || m.c < 4) return null;
+  if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 20) return null;
+  if (m.chg < 0 || m.chg > 7) return null;
+  const buy = m.prev * 1.02;
+  const stop = m.prev;
+  const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: m.volRatio * 10 };
+}
+
+function breakout4(m: ReturnType<typeof metrics>): Signal | null {
+  if (m.d5 == null || m.d20 == null) return null;
+  if (m.volRatio < 1.8 || m.volRatio > 5) return null;
+  if (m.amountWan < 8000 || m.c < 4) return null;
+  if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 10) return null;
+  if (m.chg < 0 || m.chg > 7) return null;
+  const buy = m.prev * 1.02;
+  const stop = m.prev;
+  const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: m.volRatio * 10 };
+}
+
+/**
+ * 反转策略的改进版。原版的问题是「接飞刀」：跌了就买，可它还在跌。
+ * 这一版要求当天已经出现止跌迹象——收阳、不再创新低、缩量更明显。
+ * 当日收阳与否在收盘时是已知的，不违反无前视。
+ */
+function reversal2(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  if (m.d5 == null || m.d20 == null || m.d60 == null) return null;
+  if (m.d5 > -5 || m.d5 < -12) return null;
+  if (m.volShrink > 0.7) return null;
+  if (m.d60 < -20) return null;
+  if (m.c < 4 || m.amountWan < 3000) return null;
+  // 止跌：当天收阳（收盘高于开盘），且收在前一日收盘之上
+  if (m.c <= m.open || m.chg <= 0) return null;
+  const buy = m.prev * 0.99;
+  const stop = buy * (1 - (stopPct ?? 5) / 100);
+  const sell = buy * 1.09;
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: -m.d5 };
+}
+
+/** 更严的一版：除了收阳，还要求当天最低价没有跌破前一日最低价（真正企稳），且缩量更狠。 */
+function reversal3(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  if (m.d5 == null || m.d20 == null || m.d60 == null) return null;
+  if (m.d5 > -6 || m.d5 < -14) return null;
+  if (m.volShrink > 0.55) return null;
+  if (m.d60 < -15) return null;
+  if (m.c < 4 || m.amountWan < 3000) return null;
+  if (m.c <= m.open || m.chg <= 0) return null;
+  if (m.low <= m.prevLow) return null;
+  const buy = m.prev * 0.99;
+  const stop = buy * (1 - (stopPct ?? 5) / 100);
+  const sell = buy * 1.09;
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: -m.d5 };
+}
+
 const STRATEGIES = {
   trend: { label: "趋势回踩", fn: trend },
   breakout: { label: "放量突破", fn: breakout },
   early: { label: "启动前期", fn: early },
-  reversal: { label: "缩量反转(新)", fn: reversal },
+  reversal: { label: "反转·原版", fn: reversal },
+  rev2: { label: "反转·加收阳", fn: reversal2 },
+  rev3: { label: "反转·企稳版", fn: reversal3 },
+  bk2: { label: "突破·早期版", fn: breakout2 },
+  bk3: { label: "突破·排天量", fn: breakout3 },
+  bk4: { label: "突破·早期+排天量", fn: breakout4 },
 } as const;
 
 type StyleKey = keyof typeof STRATEGIES;

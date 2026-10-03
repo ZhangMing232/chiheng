@@ -128,7 +128,9 @@ async function membersOf(node: string): Promise<Member[]> {
     const symbol = item.symbol ?? "";
     const price = Number(item.trade);
     const chg = Number(item.changepercent);
-    if (!/^(sh|sz|bj)\d{6}$/.test(symbol) || !(price > 0) || !Number.isFinite(chg)) continue;
+    // 挡掉北交所：它不在行情名单里（见 providers/index.ts 的 withoutBj），
+    // 补涨选中它的话，第二天结算时找不到这只票的现价，这笔就永远卖不掉。
+    if (!/^(sh|sz)\d{6}$/.test(symbol) || !(price > 0) || !Number.isFinite(chg)) continue;
     rows.push({
       symbol,
       name: item.name ?? symbol,
@@ -195,7 +197,11 @@ async function rankRelay(tailHalf: boolean): Promise<Listed[]> {
     if (pick) picks.push(pick);
   }
   picks.sort((a, b) => b.score - a.score);
-  return picks;
+  // 涨幅前三的概念板块常常高度重叠（CXO、CRO、创新药基本是同一批票），
+  // 同一只会被提名多次。takeBuys 里虽然还会再排一次重，但冻结名单和精选表
+  // 里会留下两行同票不同卖出价，看着像两笔。这里先按代码去重，留分数高的那行。
+  const seen = new Set<string>();
+  return picks.filter((pick) => (seen.has(pick.quote.id) ? false : (seen.add(pick.quote.id), true)));
 }
 
 async function readFreeze(date: string): Promise<Listed[] | null> {
