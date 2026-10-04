@@ -18,6 +18,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { exitFill } from "@/lib/market/journal-book";
+import { boardLimit } from "@/lib/market/model";
 import type { Bar } from "@/lib/market/types";
 
 /** 回测多长。250 个交易日约等于一年。 */
@@ -122,7 +123,6 @@ function metrics(rows: Row[], i: number) {
     volShrink: avg20 > 0 ? avg5 / avg20 : 1,
     // 成交量单位是手，×100 股 × 价格 = 元，再换成万元
     amountWan: (vol * 100 * c) / 1e4,
-    limit: /^(30|68)/.test(rows[i].date) ? 20 : 10,
   };
 }
 
@@ -385,13 +385,15 @@ async function main() {
         const bar = rows[nextIdx];
         // 限价单：当天最低价碰到买入价才成交，成交价按买入价算
         if (bar.l > pick.sig.buy) continue;
+        // 涨跌停幅度要按代码分：创业板和科创板是 20%，写死 10% 的话它们
+        // 一次正常回调就会被当成「跌停封死卖不掉」跳过。
         const fill = exitFill(
           rows as Bar[],
           bar.date,
           pick.sig.buy,
           pick.sig.stop,
           pick.sig.sell,
-          10,
+          boardLimit(pick.id, ""),
         );
         if (!fill) continue;
         const ret = (fill.price - pick.sig.buy) / pick.sig.buy - FEE;
@@ -446,6 +448,26 @@ async function main() {
   console.log("-".repeat(76));
   }
 
+  /**
+   * 按出场原因拆开看。光看平均收益看不出策略到底在赚什么钱：
+   * 如果绝大多数是「到期按收盘价卖」，说明止盈止损基本没起过作用，
+   * 那点收益就是持股期间的随机波动，跟选股没关系。
+   */
+  function breakdown(results: Record<string, Trade[]>, key: string) {
+  const trades = results[key];
+  if (trades.length === 0) return;
+  const label: Record<string, string> = { stop: "止损", target: "到目标", time: "到期平仓" };
+  const parts: string[] = [];
+  for (const reason of ["target", "stop", "time"]) {
+    const group = trades.filter((t) => t.reason === reason);
+    if (group.length === 0) continue;
+    const avg = group.reduce((s, t) => s + t.ret, 0) / group.length;
+    const share = (group.length / trades.length) * 100;
+    parts.push(`${label[reason]} ${share.toFixed(0)}%（均 ${(avg * 100).toFixed(2)}%）`);
+  }
+  console.log(`  ${STRATEGIES[key].label.padEnd(12)} ${parts.join("  ·  ")}`);
+  }
+
   if (process.env.BT_SWEEP === "1") {
     console.log("止损幅度扫描（同一套选股条件，只改止损百分比）\n");
     for (const stopPct of [2, 3, 4, 5, 6]) {
@@ -455,7 +477,11 @@ async function main() {
     console.log(`同期沪深 300 买入持有：${(benchRet * 100).toFixed(1)}%（作为参照）`);
   } else {
     const stopOverride = process.env.BT_STOP ? Number(process.env.BT_STOP) : undefined;
-    report(runPass(stopOverride), process.env.BT_HALF ? `区间：${process.env.BT_HALF} 段` : "");
+    const results = runPass(stopOverride);
+    report(results, process.env.BT_HALF ? `区间：${process.env.BT_HALF} 段` : "");
+    console.log("出场原因拆解：");
+    for (const key of Object.keys(STRATEGIES)) breakdown(results, key);
+    console.log("");
     console.log(`同期沪深 300 买入持有：${(benchRet * 100).toFixed(1)}%（作为参照）`);
   }
   console.log("\n注：单笔收益率等权累加，不是复利；样本含幸存者偏差，实际会差一些。");
