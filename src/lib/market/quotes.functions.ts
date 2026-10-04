@@ -79,11 +79,23 @@ export async function loadIndices(): Promise<IndexQuote[]> {
   }
 }
 
-/** 拉一只股票最近约 120 根前复权日 K。id 是 sh、sz 或 bj 加六位代码。返回日期、开高低收和成交量。 */
+/**
+ * 拉一只股票最近约 120 根**不复权**日 K。id 是 sh、sz 或 bj 加六位代码。返回日期、开高低收和成交量。
+ *
+ * 这里必须是原始价，不能要前复权。账上记的买入价、止损价、卖出价都是当时用
+ * 真实报价算出来的（未复权口径），结算时拿的 K 线得和它们同口径。用前复权的话，
+ * 持仓期间一旦除权除息或高送转，K 线整段被往下调，而买入价不动，于是「跌到止损」
+ * 会被提前触发，一笔真实亏掉一半的仓位被记成只亏了几个点。实测 10 送 10 的情形：
+ * 股价从 10 元腰斩到 5 元，前复权口径下被算成 -3.0%（按止损价 9.7 成交）。
+ *
+ * 不复权带来的另一个问题在 exitFill 里解决了：除权日那天相对昨收会突然腰斩，
+ * 单看跌幅会被误判成跌停封死而跳过。跌停最多只能跌 limitPct，超出这个幅度
+ * 就一定不是跌停，所以那边按跌幅先把这种情况挡掉。
+ */
 export async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }> {
   const hit = klineCache.get(id);
   if (hit && Date.now() - hit.at < 5 * 60_000) return { id, bars: hit.bars };
-  const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${id},day,,,120,qfq`;
+  const url = `https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=${id},day,,,120`;
   const res = await fetch(url, {
     headers: KLINE_HEADERS,
     signal: AbortSignal.timeout(12000),

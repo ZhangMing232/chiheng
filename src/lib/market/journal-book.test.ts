@@ -97,3 +97,78 @@ test("没有 signalTime 的老数据不擅自丢掉", () => {
   assert.equal(dayReliable({}), true);
   assert.equal(dayReliable({ signalTime: "" }), true);
 });
+
+/**
+ * 下面这几条守的是「账上记的亏损不能少于真实亏损」。
+ * 曾经有两处把大亏记成了小亏：一是宽限期最后一天遇到跌停封死，拿止损价冒充成交价；
+ * 二是跳空穿越止损（除权、复牌、突发利空）时按止损价成交——那天开盘就跌穿了，
+ * 止损单根本成交不到那个价。两边都会让风险看起来比实际小得多。
+ */
+
+type OBar = { date: string; o?: number; h?: number; l?: number; c: number };
+
+/** 连着跌停的 K 线：每天开盘即最低，等于封死卖不掉。 */
+function sealedDownBars(count: number): OBar[] {
+  const out: OBar[] = [{ date: ENTRY, o: 10, h: 10, l: 10, c: 10 }];
+  let price = 10;
+  for (let i = 1; i <= count; i += 1) {
+    price = Math.round(price * 0.9 * 100) / 100;
+    const date = `2026-03-${pad(2 + i)}`;
+    out.push({ date, o: price, h: price, l: price, c: price });
+  }
+  return out;
+}
+
+test("宽限期最后一天仍封着，按当天收盘价结，不能拿止损价顶替", () => {
+  const result = exitFill(sealedDownBars(20), ENTRY, 10, 9.7, 11.5, 10, 8);
+  assert.equal(result?.reason, "time");
+  // 那天真实收盘是 2.54（-74.6%）。记成 9.7 的话，一笔腰斩的仓位只显示亏 3%。
+  assert.ok(result && result.price < 3, `应当按收盘价结，实际 ${result?.price}`);
+  assert.ok(result && result.price < 9.7, "不能按止损价成交");
+});
+
+test("跳空低开穿过止损，按开盘价成交，不是止损价", () => {
+  // 除权除息后的首个交易日，开盘直接到 5 元，止损单不可能成交在 9.7。
+  const rows: OBar[] = [
+    { date: ENTRY, o: 10, h: 10, l: 10, c: 10 },
+    { date: "2026-03-03", o: 10.1, h: 10.3, l: 9.9, c: 10.1 },
+    { date: "2026-03-04", o: 5, h: 5.1, l: 4.9, c: 5 },
+  ];
+  const result = exitFill(rows, ENTRY, 10, 9.7, 11.5, 10, 8);
+  assert.deepEqual(result, { date: "2026-03-04", price: 5, reason: "stop" });
+});
+
+test("开盘在止损之上、盘中才跌破，仍按止损价成交", () => {
+  const rows: OBar[] = [
+    { date: ENTRY, o: 10, h: 10, l: 10, c: 10 },
+    { date: "2026-03-03", o: 10.1, h: 10.2, l: 9.5, c: 9.6 },
+  ];
+  assert.deepEqual(exitFill(rows, ENTRY, 10, 9.7, 11.5, 10, 8), {
+    date: "2026-03-03",
+    price: 9.7,
+    reason: "stop",
+  });
+});
+
+test("没给开盘价时退回原来的算法，不会因为加了字段就变脸", () => {
+  const rows: { date: string; h?: number; l?: number; c: number }[] = [
+    { date: ENTRY, h: 10, l: 10, c: 10 },
+    { date: "2026-03-03", h: 10.2, l: 9.5, c: 9.6 },
+  ];
+  assert.deepEqual(exitFill(rows, ENTRY, 10, 9.7, 11.5, 10, 8), {
+    date: "2026-03-03",
+    price: 9.7,
+    reason: "stop",
+  });
+});
+
+test("跌幅超过跌停板的暴跌不会被误判成跌停封死", () => {
+  // 跌停最多跌 limitPct。跌得比这多，一定是除权或复牌，那天照样能卖。
+  const rows: OBar[] = [
+    { date: ENTRY, o: 10, h: 10, l: 10, c: 10 },
+    { date: "2026-03-03", o: 5, h: 5.1, l: 4.9, c: 5 },
+    { date: "2026-03-04", o: 5.1, h: 5.2, l: 5, c: 5.1 },
+  ];
+  // 跳空当天就该成交，不能被当成「封死卖不掉」顺延到后面。
+  assert.equal(exitFill(rows, ENTRY, 10, 9.7, 11.5, 10, 8)?.date, "2026-03-03");
+});

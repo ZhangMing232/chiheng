@@ -29,7 +29,7 @@ function normDay(value: string): string {
  * 宽限期最后一天无论如何按收盘价结掉，不让这笔永远挂在账上。
  */
 export function exitFill(
-  bars: { date: string; h?: number; l?: number; c: number }[],
+  bars: { date: string; o?: number; h?: number; l?: number; c: number }[],
   entryDate: string,
   entry: number,
   stop: number,
@@ -44,8 +44,21 @@ export function exitFill(
   let extra = 5;
   for (let cursor = start + 1; cursor < bars.length && (left > 0 || extra > 0); cursor += 1) {
     const bar = bars[cursor];
+    // 接口偶尔吐出一根全 0 的残缺 K 线。这天没有可信价格，不能拿 0 去判定
+    // 止损止盈（那会变成「跳空跌到 0」）。但它是真实存在的交易日，照样计入
+    // 持股天数；prev 也不更新，免得用 0 去算下一天的跌停价。
+    if (!(bar.c > 0)) {
+      if (left > 0) left -= 1;
+      else extra -= 1;
+      continue;
+    }
     const down = Math.round(prev * (1 - limitPct / 100) * 100) / 100;
-    const sealedDown = down > 0 && bar.c <= down + 0.01 && (bar.h == null || bar.h <= down + 0.01);
+    // 跌停最多只能跌 limitPct。跌幅比这还大，一定不是跌停，而是除权除息或者
+    // 长期停牌后复牌——这些日子照样能卖，不能当成「封死卖不掉」跳过。
+    // 留半个点的容差，挡住四舍五入和那些不到一分钱的误差。
+    const drop = prev > 0 ? ((prev - bar.c) / prev) * 100 : 0;
+    const sealedDown =
+      drop <= limitPct + 0.5 && down > 0 && bar.c <= down + 0.01 && (bar.h == null || bar.h <= down + 0.01);
     prev = bar.c;
     // last 表示「持股天数已经用完了」。left 减到 0 之后也算到期，
     // 这样到期那天刚好跌停时，下一个能卖的收盘价就会成交，而不是一直等下去。
@@ -54,11 +67,29 @@ export function exitFill(
     const forced = extra === 1;
     if (left > 0) left -= 1;
     else extra -= 1;
-    if (sealedDown && !forced) continue;
+    // 跌停封死这天是卖不掉的。到了宽限期最后一天必须结掉，此时按当天收盘价记：
+    // 一笔连吃了十几个跌停的仓位，真实亏损可能已经腰斩，如果这时候拿止损价
+    // （往往远高于实际跌到的位置）冒充成交价，账上只显示亏了几个点，风险全被藏起来。
+    // 实测过：10 元买入、止损 9.7，连吃 13 个跌停后真实收盘 2.54（-74.6%），
+    // 改之前这笔被记成 9.7 卖出（-3.0%）。
+    if (sealedDown) {
+      if (forced && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
+      continue;
+    }
     const high = bar.h != null && bar.h > 0 ? bar.h : bar.c;
     const low = bar.l != null && bar.l > 0 ? bar.l : bar.c;
     // 买入当日不在这个循环里，满足 T+1。同一天两边都碰到，按先止损。
-    if (low <= stop) return { date: normDay(bar.date), price: stop, reason: "stop" };
+    // 跳空低开直接穿过止损时，止损单成交不到止损价上——开盘那一刻价格已经在止损下面了，
+    // 实际能拿到的只有开盘价。除权除息、长期停牌后复牌、突发利空都会造成这种跳空。
+    // 往不利的方向修正，否则止损的保护作用会被凭空放大。
+    //
+    // 只有数据源确实给了开盘价才做这个修正。拿收盘价顶替是不行的：止损触发那天
+    // 收盘往往就在止损价下方，那么每次止损都会被当成跳空，亏多少全被记成
+    // 「跌到收盘才卖」，系统性多算亏损。宁可保守，也不能凭空把账面做难看。
+    if (low <= stop) {
+      const gapped = bar.o != null && bar.o > 0 && bar.o <= stop;
+      return { date: normDay(bar.date), price: gapped ? bar.o : stop, reason: "stop" };
+    }
     if (high >= target) return { date: normDay(bar.date), price: target, reason: "target" };
     if ((last || forced) && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
   }
