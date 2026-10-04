@@ -149,7 +149,7 @@ function trend(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
 }
 
 /** 放量突破：量比至少 1.8，买在昨收上方 2%，止损放昨收。 */
-function breakout(m: ReturnType<typeof metrics>): Signal | null {
+function breakout(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
   if (m.d5 == null || m.d20 == null) return null;
   if (m.volRatio < 1.8) return null;
   if (m.amountWan < 8000) return null;
@@ -157,7 +157,7 @@ function breakout(m: ReturnType<typeof metrics>): Signal | null {
   if (m.chg < 0 || m.chg > 7) return null;
   if (m.c < 4) return null;
   const buy = m.prev * 1.02;
-  const stop = m.prev;
+  const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
   return { buy, stop, sell, score: m.volRatio * 10 };
@@ -206,7 +206,7 @@ function reversal(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nul
  * 放量突破的三个变体。原版已经是最稳的一个，这里试着更早介入、以及
  * 排除「天量出货」——单日量比过大往往是资金出逃而不是进攻。
  */
-function breakout2(m: ReturnType<typeof metrics>): Signal | null {
+function breakout2(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
   if (m.d5 == null || m.d20 == null) return null;
   if (m.volRatio < 1.8) return null;
   if (m.amountWan < 8000 || m.c < 4) return null;
@@ -214,13 +214,13 @@ function breakout2(m: ReturnType<typeof metrics>): Signal | null {
   if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 10) return null;
   if (m.chg < 0 || m.chg > 7) return null;
   const buy = m.prev * 1.02;
-  const stop = m.prev;
+  const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
   return { buy, stop, sell, score: m.volRatio * 10 };
 }
 
-function breakout3(m: ReturnType<typeof metrics>): Signal | null {
+function breakout3(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
   if (m.d5 == null || m.d20 == null) return null;
   // 量比设上限：超过 5 倍是天量，多半是出货，不接
   if (m.volRatio < 1.8 || m.volRatio > 5) return null;
@@ -228,20 +228,20 @@ function breakout3(m: ReturnType<typeof metrics>): Signal | null {
   if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 20) return null;
   if (m.chg < 0 || m.chg > 7) return null;
   const buy = m.prev * 1.02;
-  const stop = m.prev;
+  const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
   return { buy, stop, sell, score: m.volRatio * 10 };
 }
 
-function breakout4(m: ReturnType<typeof metrics>): Signal | null {
+function breakout4(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
   if (m.d5 == null || m.d20 == null) return null;
   if (m.volRatio < 1.8 || m.volRatio > 5) return null;
   if (m.amountWan < 8000 || m.c < 4) return null;
   if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 10) return null;
   if (m.chg < 0 || m.chg > 7) return null;
   const buy = m.prev * 1.02;
-  const stop = m.prev;
+  const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
   return { buy, stop, sell, score: m.volRatio * 10 };
@@ -265,6 +265,31 @@ function reversal2(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
   const sell = buy * 1.09;
   if (!(stop < buy && buy < sell)) return null;
   return { buy, stop, sell, score: -m.d5 };
+}
+
+/**
+ * 中期反转：买 60 日里跌得最惨的一批，拿 10 天。
+ *
+ * 这是因子检验里唯一站得住的信号，不是拍脑袋想的：60 日涨幅分五档后，
+ * 未来 10 天的超额是 +0.63% / +0.30% / +0.22% / -0.16% / -0.38%（t=-2.81），
+ * 而且前半段 t=-3.80、后半段 t=-1.68，两段同号、档位都单调。
+ * 同期 5 日涨幅在两段里直接翻号（-2.35 / +1.11），那种就不能用。
+ *
+ * 注意它说的是「跌得多所以后面反弹得快」，不是「跌得多所以便宜」——别当成价值投资。
+ * 也正因为买的是连续下跌的票，退市风险、ST 风险会比别的策略高，
+ * 而回测的股票池里没有已退市的票，这部分风险在回测里是看不见的。
+ */
+function rebound(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  if (m.d60 == null) return null;
+  if (m.c < 4 || m.amountWan < 3000) return null;
+  // 挂单放在昨收上方 3%：跳空低开就按开盘价拿到（这正是因子检验里的买法），
+  // 高开超过 3% 就不追。刻意不设涨跌幅门槛，排名全交给 d60，少一个参数少一分过拟合。
+  const buy = m.prev * 1.03;
+  const stop = buy * (1 - (stopPct ?? Number(process.env.BT_RSTOP ?? 8)) / 100);
+  const sell = buy * (1 + Number(process.env.BT_RTARGET ?? 10) / 100);
+  if (!(stop < buy && buy < sell)) return null;
+  // d60 越小越优先
+  return { buy, stop, sell, score: -m.d60 };
 }
 
 /** 更严的一版：除了收阳，还要求当天最低价没有跌破前一日最低价（真正企稳），且缩量更狠。 */
@@ -293,11 +318,23 @@ const STRATEGIES = {
   bk2: { label: "突破·早期版", fn: breakout2 },
   bk3: { label: "突破·排天量", fn: breakout3 },
   bk4: { label: "突破·早期+排天量", fn: breakout4 },
+  // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强
+  rebound: { label: "中期反转", fn: rebound, hold: 10 },
 } as const;
 
 type StyleKey = keyof typeof STRATEGIES;
 
-type Trade = { id: string; date: string; entry: number; exit: number; reason: string; ret: number; hold: number };
+type Trade = {
+  id: string;
+  date: string;
+  entry: number;
+  exit: number;
+  reason: string;
+  ret: number;
+  /** 同一时间段里，抽样池全体股票等权持有的收益。ret 减去它才是选股本身带来的。 */
+  bench: number;
+  hold: number;
+};
 
 async function main() {
   console.log("无前视回测：只用在 t 日收盘时已知的信息，t+1 日按限价单成交\n");
@@ -320,13 +357,23 @@ async function main() {
       if (/^(sh|sz)\d{6}$/.test(s)) ids.push(s);
     }
   }
-  // 等距抽样，覆盖各个代码段
+  // 等距抽样，覆盖各个代码段。BT_OFFSET 换个起点就能拿到另一批互不重叠的票，
+  // 用来检查结论是不是只在这一批样本上成立。
   const step = Math.max(1, Math.floor(ids.length / SAMPLE));
-  const sample = ids.filter((_, i) => i % step === 0).slice(0, SAMPLE);
+  const offset = Number(process.env.BT_OFFSET ?? 0);
+  const sample = ids.filter((_, i) => (i + offset) % step === 0).slice(0, SAMPLE);
   console.log(`股票池 ${ids.length} 只，抽样 ${sample.length} 只\n`);
 
   const klines = await loadKlines(sample);
   console.log(`取到日线 ${klines.size} 只\n`);
+
+  // 日期 -> 该票在自己数组里的下标。主循环里天天 findIndex 太慢，顺手也为了算基准。
+  const idxOf = new Map<string, Map<string, number>>();
+  for (const [id, rows] of klines) {
+    const map = new Map<string, number>();
+    rows.forEach((row, i) => map.set(row.date, i));
+    idxOf.set(id, map);
+  }
 
   const bench = await fetchKline("sh000300", true);
   const benchStart = bench.length > LOOKBACK ? bench[bench.length - LOOKBACK].c : null;
@@ -340,8 +387,42 @@ async function main() {
   const startDate = dates[startIdx] ?? "";
   console.log(`回测区间 ${startDate} ~ ${endDate}（${dates.length - startIdx} 个交易日）\n`);
 
+  // 同期「抽样池全体等权」的日收益。沪深 300 只能说明大盘怎么样，说明不了
+  // 这批活跃票本身涨没涨。有了它，每笔交易都能算出「同一时间随便买一只的平均结果」，
+  // 两者相减才是选股挑出来的那部分。
+  const uniRet = new Float64Array(dates.length);
+  for (let i = 1; i < dates.length; i += 1) {
+    let sum = 0;
+    let n = 0;
+    for (const [id, rows] of klines) {
+      const pos = idxOf.get(id);
+      if (!pos) continue;
+      const a = pos.get(dates[i - 1]);
+      const b = pos.get(dates[i]);
+      if (a == null || b == null) continue;
+      const from = rows[a].c;
+      const to = rows[b].c;
+      if (from > 0 && to > 0) {
+        sum += to / from - 1;
+        n += 1;
+      }
+    }
+    uniRet[i] = n > 0 ? sum / n : 0;
+  }
+  const datePos = new Map<string, number>();
+  dates.forEach((d, i) => datePos.set(d, i));
+  /** 从入场那天到出场那天，全池等权能拿到的收益。 */
+  function benchOver(fromIdx: number, toIdx: number): number {
+    let acc = 1;
+    for (let i = fromIdx + 1; i <= toIdx && i < uniRet.length; i += 1) acc *= 1 + uniRet[i];
+    return acc - 1;
+  }
+
   // 环境总闸：沪深 300 在 20 日均线下方时，认为逆风，当天不开新仓
   const useFilter = process.env.BT_FILTER === "1";
+  // 入场撮合口径，三选一；默认 b（跳空按开盘价成交）
+  const fillMode = process.env.BT_FILL ?? "b";
+  let fillStats = { gap: 0, belowStop: 0 };
   function bullishAt(date: string): boolean {
     const i = bench.findIndex((r) => r.date === date);
     if (i < 20) return false;
@@ -352,6 +433,7 @@ async function main() {
   function runPass(stopPct?: number): Record<string, Trade[]> {
   const results: Record<string, Trade[]> = {};
   for (const key of Object.keys(STRATEGIES)) results[key] = [];
+  const stats = { gap: 0, belowStop: 0 };
 
   // 样本外验证：把区间劈成前后两段分别跑，看参数是不是只在这段数据上好看
   const half = process.env.BT_HALF;
@@ -366,7 +448,7 @@ async function main() {
 
     for (const [id, rows] of klines) {
       // 找到这只票在第 t 天的位置：只能用 <= t 的数据
-      const idx = rows.findIndex((r) => r.date === dates[t]);
+      const idx = idxOf.get(id)?.get(dates[t]) ?? -1;
       if (idx < 61) continue;
       const m = metrics(rows, idx);
       for (const [key, def] of Object.entries(STRATEGIES)) {
@@ -380,43 +462,72 @@ async function main() {
       for (const pick of list.slice(0, MAX_POSITIONS)) {
         const rows = klines.get(pick.id);
         if (!rows) continue;
-        const nextIdx = rows.findIndex((r) => r.date === dates[t + 1]);
+        const nextIdx = idxOf.get(pick.id)?.get(dates[t + 1]) ?? -1;
         if (nextIdx < 0) continue;
         const bar = rows[nextIdx];
-        // 限价单：当天最低价碰到买入价才成交，成交价按买入价算
-        if (bar.l > pick.sig.buy) continue;
+        // 限价单撮合。挂在 P，第二天只有两种成交方式：
+        //   开盘价就不高于 P —— 开盘那一刻直接成交，拿到的是开盘价（比挂单价好）
+        //   盘中最低价碰到 P —— 按 P 成交
+        // 只判断「最低价碰到」会把跳空低开、全天没回到 P 上方的票记成「在 P 成交」，
+        // 而那个价位当天压根没出现过。用 BT_FILL 对比三种口径：
+        //   a = 老口径（一律按挂单价，偏保守，会凭空多付钱）
+        //   b = 真实口径（跳空按开盘价成交）  ← 默认
+        //   c = 只认「当天确实在挂单价上方成交过」的，跳空的那批直接不算
+        const open = bar.o > 0 ? bar.o : null;
+        let entry: number | null = null;
+        if (fillMode === "a") {
+          if (bar.l <= pick.sig.buy) entry = pick.sig.buy;
+        } else if (fillMode === "b") {
+          if (open != null && open <= pick.sig.buy) entry = open;
+          else if (bar.l <= pick.sig.buy) entry = pick.sig.buy;
+        } else if (bar.l <= pick.sig.buy && (bar.h <= 0 || bar.h >= pick.sig.buy)) {
+          entry = pick.sig.buy;
+        }
+        if (entry == null) continue;
+        // 跳空把价格直接开到止损下方：买是买到了，但拿到手的价已经在止损下面，
+        // 这不是策略设想的那笔交易（止损会立刻被打掉，价格没法确定），干脆不算。
+        if (entry <= pick.sig.stop) {
+          stats.belowStop += 1;
+          continue;
+        }
+        if (open != null && open <= pick.sig.buy) stats.gap += 1;
         // 涨跌停幅度要按代码分：创业板和科创板是 20%，写死 10% 的话它们
         // 一次正常回调就会被当成「跌停封死卖不掉」跳过。
         const fill = exitFill(
           rows as Bar[],
           bar.date,
-          pick.sig.buy,
+          entry,
           pick.sig.stop,
           pick.sig.sell,
           boardLimit(pick.id, ""),
+          // 中期反转拿 10 天，其余沿用 8 天的老规矩
+          key === "rebound" ? 10 : undefined,
         );
         if (!fill) continue;
-        const ret = (fill.price - pick.sig.buy) / pick.sig.buy - FEE;
-        const hold = rows.findIndex((r) => r.date === fill.date) - nextIdx;
+        const ret = (fill.price - entry) / entry - FEE;
+        const exitIdx = idxOf.get(pick.id)?.get(fill.date) ?? -1;
+        const hold = exitIdx - nextIdx;
         results[key].push({
           id: pick.id,
           date: bar.date,
-          entry: pick.sig.buy,
+          entry,
           exit: fill.price,
           reason: fill.reason,
           ret,
+          bench: benchOver(t + 1, datePos.get(fill.date) ?? t + 1),
           hold,
         });
       }
     }
   }
+  fillStats = stats;
   return results;
   }
 
   function report(results: Record<string, Trade[]>, title: string) {
   console.log(title);
-  console.log("策略            笔数   胜率    平均收益   累计收益   平均持有  最大连亏");
-  console.log("-".repeat(76));
+  console.log("策略            笔数   胜率   平均收益   同期全池    超额    t值   跑赢   平均持有  最大连亏");
+  console.log("-".repeat(100));
   for (const [key, def] of Object.entries(STRATEGIES)) {
     const trades = results[key];
     if (trades.length === 0) {
@@ -426,6 +537,18 @@ async function main() {
     const wins = trades.filter((t) => t.ret > 0).length;
     const sum = trades.reduce((s, t) => s + t.ret, 0);
     const avg = sum / trades.length;
+    // 同期全池等权：这些票本来就在动，减掉它才是选股挑出来的那部分
+    const benchAvg = trades.reduce((s, t) => s + t.bench, 0) / trades.length;
+    const alpha = avg - benchAvg;
+    // 单笔超额波动很大，光看均值会自己骗自己。算个 t 值：
+    // |t| 不到 2 就说明这点超额和 0 分不开，等于没测出来。
+    const spread =
+      trades.length > 1
+        ? Math.sqrt(
+            trades.reduce((s, t) => s + (t.ret - t.bench - alpha) ** 2, 0) / (trades.length - 1),
+          )
+        : 0;
+    const tStat = spread > 0 ? alpha / (spread / Math.sqrt(trades.length)) : 0;
     const hold = trades.reduce((s, t) => s + t.hold, 0) / trades.length;
     let streak = 0;
     let worst = 0;
@@ -440,12 +563,15 @@ async function main() {
         String(trades.length).padEnd(6) +
         `${((wins / trades.length) * 100).toFixed(0)}%`.padEnd(7) +
         `${(avg * 100).toFixed(2)}%`.padStart(8) +
-        `${(sum * 100).toFixed(1)}%`.padStart(11) +
+        `${(benchAvg * 100).toFixed(2)}%`.padStart(10) +
+        `${(alpha >= 0 ? "+" : "") + (alpha * 100).toFixed(2)}%`.padStart(9) +
+        tStat.toFixed(2).padStart(7) +
+        `${((trades.filter((t) => t.ret > t.bench).length / trades.length) * 100).toFixed(0)}%`.padStart(7) +
         `${hold.toFixed(1)} 天`.padStart(10) +
         String(worst).padStart(9),
     );
   }
-  console.log("-".repeat(76));
+  console.log("-".repeat(100));
   }
 
   /**
@@ -468,6 +594,94 @@ async function main() {
   console.log(`  ${STRATEGIES[key].label.padEnd(12)} ${parts.join("  ·  ")}`);
   }
 
+  /**
+   * 因子检验。调策略的参数是没用的，先把最原始的问题问清楚：
+   * 某个量价指标高的票，未来几天是不是真的走得更好？
+   * 每天收盘把全部股票按因子从低到高排成五档，次日开盘等权买入、持有 N 天按收盘卖，
+   * 收益减掉同期全池，剩下的才是这个因子挑出来的东西。
+   * t 值按「每天一个最高档减最低档」算，这样不会被某几天的暴涨暴跌带偏。
+   */
+  if (process.env.BT_FACTOR === "1") {
+    const N = Number(process.env.BT_N ?? 3);
+    const getters: { name: string; get: (m: ReturnType<typeof metrics>) => number | null }[] = [
+      { name: "当日涨幅", get: (m) => m.chg },
+      { name: "5日涨幅", get: (m) => m.d5 },
+      { name: "20日涨幅", get: (m) => m.d20 },
+      { name: "60日涨幅", get: (m) => m.d60 },
+      { name: "量比", get: (m) => m.volRatio },
+      { name: "量能萎缩", get: (m) => m.volShrink },
+      { name: "成交额", get: (m) => m.amountWan },
+      { name: "股价", get: (m) => m.c },
+    ];
+    // 每天一份：[各因子取值, 未来 N 天超额]
+    const daily: { vals: (number | null)[]; ex: number }[][] = [];
+    // 前后半段分开跑：只在其中一段好看的因子，多半是那段行情碰巧
+    const half = process.env.BT_HALF;
+    const mid = Math.floor((startIdx + dates.length - 2) / 2);
+    const from = half === "second" ? mid : startIdx;
+    const to = half === "first" ? Math.min(mid, dates.length - N) : dates.length - N;
+    for (let t = from; t < to; t += 1) {
+      const today: { vals: (number | null)[]; ex: number }[] = [];
+      for (const [id, rows] of klines) {
+        const idx = idxOf.get(id)?.get(dates[t]);
+        if (idx == null || idx < 61) continue;
+        const nIdx = idxOf.get(id)?.get(dates[t + 1]);
+        const xIdx = idxOf.get(id)?.get(dates[t + N]);
+        if (nIdx == null || xIdx == null) continue;
+        // 信号是 t 日收盘才有的，最早只能次日开盘买
+        const inPrice = rows[nIdx].o;
+        const outPrice = rows[xIdx].c;
+        if (!(inPrice > 0) || !(outPrice > 0)) continue;
+        const m = metrics(rows, idx);
+        today.push({ vals: getters.map((g) => g.get(m)), ex: outPrice / inPrice - 1 - benchOver(t + 1, t + N) });
+      }
+      daily.push(today);
+    }
+    console.log(
+      `因子检验${half ? `（${half} 段）` : ""}：${daily.length} 个交易日 × 每天约 ${Math.round(daily.reduce((s, d) => s + d.length, 0) / Math.max(1, daily.length))} 只，` +
+        `t 日收盘排序，次日开盘买入、持有 ${N} 天后按收盘卖出\n`,
+    );
+    console.log("因子        最低档    第二档    第三档    第四档    最高档   最高-最低    t值");
+    console.log("-".repeat(84));
+    for (let f = 0; f < getters.length; f += 1) {
+      const sum = [0, 0, 0, 0, 0];
+      let days = 0;
+      const spreads: number[] = [];
+      for (const today of daily) {
+        const usable = today.filter((r) => r.vals[f] != null);
+        if (usable.length < 50) continue;
+        usable.sort((a, b) => (a.vals[f] as number) - (b.vals[f] as number));
+        const q = Math.floor(usable.length / 5);
+        const meanOf = (slice: { ex: number }[]) => slice.reduce((s, r) => s + r.ex, 0) / slice.length;
+        const low = usable.slice(0, q);
+        const high = usable.slice(usable.length - q);
+        for (let b = 0; b < 5; b += 1) {
+          const slice = usable.slice(b * q, b === 4 ? usable.length : (b + 1) * q);
+          if (slice.length > 0) sum[b] += meanOf(slice);
+        }
+        spreads.push(meanOf(high) - meanOf(low));
+        days += 1;
+      }
+      const each = sum.map((s) => s / Math.max(1, days));
+      const meanSpread = spreads.reduce((s, v) => s + v, 0) / Math.max(1, spreads.length);
+      const sd =
+        spreads.length > 1
+          ? Math.sqrt(spreads.reduce((s, v) => s + (v - meanSpread) ** 2, 0) / (spreads.length - 1))
+          : 0;
+      const tStat = sd > 0 ? meanSpread / (sd / Math.sqrt(spreads.length)) : 0;
+      const cells = each.map((v) => `${(v >= 0 ? "+" : "") + (v * 100).toFixed(2)}%`.padStart(9)).join("");
+      console.log(
+        getters[f].name.padEnd(10) +
+          cells +
+          `${(meanSpread >= 0 ? "+" : "") + (meanSpread * 100).toFixed(2)}%`.padStart(11) +
+          tStat.toFixed(2).padStart(8),
+      );
+    }
+    console.log("-".repeat(84));
+    console.log("\n注：这是等权、不含手续费的粗检；t 值不到 2 就等于这个因子没测出预测力。");
+    return;
+  }
+
   if (process.env.BT_SWEEP === "1") {
     console.log("止损幅度扫描（同一套选股条件，只改止损百分比）\n");
     for (const stopPct of [2, 3, 4, 5, 6]) {
@@ -482,6 +696,9 @@ async function main() {
     console.log("出场原因拆解：");
     for (const key of Object.keys(STRATEGIES)) breakdown(results, key);
     console.log("");
+    console.log(
+      `入场撮合（口径 ${fillMode}）：跳空低开成交 ${fillStats.gap} 笔，开在止损下方不算 ${fillStats.belowStop} 笔`,
+    );
     console.log(`同期沪深 300 买入持有：${(benchRet * 100).toFixed(1)}%（作为参照）`);
   }
   console.log("\n注：单笔收益率等权累加，不是复利；样本含幸存者偏差，实际会差一些。");
