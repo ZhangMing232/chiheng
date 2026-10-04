@@ -243,6 +243,7 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
   if (settleDue && phase.date) {
     let stillOpen = false;
     const due: string[] = [];
+    const stuck: string[] = [];
     for (const day of days) {
       for (const trade of day.trades) {
         if (trade.exit != null) continue;
@@ -259,7 +260,17 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
             trade.hold ?? 8,
           );
           if (!filled) {
+            // 结算不出来会一直挂着：占着名额、不进胜率，而且页面上看不出异常——
+            // 不抛异常，所以告警那套也不会响。多半是买入日不在这 120 根 K 线里
+            // （停牌很久、或者持仓比 K 线窗口还早）。打一条出来，别让它静悄悄烂在那。
             stillOpen = true;
+            const bars = data.bars;
+            const hasEntry = bars.some((bar) => bar.date === day.date);
+            stuck.push(
+              hasEntry
+                ? `${trade.name} ${day.date}（K 线里有这天，但算不出卖出价）`
+                : `${trade.name} ${day.date}（K 线里没有买入日这根，最早 ${bars[0]?.date ?? "无"}）`,
+            );
             continue;
           }
           trade.exit = filled.price;
@@ -294,6 +305,9 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     nextSettleAt = Date.now() + (stillOpen ? 30 * 60_000 : 12 * 60 * 60_000);
     changed = true;
     if (speak) notifyNames("到期该卖", due);
+    if (stuck.length > 0) {
+      console.log(`${time} 有 ${stuck.length} 笔结算不出来，会一直挂着：${stuck.slice(0, 5).join("；")}`);
+    }
   }
 
   if (changed) await writeUserBook(userId, { joinedAt: book.joinedAt, days, nextSettleAt });
