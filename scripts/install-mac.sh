@@ -11,9 +11,20 @@
 # 登录后启动赤轨。在项目目录执行：npm run install:mac
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-NODE="$(command -v node)"
 PLIST="$HOME/Library/LaunchAgents/com.chiheng.serve.plist"
-mkdir -p "$HOME/Library/LaunchAgents" "$ROOT/data"
+LOG="$HOME/Library/Logs/chiheng-launchd.log"
+mkdir -p "$HOME/Library/LaunchAgents" "$ROOT/data" "$HOME/Library/Logs"
+
+# 这份配置要能在**外置硬盘**上也跑得起来，所以有两处和常见的写法不一样：
+#
+# 1. 不写 WorkingDirectory。macOS 的隐私保护不让 launchd 进可移动磁盘，
+#    写了会直接报 "getcwd: ... Operation not permitted"，服务一次都起不来
+#    （job 退出码 78）。改由 start-mac.sh 自己 cd 到项目目录。
+# 2. ProgramArguments 指向 start-mac.sh 而不是直接跑 node。脚本里会先确认
+#    项目文件还在（硬盘插着），再决定要不要拉起，硬盘没插时安静退出。
+#
+# 日志放本机 ~/Library/Logs 而不是项目里：硬盘没插时 launchd 连日志文件都
+# 建不出来，job 会因为这个先失败。serve.log 由 start-mac.sh 自己往 data/ 写。
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -21,21 +32,21 @@ cat > "$PLIST" <<EOF
 <dict>
   <key>Label</key>
   <string>com.chiheng.serve</string>
-  <key>WorkingDirectory</key>
-  <string>${ROOT}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${NODE}</string>
-    <string>${ROOT}/scripts/home-server.mjs</string>
+    <string>/bin/bash</string>
+    <string>${ROOT}/scripts/start-mac.sh</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
   <key>StandardOutPath</key>
-  <string>${ROOT}/data/serve.log</string>
+  <string>${LOG}</string>
   <key>StandardErrorPath</key>
-  <string>${ROOT}/data/serve.log</string>
+  <string>${LOG}</string>
 </dict>
 </plist>
 EOF
@@ -53,7 +64,17 @@ for attempt in 1 2 3; do
   sleep 2
 done
 if [ "$installed" != 1 ]; then
-  echo "自启安装失败：launchctl bootstrap 三次都没成功。把上面整段输出发回来。" >&2
+  cat >&2 <<MSG
+自启安装失败：launchctl bootstrap 三次都没成功。
+
+这通常是因为执行 install-mac.sh 的那个进程本身没有注册登录服务的权限
+（比如从别的工具里间接调用的终端会话）。请自己开一个「终端」窗口，执行：
+
+  cd $(printf '%q' "$ROOT") && npm run install:mac
+
+如果还是不行，退一步手动保证服务可用：把「赤轨启动.app」加到
+系统设置 → 通用 → 登录项 里，登录时会拉起服务（但没有崩溃自动重启）。
+MSG
   exit 1
 fi
 echo "已安装。打开 http://127.0.0.1:8787"

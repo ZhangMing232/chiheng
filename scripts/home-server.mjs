@@ -40,23 +40,47 @@ function record() {
 record();
 const timer = setInterval(record, 60_000);
 
-const server = spawn(process.execPath, [entry], {
-  stdio: "inherit",
-  env: {
-    ...process.env,
-    PORT: port,
-    HOST: host,
-    NITRO_PORT: port,
-    NITRO_HOST: host,
-  },
-});
+/**
+ * 拉起真正的网页服务，并在它意外退出时再拉一次。
+ *
+ * 为什么要这层：服务进程会因为各种意料之外的原因没掉——有人（或某个清理动作）
+ * 给它发了停止信号、node 自己崩了、固件更新后进程被收走。没有这层，一次意外
+ * 之后 8787 就一直空着，盘中的记账也跟着停，而没人会知道。
+ * 外层只要还活着，就把它重新拉起来；跑稳超过一分钟就把失败计数清零，
+ * 免得一次偶发退出让退避时间越滚越长。
+ */
+let stopping = false;
+let failures = 0;
+
+function clock() {
+  return new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+}
+
+function spawnServer() {
+  const startedAt = Date.now();
+  const child = spawn(process.execPath, [entry], {
+    stdio: "inherit",
+    env: { ...process.env, PORT: port, HOST: host, NITRO_PORT: port, NITRO_HOST: host },
+  });
+  child.on("exit", (code, signal) => {
+    if (stopping) return;
+    failures = Date.now() - startedAt < 60_000 ? failures + 1 : 0;
+    const wait = Math.min(60, 5 * Math.max(1, failures));
+    const why = code != null ? `退出码 ${code}` : `信号 ${signal ?? "未知"}`;
+    console.log(`${clock()} 服务进程没了（${why}），${wait} 秒后重新拉起`);
+    setTimeout(spawnServer, wait * 1000);
+  });
+  return child;
+}
+
+let server = spawnServer();
 
 function shutdown() {
+  stopping = true;
   clearInterval(timer);
   server.kill("SIGTERM");
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-server.on("exit", (code) => process.exit(code ?? 0));
 
 console.log(`赤轨在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);
