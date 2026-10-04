@@ -100,3 +100,20 @@ test("只认自己这一套，别的套不影响名额", () => {
   assert.equal(daySlotsLeft(today, "value"), MAX_POSITIONS);
   assert.equal(daySlotsLeft(today, "trend"), 0);
 });
+
+test("另一套策略还在持有的票，这套不再买第二遍", () => {
+  // 钱是同一个账户出的。一只票手上已经有了，换套策略再买一遍等于双倍下注，
+  // 而且两笔的止损和目标各不相同，事后算不清是哪套挣的。
+  const heldBreakout = [trade("sz0001", "breakout")];
+  assert.deepEqual(ids(takeBuys([row("sz0001"), row("sz0002")], heldBreakout, "value", [])), ["sz0002"]);
+});
+
+test("那笔卖出之后，别的策略可以重新买它", () => {
+  const soldByBreakout = [trade("sz0001", "breakout", 11)];
+  assert.deepEqual(ids(takeBuys([row("sz0001")], soldByBreakout, "value", [])), ["sz0001"]);
+});
+
+test("同套内部仍然排重，这条不能因为上面的改动丢了", () => {
+  const sameStyle = [trade("sz0001", "value")];
+  assert.deepEqual(ids(takeBuys([row("sz0001"), row("sz0002")], sameStyle, "value", [])), ["sz0002"]);
+});

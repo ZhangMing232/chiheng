@@ -15,7 +15,7 @@ import { drawPicksPoster } from "@/lib/market/page-posters";
 import { nowAction } from "@/lib/market/action";
 import { MAX_POSITIONS, STYLES, styleOf } from "@/lib/market/strategies";
 import { TRACK_NEED, limitTag, planExit } from "@/lib/market/model";
-import { liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
+import { dayReliable, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
@@ -124,15 +124,22 @@ export function Picks({
         indexRet: day.indexEntry && day.indexExit ? day.indexExit / day.indexEntry - 1 : null,
       })),
   );
-  const wins = closed.filter((trade) => trade.ret != null && trade.ret > 0).length;
-  const counted = closed.filter((trade) => trade.ruleVersion === rules.version);
-  const countedDays = days.filter((day) => (day.ruleVersion ?? 1) === rules.version).length;
+  // 收盘之后才记下来的那天不算成绩。那种价格是拿休市后的快照倒推的，盘中究竟
+  // 有没有打到过买入价、几点打到的，事后无从得知，把它算进胜率和累计收益
+  // 等于凭空造业绩。（本机 2026-09-29 那天是 23:48 补记的，29 笔。）
+  // 持仓列表照常显示——那几笔确实拿着，要看着处理，只是不进统计。
+  const scored = closed.filter((trade) => dayReliable({ signalTime: trade.signalTime }));
+  const wins = scored.filter((trade) => trade.ret != null && trade.ret > 0).length;
+  const counted = scored.filter((trade) => trade.ruleVersion === rules.version);
+  const countedDays = days.filter(
+    (day) => (day.ruleVersion ?? 1) === rules.version && dayReliable({ signalTime: day.signalTime ?? "" }),
+  ).length;
   const ordered = counted
     .filter((trade) => trade.ret != null)
     .sort((a, b) => (a.exitDate ?? "").localeCompare(b.exitDate ?? ""))
     .map((trade) => trade.ret!);
   const gate = liveGate(countedDays, counted, ordered, rules);
-  const cum = closed.reduce((sum, trade) => sum + (trade.ret ?? 0), 0);
+  const cum = scored.reduce((sum, trade) => sum + (trade.ret ?? 0), 0);
   const indexRows = counted.filter((trade) => trade.indexRet != null);
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
   const featured = picks;
@@ -328,18 +335,18 @@ export function Picks({
         <summary className="flex cursor-pointer list-none items-baseline justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
           <span className="font-semibold">历史</span>
           <span className="text-sm tabular-nums text-muted">
-            {closed.length === 0 ? "还没有卖出" : `上涨 ${((wins / closed.length) * 100).toFixed(2)}% · ${days.length} 天`}
+            {scored.length === 0 ? "还没有卖出" : `上涨 ${((wins / scored.length) * 100).toFixed(2)}% · ${days.length} 天`}
           </span>
         </summary>
         <div className="grid grid-cols-4 border-t border-line">
           <div className="px-4 py-3">
             <div className="text-xs text-muted">上涨占比</div>
-            <div className="mt-1 text-lg font-semibold tabular-nums">{closed.length === 0 ? "—" : `${((wins / closed.length) * 100).toFixed(2)}%`}</div>
+            <div className="mt-1 text-lg font-semibold tabular-nums">{scored.length === 0 ? "—" : `${((wins / scored.length) * 100).toFixed(2)}%`}</div>
           </div>
           <div className="border-l border-line px-4 py-3">
             <div className="text-xs text-muted">累计收益</div>
-            <div className={"mt-1 text-lg font-semibold tabular-nums " + toneClass(closed.length ? cum * 100 : null)}>
-              {closed.length === 0 ? "—" : signedPct(cum * 100)}
+            <div className={"mt-1 text-lg font-semibold tabular-nums " + toneClass(scored.length ? cum * 100 : null)}>
+              {scored.length === 0 ? "—" : signedPct(cum * 100)}
             </div>
           </div>
           <div className="border-l border-line px-4 py-3">

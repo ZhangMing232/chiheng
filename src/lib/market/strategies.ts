@@ -251,7 +251,7 @@ export function watchList(
 
 /**
  * 从观察名单里挑出现在该记入的买单。
- * 条件：现价已经 hit、不是涨停、这套里已经持有的不再重复买、当天的名额还够。
+ * 条件：现价已经 hit、不是涨停、手上已经有的不再重复买、当天的名额还够。
  * dayTrades 是「这一天」已经记下的成交，用来算当天还剩几个名额；
  * held 是所有还没卖出的成交，用来排重——同一只已经在手上就只在最早那笔，不再开第二笔。
  */
@@ -261,7 +261,11 @@ export function takeBuys(
   style: StyleId,
   dayTrades: { style?: string }[],
 ): Listed[] {
-  const openIds = new Set(held.filter((trade) => trade.exit == null && styleOf(trade) === style).map((trade) => trade.id));
+  // 这里刻意不按 style 过滤：钱是同一个账户出的，一只票手上已经有了，
+  // 换一套策略再买一遍等于在同一只票上双倍下注，风险集中而且事后没法归因
+  // ——两笔的止损和目标各不相同，收益算不清是哪套挣的。
+  // 名额（每套 10 个）仍然分开设，daySlotsLeft 那边还是按 style 数。
+  const openIds = new Set(held.filter((trade) => trade.exit == null).map((trade) => trade.id));
   // 名单自己也可能把同一只股票列两次（接力按概念板块提名，一只票可能同属几个板块），
   // 只认第一次出现的那行，以最先的为准。
   const seen = new Set<string>();

@@ -6,7 +6,7 @@
  * 现在没开注册，这台电脑用的用户是 dev-user。
  * 以前的 data/journal.json 只会复制到 dev-user 一次。新用户从加入当天记空账，不会继承旧成交。
  */
-import { mkdir, open, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { shanghaiDate } from "./session.ts";
 
@@ -75,14 +75,22 @@ export async function readUserBook<T>(userId: string): Promise<StoredBook<T>> {
 export async function writeUserBook<T>(userId: string, book: StoredBook<T>): Promise<void> {
   await mkdir(booksDir(), { recursive: true });
   const target = bookPath(userId);
-  const staged = `${target}.tmp`;
+  // 临时文件名字里带上 pid 和随机数。两个进程同时记账时（用户的 .app 自己拉起一份、
+  // launchd 又拉起一份，两者互不知情），固定名字会让它们往同一个文件里写，
+  // 两次写入长度不同时文件尾部会残留前一次的字节，读出来是坏 JSON，
+  // 而 readUserBook 遇到坏 JSON 会当成「没有账」——整本账就这么静默没了。
+  const staged = `${target}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   const handle = await open(staged, "w");
   try {
     await handle.writeFile(JSON.stringify(book, null, 2), "utf8");
     await handle.sync();
-  } finally {
-    await handle.close();
+  } catch (error) {
+    // 写了一半失败，别把这个半成品留在磁盘上占着名字。
+    await handle.close().catch(() => undefined);
+    await rm(staged, { force: true }).catch(() => undefined);
+    throw error;
   }
+  await handle.close();
   await rename(staged, target);
 }
 

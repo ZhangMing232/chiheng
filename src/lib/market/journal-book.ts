@@ -87,8 +87,8 @@ export function exitFill(
     // 收盘往往就在止损价下方，那么每次止损都会被当成跳空，亏多少全被记成
     // 「跌到收盘才卖」，系统性多算亏损。宁可保守，也不能凭空把账面做难看。
     if (low <= stop) {
-      const gapped = bar.o != null && bar.o > 0 && bar.o <= stop;
-      return { date: normDay(bar.date), price: gapped ? bar.o : stop, reason: "stop" };
+      const gapOpen = bar.o != null && bar.o > 0 && bar.o <= stop ? bar.o : null;
+      return { date: normDay(bar.date), price: gapOpen ?? stop, reason: "stop" };
     }
     if (high >= target) return { date: normDay(bar.date), price: target, reason: "target" };
     if ((last || forced) && bar.c > 0) return { date: normDay(bar.date), price: bar.c, reason: "time" };
