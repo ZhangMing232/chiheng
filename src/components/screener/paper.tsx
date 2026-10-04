@@ -78,7 +78,7 @@ export function Journal({
           stop: row.stop,
           target: row.sell,
           style,
-          hold: style === "relay" ? 1 : undefined,
+          hold: style === "relay" ? 1 : style === "rebound" ? 10 : undefined,
           exit: null,
           exitDate: null,
         });

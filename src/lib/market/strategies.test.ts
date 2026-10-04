@@ -8,7 +8,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daySlotsLeft, takeBuys, MAX_POSITIONS, type Listed } from "@/lib/market/strategies";
+import { daySlotsLeft, takeBuys, watchList, MAX_POSITIONS, type Listed } from "@/lib/market/strategies";
+import { DEFAULT_RULES } from "@/lib/market/rules";
 
 function quote(id: string, chg = 0) {
   return {
@@ -116,4 +117,36 @@ test("那笔卖出之后，别的策略可以重新买它", () => {
 test("同套内部仍然排重，这条不能因为上面的改动丢了", () => {
   const sameStyle = [trade("sz0001", "value")];
   assert.deepEqual(ids(takeBuys([row("sz0001"), row("sz0002")], sameStyle, "value", [])), ["sz0002"]);
+});
+
+const picks = (quotes: ReturnType<typeof quote>[]) => watchList(quotes, "rebound", DEFAULT_RULES, () => true);
+
+test("中期反转：60 日跌得多的排在前面", () => {
+  const deep = { ...quote("sz0001"), d60: -45 };
+  const shallow = { ...quote("sz0002"), d60: -12 };
+  assert.deepEqual(
+    picks([shallow, deep]).map((row) => row.quote.id),
+    ["sz0001", "sz0002"],
+  );
+});
+
+test("中期反转：按现价买，止损 -25%，目标 +20%", () => {
+  const list = picks([{ ...quote("sz0001"), d60: -30, price: 10 }]);
+  assert.equal(list.length, 1);
+  // 按现价买，不是挂一个更高的价等它回落——这套买的本来就是正在跌的票
+  assert.equal(list[0].buy, 10);
+  assert.equal(list[0].stop, 7.5);
+  assert.equal(list[0].sell, 12);
+});
+
+test("中期反转：ST、四元以下、四十亿以下都不进", () => {
+  assert.equal(picks([{ ...quote("sz0001"), d60: -30, st: true }]).length, 0);
+  assert.equal(picks([{ ...quote("sz0001"), d60: -30, price: 3.5 }]).length, 0);
+  assert.equal(picks([{ ...quote("sz0001"), d60: -30, cap: 20 }]).length, 0);
+});
+
+test("中期反转：涨过的票不进", () => {
+  assert.equal(picks([{ ...quote("sz0001"), d60: 8 }]).length, 1);
+  // 排名靠后而已，不是不能进；真正挡住它的是分数排序和每天十个名额
+  assert.ok(picks([{ ...quote("sz0001"), d60: 8 }])[0].score < picks([{ ...quote("sz0002"), d60: -20 }])[0].score);
 });

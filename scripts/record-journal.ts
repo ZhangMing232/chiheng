@@ -34,7 +34,7 @@ type Trade = {
   entry: number;
   stop?: number;
   target?: number;
-  style?: "early" | "trend" | "breakout" | "value" | "relay";
+  style?: "early" | "trend" | "breakout" | "value" | "relay" | "rebound";
   hold?: number;
   exit: number | null;
   exitDate: string | null;
@@ -171,7 +171,8 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           stop: row.stop,
           target: row.sell,
           style,
-          hold: style === "relay" ? 1 : undefined,
+          // 中期反转要拿满 10 个交易日，别的（除了次日补涨的 1 天）沿用 8 天
+          hold: style === "relay" ? 1 : style === "rebound" ? 10 : undefined,
           exit: null,
           exitDate: null,
         };

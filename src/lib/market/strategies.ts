@@ -12,7 +12,7 @@ import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
 
 /** 五套策略的内部编号。页面上的中文名在 STYLES 里。 */
-export type StyleId = "early" | "trend" | "breakout" | "value" | "relay";
+export type StyleId = "early" | "trend" | "breakout" | "value" | "relay" | "rebound";
 
 /**
  * 一只股票在某一套策略下的计划价。
@@ -50,6 +50,11 @@ export const STYLES: { id: StyleId; name: string; hint: string }[] = [
     // 已经不到 15 倍的，折完就是现价，等于按市价买；15 到 18 倍的要等股价
     // 回落到 15 倍才成交（16 倍得跌 6%，18 倍得跌 17%），短线里很少走到。
     hint: "市盈率不超过 18 倍、市净率不超过 2 倍。不到 15 倍的按现价买；15 到 18 倍的要等回落到 15 倍才买得上，盘中很少走到。目标 22 倍、止损 10 倍，两头都夹住。",
+  },
+  {
+    id: "rebound",
+    name: "中期反转",
+    hint: "60 日里跌得最惨的十只，按现价买，拿满 10 个交易日卖。不设贴身止损——止损会把反弹切短。",
   },
   {
     id: "relay",
@@ -190,20 +195,70 @@ function valueOrder(quote: Quote): Order | null {
   };
 }
 
-/** 五套策略的固定顺序。页面上的标签就按这个排。 */
-export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "relay"];
 /**
- * 真正还会买进账的是这几套。另外两套（趋势回踩、启动前期）在一年无前视
- * 回测里平均单笔亏近 1%（296 只 × 250 个交易日），留着只会越买越亏，
- * 所以只留在页面上看，不再自动建仓。
+ * 中期反转。60 日里跌得最惨的十只，按现价买，拿满 10 个交易日。
+ *
+ * 这是目前唯一测出阿尔法的一套，用的是同一台回测机器跑出来的数：
+ * 60 日涨幅分五档后，未来 10 天的超额是 +0.63% / +0.30% / +0.22% / -0.16% / -0.38%，
+ * t=-2.81，而且前半段 t=-3.80、后半段 t=-1.68，两段同号；换一批完全不重叠的股票
+ * 再跑一遍是 +1.02%（t=4.91），和原来那批的 +1.03% 几乎一样。
+ * 作为对照，放量突破的超额是 +0.01%（t=0.03），等于没有。
+ *
+ * 三个刻意的选择，改之前先看懂：
+ * 1. 按现价买，不挂限价单。这套买的就是连续下跌的票，等它回到某个更高价位没有任何道理。
+ * 2. 止损放到 -25%，不是常见的 -5%。回测里 -8% 止损的超额是 -0.02%（t=-0.13），
+ *    不设止损是 +1.03%（t=5.06）——止损把这批高波动票的反弹整齐地切在了前夜。
+ *    -25% 只用来挡崩塌式下跌，实测超额 +0.96%，几乎不损失收益。
+ * 3. 拿满 10 天。8 天时因子信号还没走完。
+ *
+ * 这套买的是连续下跌的票，退市和 ST 的风险明显高于别的策略。tradable 已经挡掉
+ * ST、4 元以下、40 亿以下和贴着涨跌停的，但回测的股票池里没有已退市的票，
+ * 这部分风险在回测数字里是看不见的，真实结果会比上面的数差。
  */
-export const ACTIVE_STYLES: StyleId[] = ["breakout", "value", "relay"];
+function reboundOrder(quote: Quote): Order | null {
+  if (!tradable(quote) || quote.d60 == null) return null;
+  if (quote.amount < 3000) return null;
+  const buy = round2(quote.price);
+  const stop = round2(buy * 0.75);
+  const sell = round2(buy * 1.2);
+  if (!(stop < buy && buy < sell)) return null;
+  return {
+    // d60 越小越优先：跌 40% 的排在跌 10% 的前面
+    score: Math.round(-quote.d60),
+    reasons: [`60 日 ${quote.d60.toFixed(1)}%`, "跌得多的后面弹得快", "按现价买，拿满 10 天"],
+    buy,
+    sell,
+    stop,
+    hit: true,
+  };
+}
+
+/** 五套策略的固定顺序。页面上的标签就按这个排。 */
+export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "relay", "rebound"];
+/**
+ * 真正还会买进账的是这几套。
+ *
+ * 趋势回踩、启动前期在一年无前视回测里扣掉同期全池后是负的（-0.13%、-0.18%），
+ * 留着只会越买越亏，所以只留在页面上看，不再自动建仓。
+ * 放量突破也一并留着：它的超额是 +0.01%（t=0.03），换一批股票再跑是 -0.15%，
+ * 说白了赚的是这批活跃票本身的贝塔，不是选股挑出来的。先不动它，
+ * 等中期反转跑够一段时间有了实盘数字，再决定去留。
+ */
+export const ACTIVE_STYLES: StyleId[] = ["breakout", "value", "relay", "rebound"];
 /** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;
 
 /** 一笔成交属于哪一套。旧账上没有这五套之一的名字时返回空，不塞进任何一套。 */
 export function styleOf(trade: { style?: string }): StyleId | null {
-  if (trade.style === "early" || trade.style === "trend" || trade.style === "breakout" || trade.style === "value" || trade.style === "relay") return trade.style;
+  if (
+    trade.style === "early" ||
+    trade.style === "trend" ||
+    trade.style === "breakout" ||
+    trade.style === "value" ||
+    trade.style === "relay" ||
+    trade.style === "rebound"
+  )
+    return trade.style;
   return null;
 }
 
@@ -306,5 +361,6 @@ export function quoteOrder(style: StyleId, quote: Quote, rules: EarlyRules): Ord
   if (style === "trend") return trendOrder(quote);
   if (style === "breakout") return breakoutOrder(quote);
   if (style === "value") return valueOrder(quote);
+  if (style === "rebound") return reboundOrder(quote);
   return earlyOrder(quote, rules);
 }

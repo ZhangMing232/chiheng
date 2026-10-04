@@ -322,8 +322,6 @@ const STRATEGIES = {
   rebound: { label: "中期反转", fn: rebound, hold: 10 },
 } as const;
 
-type StyleKey = keyof typeof STRATEGIES;
-
 type Trade = {
   id: string;
   date: string;

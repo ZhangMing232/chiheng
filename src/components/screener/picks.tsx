@@ -66,12 +66,12 @@ export function Picks({
   serverDays: PaperDay[];
   personal: boolean;
   rules: EarlyRules;
-  style: "early" | "trend" | "breakout" | "value" | "relay";
+  style: "early" | "trend" | "breakout" | "value" | "relay" | "rebound";
   benchmark: { name: string; price: number; pct: number } | null;
   marketOpen: boolean;
   tailHalf: boolean;
   pause: string;
-  onStyle: (style: "early" | "trend" | "breakout" | "value" | "relay") => void;
+  onStyle: (style: "early" | "trend" | "breakout" | "value" | "relay" | "rebound") => void;
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
@@ -199,7 +199,14 @@ export function Picks({
         <div className="flex items-baseline justify-between gap-3 px-4 py-3">
           <h2 className="text-base font-semibold">精选 {featured.length}</h2>
           <span className="text-xs text-muted">
-            {dayLabel(date)} · {preview ? "14:30 前是预览" : style === "relay" ? "14:30 已冻结" : "打到买入价才追踪"}
+            {dayLabel(date)} ·{" "}
+            {preview
+              ? "14:30 前是预览"
+              : style === "relay"
+                ? "14:30 已冻结"
+                : style === "rebound"
+                  ? "按现价买，拿满 10 个交易日"
+                  : "打到买入价才追踪"}
           </span>
         </div>
         {featured.length === 0 ? (

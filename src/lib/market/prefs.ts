@@ -19,7 +19,7 @@ export type Prefs = {
 
 export const DEFAULT_PREFS: Prefs = { style: "early", board: "all", price: "all", cap: "all" };
 
-const STYLES: StyleId[] = ["early", "trend", "breakout", "value", "relay"];
+const STYLES: StyleId[] = ["early", "trend", "breakout", "value", "relay", "rebound"];
 
 /** 把前端传来的未知数据收成偏好。缺的字段用默认。某项写了但不在允许值里，返回 null。 */
 export function parsePrefs(data: unknown): Prefs | null {
