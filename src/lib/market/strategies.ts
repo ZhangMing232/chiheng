@@ -46,7 +46,10 @@ export const STYLES: { id: StyleId; name: string; hint: string }[] = [
   {
     id: "value",
     name: "低估值",
-    hint: "市盈率不超过 18 倍、市净率不超过 2 倍。买入价按市盈率 15 倍折，卖出价按 22 倍折。",
+    // 这句话要和 valueOrder 的实际行为对得上，别写成「按 15 倍折」就完了：
+    // 已经不到 15 倍的，折完就是现价，等于按市价买；15 到 18 倍的要等股价
+    // 回落到 15 倍才成交（16 倍得跌 6%，18 倍得跌 17%），短线里很少走到。
+    hint: "市盈率不超过 18 倍、市净率不超过 2 倍。不到 15 倍的按现价买；15 到 18 倍的要等回落到 15 倍才买得上，盘中很少走到。目标 22 倍、止损 10 倍，两头都夹住。",
   },
   {
     id: "relay",
@@ -166,6 +169,11 @@ function valueOrder(quote: Quote): Order | null {
   if (quote.pe > 18 || quote.pb > 2 || quote.cap < 100) return null;
   if (quote.d60 != null && quote.d60 < -25) return null;
   if (quote.amount < 3000) return null;
+  // 「按 15 倍买」分两种情形，别只看公式：
+  // 已经不到 15 倍的（min(pe,15) === pe），折完还是现价，等于市价单，现价一到就成交；
+  // 15 到 18 倍之间的，折完比现价低，要等股价跌到那个位置才成交——
+  // 16 倍得跌 6%、18 倍得跌 17%，短线里基本等不到。所以名义门槛 18 倍，
+  // 实际能进场的多半是 15 倍以内的那批。
   const buy = round2(quote.price * (Math.min(quote.pe, 15) / quote.pe));
   const entryPe = quote.pe * (buy / quote.price);
   // 目标夹在 +5% ~ +12%，止损夹在 -12% ~ -6%
