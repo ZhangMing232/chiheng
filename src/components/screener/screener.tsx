@@ -10,10 +10,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Detail } from "@/components/screener/detail";
 import { Journal } from "@/components/screener/paper";
+import { LabPanel } from "@/components/screener/lab-panel";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
 import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
+import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
@@ -135,6 +137,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const selected = quotes.find((quote) => quote.id === selectedId) ?? null;
   const selectedRow = ranked.find((row) => row.quote.id === selectedId);
   const indexTime = indices.find((item) => item.time)?.time;
+  const labReport = useMemo(() => buildLabReport(journal, rules), [journal, rules]);
 
   return (
     <Frame
@@ -164,6 +167,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         ) : null
       }
     >
+        <LabPanel report={labReport} />
         <Journal
           quotes={quotes}
           live={live}
