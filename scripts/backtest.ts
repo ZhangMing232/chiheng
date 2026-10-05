@@ -365,6 +365,29 @@ async function main() {
   const klines = await loadKlines(sample);
   console.log(`取到日线 ${klines.size} 只\n`);
 
+  // 线上 tradable 硬性要求总市值 40 亿以上，回测里没有市值字段（K 线不带），
+  // 所以要单独抓一份存在本地。BT_CAP=<亿> 可以把样本按市值卡一遍，
+  // 用来回答「这个效应是不是只在小票上，线上那个门槛会不会正好把它滤掉」。
+  // 口径的窟窿：这里用的是今天的市值，不是历史市值，多数票两年里量级没变，
+  // 只能当稳健性粗检，不能当精确结论。
+  const capFloor = Number(process.env.BT_CAP ?? 0);
+  if (capFloor > 0) {
+    let cap: Record<string, number> = {};
+    try {
+      cap = JSON.parse(await readFile(`${CACHE}/../cap.json`, "utf8")) as Record<string, number>;
+    } catch {
+      console.log("（没有 cap.json，跳过市值过滤。先跑 node 一遍抓市值的脚本。）");
+    }
+    let dropped = 0;
+    for (const id of [...klines.keys()]) {
+      const value = cap[id];
+      if (value != null && value >= capFloor) continue;
+      klines.delete(id);
+      dropped += 1;
+    }
+    console.log(`市值 ${capFloor} 亿以上：剩 ${klines.size} 只，滤掉 ${dropped} 只\n`);
+  }
+
   // 日期 -> 该票在自己数组里的下标。主循环里天天 findIndex 太慢，顺手也为了算基准。
   const idxOf = new Map<string, Map<string, number>>();
   for (const [id, rows] of klines) {
@@ -524,8 +547,8 @@ async function main() {
 
   function report(results: Record<string, Trade[]>, title: string) {
   console.log(title);
-  console.log("策略            笔数   胜率   平均收益   同期全池    超额    t值   跑赢   平均持有  最大连亏");
-  console.log("-".repeat(100));
+  console.log("策略            笔数   胜率   平均收益   同期全池    超额    t值   跑赢   平均持有  连亏天数  回撤");
+  console.log("-".repeat(110));
   for (const [key, def] of Object.entries(STRATEGIES)) {
     const trades = results[key];
     if (trades.length === 0) {
@@ -548,14 +571,14 @@ async function main() {
         : 0;
     const tStat = spread > 0 ? alpha / (spread / Math.sqrt(trades.length)) : 0;
     const hold = trades.reduce((s, t) => s + t.hold, 0) / trades.length;
+    // 连亏和回撤都按天算，和线上闸门同一口径
     let streak = 0;
     let worst = 0;
-    for (const t of trades) {
-      if (t.ret <= 0) {
-        streak += 1;
-        worst = Math.max(worst, streak);
-      } else streak = 0;
+    for (const value of byDay(trades)) {
+      streak = value <= 0 ? streak + 1 : 0;
+      if (streak > worst) worst = streak;
     }
+    const drawdown = drawdownByDay(trades);
     console.log(
       def.label.padEnd(14) +
         String(trades.length).padEnd(6) +
@@ -566,10 +589,97 @@ async function main() {
         tStat.toFixed(2).padStart(7) +
         `${((trades.filter((t) => t.ret > t.bench).length / trades.length) * 100).toFixed(0)}%`.padStart(7) +
         `${hold.toFixed(1)} 天`.padStart(10) +
-        String(worst).padStart(9),
+        String(worst).padStart(9) +
+        `${(drawdown * 100).toFixed(1)}%`.padStart(10),
     );
   }
-  console.log("-".repeat(100));
+  console.log("-".repeat(110));
+  }
+
+  /**
+   * 每天一个数：那天卖出的所有仓位，当天收益率的平均。
+   *
+   * 是「平均」不是「总和」——一天卖出十笔就等于十个满仓，可实际上它们是十个
+   * 等权的小仓位，组合的当日收益是它们的平均。之前按总和算，一天能算出 +244%，
+   * 净值一年冲到二十几倍，回撤动辄 80% 以上，闸门和停手线完全没法比。
+   */
+  function byDay(trades: Trade[]): number[] {
+    const bucket = new Map<string, { sum: number; n: number }>();
+    for (const t of trades) {
+      const row = bucket.get(t.date) ?? { sum: 0, n: 0 };
+      row.sum += t.ret;
+      row.n += 1;
+      bucket.set(t.date, row);
+    }
+    return [...bucket.values()].map((row) => row.sum / row.n);
+  }
+
+  /**
+   * 连亏几天的真实分布，直接从回测里数出来。
+   *
+   * 为什么要按天而不是按笔：同一天的十来个仓位是一起涨跌的，亏就一起亏。
+   * 按笔算的话，一次回调就是「连亏十几笔」，看着像策略崩了，其实只是那天行情不好。
+   */
+  function streakStats(trades: Trade[]) {
+    const days = byDay(trades);
+    if (days.length === 0) return "";
+    const streaks: number[] = [];
+    let streak = 0;
+    for (const value of days) {
+      streak = value <= 0 ? streak + 1 : 0;
+      streaks.push(streak);
+    }
+    const at = (n: number) => ((streaks.filter((s) => s >= n).length / streaks.length) * 100).toFixed(0);
+    return (
+      `连亏 ≥2 天 ${at(2)}% 的时间 · ≥3 天 ${at(3)}% · ≥5 天 ${at(5)}% · ≥8 天 ${at(8)}%` +
+      `（最长 ${Math.max(...streaks)} 天，共 ${days.length} 个有成交的日子）`
+    );
+  }
+
+  /**
+   * 按天复利出来的净值回撤，起点算 1。
+   * 每天的收益是那天仓位的平均值，所以这条曲线就是「等权组合」的净值，
+   * 回撤可以和平时的百分比直接比，也才能和停手线比。
+   */
+  function drawdownByDay(trades: Trade[]): number {
+    let equity = 1;
+    let peak = 1;
+    let worst = 0;
+    for (const value of byDay(trades)) {
+      equity *= 1 + value;
+      if (equity > peak) peak = equity;
+      if (peak > 0) worst = Math.max(worst, (peak - equity) / peak);
+    }
+    return worst;
+  }
+
+  /**
+   * 「最近 N 笔平均收益」低于某个线的比例。
+   *
+   * 这是纸面账上唯一算得准的景气指标。回撤算不准：账本不记仓位大小，每笔都
+   * 当满仓入账，十笔同日卖出的加起来等于十个满仓，净值和回撤都虚了好几倍
+   * （中期反转一年能算出 80% 以上的回撤）。「最近这些笔平均是赚是亏」不受
+   * 仓位假设影响，直接从每笔收益率就能看。
+   */
+  function recentMean(trades: Trade[], window = 20) {
+    let hits2 = 0;
+    let hits5 = 0;
+    let hits8 = 0;
+    let n = 0;
+    let sum = 0;
+    for (let i = 0; i < trades.length; i += 1) {
+      sum += trades[i].ret;
+      if (i >= window) sum -= trades[i - window].ret;
+      if (i < window - 1) continue;
+      const mean = sum / window;
+      n += 1;
+      if (mean < -0.02) hits2 += 1;
+      if (mean < -0.05) hits5 += 1;
+      if (mean < -0.08) hits8 += 1;
+    }
+    if (n === 0) return "";
+    const pct = (v: number) => ((v / n) * 100).toFixed(0);
+    return `最近 20 笔均值低于 -2% ${pct(hits2)}% 的时间 · -5% ${pct(hits5)}% · -8% ${pct(hits8)}%`;
   }
 
   /**
@@ -590,6 +700,10 @@ async function main() {
     parts.push(`${label[reason]} ${share.toFixed(0)}%（均 ${(avg * 100).toFixed(2)}%）`);
   }
   console.log(`  ${STRATEGIES[key].label.padEnd(12)} ${parts.join("  ·  ")}`);
+  const streak = streakStats(trades);
+  if (streak) console.log(`  ${" ".repeat(12)} ${streak}`);
+  const recent = recentMean(trades);
+  if (recent) console.log(`  ${" ".repeat(12)} ${recent}`);
   }
 
   /**

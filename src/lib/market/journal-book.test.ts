@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dayReliable, exitFill, liveGate, nthClose } from "@/lib/market/journal-book";
+import { dayReliable, dayReturns, exitFill, liveGate, losingStreak, nthClose, recentMean } from "@/lib/market/journal-book";
 
 type Bar = { date: string; h?: number; l?: number; c: number };
 
@@ -173,25 +173,55 @@ test("跌幅超过跌停板的暴跌不会被误判成跌停封死", () => {
   assert.equal(exitFill(rows, ENTRY, 10, 9.7, 11.5, 10, 8)?.date, "2026-03-03");
 });
 
-const GATE = { minDays: 0, minClosed: 0, maxDrawdownPct: 0, maxLosingStreak: 3 };
+const GATE = { minDays: 0, minClosed: 0, maxDrawdownPct: 8, maxLosingStreak: 3 };
 const win = 0.01;
 const lose = -0.01;
+/** 每天一笔，date 依次往后排。 */
+const eachDay = (values: number[]) => values.map((ret, i) => ({ date: `2026-01-${String(i + 1).padStart(2, "0")}`, ret }));
 
-test("连亏几笔算反常，要看这套策略平时亏多少", () => {
-  // 胜率五成：连亏 3 笔的概率有 13%，是家常便饭，不该拦
-  const half = [...Array.from({ length: 7 }, () => lose), ...Array.from({ length: 10 }, () => win), lose, lose, lose];
-  assert.equal(liveGate(0, [], half, GATE).ok, true);
-  // 同样是连亏 3 笔，胜率七成的策略概率只有 2.7%，那才叫反常
-  const mostly = [-0.01, 0.01, -0.01, 0.01, -0.01, 0.01, ...Array.from({ length: 11 }, () => win), lose, lose, lose];
+test("同一天亏好几笔，只算一天", () => {
+  // 一天里三笔都是亏的，但那是同一天的行情，不能数成连亏三天
+  const sameDay = [
+    { date: "2026-01-01", ret: lose },
+    { date: "2026-01-01", ret: lose },
+    { date: "2026-01-01", ret: lose },
+  ];
+  assert.deepEqual(dayReturns(sameDay), [-0.01]);
+  assert.equal(losingStreak(dayReturns(sameDay)), 1);
+});
+
+test("连亏几天算反常，要看这套策略平时亏多少天", () => {
+  // 四成交易日是亏的，连亏 3 天是常事，不该拦
+  const choppy = eachDay([
+    ...Array.from({ length: 6 }, () => win), ...Array.from({ length: 3 }, () => lose),
+    ...Array.from({ length: 6 }, () => win), ...Array.from({ length: 3 }, () => lose),
+    win, lose, lose, lose,
+  ]);
+  assert.equal(liveGate(0, [], choppy, GATE).ok, true);
+  // 亏的日子只有两成四，连亏 3 天就反常了
+  const mostly = eachDay([
+    ...Array.from({ length: 10 }, () => win), ...Array.from({ length: 2 }, () => lose),
+    ...Array.from({ length: 8 }, () => win), lose, win, lose, lose, lose,
+  ]);
   assert.equal(liveGate(0, [], mostly, GATE).ok, false);
 });
 
-test("样本不到 20 笔时，就按规则里写的那 3 笔卡", () => {
-  const short = [lose, win, lose, win, win, win, lose, lose, lose];
-  assert.equal(liveGate(0, [], short, GATE).ok, false);
+test("最近 20 笔平均亏过 8% 才停手", () => {
+  // 亏一天、赚一天交替，连亏天数只有 1，卡不住的只能是「最近 20 笔均值」这条。
+  // 每天两笔，亏日跌 loss、赚日涨 0.10，30 天共 60 笔，看最后 20 笔。
+  const zigzag = (loss: number) =>
+    eachDay(
+      Array.from({ length: 15 }, (_, i) => (i % 2 === 0 ? [loss, loss] : [0.1, 0.1])).flat(),
+    );
+  // 最后 20 笔平均 -5%，还没到 8% 那条线
+  assert.equal(liveGate(0, [], zigzag(-0.1), GATE).ok, true);
+  // 最后 20 笔平均 -10%，该停
+  assert.equal(liveGate(0, [], zigzag(-0.3), GATE).ok, false);
 });
 
-test("胜率五成的策略连亏到 5 笔，也要拦", () => {
-  const half = [...Array.from({ length: 5 }, () => lose), ...Array.from({ length: 15 }, () => win), ...Array.from({ length: 5 }, () => lose)];
-  assert.equal(liveGate(0, [], half, GATE).ok, false);
+test("最近 20 笔的均值只取最后 20 笔", () => {
+  const list = [...Array.from({ length: 30 }, () => 0.01), ...Array.from({ length: 20 }, () => -0.05)];
+  assert.ok(Math.abs(recentMean(list, 20)! + 0.05) < 1e-9, String(recentMean(list, 20)));
+  // 不足 20 笔不给结论，免得刚开张就被拦
+  assert.equal(recentMean([win, lose], 20), null);
 });

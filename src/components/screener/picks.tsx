@@ -15,7 +15,7 @@ import { drawPicksPoster } from "@/lib/market/page-posters";
 import { nowAction } from "@/lib/market/action";
 import { MAX_POSITIONS, STYLES, styleOf } from "@/lib/market/strategies";
 import { TRACK_NEED, limitTag, planExit } from "@/lib/market/model";
-import { dayReliable, liveGate, maxDrawdown, netReturn } from "@/lib/market/journal-book";
+import { dayReliable, liveGate, netReturn, recentMean } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
@@ -134,11 +134,13 @@ export function Picks({
   const countedDays = days.filter(
     (day) => (day.ruleVersion ?? 1) === rules.version && dayReliable({ signalTime: day.signalTime ?? "" }),
   ).length;
+  // 按出场日排好、每笔带上日子：闸门要按天汇总，同一天的仓位是一起涨跌的
   const ordered = counted
-    .filter((trade) => trade.ret != null)
+    .filter((trade) => trade.ret != null && trade.exitDate != null)
     .sort((a, b) => (a.exitDate ?? "").localeCompare(b.exitDate ?? ""))
-    .map((trade) => trade.ret!);
+    .map((trade) => ({ date: trade.exitDate!, ret: trade.ret! }));
   const gate = liveGate(countedDays, counted, ordered, rules);
+  const recent = recentMean(ordered.map((row) => row.ret), 20);
   const cum = scored.reduce((sum, trade) => sum + (trade.ret ?? 0), 0);
   const indexRows = counted.filter((trade) => trade.indexRet != null);
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
@@ -372,8 +374,10 @@ export function Picks({
             </div>
           </div>
           <div className="border-l border-line px-4 py-3">
-            <div className="text-xs text-muted">最大回撤</div>
-            <div className="mt-1 text-lg font-semibold tabular-nums">{ordered.length === 0 ? "—" : signedPct(-maxDrawdown(ordered) * 100)}</div>
+            <div className="text-xs text-muted">最近 20 笔均值</div>
+            <div className="mt-1 text-lg font-semibold tabular-nums">
+              {recent == null ? "—" : signedPct(recent * 100)}
+            </div>
           </div>
           <div className="border-l border-line px-4 py-3">
             <div className="text-xs text-muted">沪深300</div>

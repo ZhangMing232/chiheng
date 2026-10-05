@@ -112,54 +112,85 @@ export function nthClose(
   return null;
 }
 
-/** 把每笔收益率连加，看从高点回落最多多少。用来决定这版要不要停止新开仓。 */
-export function maxDrawdown(returns: number[]): number {
-  let peak = 0;
-  let equity = 0;
-  let worst = 0;
-  for (const value of returns) {
-    equity += value;
-    if (equity > peak) peak = equity;
-    worst = Math.max(worst, peak - equity);
+/**
+ * 同一天的收益先取平均，得到「这一天等权组合赚了多少」。
+ *
+ * 连亏和停手线都得按天看，不能按笔。同一天的十来个仓位是一起涨跌的，
+ * 亏就一起亏——按笔算的话一次回调就是「连亏十几笔」，看着像策略崩了，
+ * 其实只是那天行情不好。实测中期反转按笔算是连亏 ≥3 笔占 21% 的时间，
+ * 按天算是连亏 ≥3 天占 33%，两边都在天天误报。
+ */
+export function dayReturns(trades: { date: string; ret: number }[]): number[] {
+  const bucket = new Map<string, { sum: number; n: number }>();
+  for (const trade of trades) {
+    const row = bucket.get(trade.date) ?? { sum: 0, n: 0 };
+    row.sum += trade.ret;
+    row.n += 1;
+    bucket.set(trade.date, row);
   }
-  return worst;
+  return [...bucket.values()].map((row) => row.sum / row.n);
 }
 
-/** 从最近一笔往回数，连续亏了几笔。中间有一笔不亏就停。 */
-export function losingStreak(returns: number[]): number {
+/** 从最近一个日子往回数，连着亏了几天。中间有一天不亏就停。 */
+export function losingStreak(dayReturnsList: number[]): number {
   let streak = 0;
-  for (let index = returns.length - 1; index >= 0; index -= 1) {
-    if (returns[index] < 0) streak += 1;
+  for (let index = dayReturnsList.length - 1; index >= 0; index -= 1) {
+    if (dayReturnsList[index] < 0) streak += 1;
     else break;
   }
   return streak;
 }
 
-/** 真钱开关。天数和笔数不够、没跑赢指数、连亏或回撤过大，都不开。 */
+/** 最近 window 笔的平均收益。不够 window 笔返回 null。 */
+export function recentMean(returns: number[], window = 20): number | null {
+  if (returns.length < window || window <= 0) return null;
+  const tail = returns.slice(-window);
+  return tail.reduce((sum, value) => sum + value, 0) / window;
+}
+
+/**
+ * 真钱开关。天数和笔数不够、没跑赢指数、最近一段时间亏得反常，都不开。
+ *
+ * trades 要按出场日排好，每笔带 date 和 ret——按天汇总得靠 date。
+ *
+ * 两条停手线都刻意避开了「回撤」：纸面账不记仓位大小，每笔都按满仓入账，
+ * 十笔同日卖出的加起来等于十个满仓，净值一年能冲到二十几倍，算出来的回撤
+ * 动辄 80% 以上（中期反转实测 88.9%），而停手线是 8%，等于任何跑久一点的
+ * 策略都被永久停掉。改成两个算得准的量：
+ *   连亏几天——按天算，门槛按这套策略自己的亏损日比例反推
+ *   最近 20 笔平均收益——实测低于 -8% 的时间，中期反转只占 2%，其余策略 0%
+ */
 export function liveGate(
   days: number,
   closed: { ret: number | null; indexRet: number | null }[],
-  orderedReturns: number[],
+  trades: { date: string; ret: number }[],
   rules: Pick<EarlyRules, "minDays" | "minClosed" | "maxDrawdownPct" | "maxLosingStreak"> = DEFAULT_RULES,
 ): { ok: boolean; reason: string } {
-  const streak = losingStreak(orderedReturns);
-  // 「连亏几笔算反常」得看这套策略平时有多少笔是亏的，不能一刀切。
-  // 胜率五成的策略连亏三笔概率有 13%，按固定 3 笔卡它等于一周有五天在喊停；
-  // 胜率七成的策略连亏三笔才 2.7%，那才叫反常。
-  // 所以按它自己的亏损率反推：连亏这么多笔的概率不到 5% 才算异常，
-  // 算出来的门槛比规则里写的更严时才用规则里那个（规则是下限，不是上限）。
-  const losses = orderedReturns.filter((ret) => ret < 0).length;
-  const lossRate = orderedReturns.length >= 20 ? losses / orderedReturns.length : null;
+  const perTrade = trades.map((trade) => trade.ret);
+  const perDay = dayReturns(trades);
+  const streak = losingStreak(perDay);
+  // 「连亏几天算反常」得看这套策略平时有多少天是亏的，不能一刀切。
+  // 胜率五成的策略连亏三天是常事（实测中期反转 33% 的日子都处在连亏 3 天里），
+  // 胜率七成的策略连亏三天才少见。所以按它自己的亏损日比例反推：
+  // 连亏到这个天数、发生的概率不到 5% 才算异常。规则里写的是下限，不是上限。
+  const lossDays = perDay.filter((value) => value < 0).length;
+  const lossDayRate = perDay.length >= 20 ? lossDays / perDay.length : null;
   const natural =
-    lossRate != null && lossRate > 0 ? Math.ceil(Math.log(0.05) / Math.log(lossRate)) : 0;
+    lossDayRate != null && lossDayRate > 0 ? Math.ceil(Math.log(0.05) / Math.log(lossDayRate)) : 0;
   const streakLimit = Math.max(rules.maxLosingStreak, natural);
   if (rules.maxLosingStreak > 0 && streak >= streakLimit) {
-    const usual = lossRate == null ? "" : `（这套平时 ${Math.round(lossRate * 100)}% 是亏的，连亏 ${streakLimit} 笔以上才反常）`;
-    return { ok: false, reason: `这版已连续亏损 ${streak} 笔${usual}，先停止新开仓` };
+    const usual =
+      lossDayRate == null
+        ? ""
+        : `（这套平时 ${Math.round(lossDayRate * 100)}% 的交易日是亏的，连亏 ${streakLimit} 天以上才反常）`;
+    return { ok: false, reason: `这版已连续亏损 ${streak} 个交易日${usual}，先停止新开仓` };
   }
-  const drawdown = maxDrawdown(orderedReturns);
-  if (rules.maxDrawdownPct > 0 && orderedReturns.length >= 5 && drawdown > rules.maxDrawdownPct / 100) {
-    return { ok: false, reason: `这版回撤 ${(drawdown * 100).toFixed(1)}%，超过 ${rules.maxDrawdownPct}%，先停止新开仓` };
+  const recent = recentMean(perTrade, 20);
+  if (rules.maxDrawdownPct > 0 && recent != null && recent < -rules.maxDrawdownPct / 100) {
+    return {
+      ok: false,
+      reason: `最近 20 笔平均每笔 ${(recent * 100).toFixed(1)}%，超过 ${rules.maxDrawdownPct}%，先停止新开仓`,
+    };
   }
   if (rules.minDays > 0 && days < rules.minDays) return { ok: false, reason: `交易日记录 ${days}/${rules.minDays}` };
   const paired = closed.filter((trade) => trade.ret != null && trade.indexRet != null);
@@ -170,8 +201,8 @@ export function liveGate(
     const excess = paired.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / paired.length;
     if (!(excess > 0)) return { ok: false, reason: "扣费后没有跑赢沪深300" };
   }
-  if (rules.minDays === 0 && rules.minClosed === 0) return { ok: true, reason: "样本检验已关掉。连亏和回撤仍会停手" };
-  return { ok: true, reason: "可以按计划的小仓位做。连亏或回撤变大就会再关上" };
+  if (rules.minDays === 0 && rules.minClosed === 0) return { ok: true, reason: "样本检验已关掉。连亏和近期亏损仍会停手" };
+  return { ok: true, reason: "可以按计划的小仓位做。连亏或近期亏损变大就会再关上" };
 }
 
 /** 14:40 之后的信号当成当天已经冻结。provisional 表示还在变，不能当买入价。 */
