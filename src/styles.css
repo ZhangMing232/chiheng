@@ -64,6 +64,10 @@ html[data-theme="light"] {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color-scheme: dark;
+    /* 滚动条位置一直留着。页面内容长短变化时（持仓列表在涨、消息在加载），
+       竖向滚动条出现或消失会让整页横向抖一下，眼睛要重新找表格的列。
+       参考 tick-stock-panel 的 .scrollbar-gutter-stable。 */
+    scrollbar-gutter: stable;
   }
 
   body {

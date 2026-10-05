@@ -19,6 +19,7 @@ import { dayReliable, liveGate, netReturn, recentMean } from "@/lib/market/journ
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import { usePaper, type PaperDay } from "@/lib/paper";
+import { StateBlock } from "@/components/state-block";
 
 type Pick = { quote: Quote; reasons: string[]; buy: number; sell: number; stop: number; hit: boolean; block?: "limit" | "away" };
 
@@ -223,13 +224,25 @@ export function Picks({
           </span>
         </div>
         {featured.length === 0 ? (
-          <p className="border-t border-line px-4 py-6 text-sm text-muted">
-            {style === "relay"
-              ? "今天没有三个够强的概念板块，或者次强已经贴着涨停、买不进。"
-              : lacking
-                ? `现在的行情源拿不到这套要的字段（${lacking}），不是选不出票。等行情源恢复再看。`
-                : "这套策略现在没有符合的股票。"}
-          </p>
+          <div className="border-t border-line">
+            {lacking ? (
+              <StateBlock
+                kind="empty"
+                title="不是选不出票，是行情源缺字段"
+                hint={`现在这份行情没有${lacking}，这套策略一条都进不来。等主源恢复自动切回，或点上面「重新拉一次」。`}
+              />
+            ) : (
+              <StateBlock
+                kind="empty"
+                title={style === "relay" ? "今天尾盘没有可买的接力票" : "今天这套没有符合条件的票"}
+                hint={
+                  style === "relay"
+                    ? "要当天最强的三个概念板块都够强、且次强没贴着涨停。今天没有满足的组合，明天再看。"
+                    : "门槛是固定的（见策略说明），没出现就是没出现，不是坏了。可以点上面「重新拉一次」确认不是数据没更新。"
+                }
+              />
+            )}
+          </div>
         ) : (
           <div className="overflow-x-auto border-t border-line">
             <table className="w-full text-sm">

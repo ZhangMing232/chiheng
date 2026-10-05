@@ -18,7 +18,8 @@ import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
-import { DataFreshness } from "@/components/screener/data-freshness";
+import { DataStatusBadge } from "@/components/screener/data-status";
+import { StateBlock } from "@/components/state-block";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
@@ -138,7 +139,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">{phase.label}</span>
           <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</span>
-          <DataFreshness universe={universe} now={now} />
+          <DataStatusBadge universe={universe} now={now} onRefresh={() => void refresh(true)} />
           <RecordLine at={recorder.at} ok={recorder.ok} now={now} />
         </div>
       }
@@ -169,7 +170,14 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           prefs={prefs}
           relay={relay}
         />
-        {error ? <p className="text-sm text-up">{error}</p> : null}
+        {error ? (
+          <StateBlock
+            kind="error"
+            title="页面没能拿到最新数据"
+            hint={`${error}。上面显示的是上一次拿到的数据，别拿它当现价用。`}
+            action={{ label: "重新拉一次", onClick: () => void refresh(true) }}
+          />
+        ) : null}
         <PrefsBar
           prefs={prefs}
           onChange={(next) => {
