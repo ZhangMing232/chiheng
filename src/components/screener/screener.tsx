@@ -19,6 +19,7 @@ import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { AccountStatus, DataStatusBadge } from "@/components/screener/data-status";
+import { Tape } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
@@ -148,16 +149,18 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       }
       onRefresh={() => refresh(true)}
       extra={
+        // 横条行情：财联社那种一眼扫完的排法。涨跌幅上色块而不是只上字色，
+        // 余光扫过去就能分出红绿，不用逐个数字去读。
         indices.length > 0 ? (
-          <div className="flex gap-5 overflow-x-auto scroll-slim pb-2">
-            {indices.map((item) => (
-              <div key={item.id} className="flex shrink-0 items-baseline gap-1.5 text-xs">
-                <span className="text-muted">{INDEX_LABEL[item.id] ?? item.name}</span>
-                <span className={cx("tabular-nums", toneClass(item.pct))}>{item.price > 0 ? fmtPrice(item.price) : "—"}</span>
-                <span className={cx("font-medium tabular-nums", toneClass(item.pct))}>{signedPct(item.pct)}</span>
-              </div>
-            ))}
-          </div>
+          <Tape
+            className="border-b border-line"
+            items={indices.map((item) => ({
+              id: item.id,
+              name: INDEX_LABEL[item.id] ?? item.name,
+              price: item.price > 0 ? item.price : null,
+              pct: item.pct,
+            }))}
+          />
         ) : null
       }
     >

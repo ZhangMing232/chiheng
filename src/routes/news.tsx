@@ -10,6 +10,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
+import { Panel } from "@/components/terminal";
 import { signedPct, toneClass } from "@/lib/market/format";
 import { drawNewsPoster } from "@/lib/market/page-posters";
 import { shanghaiDate } from "@/lib/market/session";
@@ -92,8 +93,14 @@ function ToneSide({
 }) {
   const quiet = tone === "good" ? "text-up" : "text-down";
   return (
-    <div className="min-w-0 px-4 py-3">
-      <h2 className={"text-base font-semibold " + quiet}>{title}</h2>
+    // 侧边一条红/绿：同花顺那种「一栏一个色调」的排法。标题之外再给一个视觉锚点，
+    // 余光扫过去就知道这栏是利好还是利空。
+    <div
+      className="min-w-0 border-l-2 px-4 py-3"
+      // 直接引 CSS 变量，不赌 Tailwind 能不能从 @theme 生成 border-l-up 这类类名
+      style={{ borderLeftColor: tone === "good" ? "var(--color-up)" : "var(--color-down)" }}
+    >
+      <h2 className={"text-sm font-medium " + quiet}>{title}</h2>
       {boards.length === 0 && stocks.length === 0 ? (
         <p className="mt-2 text-sm text-muted">{empty}</p>
       ) : (
@@ -153,8 +160,12 @@ function NewsPage() {
             })
           }
         />
-        <section className="overflow-hidden rounded-2xl border border-line bg-surface">
-          <p className="border-b border-line px-4 py-2 text-sm text-muted">按快讯用词归类，不是研报，也不改买入价。</p>
+        <Panel
+          title="利好 / 利空"
+          note={<span>按快讯用词归类，不是研报，也不改买入价。</span>}
+        >
+          {/* 两栏之间用红/绿侧边条分隔：同花顺那种「一栏一个色调」的排法，
+              余光扫过去就知道这栏是利好还是利空，不用读标题。 */}
           <div className="grid md:grid-cols-2 md:divide-x md:divide-line">
             <ToneSide
               title="利好"
@@ -175,12 +186,8 @@ function NewsPage() {
               empty="这批没有判成利空的。"
             />
           </div>
-        </section>
-        <section className="rounded-lg border border-line bg-surface">
-          <div className="px-4 py-3">
-            <h2 className="border-l-2 border-brand pl-2 font-serif text-lg font-semibold">7x24 电报</h2>
-            <p className="mt-1 text-xs text-muted">利好在前。板块和个股是快讯自己点的名。</p>
-          </div>
+        </Panel>
+        <Panel title="7x24 电报" note={<span>利好在前。板块和个股是快讯自己点的名。</span>}>
           {ordered.length === 0 ? (
             <p className="border-t border-line px-4 py-6 text-sm text-muted">没有拉到快讯。</p>
           ) : (
@@ -237,7 +244,7 @@ function NewsPage() {
               })}
             </ul>
           )}
-        </section>
+        </Panel>
       </Frame>
   );
 }
