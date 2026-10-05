@@ -399,7 +399,10 @@ export const getServerJournal = createServerFn({ method: "GET" }).handler(async 
     const book = await readUserBook<PaperDay>(userId);
     return { days: book.days, personal: true as const, why: null as string | null };
   } catch (error) {
+    // 记一条日志。静默返回空账本是 2026-10-05 下午查了三轮才定位到的原因：
+    // 页面上只看到「当前持有 0 只」，服务端这边一点线索都没有。
     const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[journal] 服务端账本读不到：${message}`);
     const denied = /unauthorized|unauthenticated|401/i.test(message);
     return {
       days: [] as PaperDay[],

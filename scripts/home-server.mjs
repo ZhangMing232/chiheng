@@ -11,7 +11,8 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 const entry = ".output/server/index.mjs";
 if (!existsSync(entry)) {
@@ -120,4 +121,46 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 process.on("SIGHUP", shutdown);
 
+/**
+ * 检查源码是不是比构建产物新。
+ *
+ * 「改了 src 忘了 build」这件事 2026-10-05 坑了三回：页面显示的还是旧逻辑，
+ * 而两边都没人提这件事，只能靠人肉对比文件时间。这里把它变成启动时的一条明确提醒。
+ *
+ * 注意方向：src 比 .output 新 = 该 rebuild 了；反过来（构建更新）不用管。
+ */
+function newestMtime(dir) {
+  let newest = 0;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    let info;
+    try {
+      info = statSync(full);
+    } catch {
+      continue;
+    }
+    if (info.isDirectory()) newest = Math.max(newest, newestMtime(full));
+    else newest = Math.max(newest, info.mtimeMs);
+  }
+  return newest;
+}
+
+function warnIfStaleBuild() {
+  try {
+    const builtAt = statSync(".output").mtimeMs;
+    const srcAt = newestMtime("src");
+    if (srcAt > builtAt) {
+      const mins = Math.round((srcAt - builtAt) / 60000);
+      console.warn(
+        `[build] src 里的代码比 .output 新 ${mins} 分钟——页面跑的是旧逻辑。` +
+          `改完服务端代码要跑 npm run build:mac 才会更新；` +
+          `（记账脚本直接读 src，不受影响。）`,
+      );
+    }
+  } catch {
+    // 读不到就当没事，别因为这个检查把服务卡住
+  }
+}
+
+warnIfStaleBuild();
 console.log(`赤轨在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);
