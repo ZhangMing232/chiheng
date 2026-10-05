@@ -18,7 +18,11 @@ if [ ! -f "$ROOT/scripts/home-server.mjs" ]; then
   exit 1
 fi
 
-if lsof -iTCP:"$PORT" -sTCP:LISTEN -P -n >/dev/null 2>&1; then
+# 用 curl 探测，不要用 lsof。
+# lsof 在从 Finder 双击启动的环境里会被系统挡住（没有那个权限），
+# 返回失败就会被当成「服务没起来」——实测就是这样：serve.log 里明明已经
+# Listening on 8787，app 却在 15 秒后报「服务没起来」。
+if curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:${PORT}/"; then
   exit 0
 fi
 

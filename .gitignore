@@ -11,5 +11,5 @@ data
 .env.*
 .DS_Store
 
-赤轨.app
+# 赤轨.app 只生成在桌面（npm run app:mac），项目里不再留一份
 scripts/app-icon.png

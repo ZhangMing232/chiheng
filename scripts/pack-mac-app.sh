@@ -12,7 +12,11 @@ if [ "$(uname)" != "Darwin" ]; then
   exit 1
 fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/赤轨.app"
+# 只在桌面留一份。早先项目里也放一份、桌面再拷一份，两份内容一样，
+# 久了就分不清哪份在用（而且项目目录搬过家，旧的那份路径还烤死在里头）。
+# 桌面那份是唯一入口；桌面不存在就退回项目目录，至少还能手动跑。
+DESKTOP="$HOME/Desktop"
+if [ -d "$DESKTOP" ]; then APP="$DESKTOP/赤轨.app"; else APP="$ROOT/赤轨.app"; fi
 MACOS="$APP/Contents/MacOS"
 RES="$APP/Contents/Resources"
 rm -rf "$APP"
@@ -66,11 +70,13 @@ fi
 PORT=8787
 URL="http://127.0.0.1:\${PORT}"
 nohup /bin/bash "\$ROOT/scripts/start-mac.sh" >/dev/null 2>&1 &
+# 用 curl 探测，不用 lsof：lsof 在 Finder 启动的环境里没有权限，
+# 会被当成「服务没起来」（serve.log 里明明已经 Listening 了）。
 for _ in \$(seq 1 60); do
-  lsof -nP -iTCP:\$PORT -sTCP:LISTEN >/dev/null 2>&1 && break
+  curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:\${PORT}/" && break
   sleep 0.25
 done
-if ! lsof -nP -iTCP:\$PORT -sTCP:LISTEN >/dev/null 2>&1; then
+if ! curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:\${PORT}/"; then
   echo "等了 15 秒服务还没起来。serve.log 最后 20 行："
   tail -20 "\$ROOT/data/serve.log" 2>/dev/null
   say "服务没起来，页面打不开。详情看 \$LAUNCH_LOG"
@@ -113,11 +119,5 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </dict>
 </plist>
 EOF
-if [ -d "$HOME/Desktop" ]; then
-  rm -rf "$HOME/Desktop/赤轨.app"
-  cp -R "$APP" "$HOME/Desktop/赤轨.app"
-  echo "已放到桌面：赤轨.app"
-else
-  echo "已生成：$APP"
-fi
+echo "已生成：$APP"
 echo "双击打开窗口。关掉窗口不会停止记账。"
