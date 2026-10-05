@@ -17,7 +17,7 @@ import { DataStatusBadge, AccountStatus } from "@/components/screener/data-statu
 import { StateBlock } from "@/components/state-block";
 import { Panel, Stat, Tag, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { signedPct, fmtPrice, fmtMoney, toneClass } from "@/lib/market/format";
-import { dayReliable, liveGate, netReturn, recentMean } from "@/lib/market/journal-book";
+import { dayReliable, liveGate, recentMean } from "@/lib/market/journal-book";
 import { TRACK_NEED } from "@/lib/market/model";
 import { limitTag, planExit } from "@/lib/market/model";
 import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgency, type PositionRow } from "@/lib/market/positions";

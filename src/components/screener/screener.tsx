@@ -14,7 +14,6 @@ import { LabPanel } from "@/components/screener/lab-panel";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
-import { fmtPrice, signedPct, toneClass } from "@/lib/market/format";
 import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
@@ -24,7 +23,7 @@ import { AccountStatus, DataStatusBadge } from "@/components/screener/data-statu
 import { Tape } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { formatClock, sessionPhase } from "@/lib/market/session";
-import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
+import type { IndexQuote, SessionInfo, Universe } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
 import type { EarlyRules } from "@/lib/market/rules";
 
@@ -45,10 +44,6 @@ export const INDEX_LABEL: Record<string, string> = {
   sz399006: "创业",
   sh000688: "科创",
 };
-
-function cx(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
-}
 
 export type ScreenerInitial = {
   universe: Universe | null;

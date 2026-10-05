@@ -51,13 +51,6 @@ function fileDate(at: number): string {
   }).format(new Date(at));
 }
 
-function fit(ctx: CanvasRenderingContext2D, text: string, max: number): string {
-  if (ctx.measureText(text).width <= max) return text;
-  let next = text;
-  while (next.length > 1 && ctx.measureText(`${next}…`).width > max) next = next.slice(0, -1);
-  return `${next}…`;
-}
-
 /** 资金页汇总图。红是净流入，绿是净流出。 */
 export function drawFlowPoster(book: FlowBook): { canvas: HTMLCanvasElement; filename: string } {
   const amount = book.tape.reduce((sum, row) => sum + row.amount, 0);
