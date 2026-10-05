@@ -56,3 +56,16 @@ export function fmtMultiple(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n) || Math.abs(n) > 5000) return "—";
   return n.toFixed(n >= 100 ? 0 : 1);
 }
+
+/**
+ * 把「快照多久前」说成人话：刚刚 / 30 秒前 / 3 分钟前 / 2 小时前。
+ * 差值是负数（系统时间往回跳）时按「刚刚」算，不能说出「-5 秒前」。
+ */
+export function snapshotAge(ms: number): string {
+  const sec = Math.max(0, Math.round(ms / 1000));
+  if (sec < 10) return "刚刚";
+  if (sec < 60) return `${sec} 秒前`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} 分钟前`;
+  return `${Math.round(min / 60)} 小时前`;
+}

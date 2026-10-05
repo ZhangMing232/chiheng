@@ -119,7 +119,12 @@ let universe: Awaited<ReturnType<typeof loadUniverse>> | null = null;
 let indexPrice: number | null = null;
 let relay: Awaited<ReturnType<typeof loadRelay>> = [];
 if (phase.date && isTradingDay(phase.date) && phase.matching) {
-  universe = await loadUniverse(true);
+  // 只有真正要用最新价格的两段才强制重拉：早盘买入窗口（9:25–9:30）、
+  // 尾盘买入窗口（14:40–15:00），以及次日补涨冻结名单的 14:30 之后。
+  // 其余时间三分钟一份就够了——这些策略持股 10 个交易日，差三分钟不影响任何判断，
+  // 而每分钟全量拉 5200 多只股票会把腾讯接口顶到 WAF（K 线返回 501，结算就卡住）。
+  const needFresh = phase.entry !== "none" || phase.tailHalf;
+  universe = await loadUniverse(needFresh);
   const indices = await loadIndices();
   const index = indices.find((item) => item.id === "sh000300");
   indexPrice = index && index.price > 0 ? index.price : null;

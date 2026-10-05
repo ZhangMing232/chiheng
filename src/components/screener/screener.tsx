@@ -18,6 +18,7 @@ import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
+import { DataFreshness } from "@/components/screener/data-freshness";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
@@ -137,6 +138,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">{phase.label}</span>
           <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</span>
+          <DataFreshness universe={universe} now={now} />
           <RecordLine at={recorder.at} ok={recorder.ok} now={now} />
         </div>
       }

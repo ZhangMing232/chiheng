@@ -7,8 +7,8 @@
  * 全市场快照和指数走 providers 适配层：腾讯是主源，东方财富是备份，换源会在日志里留一条记录。
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import { readRules, writeRules } from "@/lib/market/rules-file";
 import { parseRules } from "@/lib/market/rules";
@@ -25,8 +25,21 @@ import { sessionPhase } from "@/lib/market/session";
 import type { Bar, IndexQuote, Trend, TrendPoint, Universe } from "@/lib/market/types";
 import { fetchIndices, fetchUniverse } from "@/lib/market/providers/index";
 
-const TTL_MS = 60_000;
+/**
+ * 全市场快照的缓存时间。
+ *
+ * 原来是 60 秒，但记账脚本每分钟被拉起来一个新进程，进程内的缓存每次都是空的，
+ * 于是等于每分钟全量拉一次 5200 多只股票——一个交易日 240 次、百来万条记录。
+ * 腾讯的接口会被这种频率顶到 WAF（返回 501），K 线拉不到、结算就卡住。
+ *
+ * 三分钟足够：这些策略持股 10 个交易日，两次快照之间差三分钟不影响任何判断。
+ * 真正需要最新的只有买卖窗口（9:25–9:30 和 14:40–15:00）和补涨冻结那半小时，
+ * 那边由 record-journal 显式要求刷新。
+ */
+const TTL_MS = 3 * 60_000;
 const INDEX_TTL_MS = 20_000;
+/** 快照落盘的位置。进程内的缓存活不过一次记账，落盘才能跨进程复用。 */
+const UNIVERSE_CACHE = () => join(process.cwd(), "data", "universe-cache.json");
 /** K 线接口的请求头。全市场快照和指数已走 providers 适配层（腾讯主、东财备）。 */
 const KLINE_HEADERS = {
   "user-agent": "Mozilla/5.0",
@@ -42,19 +55,70 @@ let indexCache: { at: number; rows: IndexQuote[] } | null = null;
 const klineCache = new Map<string, { at: number; bars: Bar[] }>();
 const trendCache = new Map<string, { at: number; trend: Trend }>();
 
-/** 拉全市场 A 股报价。refresh 为 true 时忽略缓存重拉。返回股票列表和时间；只拉到一部分或用了旧数据会标出来。 */
+type Snapshot = { at: number; payload: Universe };
+
+async function readSnapshot(): Promise<Snapshot | null> {
+  try {
+    const text = await readFile(UNIVERSE_CACHE(), "utf8");
+    const parsed = JSON.parse(text) as Partial<Snapshot>;
+    if (typeof parsed?.at !== "number" || !parsed.payload || !Array.isArray(parsed.payload.quotes)) return null;
+    return { at: parsed.at, payload: parsed.payload as Universe };
+  } catch {
+    return null;
+  }
+}
+
+/** 落盘要先写临时文件再改名：两个进程同时写的话，直接覆盖会把文件写成半截。 */
+async function writeSnapshot(snapshot: Snapshot): Promise<void> {
+  const target = UNIVERSE_CACHE();
+  const staged = `${target}.${process.pid}.tmp`;
+  try {
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(staged, JSON.stringify(snapshot));
+    await rename(staged, target);
+  } catch {
+    // 缓存写不进去不算错，最多是下一分钟多拉一次
+    await rm(staged, { force: true }).catch(() => undefined);
+  }
+}
+
+/**
+ * 拉全市场 A 股报价。refresh 为 true 时忽略缓存重拉。
+ *
+ * 三层：进程内 → 落盘 → 真拉。落盘这层是为了跨进程复用：记账脚本每分钟起一个新进程，
+ * 只靠进程内缓存的话等于没有缓存。返回的 Universe 带 asOf（快照时间）和 source，
+ * 页面上要把「数据源 · 多久前」显示出来——主源降级时策略会静默不出票，
+ * 那天就是靠翻日志才定位到的。
+ */
 export async function loadUniverse(refresh: boolean): Promise<Universe> {
-  if (!refresh && universeCache && Date.now() - universeCache.at < TTL_MS) {
+  const now = Date.now();
+  if (!refresh && universeCache && now - universeCache.at < TTL_MS) {
     return universeCache.payload;
   }
   if (!refresh && universeInflight) return universeInflight;
   const run = (async () => {
+    // 落盘快照也够新就不去打扰腾讯了
+    if (!refresh) {
+      const disk = await readSnapshot();
+      if (disk && now - disk.at < TTL_MS) {
+        universeCache = disk;
+        return disk.payload;
+      }
+    }
     try {
       const payload = await fetchUniverse();
-      universeCache = { at: payload.asOf, payload };
+      const snapshot: Snapshot = { at: payload.asOf, payload };
+      universeCache = snapshot;
+      void writeSnapshot(snapshot);
       return payload;
     } catch {
+      // 拉不到就用旧的：进程内的优先，再退到落盘的，并标成过期让页面能提示
       if (universeCache) return { ...universeCache.payload, stale: true };
+      const disk = await readSnapshot();
+      if (disk) {
+        universeCache = disk;
+        return { ...disk.payload, stale: true };
+      }
       throw new Error("行情暂时拉不下来，请稍后再刷新");
     }
   })();
