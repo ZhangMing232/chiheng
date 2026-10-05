@@ -86,7 +86,7 @@ const money = (value: number | null): number | null => (value == null ? null : M
  * 按建仓日分组，最近的一天排在最前面。
  *
  * 入参不需要预先排序——这里会排。同一天内部的顺序保持传入顺序（通常是按分数排的），
- * 这样「今天买��顺序」和选股表对得上。
+ * 这样「今天买入的顺序」和选股表对得上。
  */
 export function groupByDay(rows: PositionRow[]): DayGroup[] {
   const buckets = new Map<string, PositionRow[]>();
