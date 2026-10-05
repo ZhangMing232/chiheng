@@ -34,17 +34,19 @@ if command -v sips >/dev/null && command -v iconutil >/dev/null; then
 fi
 cat > "$MACOS/chiheng" <<EOF
 #!/bin/bash
-# 从 Finder 双击时没有终端，stdout/stderr 全都丢掉——早先「双击没反应」就是这么来的：
-# 脚本起来了、服务没起来、然后悄悄退出，用户什么也没看到。
-# 现在全部输出写进 data/app-launch.log，出错再用系统对话框弹一句。
+# 从 Finder 双击没有终端，stdout/stderr 全进黑洞，出错时用户只看到「点了没反应」。
+# 所以这里把过程写进 data/app-launch.log，出错用系统对话框弹一句。
+#
+# 启动逻辑只有一份，在 scripts/start-mac.sh（node 路径写死在那个脚本里）。
+# 早先这里自己又抄了一份、用 /usr/bin/env node 找 node——Finder 的 PATH 里没有 node，
+# 必然报「env: node: No such file or directory」，这个 app 就从来没通过。
+# 现在只做三件事：找到项目目录、调 start-mac.sh、开浏览器。
 
-# 项目路径不能只烤死一个：硬盘换了、目录搬了家，双击就找不到代码。
-# 顺序是「.app 自己所在的项目目录」→「打包时记下的路径」→「外置硬盘上的默认位置」。
 BAKED="$ROOT"
 HERE="\$(cd "\$(dirname "\$0")/../../.." 2>/dev/null && pwd || true)"
 ROOT=""
 for candidate in "\$HERE" "\$BAKED" "/Volumes/colorful/chiheng"; do
-  if [ -f "\$candidate/scripts/home-server.mjs" ]; then ROOT="\$candidate"; break; fi
+  if [ -f "\$candidate/scripts/start-mac.sh" ]; then ROOT="\$candidate"; break; fi
 done
 
 mkdir -p "\$BAKED/data" 2>/dev/null
@@ -60,24 +62,15 @@ if [ -z "\$ROOT" ]; then
   say "找不到项目目录，硬盘插上了吗？日志：\$LAUNCH_LOG"
   exit 1
 fi
-cd "\$ROOT" || { say "进不去项目目录 \$ROOT"; exit 1; }
-mkdir -p "\$ROOT/data"
 
 PORT=8787
 URL="http://127.0.0.1:\${PORT}"
-up() { lsof -nP -iTCP:\$PORT -sTCP:LISTEN >/dev/null 2>&1; }
-if ! up; then
-  launchctl kickstart -k "gui/\$(id -u)/com.chiheng.serve" >/dev/null 2>&1 || true
-fi
-if ! up; then
-  echo "启动服务（\$ROOT）"
-  nohup /usr/bin/env node "\$ROOT/scripts/home-server.mjs" >>"\$ROOT/data/serve.log" 2>&1 &
-fi
+nohup /bin/bash "\$ROOT/scripts/start-mac.sh" >/dev/null 2>&1 &
 for _ in \$(seq 1 60); do
-  up && break
+  lsof -nP -iTCP:\$PORT -sTCP:LISTEN >/dev/null 2>&1 && break
   sleep 0.25
 done
-if ! up; then
+if ! lsof -nP -iTCP:\$PORT -sTCP:LISTEN >/dev/null 2>&1; then
   echo "等了 15 秒服务还没起来。serve.log 最后 20 行："
   tail -20 "\$ROOT/data/serve.log" 2>/dev/null
   say "服务没起来，页面打不开。详情看 \$LAUNCH_LOG"
