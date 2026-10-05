@@ -86,7 +86,7 @@ function StatusPill({
               <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
               <div
                 style={{ position: "fixed", left: pos.left, top: pos.top, width: POPOVER_W, zIndex: 50 }}
-                className="rounded-lg border border-line bg-surface p-3 text-xs leading-relaxed shadow-pop"
+                className="rounded border border-line bg-surface p-3 text-xs leading-relaxed shadow-pop"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="mb-2 font-medium text-fg">这个提示什么意思</div>
@@ -111,7 +111,7 @@ function StatusPill({
                         setOpen(false);
                       }}
                       disabled={actionBusy}
-                      className="rounded border border-line px-2 py-1 hover:bg-surface-2 disabled:opacity-50"
+                      className="rounded border border-line px-2.5 py-1.5 hover:bg-surface-2 disabled:opacity-50"
                     >
                       {actionBusy ? "正在拉…" : (actionLabel ?? "重新拉一次")}
                     </button>
@@ -119,7 +119,7 @@ function StatusPill({
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="rounded border border-line px-2 py-1 text-muted hover:bg-surface-2"
+                    className="rounded border border-line px-2.5 py-1.5 text-muted hover:bg-surface-2"
                   >
                     知道了
                   </button>

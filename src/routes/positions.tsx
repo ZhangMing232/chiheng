@@ -99,7 +99,7 @@ function TradeTable({ rows, rules }: { rows: PositionRow[]; rules: EarlyRules })
     <Table>
       <thead>
         <tr className="border-b border-line">
-          <th className={thClass("sticky left-0 bg-surface px-3 py-1.5 text-left font-normal")}>名称</th>
+          <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>名称</th>
           <th className={thClass()}>现价</th>
           <th className={thClass()}>涨跌幅</th>
           <th className={thClass()}>买入价</th>
@@ -116,7 +116,7 @@ function TradeTable({ rows, rules }: { rows: PositionRow[]; rules: EarlyRules })
           const tone = row.state === "止损" ? "down" : row.state === "卖出" ? "up" : "muted";
           return (
             <tr key={`${row.day}-${row.id}-${row.exit ?? "open"}`} className="border-b border-line last:border-0 hover:bg-surface-2">
-              <td className="sticky left-0 bg-surface px-3 py-1.5 text-left">
+              <td className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
                 <Link to="/symbol" search={{ q: row.code }} className="font-medium hover:text-brand">
                   {row.name}
                 </Link>

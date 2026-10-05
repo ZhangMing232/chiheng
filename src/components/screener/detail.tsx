@@ -30,7 +30,7 @@ function Tip({
   if (!active || !bar) return null;
   const up = bar.c >= bar.o;
   return (
-    <div className="rounded-md border border-line bg-surface px-3 py-2 text-xs text-fg">
+    <div className="rounded border border-line bg-surface px-3 py-2 text-xs text-fg">
       <div className="text-muted">{bar.date}</div>
       <div className={cx("tabular-nums", up ? "text-up" : "text-down")}>收 {bar.c.toFixed(2)}</div>
       <div className="tabular-nums text-muted">
@@ -87,15 +87,15 @@ export function Detail({
         aria-label="关闭详情"
         onClick={onClose}
       />
-      <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto bg-surface shadow-card xl:static xl:max-w-none xl:border-l xl:border-line">
-        <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-4">
+      <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto bg-surface xl:static xl:max-w-none xl:border-l xl:border-line">
+        <div className="flex items-start justify-between gap-3 border-b border-line px-3 py-3">
           <div className="min-w-0">
             <div className="text-xs text-muted">
               {BOARD_LABEL[quote.board]} · {quote.code}
               {quote.st ? " · ST" : ""}
               {tag ? ` · ${tag}` : ""}
             </div>
-            <h2 className="truncate font-serif text-2xl font-semibold">{quote.name}</h2>
+            <h2 className="truncate font-serif text-2xl font-medium">{quote.name}</h2>
           </div>
           <button
             type="button"
@@ -106,10 +106,10 @@ export function Detail({
             <X className="size-4" />
           </button>
         </div>
-        <div className="flex flex-col gap-4 px-4 py-4">
+        <div className="flex flex-col gap-4 px-3 py-3">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <div className={cx("text-3xl font-semibold tabular-nums", toneClass(quote.chg))}>
+              <div className={cx("text-3xl font-medium tabular-nums", toneClass(quote.chg))}>
                 {fmtPrice(quote.price)}
               </div>
               <div className={cx("tabular-nums", toneClass(quote.chg))}>{signedPct(quote.chg)}</div>
@@ -118,7 +118,7 @@ export function Detail({
               {score != null ? (
                 <>
                   <div className="text-xs text-muted">模型得分</div>
-                  <div className="text-2xl font-semibold tabular-nums">{score}</div>
+                  <div className="text-2xl font-medium tabular-nums">{score}</div>
                 </>
               ) : (
                 <div className="text-sm text-muted">未参加当前模型</div>
@@ -128,7 +128,7 @@ export function Detail({
           {reasons.length > 0 ? (
             <ul className="flex flex-col gap-1 text-sm text-fg">
               {reasons.map((reason) => (
-                <li key={reason} className="rounded-md bg-surface-2 px-3 py-2">
+                <li key={reason} className="rounded bg-surface-2 px-3 py-2">
                   {reason}
                 </li>
               ))}
@@ -168,7 +168,7 @@ export function Detail({
           ) : null}
           <dl className="grid grid-cols-2 gap-2">
             {stats.map((stat) => (
-              <div key={stat.label} className="rounded-md bg-bg px-3 py-2">
+              <div key={stat.label} className="rounded bg-bg px-3 py-2">
                 <dt className="text-xs text-muted">{stat.label}</dt>
                 <dd className={cx("tabular-nums", stat.tone != null ? toneClass(stat.tone) : "text-fg")}>
                   {stat.value}
@@ -177,7 +177,7 @@ export function Detail({
             ))}
           </dl>
           <a
-            className="inline-flex h-11 items-center justify-center rounded-md border border-line text-sm"
+            className="inline-flex h-11 items-center justify-center rounded border border-line text-sm"
             href={`https://quote.eastmoney.com/${quote.id}.html`}
             target="_blank"
             rel="noreferrer"

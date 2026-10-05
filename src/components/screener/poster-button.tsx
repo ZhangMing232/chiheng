@@ -69,15 +69,15 @@ export function PosterButton({ draw }: { draw: () => { canvas: HTMLCanvasElement
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={make} className="rounded-full border border-line bg-surface px-4 py-2 text-sm">
+        <button type="button" onClick={make} className="rounded-full border border-line bg-surface px-3 py-2 text-sm">
           生成汇总图
         </button>
         {poster ? (
           <>
-            <button type="button" onClick={() => void save()} className="rounded-full border border-line bg-surface px-4 py-2 text-sm">
+            <button type="button" onClick={() => void save()} className="rounded-full border border-line bg-surface px-3 py-2 text-sm">
               保存图片
             </button>
-            <button type="button" onClick={close} className="rounded-full border border-line px-4 py-2 text-sm text-muted">
+            <button type="button" onClick={close} className="rounded-full border border-line px-3 py-2 text-sm text-muted">
               关闭
             </button>
           </>
@@ -85,7 +85,7 @@ export function PosterButton({ draw }: { draw: () => { canvas: HTMLCanvasElement
       </div>
       {error ? <p className="text-sm text-up">{error}</p> : null}
       {hint ? <p className="text-xs text-muted">{hint}</p> : null}
-      {poster ? <img src={poster.url} alt="汇总图" className="w-full rounded-xl border border-line" /> : null}
+      {poster ? <img src={poster.url} alt="汇总图" className="w-full rounded border border-line" /> : null}
     </div>
   );
 }

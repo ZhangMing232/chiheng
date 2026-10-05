@@ -50,7 +50,7 @@ function Row<T extends string>({
             type="button"
             onClick={() => onPick(option.id)}
             className={
-              "h-9 rounded-md px-3 text-sm " +
+              "h-9 rounded px-3 text-sm " +
               (value === option.id ? "bg-brand font-medium text-white" : "bg-surface-2 text-fg")
             }
           >
@@ -65,7 +65,7 @@ function Row<T extends string>({
 /** 三行筛选。点板块、股价或市值，把新的偏好交回给选股页去保存。 */
 export function PrefsBar({ prefs, onChange }: { prefs: Prefs; onChange: (next: Prefs) => void }) {
   return (
-    <details className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+    <details className="rounded border border-line bg-surface px-3 py-2">
       <summary className="cursor-pointer text-sm font-medium">筛选范围</summary>
       <p className="mt-2 text-xs text-muted">只影响名单里出现谁。五套的账仍然分开记，每套最多 10 只。</p>
       <div className="mt-3 flex flex-col gap-3 pb-1">

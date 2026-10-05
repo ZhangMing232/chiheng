@@ -71,7 +71,7 @@ export function StateBlock({
           type="button"
           onClick={action.onClick}
           disabled={action.busy}
-          className="mt-1 rounded border border-line px-2.5 py-1 text-xs text-muted hover:bg-surface-2 disabled:opacity-50"
+          className="mt-1 rounded border border-line px-2.5 py-1.5 text-xs text-muted hover:bg-surface-2 disabled:opacity-50"
         >
           {action.busy ? "正在拉…" : action.label}
         </button>

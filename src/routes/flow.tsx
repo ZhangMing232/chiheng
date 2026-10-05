@@ -58,7 +58,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 
 /** 财联社式章节标题：红色竖条 + 衬线大字。 */
 function SectionTitle({ children }: { children: string }) {
-  return <h2 className="border-l-2 border-brand pl-2 font-serif text-lg font-semibold">{children}</h2>;
+  return <h2 className="border-l-2 border-brand pl-2 font-serif text-lg font-medium">{children}</h2>;
 }
 
 const TABS = [
@@ -113,17 +113,17 @@ function FlowTabs() {
 
 function List({ title, rows, hint }: { title: string; rows: FlowRow[]; hint?: string }) {
   return (
-    <section className="rounded-lg border border-line bg-surface">
-      <div className="px-4 py-3">
+    <section className="rounded border border-line bg-surface">
+      <div className="px-3 py-2">
         <SectionTitle>{title}</SectionTitle>
         {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
       </div>
       {rows.length === 0 ? (
-        <p className="border-t border-line px-4 py-6 text-sm text-muted">没有数据。</p>
+        <p className="border-t border-line px-3 py-6 text-sm text-muted">没有数据。</p>
       ) : (
         <ul>
           {rows.map((row) => (
-            <li key={row.id} className="flex items-baseline justify-between gap-3 border-t border-line px-4 py-3">
+            <li key={row.id} className="flex items-baseline justify-between gap-3 border-t border-line px-3 py-2">
               <div className="min-w-0">
                 <div className="truncate font-medium">{row.name}</div>
                 <div className="mt-0.5 text-xs text-muted">
@@ -143,7 +143,7 @@ function List({ title, rows, hint }: { title: string; rows: FlowRow[]; hint?: st
 function North({ legs }: { legs: NorthLeg[] }) {
   const total = legs.reduce((sum, leg) => sum + leg.amount, 0);
   return (
-    <section id="flow-north" className="scroll-mt-24 rounded-lg border border-line bg-surface px-4 py-3">
+    <section id="flow-north" className="scroll-mt-24 rounded border border-line bg-surface px-3 py-2">
       <SectionTitle>北向</SectionTitle>
       <p className="mt-1 text-sm text-muted">沪股通和深股通的盘中净流入不再公布，收盘后也没有净买入。这里只有最近一个已公布交易日的成交额。</p>
       {legs.length === 0 ? (
@@ -185,11 +185,11 @@ function Overview({ tape, parts, north, quotes }: { tape: { name: string; amount
   const limitDown = quotes.filter((quote) => limitTag(quote) === "跌停").length;
   const northTotal = north.reduce((sum, leg) => sum + leg.amount, 0);
   const hasBreadth = quotes.length > 0;
-  const tile = "bg-surface px-4 py-4";
+  const tile = "bg-surface px-3 py-3";
   const label = "text-xs text-muted";
-  const value = "mt-1 text-2xl font-semibold tabular-nums leading-none";
+  const value = "mt-1 text-2xl font-medium tabular-nums leading-none";
   return (
-    <section id="flow-overview" className="scroll-mt-24 overflow-hidden rounded-lg border border-line bg-surface">
+    <section id="flow-overview" className="scroll-mt-24 overflow-hidden rounded border border-line bg-surface">
       <div className="grid grid-cols-2 gap-px bg-line md:grid-cols-4">
         <div className={tile}>
           <div className={label}>涨跌家数</div>
@@ -255,8 +255,8 @@ function TrendChart({ trend, sectors }: { trend: Trend; sectors: FlowRow[] }) {
   const tickInterval = Math.max(1, Math.floor(trend.points.length / 6));
   const tags = sectors.slice(0, 8);
   return (
-    <section id="flow-trend" className="scroll-mt-24 rounded-lg border border-line bg-surface">
-      <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+    <section id="flow-trend" className="scroll-mt-24 rounded border border-line bg-surface">
+      <div className="flex items-baseline justify-between gap-3 px-3 py-2">
         <div className="min-w-0">
           <SectionTitle>大盘走势</SectionTitle>
           <p className="mt-1 text-xs text-muted">上证指数分时，{trendDayLabel(trend.date)}。灰虚线是昨收。板块标签是当前主力净流入靠前的行业（快照，不是历史回放）。</p>
@@ -264,9 +264,9 @@ function TrendChart({ trend, sectors }: { trend: Trend; sectors: FlowRow[] }) {
         {chg != null ? <span className={toneClass(chg) + " shrink-0 text-sm font-medium tabular-nums"}>{signedPct(chg)}</span> : null}
       </div>
       {tags.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5 border-t border-line px-4 py-2">
+        <div className="flex flex-wrap gap-1.5 border-t border-line px-3 py-2">
           {tags.map((row) => (
-            <span key={row.id} className={"rounded-sm px-1.5 py-0.5 text-xs " + (row.inflow >= 0 ? "bg-up-soft text-up" : "bg-down-soft text-down")}>
+            <span key={row.id} className={"rounded-sm px-2 py-0.5 text-xs " + (row.inflow >= 0 ? "bg-up-soft text-up" : "bg-down-soft text-down")}>
               {row.name}
             </span>
           ))}
@@ -308,22 +308,22 @@ function Market({ parts }: { parts: MarketPart[] }) {
     { name: "散户", key: "retail" },
   ];
   return (
-    <section id="flow-market" className="scroll-mt-24 rounded-lg border border-line bg-surface">
+    <section id="flow-market" className="scroll-mt-24 rounded border border-line bg-surface">
       <div className="px-4 pt-3">
         <SectionTitle>大盘资金</SectionTitle>
         <p className="mt-1 text-xs text-muted">主力净流入大约一分钟更新。红是净流入，绿是净流出。</p>
       </div>
       {parts.length === 0 ? (
-        <p className="border-t border-line px-4 py-6 text-sm text-muted">大盘资金暂时拉不下来。</p>
+        <p className="border-t border-line px-3 py-6 text-sm text-muted">大盘资金暂时拉不下来。</p>
       ) : (
         <div className="overflow-x-auto border-t border-line">
           <table className="w-full text-left">
             <thead className="text-sm text-muted">
               <tr>
-                <th className="px-4 py-2 font-normal">成分</th>
-                <th className="px-4 py-2 text-right font-normal">合计净流入</th>
+                <th className="px-3 py-2 font-normal">成分</th>
+                <th className="px-3 py-2 text-right font-normal">合计净流入</th>
                 {parts.map((part) => (
-                  <th key={part.name} className="px-4 py-2 text-right font-normal">
+                  <th key={part.name} className="px-3 py-2 text-right font-normal">
                     {part.name}
                   </th>
                 ))}
@@ -332,12 +332,12 @@ function Market({ parts }: { parts: MarketPart[] }) {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.key} className={"border-t border-line " + (row.key === "main" || row.key === "retail" ? "font-medium" : "text-muted")}>
-                  <td className="px-4 py-2">{row.name}</td>
-                  <td className={toneClass(sum(row.key)) + " px-4 py-2 text-right tabular-nums"}>
+                  <td className="px-3 py-2">{row.name}</td>
+                  <td className={toneClass(sum(row.key)) + " px-3 py-2 text-right tabular-nums"}>
                     {flowWord(sum(row.key))} {fmtWan(sum(row.key))}
                   </td>
                   {parts.map((part) => (
-                    <td key={part.name} className={toneClass(part[row.key]) + " px-4 py-2 text-right tabular-nums"}>
+                    <td key={part.name} className={toneClass(part[row.key]) + " px-3 py-2 text-right tabular-nums"}>
                       {flowWord(part[row.key])} {fmtWan(part[row.key])}
                     </td>
                   ))}
@@ -348,7 +348,7 @@ function Market({ parts }: { parts: MarketPart[] }) {
         </div>
       )}
       {parts.length > 0 ? (
-        <ul className="border-t border-line px-4 py-3 text-sm text-muted">
+        <ul className="border-t border-line px-3 py-2 text-sm text-muted">
           {readMarket(parts).map((line) => (
             <li key={line} className="py-1 text-pretty">
               {line}
@@ -356,8 +356,8 @@ function Market({ parts }: { parts: MarketPart[] }) {
           ))}
         </ul>
       ) : null}
-      <div className="border-t border-line px-4 py-3">
-        <h3 className="text-sm font-semibold">另外三类</h3>
+      <div className="border-t border-line px-3 py-2">
+        <h3 className="text-sm font-medium">另外三类</h3>
         <ul className="mt-2 text-sm">
           <li className="flex justify-between gap-3 border-t border-line py-2">
             <span>机构</span>
@@ -379,8 +379,8 @@ function Market({ parts }: { parts: MarketPart[] }) {
 
 function Hot({ book }: { book: HotBook | null }) {
   return (
-    <section id="flow-hot" className="scroll-mt-24 rounded-lg border border-line bg-surface">
-      <div className="px-4 py-3">
+    <section id="flow-hot" className="scroll-mt-24 rounded border border-line bg-surface">
+      <div className="px-3 py-2">
         <SectionTitle>游资</SectionTitle>
         <p className="mt-1 text-xs text-muted">
           一行一个席位，红是净买，绿是净卖。对得上的才用别名，其余用路名。机构和拉萨放在最后。收盘后才有。
@@ -388,11 +388,11 @@ function Hot({ book }: { book: HotBook | null }) {
         </p>
       </div>
       {!book || book.seats.length === 0 ? (
-        <p className="border-t border-line px-4 py-6 text-sm text-muted">游资龙虎榜暂时没有。</p>
+        <p className="border-t border-line px-3 py-6 text-sm text-muted">游资龙虎榜暂时没有。</p>
       ) : (
         <ul className="border-t border-line">
           {book.seats.map((seat) => (
-            <li key={seat.name} className="grid grid-cols-[5.5rem_1fr] gap-3 border-t border-line px-4 py-3 first:border-t-0">
+            <li key={seat.name} className="grid grid-cols-[5.5rem_1fr] gap-3 border-t border-line px-3 py-2 first:border-t-0">
               <div className="font-medium">{seat.name}</div>
               <p className="text-sm leading-6">
                 {seat.stocks.map((stock) => (
@@ -418,22 +418,22 @@ function lotsText(n: number): string {
 
 function Futures({ book }: { book: FutBook | null }) {
   return (
-    <section id="flow-futures" className="scroll-mt-24 rounded-lg border border-line bg-surface">
-      <div className="px-4 py-3">
+    <section id="flow-futures" className="scroll-mt-24 rounded border border-line bg-surface">
+      <div className="px-3 py-2">
         <SectionTitle>股指期货</SectionTitle>
         <p className="mt-1 text-xs text-muted">中金所前20名会员的多单和空单。公布的是代客，不是单独的机构账户。{book?.date ? ` ${book.date}` : ""}</p>
       </div>
       {!book || book.rows.length === 0 ? (
-        <p className="border-t border-line px-4 py-6 text-sm text-muted">股指期货持仓暂时没有。</p>
+        <p className="border-t border-line px-3 py-6 text-sm text-muted">股指期货持仓暂时没有。</p>
       ) : (
         <div className="overflow-x-auto border-t border-line">
           <table className="w-full text-left text-sm">
             <thead className="text-muted">
               <tr>
-                <th className="px-4 py-2 font-normal">合约</th>
+                <th className="px-3 py-2 font-normal">合约</th>
                 <th className="px-3 py-2 text-right font-normal">多单</th>
                 <th className="px-3 py-2 text-right font-normal">空单</th>
-                <th className="px-4 py-2 text-right font-normal">净持仓</th>
+                <th className="px-3 py-2 text-right font-normal">净持仓</th>
               </tr>
             </thead>
             <tbody>
@@ -441,13 +441,13 @@ function Futures({ book }: { book: FutBook | null }) {
                 const net = row.longLots - row.shortLots;
                 return (
                   <tr key={row.contract} className="border-t border-line">
-                    <td className="px-4 py-2">
+                    <td className="px-3 py-2">
                       <div className="font-medium">{row.name}</div>
                       <div className="text-xs text-muted">{row.contract}</div>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-up">{lotsText(row.longLots)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-down">{lotsText(row.shortLots)}</td>
-                    <td className={toneClass(net) + " px-4 py-2 text-right tabular-nums"}>
+                    <td className={toneClass(net) + " px-3 py-2 text-right tabular-nums"}>
                       {net > 0 ? "净多" : net < 0 ? "净空" : "持平"} {lotsText(net)}
                     </td>
                   </tr>

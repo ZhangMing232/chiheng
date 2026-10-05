@@ -59,9 +59,9 @@ function SymbolPage() {
           onChange={(event) => setValue(event.target.value)}
           placeholder="代码或名称"
           maxLength={20}
-          className="min-w-0 flex-1 rounded-md border border-line bg-surface px-4 py-2 text-sm outline-none"
+          className="min-w-0 flex-1 rounded border border-line bg-surface px-3 py-2 text-sm outline-none"
         />
-        <button type="submit" className="rounded-md border border-line bg-surface px-4 py-2 text-sm">
+        <button type="submit" className="rounded border border-line bg-surface px-3 py-2 text-sm">
           搜索
         </button>
       </form>
@@ -109,7 +109,7 @@ function SymbolPage() {
                 setValue(item.code);
                 void navigate({ to: "/symbol", search: { q: item.code } });
               }}
-              className={"shrink-0 rounded-md border border-line px-3 py-1 text-xs " + (data.picked?.id === item.id ? "border-brand text-brand font-medium" : "text-muted")}
+              className={"shrink-0 rounded border border-line px-2.5 py-1.5 text-xs " + (data.picked?.id === item.id ? "border-brand text-brand font-medium" : "text-muted")}
             >
               {item.name} {item.code}
             </button>
@@ -124,7 +124,7 @@ function SymbolPage() {
           empty={data.picked ? "这只股票暂时没有消息。" : "换一个代码或名称。"}
         />
       ) : data.groups.length === 0 ? (
-        <p className="rounded-xl border border-line bg-surface px-4 py-6 text-sm text-muted">账上没有持仓。上面可以搜一只股票。</p>
+        <p className="rounded border border-line bg-surface px-3 py-6 text-sm text-muted">账上没有持仓。上面可以搜一只股票。</p>
       ) : (
         data.groups.map((group) => (
           <ArticleList
@@ -153,10 +153,10 @@ function ArticleList({
 }) {
   const counts = tally(articles);
   return (
-    <section className="overflow-hidden rounded-xl border border-line bg-surface">
-      <div className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-3">
+    <section className="overflow-hidden rounded border border-line bg-surface">
+      <div className="flex items-baseline justify-between gap-3 border-b border-line px-3 py-2">
         <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold">{title}</h2>
+          <h2 className="truncate text-base font-medium">{title}</h2>
           {articles.length > 0 ? (
             <p className="mt-0.5 text-xs text-muted">
               <span className={counts.bad > 0 ? "text-down" : ""}>利空 {counts.bad}</span>
@@ -167,11 +167,11 @@ function ArticleList({
         <span className={toneClass(chg) + " shrink-0 tabular-nums"}>{signedPct(chg)}</span>
       </div>
       {articles.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-muted">{empty}</p>
+        <p className="px-3 py-6 text-sm text-muted">{empty}</p>
       ) : (
         <ul>
           {articles.map((item) => (
-            <li key={item.id} className="border-b border-line px-4 py-3 last:border-0">
+            <li key={item.id} className="border-b border-line px-3 py-2 last:border-0">
               <div className="flex items-baseline justify-between gap-3 text-xs text-muted">
                 <span>
                   <span className="mr-2">{KIND_LABEL[item.kind]}</span>

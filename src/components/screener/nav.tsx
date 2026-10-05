@@ -82,7 +82,7 @@ export function ThemeMode() {
           key={item.id}
           type="button"
           onClick={() => setMode(item.id)}
-          className={"rounded-full px-2 py-1 text-xs " + (mode === item.id ? "bg-surface text-fg" : "text-muted")}
+          className={"rounded-full px-2.5 py-1.5 text-xs " + (mode === item.id ? "bg-surface text-fg" : "text-muted")}
         >
           {item.label}
         </button>
@@ -101,7 +101,7 @@ export function TypeSize() {
           key={item.id}
           type="button"
           onClick={() => setSize(item.id)}
-          className={"rounded-full px-2 py-1 text-xs " + (size === item.id ? "bg-surface text-fg" : "text-muted")}
+          className={"rounded-full px-2.5 py-1.5 text-xs " + (size === item.id ? "bg-surface text-fg" : "text-muted")}
         >
           {item.label}
         </button>
@@ -161,7 +161,7 @@ export function Frame({
                 <rect x="0" y="12" width="30" height="8" fill="currentColor" />
                 <rect x="42" y="2" width="30" height="8" fill="currentColor" opacity="0.6" />
               </svg>
-              <span className="text-xl font-semibold tracking-tight">赤轨</span>
+              <span className="text-xl font-medium tracking-tight">赤轨</span>
             </Link>
             <span className="hidden text-xs text-white/70 sm:inline">A股自动选股</span>
             <div className="ml-auto flex items-center gap-2">
@@ -169,14 +169,14 @@ export function Frame({
                 type="button"
                 onClick={() => void refresh()}
                 disabled={refreshing}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/40 px-3 text-sm text-white disabled:opacity-60"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded border border-white/40 px-3 text-sm text-white disabled:opacity-60"
               >
                 <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
                 刷新
               </button>
               <details className="relative shrink-0">
-                <summary className="cursor-pointer list-none rounded-md border border-white/40 px-2.5 py-1.5 text-xs text-white [&::-webkit-details-marker]:hidden">显示</summary>
-                <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded-md border border-line bg-surface p-2 shadow-card">
+                <summary className="cursor-pointer list-none rounded border border-white/40 px-2.5 py-1.5 text-xs text-white [&::-webkit-details-marker]:hidden">显示</summary>
+                <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded border border-line bg-surface p-2">
                   <ThemeMode />
                   <TypeSize />
                 </div>
@@ -194,7 +194,7 @@ export function Frame({
           </div>
         </div>
       </header>
-      <main className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 md:px-6">{children}</main>
+      <main className="mx-auto flex max-w-3xl flex-col gap-3 px-3 py-3 md:px-6">{children}</main>
     </div>
   );
 }

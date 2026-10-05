@@ -202,7 +202,7 @@ export function Picks({
           <Table>
             <thead>
               <tr className="border-b border-line">
-                <th className={thClass("sticky left-0 bg-surface px-3 py-1.5 text-left font-normal")}>名称</th>
+                <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>名称</th>
                 <th className={thClass()}>现价</th>
                 <th className={thClass()}>{preview ? "预估买入" : "买入"}</th>
                 <th className={thClass("hidden md:table-cell")}>{preview ? "预估卖出" : "卖出"}</th>
@@ -235,7 +235,7 @@ export function Picks({
                             : "等待买入";
                 return (
                   <tr key={pick.quote.id} className="border-b border-line last:border-0 hover:bg-surface-2">
-                    <td className="sticky left-0 bg-surface px-3 py-1.5 text-left">
+                    <td className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
                       <button type="button" onClick={() => onOpen(pick.quote.id)} className="block max-w-48 text-left">
                         <div className="truncate font-medium">{pick.quote.name}</div>
                         <div className="truncate text-xs text-muted">

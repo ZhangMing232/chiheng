@@ -73,7 +73,7 @@ export function Tape({
       {items.map((item) => (
         <div
           key={item.id}
-          className="flex min-w-[7.5rem] shrink-0 flex-col gap-0.5 border-r border-line px-3 py-1.5 last:border-r-0"
+          className="flex min-w-[7.5rem] shrink-0 flex-col gap-0.5 border-r border-line px-2.5 py-1.5 last:border-r-0"
         >
           <span className="truncate text-xs text-muted">{item.name}</span>
           <span className="flex items-baseline gap-1.5">

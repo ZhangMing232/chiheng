@@ -96,7 +96,7 @@ function ToneSide({
     // 侧边一条红/绿：同花顺那种「一栏一个色调」的排法。标题之外再给一个视觉锚点，
     // 余光扫过去就知道这栏是利好还是利空。
     <div
-      className="min-w-0 border-l-2 px-4 py-3"
+      className="min-w-0 border-l-2 px-3 py-2"
       // 直接引 CSS 变量，不赌 Tailwind 能不能从 @theme 生成 border-l-up 这类类名
       style={{ borderLeftColor: tone === "good" ? "var(--color-up)" : "var(--color-down)" }}
     >
@@ -107,7 +107,7 @@ function ToneSide({
         <>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {boards.map((board) => (
-              <span key={board.code} className="rounded-md bg-surface-2 px-2 py-1 text-sm">
+              <span key={board.code} className="rounded bg-surface-2 px-2.5 py-1.5 text-sm">
                 {board.name}
                 {board.n > 1 ? <span className="text-muted"> {board.n}</span> : null}
               </span>
@@ -189,22 +189,22 @@ function NewsPage() {
         </Panel>
         <Panel title="7x24 电报" note={<span>利好在前。板块和个股是快讯自己点的名。</span>}>
           {ordered.length === 0 ? (
-            <p className="border-t border-line px-4 py-6 text-sm text-muted">没有拉到快讯。</p>
+            <p className="border-t border-line px-3 py-6 text-sm text-muted">没有拉到快讯。</p>
           ) : (
             <ul>
               {ordered.map((item) => {
                 return (
-                  <li key={item.id} className="border-t border-line px-4 py-3 first:border-t-0">
+                  <li key={item.id} className="border-t border-line px-3 py-2 first:border-t-0">
                     <div className="flex gap-3">
                       <div className="w-12 shrink-0">
-                        <div className={"text-sm font-semibold tabular-nums " + (item.tone === "flat" ? "text-muted" : "text-brand")}>{item.time.slice(11, 16)}</div>
+                        <div className={"text-sm font-medium tabular-nums " + (item.tone === "flat" ? "text-muted" : "text-brand")}>{item.time.slice(11, 16)}</div>
                         <div className="text-xs tabular-nums text-muted">{item.time.slice(5, 10)}</div>
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start gap-2">
                           <span
                             className={
-                              "shrink-0 rounded-sm px-1.5 py-0.5 text-xs " +
+                              "shrink-0 rounded-sm px-2 py-0.5 text-xs " +
                               (item.tone === "good" ? "bg-up-soft text-up" : item.tone === "bad" ? "bg-down-soft text-down" : "bg-surface-2 text-muted")
                             }
                           >
@@ -218,7 +218,7 @@ function NewsPage() {
                         {item.boards.length > 0 ? (
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {item.boards.map((board) => (
-                              <span key={board.code} className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-xs text-fg">
+                              <span key={board.code} className="rounded-sm bg-surface-2 px-2 py-0.5 text-xs text-fg">
                                 {board.name}
                               </span>
                             ))}
@@ -229,7 +229,7 @@ function NewsPage() {
                             {item.stocks.map((stock) => {
                               const mark = heldSet.has(stock.id) ? "持仓" : pickedSet.has(stock.id) ? "精选" : "";
                               return (
-                                <span key={stock.id} className={"rounded-sm px-1.5 py-0.5 text-xs " + (mark === "持仓" ? "bg-up-soft text-up" : mark === "精选" ? "bg-brand-soft text-brand" : "bg-surface-2 text-muted")}>
+                                <span key={stock.id} className={"rounded-sm px-2 py-0.5 text-xs " + (mark === "持仓" ? "bg-up-soft text-up" : mark === "精选" ? "bg-brand-soft text-brand" : "bg-surface-2 text-muted")}>
                                   {stock.name} {signedPct(stock.chg)}
                                   {mark ? ` ${mark}` : ""}
                                 </span>
