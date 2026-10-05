@@ -92,12 +92,32 @@ function spawnServer() {
 
 let server = spawnServer();
 
+let shuttingDown = false;
 function shutdown() {
+  // 收到停止信号就把自己也带走。早先这里只 kill 子进程、自己不退出，
+  // 于是留下一个「以为自己在守着、其实端口已经空了」的进程——
+  // 2026-10-05 下午 8787 打不开、日志却在刷「重新拉起」，就是这么来的。
+  if (shuttingDown) {
+    server.kill("SIGKILL");
+    process.exit(1);
+  }
+  shuttingDown = true;
   stopping = true;
   clearInterval(timer);
+  // 子进程会自己打印 "Stopping server gracefully" 并等 5 秒；
+  // 到点还没走就强杀。它先退出的话我们跟着退出，不留残骸。
+  const hard = setTimeout(() => {
+    server.kill("SIGKILL");
+    process.exit(0);
+  }, 6000);
+  server.once("exit", () => {
+    clearTimeout(hard);
+    process.exit(0);
+  });
   server.kill("SIGTERM");
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+process.on("SIGHUP", shutdown);
 
 console.log(`赤轨在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);
