@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as NewsRouteImport } from './routes/news'
+import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const NewsRoute = NewsRouteImport.update({
   path: '/news',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PositionsRoute = PositionsRouteImport.update({
+  id: '/positions',
+  path: '/positions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
+  '/positions': typeof PositionsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
+  '/positions': typeof PositionsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesById {
@@ -52,14 +60,15 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
+  '/positions': typeof PositionsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/flow' | '/news' | '/symbol'
+  fullPaths: '/' | '/flow' | '/news' | '/positions' | '/symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/flow' | '/news' | '/symbol'
-  id: '__root__' | '/' | '/flow' | '/news' | '/symbol'
+  to: '/' | '/flow' | '/news' | '/positions' | '/symbol'
+  id: '__root__' | '/' | '/flow' | '/news' | '/positions' | '/symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -92,6 +101,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/positions': {
+      id: '/positions'
+      path: '/positions'
+      fullPath: '/positions'
+      preLoaderRoute: typeof PositionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symbol': {
       id: '/symbol'
       path: '/symbol'
@@ -106,6 +122,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FlowRoute: FlowRoute,
   NewsRoute: NewsRoute,
+  PositionsRoute: PositionsRoute,
   SymbolRoute: SymbolRoute,
 }
 export const routeTree = rootRouteImport

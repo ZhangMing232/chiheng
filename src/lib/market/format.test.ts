@@ -12,7 +12,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { snapshotAge } from "@/lib/market/format";
+import { fmtMoney, snapshotAge } from "@/lib/market/format";
 
 test("快照多久了，说法要跟得上", () => {
   assert.equal(snapshotAge(2_000), "刚刚");
@@ -23,4 +23,17 @@ test("快照多久了，说法要跟得上", () => {
 
 test("系统时间往回跳时不能说出负数", () => {
   assert.equal(snapshotAge(-5_000), "刚刚");
+});
+
+test("金额要能一眼看出量级", () => {
+  assert.equal(fmtMoney(null), "—");
+  assert.equal(fmtMoney(Number.NaN), "—");
+  // 一万以下带千分位
+  assert.equal(fmtMoney(3050), "3,050");
+  // 一万以上缩写成「万」
+  assert.equal(fmtMoney(30500), "3.05 万");
+  // 亿
+  assert.equal(fmtMoney(2.5e8), "2.50 亿");
+  // 负数照常
+  assert.equal(fmtMoney(-30500), "-3.05 万");
 });

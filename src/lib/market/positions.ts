@@ -40,14 +40,19 @@ export type PositionRow = {
   day: string;
   /** 当天记下来的时刻，比如 "09:41"。收盘后补记的那天靠它判断能不能算成绩。 */
   signalTime: string;
-  /** 现价，持仓中才有 */
-  live: { price: number; chg: number } | null;
+  /** 现价，持仓中才有。chg 允许为 null——行情源没给涨幅时就是这个状态 */
+  live: { price: number; chg: number | null } | null;
   /** 收益率：已卖的是扣费后的实际收益；还拿着的是按现价算的浮动 */
   ret: number | null;
   /** 这笔的状态，由界面决定显示什么字 */
   state: string;
   /** 已实现盈亏的金额（按一手折算）；浮动时为 null */
   pnl: number | null;
+  /**
+   * 同期沪深300 的涨跌，用来算「有没有跑赢指数」。
+   * 来自建仓当天的 indexEntry / indexExit，账本里没有就 null。
+   */
+  indexRet: number | null;
 };
 
 /** 一个交易日的汇总。 */

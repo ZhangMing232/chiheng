@@ -69,3 +69,15 @@ export function snapshotAge(ms: number): string {
   if (min < 60) return `${min} 分钟前`;
   return `${Math.round(min / 60)} 小时前`;
 }
+
+/**
+ * 金额（元）。带千分位，超过一万时缩写成「万」，中文盯盘习惯。
+ * 超过一亿缩写成「亿」。小数位给的是「万元」口径下的两位——调用方自己决定传什么。
+ */
+export function fmtMoney(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs >= 1e8) return `${(value / 1e8).toFixed(2)} 亿`;
+  if (abs >= 1e4) return `${(value / 1e4).toFixed(2)} 万`;
+  return value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+}

@@ -13,6 +13,8 @@ import { RefreshCw } from "lucide-react";
 
 const LINKS = [
   { to: "/", label: "选股" },
+  // 持仓从选股页里拆出来之后给了独立入口，放在选股后面——盯盘时第二常看的就是它
+  { to: "/positions", label: "持仓" },
   { to: "/news", label: "消息" },
   { to: "/symbol", label: "个股" },
   { to: "/flow", label: "资金" },

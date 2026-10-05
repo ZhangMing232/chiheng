@@ -27,6 +27,7 @@ function row(patch: Partial<PositionRow> & { id: string; day: string; entry: num
     state: exit == null ? "持有" : "已卖",
     ret,
     pnl: ret == null ? null : (exit ?? live?.price ?? patch.entry) - patch.entry,
+    indexRet: patch.indexRet ?? null,
     ...patch,
   } as PositionRow;
 }
@@ -113,4 +114,11 @@ test("收益率：卖出要扣费，持有按现价不算费", () => {
   assert.ok(Math.abs(rowReturn(10, null, 9)! + 0.1) < 1e-9);
   assert.equal(rowReturn(10, null, null), null);
   assert.equal(rowReturn(0, 11, null), null);
+});
+
+test("同期指数的涨跌要跟着走，账本里没有才是 null", () => {
+  // 跑赢指数要用它，丢了就等于把「上真钱」那个闸门的最后一道检查废掉
+  const withIndex = row({ id: "a", day: "2026-09-30", entry: 10, exit: 11, exitDate: "2026-10-09", indexRet: 0.02 });
+  assert.equal(withIndex.indexRet, 0.02);
+  assert.equal(row({ id: "b", day: "2026-09-30", entry: 10, exit: 11, exitDate: "2026-10-09" }).indexRet, null);
 });
