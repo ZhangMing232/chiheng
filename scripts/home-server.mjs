@@ -162,5 +162,36 @@ function warnIfStaleBuild() {
   }
 }
 
+/**
+ * 检查自己是不是在服务一份「比自己老」的构建。
+ *
+ * 这个失败模式比「逻辑旧了」严重得多：Nitro 把静态资源清单**编译进产物**
+ * （`public_assets_data_*`），进程启动时读进内存。构建换了新产物之后，
+ * 磁盘上的文件名带了新哈希，而内存里还是旧的，于是 /assets/ 下**每一个**
+ * 都 404——页面照常渲染出内容，但一点样式都没有，看着像 CSS 坏了。
+ * （2026-10-05 实测：public/ 根下的 favicon、logo 正常，只有 /assets/ 全挂。）
+ *
+ * 所以拿 .output 的时间跟进程启动时间比：产物比进程新，就是在服务旧清单，
+ * 明确告诉人重启。
+ */
+function warnIfSelfIsStale() {
+  try {
+    const builtAt = statSync(".output").mtimeMs;
+    const startedAt = Date.now() - Math.round(process.uptime() * 1000);
+    if (builtAt > startedAt) {
+      const mins = Math.round((builtAt - startedAt) / 60000);
+      console.warn(
+        `[build] 现在这份 .output 是 ${mins} 分钟前构建的，晚于本进程启动时间——` +
+          `静态资源清单是启动时读进内存的，所以 /assets/ 下的文件会全部 404，` +
+          `页面会渲染出内容但没有任何样式。` +
+          `请停掉本进程重新跑一次 npm run serve。`,
+      );
+    }
+  } catch {
+    // 同上，读不到就当没事
+  }
+}
+
 warnIfStaleBuild();
+warnIfSelfIsStale();
 console.log(`赤轨在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);

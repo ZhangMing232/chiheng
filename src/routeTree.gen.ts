@@ -75,6 +75,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FlowRoute: typeof FlowRoute
   NewsRoute: typeof NewsRoute
+  PositionsRoute: typeof PositionsRoute
   SymbolRoute: typeof SymbolRoute
 }
 
