@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node scripts/with-app-env.mjs vite dev --host 0.0.0.0 --port 8080",
     "build": "node scripts/with-app-env.mjs vite build && npm run db:migrate",
-    "build:mac": "node scripts/check-rolldown-binding.mjs && NITRO_PRESET=node-server node scripts/with-app-env.mjs vite build && npm run db:migrate && node scripts/copy-pglite-assets.mjs",
+    "build:mac": "node scripts/check-rolldown-binding.mjs && NITRO_PRESET=node-server node scripts/with-app-env.mjs vite build && npm run db:migrate && node scripts/copy-pglite-assets.mjs && node scripts/after-build.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "node scripts/with-app-env.mjs vite build --mode development",
     "preview": "node scripts/with-app-env.mjs vite preview",
@@ -29,7 +29,8 @@
     "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --import ./scripts/alias.mjs --test 'src/**/*.test.ts'",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "report": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/style-report.ts"
+    "report": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/style-report.ts",
+    "build:note": "node scripts/after-build.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
