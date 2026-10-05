@@ -106,6 +106,6 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
   // Unauthorized，服务端账本永远读不到，页面于是摆一个全零的账本（持仓 0 只、
   // 累计收益 —），看着像数据丢了——2026-10-05 下午就是这样查了半天才找到。
   // 能不能退到共享的 dev 用户，看 mayUseDevUser 的两个条件。
-  if (mayUseDevUser({ authConfigured, databaseConfigured, hasRealIdentity: false })) return DEV_USER_ID;
+  if (mayUseDevUser({ databaseConfigured, hasRealIdentity: false })) return DEV_USER_ID;
   throw new UnauthorizedError();
 }

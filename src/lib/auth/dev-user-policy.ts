@@ -14,26 +14,29 @@
  */
 
 export type DevUserPolicyInput = {
-  /** OAuth 有没有配。没配就意味着这里根本没有登录这回事。 */
-  authConfigured: boolean;
   /** 背后有没有真数据库。 */
   databaseConfigured: boolean;
-  /** 沙箱那套身份闸门这次请求有没有带上人。 */
+  /** 这次请求里有没有真的身份（沙箱预览那种带身份头的场合）。 */
   hasRealIdentity: boolean;
 };
 
 /**
  * 能不能落到共享的 dev 用户。
  *
- * 两个条件都要满足：
- * - 没配 OAuth：不然就有真正的登录流程，只是这次没登录
- * - 没有真数据库：这是安全线。对着真数据库让所有人共用一个身份绝对不行，
+ * 只看两件事：
+ * - 这次请求有没有真的身份。没有的话，除了 dev 用户没有别的选择
+ * - 背后有没有真数据库。这是安全线：对着真数据库不能让所有人共用一个身份，
  *   宁可整个请求失败
  *
- * 沙箱预览那种带身份头的场合 `hasRealIdentity` 为真，压根不会走到这里。
+ * **为什么不看「OAuth 有没有配」**（2026-10-05 踩过）：
+ * `authConfigured` 是 `Boolean(grokClientId && grokClientSecret)`，而这两个值在没有
+ * .env 的机器上会退到占位值 `PREVIEW_CLIENT_ID = "grok_preview"`——非空，
+ * 于是 authConfigured 恒为 true，拿它当判据等于永远判「不可以用」。
+ * 第一版就是死在这里：单测全绿、真机跑起来账本还是空的。
+ *
+ * 沙箱预览不受影响：那边请求带身份头，hasRealIdentity 为真，压根不会走到这里。
  */
 export function mayUseDevUser(input: DevUserPolicyInput): boolean {
   if (input.hasRealIdentity) return false;
-  if (input.databaseConfigured) return false;
-  return !input.authConfigured;
+  return !input.databaseConfigured;
 }
