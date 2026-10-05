@@ -9,6 +9,7 @@
 import { getRequest } from "@tanstack/react-start/server";
 import { gateIdentityEnabled } from "./gate-identity.server";
 import { auth, authConfigured } from "./server";
+import { mayUseDevUser } from "./dev-user-policy";
 
 /**
  * Server-side session resolution (server-only).
@@ -100,6 +101,11 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
     return DEV_USER_ID;
   }
   const user = await getSessionUser(bearerToken);
-  if (!user) throw new UnauthorizedError();
-  return user.id;
+  if (user) return user.id;
+  // 到这里说明请求里没有任何身份。这时再要求一个会话是必然失败的：每次都抛
+  // Unauthorized，服务端账本永远读不到，页面于是摆一个全零的账本（持仓 0 只、
+  // 累计收益 —），看着像数据丢了——2026-10-05 下午就是这样查了半天才找到。
+  // 能不能退到共享的 dev 用户，看 mayUseDevUser 的两个条件。
+  if (mayUseDevUser({ authConfigured, databaseConfigured, hasRealIdentity: false })) return DEV_USER_ID;
+  throw new UnauthorizedError();
 }

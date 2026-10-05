@@ -382,16 +382,30 @@ export const getRecorder = createServerFn({ method: "GET" }).handler(async () =>
   }
 });
 
-/** 读当前登录用户的交易日记。没登录就返回空列表。personal 表示是不是本人账本。 */
+/**
+ * 读当前登录用户的交易日记。
+ *
+ * personal 表示是不是本人账本。why 是拿不到的原因——**必须带回去**：
+ * 早先这里 catch 里直接返回空账本，页面于是回退去显示浏览器本地那份账，
+ * 而本机那份是空的，于是出现「账本全是 0、当前持有 0 只」，看着像数据丢了。
+ * 实际上服务端账本好好地在那儿（2026-10-05 查：2 天 71 笔），只是没登录到。
+ * 页面要能说清「这是空账，因为拿不到你服务端的账」，就得知道原因。
+ */
 export const getServerJournal = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const { requireUserId } = await import("@/lib/auth/verify.server");
     const userId = await requireUserId();
     await ensureUserBook(userId);
     const book = await readUserBook<PaperDay>(userId);
-    return { days: book.days, personal: true };
-  } catch {
-    return { days: [] as PaperDay[], personal: false };
+    return { days: book.days, personal: true as const, why: null as string | null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const denied = /unauthorized|unauthenticated|401/i.test(message);
+    return {
+      days: [] as PaperDay[],
+      personal: false as const,
+      why: denied ? "没登录或登录状态过期" : message || "读服务端账本失败",
+    };
   }
 });
 

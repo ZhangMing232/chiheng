@@ -75,3 +75,22 @@ export function noticeOf(universe: Universe | null | undefined, now = Date.now()
   }
   return null;
 }
+
+/**
+ * 账本拿不到时要说的事。
+ *
+ * 跟 noticeOf 同一个道理：拿不到就明说，别让页面摆一个全零的账本。
+ * 之前 catch 里直接返回空数组，页面回退去显示浏览器本地那份账（本机是空的），
+ * 于是「当前持有 0 只」「累计收益 —」，看着像数据丢了——其实服务端账本好好地在那儿。
+ * 这个函数把那三句话说清楚，页面挂在顶上的徽标上。
+ */
+export function accountNotice(personal: boolean, why: string | null | undefined): Notice | null {
+  if (personal) return null;
+  return {
+    label: "空账本",
+    tone: "warn",
+    why: `服务端账本没读到（${why || "原因不明"}）。这台机器上只登录过一次，本机浏览器里那份是空的。`,
+    impact: "下面所有持仓、盈亏、胜率、交易日记录全是 0——那是「没读到」，不是「真的一笔没有」。选股和行情不受影响。",
+    recovery: "服务端账本一直在这台电脑上（data/books）。重新登录就能看到；在此之前别照着 0 做判断。",
+  };
+}

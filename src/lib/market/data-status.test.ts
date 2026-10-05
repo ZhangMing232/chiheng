@@ -11,7 +11,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { noticeOf, sourceLabel } from "@/lib/market/data-status";
+import { accountNotice, noticeOf, sourceLabel } from "@/lib/market/data-status";
 import type { Universe } from "@/lib/market/types";
 
 const base: Universe = {
@@ -63,4 +63,16 @@ test("数据源的名字要说人话", () => {
   assert.equal(sourceLabel("tencent"), "腾讯");
   assert.equal(sourceLabel("sina"), "新浪财经");
   assert.equal(sourceLabel(undefined), "未知来源");
+});
+
+test("服务端账本没读到时，要说清「不是真的一笔没有」", () => {
+  const n = accountNotice(false, "没登录或登录状态过期");
+  assert.ok(n);
+  assert.equal(n.label, "空账本");
+  assert.match(n.why, /没读到/);
+  // 这条最要紧：页面摆出一个全零账本，不说清的话会被当成「数据丢了」或者「今天没开仓」
+  assert.match(n.impact, /不是「真的一笔没有」/);
+  assert.match(n.recovery, /别照着 0 做判断/);
+  // 读到的时候不该有任何提示
+  assert.equal(accountNotice(true, null), null);
 });

@@ -18,7 +18,7 @@ import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
-import { DataStatusBadge } from "@/components/screener/data-status";
+import { AccountStatus, DataStatusBadge } from "@/components/screener/data-status";
 import { StateBlock } from "@/components/state-block";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, Quote, SessionInfo, Universe } from "@/lib/market/types";
@@ -52,6 +52,8 @@ export type ScreenerInitial = {
   indices: IndexQuote[];
   journal: PaperDay[];
   personal: boolean;
+  /** 服务端账本没读到时的原因。null 表示读到了。 */
+  journalWhy: string | null;
   rules: EarlyRules;
   prefs: Prefs;
   recorder: { at: number | null; ok: boolean };
@@ -139,6 +141,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">{phase.label}</span>
           <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</span>
+          <AccountStatus personal={initial.personal} why={initial.journalWhy} />
           <DataStatusBadge universe={universe} now={now} onRefresh={() => void refresh(true)} />
           <RecordLine at={recorder.at} ok={recorder.ok} now={now} />
         </div>

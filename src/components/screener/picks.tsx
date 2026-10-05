@@ -315,7 +315,11 @@ export function Picks({
             今日建仓 <span className="text-brand tabular-nums">{todayTaken}</span>
             <span className="text-muted tabular-nums">/{MAX_POSITIONS}</span>
           </h2>
-          <p className="mt-1 text-xs text-muted">名额按天算，每天最多 {MAX_POSITIONS} 只。打到买入价才记，当天不能卖，跌停卖不出就顺延。当前持有 {open.length} 只。</p>
+          <p className="mt-1 text-xs text-muted">
+            名额按天算，每天最多 {MAX_POSITIONS} 只。打到买入价才记，当天不能卖，跌停卖不出就顺延。
+            当前持有 {open.length} 只
+            {onServer ? "" : "（这是本机浏览器里的账，不是服务端那份）"}
+          </p>
         </div>
         {open.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
