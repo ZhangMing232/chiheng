@@ -143,8 +143,19 @@ export function liveGate(
   rules: Pick<EarlyRules, "minDays" | "minClosed" | "maxDrawdownPct" | "maxLosingStreak"> = DEFAULT_RULES,
 ): { ok: boolean; reason: string } {
   const streak = losingStreak(orderedReturns);
-  if (rules.maxLosingStreak > 0 && streak >= rules.maxLosingStreak) {
-    return { ok: false, reason: `这版已连续亏损 ${streak} 笔，先停止新开仓` };
+  // 「连亏几笔算反常」得看这套策略平时有多少笔是亏的，不能一刀切。
+  // 胜率五成的策略连亏三笔概率有 13%，按固定 3 笔卡它等于一周有五天在喊停；
+  // 胜率七成的策略连亏三笔才 2.7%，那才叫反常。
+  // 所以按它自己的亏损率反推：连亏这么多笔的概率不到 5% 才算异常，
+  // 算出来的门槛比规则里写的更严时才用规则里那个（规则是下限，不是上限）。
+  const losses = orderedReturns.filter((ret) => ret < 0).length;
+  const lossRate = orderedReturns.length >= 20 ? losses / orderedReturns.length : null;
+  const natural =
+    lossRate != null && lossRate > 0 ? Math.ceil(Math.log(0.05) / Math.log(lossRate)) : 0;
+  const streakLimit = Math.max(rules.maxLosingStreak, natural);
+  if (rules.maxLosingStreak > 0 && streak >= streakLimit) {
+    const usual = lossRate == null ? "" : `（这套平时 ${Math.round(lossRate * 100)}% 是亏的，连亏 ${streakLimit} 笔以上才反常）`;
+    return { ok: false, reason: `这版已连续亏损 ${streak} 笔${usual}，先停止新开仓` };
   }
   const drawdown = maxDrawdown(orderedReturns);
   if (rules.maxDrawdownPct > 0 && orderedReturns.length >= 5 && drawdown > rules.maxDrawdownPct / 100) {

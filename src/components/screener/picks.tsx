@@ -144,6 +144,17 @@ export function Picks({
   const indexCum = indexRows.length === 0 ? null : indexRows.reduce((sum, trade) => sum + (trade.indexRet ?? 0), 0);
   const featured = picks;
   const preview = style === "relay" && !tailHalf;
+  // 主源降级时，新浪那份名单里没有近 5/20/60 日涨幅、量比也是 0。
+  // 这时放量突破和中期反转一只都进不来，页面会显示「没有符合的股票」——那是假的，
+  // 真正的原因是源缺字段。这里直接查手上的行情有没有这些字段，说清楚。
+  const lacking =
+    quotes.length > 0 && quotes.every((quote) => quote.d60 == null)
+      ? style === "rebound"
+        ? "60 日涨幅"
+        : style === "breakout"
+          ? "5/20 日涨幅和量比"
+          : null
+      : null;
   const sellable = open.filter((trade) => trade.day < date);
   const stops = sellable.filter((trade) => trade.live != null && limitTag(trade.live) !== "跌停" && trade.live.price <= levels(trade, rules).stop);
   const due = sellable.filter((trade) => trade.live != null && limitTag(trade.live) !== "跌停" && trade.live.price >= levels(trade, rules).target);
@@ -211,7 +222,11 @@ export function Picks({
         </div>
         {featured.length === 0 ? (
           <p className="border-t border-line px-4 py-6 text-sm text-muted">
-            {style === "relay" ? "今天没有三个够强的概念板块，或者次强已经贴着涨停、买不进。" : "这套策略现在没有符合的股票。"}
+            {style === "relay"
+              ? "今天没有三个够强的概念板块，或者次强已经贴着涨停、买不进。"
+              : lacking
+                ? `现在的行情源拿不到这套要的字段（${lacking}），不是选不出票。等行情源恢复再看。`
+                : "这套策略现在没有符合的股票。"}
           </p>
         ) : (
           <div className="overflow-x-auto border-t border-line">

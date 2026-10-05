@@ -149,7 +149,10 @@ export function Journal({
         if (day.indexExit == null && day.indexEntry != null) {
           try {
             const data = await getKline({ data: { id: "sh000300" } });
-            const next = nthClose(data.bars ?? [], day.date);
+            // 同一天的持仓天数不一样（次日补涨 1 天、多数 8 天、中期反转 10 天），
+            // 指数对照一天只有一个数，按最长的那个算，往对自己不利的方向偏。
+            const longest = day.trades.reduce((max, trade) => Math.max(max, trade.hold ?? 8), 8);
+            const next = nthClose(data.bars ?? [], day.date, longest);
             if (next) settleIndex(day.date, next.price);
           } catch {
             // 沪深 300 的日线还没走到结算日。

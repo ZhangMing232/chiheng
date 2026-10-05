@@ -44,6 +44,21 @@ function universeOf(quotes: Universe["quotes"], source: Universe["source"]): Uni
   return { quotes: rows, asOf: Date.now(), total: rows.length, partial: false, stale: false, source };
 }
 
+/**
+ * 换源之后哪些策略要停摆，说清楚，别让它静悄悄地整天不出票。
+ *
+ * 新浪那份名单里没有近 5/10/20/60 日涨幅，量比也是 0。所以一旦切到新浪：
+ *   放量突破 要 d5、d20、量比 —— 一只都进不来
+ *   中期反转 要 d60        —— 一只都进不来
+ *   低估值   只要市盈率和市净率，新浪有  —— 照常
+ *   次日补涨 走板块接口，不看这些字段   —— 照常
+ * 页面上看不出来是「今天没有符合条件的票」还是「源换了没数据」，所以打一条日志。
+ */
+function warnIfDegraded(source: Universe["source"]): void {
+  if (source !== "sina") return;
+  console.warn("[行情] 新浪源没有近 5/20/60 日涨幅和量比：放量突破、中期反转这两套今天不会出票，不是选不出票。");
+}
+
 /** 拉全市场 A 股报价。先腾讯，失败后新浪，两个都失败才报错。 */
 export async function fetchUniverse(): Promise<Universe> {
   try {
@@ -56,6 +71,7 @@ export async function fetchUniverse(): Promise<Universe> {
   const s = await fetchSinaUniverse();
   if (s.quotes.length < MIN_UNIVERSE) throw new Error(`新浪名单不全：只有 ${s.quotes.length} 只`);
   console.warn(`[行情] 已切换到新浪财经源，共 ${s.quotes.length} 只`);
+  warnIfDegraded("sina");
   return { ...universeOf(s.quotes, "sina"), partial: s.partial };
 }
 

@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dayReliable, exitFill, nthClose } from "@/lib/market/journal-book";
+import { dayReliable, exitFill, liveGate, nthClose } from "@/lib/market/journal-book";
 
 type Bar = { date: string; h?: number; l?: number; c: number };
 
@@ -171,4 +171,27 @@ test("跌幅超过跌停板的暴跌不会被误判成跌停封死", () => {
   ];
   // 跳空当天就该成交，不能被当成「封死卖不掉」顺延到后面。
   assert.equal(exitFill(rows, ENTRY, 10, 9.7, 11.5, 10, 8)?.date, "2026-03-03");
+});
+
+const GATE = { minDays: 0, minClosed: 0, maxDrawdownPct: 0, maxLosingStreak: 3 };
+const win = 0.01;
+const lose = -0.01;
+
+test("连亏几笔算反常，要看这套策略平时亏多少", () => {
+  // 胜率五成：连亏 3 笔的概率有 13%，是家常便饭，不该拦
+  const half = [...Array.from({ length: 7 }, () => lose), ...Array.from({ length: 10 }, () => win), lose, lose, lose];
+  assert.equal(liveGate(0, [], half, GATE).ok, true);
+  // 同样是连亏 3 笔，胜率七成的策略概率只有 2.7%，那才叫反常
+  const mostly = [-0.01, 0.01, -0.01, 0.01, -0.01, 0.01, ...Array.from({ length: 11 }, () => win), lose, lose, lose];
+  assert.equal(liveGate(0, [], mostly, GATE).ok, false);
+});
+
+test("样本不到 20 笔时，就按规则里写的那 3 笔卡", () => {
+  const short = [lose, win, lose, win, win, win, lose, lose, lose];
+  assert.equal(liveGate(0, [], short, GATE).ok, false);
+});
+
+test("胜率五成的策略连亏到 5 笔，也要拦", () => {
+  const half = [...Array.from({ length: 5 }, () => lose), ...Array.from({ length: 15 }, () => win), ...Array.from({ length: 5 }, () => lose)];
+  assert.equal(liveGate(0, [], half, GATE).ok, false);
 });

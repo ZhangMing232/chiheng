@@ -498,8 +498,8 @@ async function main() {
           pick.sig.stop,
           pick.sig.sell,
           boardLimit(pick.id, ""),
-          // 中期反转拿 10 天，其余沿用 8 天的老规矩
-          key === "rebound" ? 10 : undefined,
+          // 中期反转的持有天数可以扫（BT_HOLD），其余沿用 8 天的老规矩
+          key === "rebound" ? Number(process.env.BT_HOLD ?? 10) : undefined,
         );
         if (!fill) continue;
         const ret = (fill.price - entry) / entry - FEE;
@@ -639,22 +639,28 @@ async function main() {
       `因子检验${half ? `（${half} 段）` : ""}：${daily.length} 个交易日 × 每天约 ${Math.round(daily.reduce((s, d) => s + d.length, 0) / Math.max(1, daily.length))} 只，` +
         `t 日收盘排序，次日开盘买入、持有 ${N} 天后按收盘卖出\n`,
     );
-    console.log("因子        最低档    第二档    第三档    第四档    最高档   最高-最低    t值");
-    console.log("-".repeat(84));
+    // 默认分五档。BT_BUCKETS=10 可以看更细——「越跌越好」到底是不是一直成立到
+    // 最惨的那一小撮。极端档如果塌了，策略就得给跌幅设个下限，不能无脑买最惨的。
+    const buckets = Number(process.env.BT_BUCKETS ?? 5);
+    const head = getters[0].name.padEnd(10);
+    console.log(
+      head + Array.from({ length: buckets }, (_, b) => `${b === 0 ? "最低" : b === buckets - 1 ? "最高" : "第" + (b + 1)}`.padStart(9)).join("") + "   最高-最低    t值",
+    );
+    console.log("-".repeat(84 + (buckets - 5) * 9));
     for (let f = 0; f < getters.length; f += 1) {
-      const sum = [0, 0, 0, 0, 0];
+      const sum = new Array(buckets).fill(0);
       let days = 0;
       const spreads: number[] = [];
       for (const today of daily) {
         const usable = today.filter((r) => r.vals[f] != null);
-        if (usable.length < 50) continue;
+        if (usable.length < buckets * 10) continue;
         usable.sort((a, b) => (a.vals[f] as number) - (b.vals[f] as number));
-        const q = Math.floor(usable.length / 5);
+        const q = Math.floor(usable.length / buckets);
         const meanOf = (slice: { ex: number }[]) => slice.reduce((s, r) => s + r.ex, 0) / slice.length;
         const low = usable.slice(0, q);
         const high = usable.slice(usable.length - q);
-        for (let b = 0; b < 5; b += 1) {
-          const slice = usable.slice(b * q, b === 4 ? usable.length : (b + 1) * q);
+        for (let b = 0; b < buckets; b += 1) {
+          const slice = usable.slice(b * q, b === buckets - 1 ? usable.length : (b + 1) * q);
           if (slice.length > 0) sum[b] += meanOf(slice);
         }
         spreads.push(meanOf(high) - meanOf(low));
@@ -675,7 +681,7 @@ async function main() {
           tStat.toFixed(2).padStart(8),
       );
     }
-    console.log("-".repeat(84));
+    console.log("-".repeat(84 + (buckets - 5) * 9));
     console.log("\n注：这是等权、不含手续费的粗检；t 值不到 2 就等于这个因子没测出预测力。");
     return;
   }

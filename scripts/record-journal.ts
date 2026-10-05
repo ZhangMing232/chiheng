@@ -293,7 +293,11 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
       if (day.indexExit == null && day.indexEntry != null) {
         try {
           const data = await kline("sh000300");
-          const next = nthClose(data.bars, day.date);
+          // 这一天里的持仓拿的天数并不一样（次日补涨 1 天、多数 8 天、中期反转 10 天），
+          // 而指数对照一天只有一个数。取最长的那个：指数多走几天等于多给了它一点涨幅，
+          // 往对自己不利的方向偏，不至于把「跑赢沪深300」说得比实际好看。
+          const longest = day.trades.reduce((max, trade) => Math.max(max, trade.hold ?? 8), 8);
+          const next = nthClose(data.bars, day.date, longest);
           if (next) {
             day.indexExit = next.price;
             changed = true;
