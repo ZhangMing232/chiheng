@@ -34,7 +34,21 @@ if command -v sips >/dev/null && command -v iconutil >/dev/null; then
 fi
 cat > "$MACOS/chiheng" <<EOF
 #!/bin/bash
-ROOT="$ROOT"
+# 项目路径不能只烤死一个：硬盘换了、目录搬了家，双击就找不到代码。
+# 顺序是「.app 自己所在的项目目录」→「打包时记下的路径」→「外置硬盘上的默认位置」。
+BAKED="$ROOT"
+HERE="$(cd "$(dirname "\$0")/../../.." 2>/dev/null && pwd || true)"
+ROOT=""
+for candidate in "\$HERE" "\$BAKED" "/Volumes/colorful/chiheng"; do
+  if [ -f "\$candidate/scripts/home-server.mjs" ]; then ROOT="\$candidate"; break; fi
+done
+if [ -z "\$ROOT" ]; then
+  echo "找不到赤轨的项目目录（试过 \$HERE、\$BAKED、/Volumes/colorful/chiheng）。"
+  echo "硬盘插上了吗？还是项目搬走了？"
+  read -r -p "回车关掉。"
+  exit 1
+fi
+cd "\$ROOT"
 PORT=8787
 URL="http://127.0.0.1:\${PORT}"
 cd "\$ROOT"
