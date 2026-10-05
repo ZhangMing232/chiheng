@@ -20,11 +20,11 @@ import { noticeOf, sourceLabel } from "@/lib/market/data-status";
 import type { Universe } from "@/lib/market/types";
 
 const TONE_CLASS = {
-  warn: "border-[color-mix(in_srgb,var(--color-down)_45%,transparent)] text-down",
+  warn: "border-warn bg-warn-soft text-warn",
   info: "border-line text-muted",
 } as const;
 
-const DOT_CLASS = { warn: "bg-down", info: "bg-muted" } as const;
+const DOT_CLASS = { warn: "bg-warn", info: "bg-muted" } as const;
 
 function ageText(universe: Universe, now: number): string {
   return `${sourceLabel(universe.source)} · ${snapshotAge(now - universe.asOf)}`;
@@ -96,7 +96,7 @@ export function DataStatusBadge({
               <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
               <div
                 style={{ position: "fixed", left: pos.left, top: pos.top, width: W, zIndex: 50 }}
-                className="rounded-lg border border-line bg-surface p-3 text-xs leading-relaxed shadow-xl"
+                className="rounded-lg border border-line bg-surface p-3 text-xs leading-relaxed shadow-pop"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="mb-2 font-medium text-fg">{notice.label}了什么</div>

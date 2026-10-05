@@ -18,7 +18,7 @@ export type StateKind = "loading" | "empty" | "error";
 const TONE: Record<StateKind, string> = {
   loading: "text-muted",
   empty: "text-muted",
-  error: "text-down",
+  error: "text-warn",
 };
 
 const TITLE: Record<StateKind, string> = {

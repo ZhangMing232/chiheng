@@ -17,8 +17,13 @@
   --color-down-soft: #143028;
   --color-brand: #e35d55;
   --color-brand-soft: #38201f;
+  /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
+     也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
+  --color-warn: #e8a33d;
+  --color-warn-soft: #33260f;
   --color-navy: #2b3245;
   --shadow-card: 0 8px 24px rgb(0 0 0 / 0.28);
+  --shadow-pop: 0 6px 18pxrgb(0 0 0 / 0.28)
 }
 
 html[data-theme="light"] {
@@ -35,8 +40,13 @@ html[data-theme="light"] {
   --color-down-soft: #e7f6ef;
   --color-brand: #d8261c;
   --color-brand-soft: #fdecea;
+  /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
+     也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
+  --color-warn: #a86a08;
+  --color-warn-soft: #fdf1dc;
   --color-navy: #2b3245;
   --shadow-card: 0 8px 24px rgb(22 28 37 / 0.08);
+  --shadow-pop: 0 6px 18pxrgb(22 28 37 / 0.08)
 }
 
 @media (prefers-color-scheme: light) {
@@ -54,8 +64,13 @@ html[data-theme="light"] {
     --color-down-soft: #e7f6ef;
     --color-brand: #d8261c;
     --color-brand-soft: #fdecea;
+    /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
+       也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
+    --color-warn: #a86a08;
+    --color-warn-soft: #fdf1dc;
     --color-navy: #2b3245;
     --shadow-card: 0 8px 24px rgb(22 28 37 / 0.08);
+    --shadow-pop: 0 6px 18pxrgb(22 28 37 / 0.08)
   }
 }
 
