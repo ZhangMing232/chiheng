@@ -64,6 +64,12 @@ for _ in \$(seq 1 40); do
   up && break
   sleep 0.25
 done
+if ! up; then
+  echo "服务没起来，页面打不开。先看一眼终端里的报错，或者跑 npm run mac:log。"
+  echo "（原因多半是端口被占、构建坏了，或者外置硬盘没插好。）"
+  read -r -p "回车关掉。"
+  exit 1
+fi
 if [ -d "/Applications/Google Chrome.app" ]; then
   open -na "Google Chrome" --args --app="\$URL"
 elif [ -d "/Applications/Microsoft Edge.app" ]; then

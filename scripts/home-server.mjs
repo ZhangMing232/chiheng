@@ -64,7 +64,24 @@ function spawnServer() {
   });
   child.on("exit", (code, signal) => {
     if (stopping) return;
-    failures = Date.now() - startedAt < 60_000 ? failures + 1 : 0;
+    // 「起来不到一分钟就死」和「跑了一阵才掉」要分开看：
+    // 前者是它根本起不来（端口被占、构建坏了、node 读不到文件），再拉一万次也一样，
+    // 而且日志会被刷满、旁边还留着一个进程假装在守着——实测就是 8787 一直空着、
+    // 页面打不开，却有个进程每隔一分钟说「重新拉起」。
+    // 所以连续三次起不来就放弃，把原因说清楚，让人去处理，而不是装死。
+    if (Date.now() - startedAt < 60_000) {
+      failures += 1;
+      if (failures >= 3) {
+        console.error(
+          `${clock()} 服务连续 ${failures} 次没起来就退出（最后一次：${code != null ? `退出码 ${code}` : `信号 ${signal ?? "未知"}`}）。` +
+            `上面几行是原因。修好之前 8787 是空的，别当成还在跑。`,
+        );
+        clearInterval(timer);
+        process.exit(1);
+      }
+    } else {
+      failures = 0;
+    }
     const wait = Math.min(60, 5 * Math.max(1, failures));
     const why = code != null ? `退出码 ${code}` : `信号 ${signal ?? "未知"}`;
     console.log(`${clock()} 服务进程没了（${why}），${wait} 秒后重新拉起`);
