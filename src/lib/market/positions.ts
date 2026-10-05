@@ -182,3 +182,69 @@ export function rowReturn(
   if (livePrice == null || !(livePrice > 0)) return null;
   return livePrice / entry - 1;
 }
+
+/**
+ * 紧迫度分级——盘中第 ② 步（看谁到止损/目标价了）是最高频动作，
+ * 排序必须服务于它。
+ *
+ * 你需要知道的：
+ * 原先持仓按建仓日排、组内按传入顺序排，等于要自己在一屏 60 行里找那几只
+ * 到价的。现在按「能不能现在动手」排：能动手的排最前，不能动手的（T+1、跌停）
+ * 次之，剩下按收益率从低到高——盯盘时先看亏得最多的。
+ *
+ * 纯函数，放这儿是为了能自动测：这个顺序错了不会崩，但会让盯盘时多花几秒，
+ * 而那几秒是最贵的。
+ */
+
+/** 数字越小越紧急。 */
+export const URGENCY = {
+  /** 到了止损价，能卖，该马上处理 */
+  stop: 0,
+  /** 到了目标价，能卖，该马上处理 */
+  target: 1,
+  /** 跌停，卖不出。紧急但动不了——要让人看见，别让人以为漏了 */
+  limitDown: 2,
+  /** 当天买的，不能卖 */
+  t1: 3,
+  /** 正常持有 */
+  hold: 4,
+  /** 已经卖掉的 */
+  closed: 5,
+} as const;
+
+export type UrgencyLevel = (typeof URGENCY)[keyof typeof URGENCY];
+
+/** 这一笔现在处于什么紧迫度。认不出来就当正常持有，不要猜。 */
+export function urgencyOf(row: Pick<PositionRow, "state" | "exit">): UrgencyLevel {
+  if (row.exit != null) return URGENCY.closed;
+  if (row.state === "止损") return URGENCY.stop;
+  if (row.state === "卖出") return URGENCY.target;
+  if (row.state === "跌停") return URGENCY.limitDown;
+  if (row.state === "T+1") return URGENCY.t1;
+  return URGENCY.hold;
+}
+
+/** 需要「现在处理」的那些：到了价能卖的，加上跌停卖不出的（要看见）。 */
+export function needsAction(row: PositionRow): boolean {
+  const level = urgencyOf(row);
+  return level === URGENCY.stop || level === URGENCY.target || level === URGENCY.limitDown;
+}
+
+/**
+ * 按紧迫度排序。同一档内按收益率从低到高（亏得多的排前面）。
+ *
+ * 稳定排序：原来顺序相同的不打乱，所以「同一只票在不同分组里」位置不会乱跳。
+ */
+export function sortByUrgency(rows: PositionRow[]): PositionRow[] {
+  return rows
+    .map((row, i) => ({ row, i }))
+    .sort((a, b) => {
+      const d = urgencyOf(a.row) - urgencyOf(b.row);
+      if (d !== 0) return d;
+      const ra = a.row.ret ?? Number.POSITIVE_INFINITY;
+      const rb = b.row.ret ?? Number.POSITIVE_INFINITY;
+      if (ra !== rb) return ra - rb;
+      return a.i - b.i;
+    })
+    .map((item) => item.row);
+}

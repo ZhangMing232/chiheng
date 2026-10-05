@@ -20,7 +20,7 @@ import { signedPct, fmtPrice, fmtMoney, toneClass } from "@/lib/market/format";
 import { dayReliable, liveGate, netReturn, recentMean } from "@/lib/market/journal-book";
 import { TRACK_NEED } from "@/lib/market/model";
 import { limitTag, planExit } from "@/lib/market/model";
-import { dayHeading, groupByDay, overallOf, rowReturn, type PositionRow } from "@/lib/market/positions";
+import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgency, type PositionRow } from "@/lib/market/positions";
 import { STYLES, styleOf } from "@/lib/market/strategies";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
@@ -167,6 +167,14 @@ function Positions() {
   const rows = useMemo(() => buildRows(days, universe, rules), [days, universe, rules]);
   const groups = useMemo(() => groupByDay(rows), [rows]);
   const total = useMemo(() => overallOf(groups), [groups]);
+  // 盘中第 ② 步是最高频动作：每 60 秒扫一眼「谁到止损/目标价了」。
+  // 这些票散落在各个日期分组里，合并到最上面，省得在一屏 60 行里自己找。
+  const urgent = useMemo(() => sortByUrgency(rows.filter(needsAction)), [rows]);
+  // 组内也按紧迫度排，逻辑跟上面一致
+  const sortedGroups = useMemo(
+    () => groups.map((group) => ({ ...group, open: sortByUrgency(group.open), closed: sortByUrgency(group.closed) })),
+    [groups],
+  );
   const now = Date.now();
 
   // 历史战绩：收盘后补记的那天不算成绩（价格是拿休市后的快照倒推的）。
@@ -226,6 +234,21 @@ function Positions() {
           />
         </Panel>
 
+        {urgent.length > 0 ? (
+          <Panel
+            title={
+              <span className="flex items-baseline gap-2">
+                <span className="size-1.5 rounded-full bg-warn align-middle" aria-hidden />
+                需处理 <span className="num" style={{ color: "var(--color-warn)" }}>{urgent.length}</span>
+              </span>
+            }
+            note={<span>到价了能卖的排最前，跌停卖不出的也列出来</span>}
+            bodyClassName="overflow-x-auto"
+          >
+            <TradeTable rows={urgent} rules={rules} />
+          </Panel>
+        ) : null}
+
         {groups.length === 0 ? (
           <Panel>
             <StateBlock
@@ -235,7 +258,7 @@ function Positions() {
             />
           </Panel>
         ) : (
-          groups.map((group) => (
+          sortedGroups.map((group) => (
             <Panel
               key={group.date}
               title={
