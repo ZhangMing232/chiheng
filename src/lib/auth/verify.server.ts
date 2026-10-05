@@ -103,7 +103,7 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
   // 拿不到身份不是「出错」，是「这里没有登录这回事」——getSessionUser 自己的注释
   // 就是这么写的（"or `null` when auth isn't configured / nobody is signed in"），
   // 可它没兜住 Better Auth 抛异常的情况：凭据是占位值、数据库也没配的时候，
-  // getSession ��直接抛，那个抛法一路传到 getServerJournal 的 catch，
+  // getSession 会直接抛，那个抛法一路传到 getServerJournal 的 catch，
   // 于是又变成「悄悄返回一个空账本」。这里把抛错也当成「没有身份」。
   let user: VerifiedUser | null = null;
   try {
