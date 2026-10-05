@@ -261,17 +261,21 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
             trade.hold ?? 8,
           );
           if (!filled) {
-            // 结算不出来会一直挂着：占着名额、不进胜率，而且页面上看不出异常——
-            // 不抛异常，所以告警那套也不会响。多半是买入日不在这 120 根 K 线里
-            // （停牌很久、或者持仓比 K 线窗口还早）。打一条出来，别让它静悄悄烂在那。
             stillOpen = true;
             const bars = data.bars;
-            const hasEntry = bars.some((bar) => bar.date === day.date);
-            stuck.push(
-              hasEntry
-                ? `${trade.name} ${day.date}（K 线里有这天，但算不出卖出价）`
-                : `${trade.name} ${day.date}（K 线里没有买入日这根，最早 ${bars[0]?.date ?? "无"}）`,
-            );
+            // 「算不出来」有两种，得分开说，不然天天误报：
+            // 一是还没到卖出日（正常得很，09-30 建的仓拿到今天才 3 个交易日）；
+            // 二是真的卡住了——买入日不在这 120 根 K 线里（停牌很久、或者持仓比
+            // K 线窗口还早），这种才会永远挂着、占着名额、不进胜率，页面上也看不出来。
+            // 早先一律报「会一直挂着」，结果每次都拿几十笔正常持仓刷一条假警报。
+            if (!bars.some((bar) => bar.date === day.date)) {
+              stuck.push(`${trade.name} ${day.date}（K 线里没有买入日这根，最早 ${bars[0]?.date ?? "无"}）`);
+              continue;
+            }
+            const hold = trade.hold ?? 8;
+            const passed = bars.filter((bar) => bar.date > day.date).length;
+            if (passed < hold) continue;
+            stuck.push(`${trade.name} ${day.date}（已过 ${passed} 个交易日仍算不出卖出价）`);
             continue;
           }
           trade.exit = filled.price;

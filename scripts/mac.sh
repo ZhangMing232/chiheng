@@ -82,8 +82,25 @@ start() {
     echo "已经在跑。页面 http://127.0.0.1:8787"
     return
   fi
-  launchctl bootstrap "$DOMAIN" "$PLIST"
-  echo "已启动。页面 http://127.0.0.1:8787"
+  # bootstrap 只能在这个用户自己的会话里成功：从别的工具/辅助会话发起的调用
+  # 会报 Bootstrap failed: 5: Input/output error。真失败了就退回直接起进程，
+  # 至少这一次的页面能开，不会只留下一句「已启动」而其实什么都没起。
+  if launchctl bootstrap "$DOMAIN" "$PLIST" 2>/dev/null; then
+    echo "已启动（登录后会自动拉起）。页面 http://127.0.0.1:8787"
+    return
+  fi
+  echo "登录自启装不上（launchctl 拒绝了），改成直接启动："
+  nohup /bin/bash "$ROOT/scripts/start-mac.sh" >/dev/null 2>&1 &
+  for _ in $(seq 1 40); do
+    if curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:8787/"; then
+      echo "已启动（这次是临时起的，下次登录不会自动拉起）。页面 http://127.0.0.1:8787"
+      echo "想让登录时自动拉起，在你自己的终端里跑一次：cd \"$ROOT\" && npm run install:mac"
+      return
+    fi
+    sleep 0.25
+  done
+  echo "没起来。看日志：tail -30 \"$ROOT/data/serve.log\""
+  exit 1
 }
 
 restart() {
