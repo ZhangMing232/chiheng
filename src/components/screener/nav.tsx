@@ -119,7 +119,7 @@ export function TopNav() {
         <Link
           key={link.to}
           to={link.to}
-          className={"shrink-0 border-b-2 py-2 text-sm " + (path === link.to ? "border-brand font-medium text-brand" : "border-transparent text-muted")}
+          className={"nav-tab shrink-0 border-b-2 py-2 text-sm " + (path === link.to ? "border-brand font-medium text-brand" : "border-transparent text-muted")}
         >
           {link.label}
         </Link>

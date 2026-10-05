@@ -96,7 +96,7 @@ function buildRows(days: PaperDay[], universe: Universe | null, rules: EarlyRule
 
 function TradeTable({ rows, rules }: { rows: PositionRow[]; rules: EarlyRules }) {
   return (
-    <Table>
+    <Table className="data-table">
       <thead>
         <tr className="border-b border-line">
           <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>名称</th>
@@ -116,7 +116,7 @@ function TradeTable({ rows, rules }: { rows: PositionRow[]; rules: EarlyRules })
           const tone = row.state === "止损" ? "down" : row.state === "卖出" ? "up" : "muted";
           return (
             <tr key={`${row.day}-${row.id}-${row.exit ?? "open"}`} className="border-b border-line last:border-0 hover:bg-surface-2">
-              <td className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
+              <td data-l="名称" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
                 <Link to="/symbol" search={{ q: row.code }} className="font-medium hover:text-brand">
                   {row.name}
                 </Link>
@@ -124,23 +124,23 @@ function TradeTable({ rows, rules }: { rows: PositionRow[]; rules: EarlyRules })
                   {row.code} · <Tag tone={tone}>{row.state}</Tag>
                 </div>
               </td>
-              <td className={tdClass("font-medium")}>{row.live ? fmtPrice(row.live.price) : "—"}</td>
-              <td className={tdClass(pctClass(row.live?.chg))}>{row.live ? signedPct(row.live.chg) : "—"}</td>
-              <td className={tdClass()}>{fmtPrice(row.entry)}</td>
-              <td className={tdClass(row.ret == null ? "text-muted" : pctClass(row.ret * 100))}>
+              <td data-l="现价" className={tdClass("font-medium")}>{row.live ? fmtPrice(row.live.price) : "—"}</td>
+              <td data-l="涨跌幅" className={tdClass(pctClass(row.live?.chg))}>{row.live ? signedPct(row.live.chg) : "—"}</td>
+              <td data-l="买入价" className={tdClass()}>{fmtPrice(row.entry)}</td>
+              <td data-l="收益率" className={tdClass(row.ret == null ? "text-muted" : pctClass(row.ret * 100))}>
                 {row.ret == null ? "—" : signedPct(row.ret * 100)}
               </td>
-              <td className={tdClass(row.pnl == null ? "text-muted" : pctClass(row.pnl))}>
+              <td data-l="盈亏/股" className={tdClass(row.pnl == null ? "text-muted" : pctClass(row.pnl))}>
                 {row.pnl == null ? "—" : row.pnl.toFixed(2)}
               </td>
-              <td className={tdClass("text-muted")}>
+              <td data-l="卖出价" data-opt className={tdClass("text-muted")}>
                 {row.exit != null ? fmtPrice(row.exit) : "—"}
                 {row.exitDate ? <div className="text-xs">{row.exitDate.slice(5)}</div> : null}
               </td>
-              <td className={tdClass("hidden text-muted md:table-cell")}>
+              <td data-l="卖出/止损" data-opt className={tdClass("hidden text-muted md:table-cell")}>
                 {fmtPrice(levels.target)} / {fmtPrice(levels.stop)}
               </td>
-              <td className={tdClass("hidden text-muted md:table-cell")}>
+              <td data-l="策略" data-opt className={tdClass("hidden text-muted md:table-cell")}>
                 {STYLES.find((s) => s.id === styleOf(row as never))?.name ?? "—"}
               </td>
             </tr>
