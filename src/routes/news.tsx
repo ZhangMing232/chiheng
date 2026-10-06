@@ -97,12 +97,14 @@ function ToneSide({
   return (
     // 侧边一条红/绿：同花顺那种「一栏一个色调」的排法。标题之外再给一个视觉锚点，
     // 余光扫过去就知道这栏是利好还是利空。
+    // bg-surface 是配合外层 gap-px + bg-line 的分隔线：两栏之间那条 1px 由外层垫出来。
     <div
-      className="min-w-0 border-l-2 px-3 py-2"
+      className="min-w-0 border-l-2 bg-surface px-4 py-3.5"
       // 直接引 CSS 变量，不赌 Tailwind 能不能从 @theme 生成 border-l-up 这类类名
       style={{ borderLeftColor: tone === "good" ? "var(--color-up)" : "var(--color-down)" }}
     >
-      <h2 className={"text-sm font-medium " + quiet}>{title}</h2>
+      {/* h3：外层 Panel 的标题「利好 / 利空」已经是 h2，这两栏是它的下一级 */}
+      <h3 className={"text-sm font-medium " + quiet}>{title}</h3>
       {boards.length === 0 && stocks.length === 0 ? (
         <div className="mt-2">
           <StateBlock
@@ -126,7 +128,7 @@ function ToneSide({
         <>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {boards.map((board) => (
-              <span key={board.code} className="rounded bg-surface-2 px-2.5 py-1.5 text-sm">
+              <span key={board.code} className="rounded bg-surface-2 px-2.5 py-1 text-xs">
                 {board.name}
                 {board.n > 1 ? <span className="text-muted"> {board.n}</span> : null}
               </span>
@@ -185,7 +187,9 @@ function NewsPage() {
         >
           {/* 两栏之间用红/绿侧边条分隔：同花顺那种「一栏一个色调」的排法，
               余光扫过去就知道这栏是利好还是利空，不用读标题。 */}
-          <div className="grid md:grid-cols-2 md:divide-x md:divide-line">
+          {/* 分隔线用 gap-px + bg-line 垫出来，不是 divide-x：
+              窄屏上下堆叠时那条 1px 也在，两栏的边界在哪一眼就清楚了。 */}
+          <div className="grid gap-px bg-line md:grid-cols-2">
             <ToneSide
               title="利好"
               tone="good"
@@ -221,10 +225,11 @@ function NewsPage() {
             <ul>
               {ordered.map((item) => {
                 return (
-                  <li key={item.id} className="border-t border-line px-3 py-2 first:border-t-0">
-                    <div className="flex gap-3">
-                      <div className="w-12 shrink-0">
-                        <div className={"text-sm font-medium tabular-nums " + (item.tone === "flat" ? "text-muted" : "text-brand")}>{item.time.slice(11, 16)}</div>
+                  <li key={item.id} className="border-t border-line px-4 py-2.5 first:border-t-0">
+                    {/* 时间占固定 44px：每条快讯的正文左边缘对齐，扫的时候不用左右找 */}
+                    <div className="flex gap-3.5">
+                      <div className="w-11 shrink-0">
+                        <div className={"text-sm font-medium tabular-nums " + (item.tone === "flat" ? "text-muted" : "text-fg")}>{item.time.slice(11, 16)}</div>
                         <div className="text-xs tabular-nums text-muted">{item.time.slice(5, 10)}</div>
                       </div>
                       <div className="min-w-0 flex-1">

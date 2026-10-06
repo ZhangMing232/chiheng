@@ -211,6 +211,8 @@ function Positions() {
       }
     >
       <div className="flex flex-col gap-2">
+        {/* 合计用一格一格的排法：分隔线是 1px 的 gap 垫出来的（gap-px + bg-line），
+            不加阴影。和「资金」页概览、策略卡同一套版式。 */}
         <Panel
           title="合计"
           note={
@@ -219,27 +221,30 @@ function Positions() {
               {!onServer && ready ? " · 本机浏览器的账" : ""}
             </span>
           }
-          bodyClassName="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+          bodyClassName="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 lg:grid-cols-6"
         >
-          <Stat label="开仓笔数" value={total.count} />
-          <Stat label="合计数量" value={`${total.shares} 股`} hint={`${total.shares / 100} 手`} />
-          <Stat label="合计金额" value={fmtMoney(total.amount)} hint="名义金额，每笔按一手" />
+          <Stat label="开仓笔数" value={total.count} className="bg-surface" />
+          <Stat label="合计数量" value={`${total.shares} 股`} hint={`${total.shares / 100} 手`} className="bg-surface" />
+          <Stat label="合计金额" value={fmtMoney(total.amount)} hint="名义金额，每笔按一手" className="bg-surface" />
           <Stat
             label="已实现"
             value={total.realized == null ? "—" : signedPct(total.realized * 100)}
             tone={pctClass(total.realized == null ? null : total.realized * 100)}
             hint="每笔收益率相加，已扣费"
+            className="bg-surface"
           />
           <Stat
             label="浮动"
             value={total.unrealized == null ? "—" : signedPct(total.unrealized * 100)}
             tone={pctClass(total.unrealized == null ? null : total.unrealized * 100)}
             hint="按现价算"
+            className="bg-surface"
           />
           <Stat
             label="合计盈亏"
             value={total.total == null ? "—" : signedPct(total.total * 100)}
             tone={pctClass(total.total == null ? null : total.total * 100)}
+            className="bg-surface"
           />
         </Panel>
 
@@ -247,18 +252,24 @@ function Positions() {
           <Panel
             title={
               <span className="flex items-baseline gap-2">
-                <span className="size-1.5 rounded-full bg-warn align-middle" aria-hidden />
-                需处理 <span className="num" style={{ color: "var(--color-warn)" }}>{urgent.length}</span>
+                需处理 <span className="num text-warn">{urgent.length}</span>
               </span>
             }
             note={<span>到价了能卖的排最前，跌停卖不出的也列出来</span>}
-            bodyClassName="overflow-x-auto"
+            bodyClassName="px-3.5 py-3"
           >
-            <TradeTable
-              rows={urgent}
-              rules={rules}
-              caption={`需要现在处理的持仓，共 ${urgent.length} 笔`}
-            />
+            {/*
+              左边一条警示色，和消息页「利好 / 利空」两栏同一个手法：
+              不读标题、只看色条就知道这块是要动手的，不是回顾用的。
+              色条放在内容上而不是标题上——表格才是要被注意的东西，标题只是个名字。
+            */}
+            <div className="border-l-2 pl-3.5" style={{ borderLeftColor: "var(--color-warn)" }}>
+              <TradeTable
+                rows={urgent}
+                rules={rules}
+                caption={`需要现在处理的持仓，共 ${urgent.length} 笔`}
+              />
+            </div>
           </Panel>
         ) : null}
 
@@ -272,28 +283,20 @@ function Positions() {
           </Panel>
         ) : (
           sortedGroups.map((group) => (
-            <Panel
-              key={group.date}
-              title={
-                <span className="flex items-baseline gap-2">
-                  {dayHeading(group.date, weekdayOf(group.date))}
-                  <span className="text-xs font-normal text-muted">
-                    {group.count} 笔 · {group.shares} 股
-                  </span>
-                </span>
-              }
-              note={
-                <span className="flex items-baseline gap-2">
-                  <span>金额 {fmtMoney(group.amount)}</span>
+            // 一天一块。日期条用 surface-2 垫底：往下滚的时候，靠这一条深色就能分出
+            // 「换了一天」，不用回去找标题。这是持仓页唯一需要扫读的边界。
+            <section key={group.date} className="overflow-hidden rounded border border-line bg-surface">
+              <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 bg-surface-2 px-3.5 py-2">
+                <h2 className="text-sm font-medium">{dayHeading(group.date, weekdayOf(group.date))}</h2>
+                <p className="text-xs text-muted">
+                  {group.count} 笔 · {group.shares} 股 · 金额 {fmtMoney(group.amount)} ·{" "}
                   {group.total == null ? (
-                    <span className="text-muted">盈亏 —</span>
+                    "盈亏 —"
                   ) : (
                     <span className={pctClass(group.total * 100)}>盈亏 {signedPct(group.total * 100)}</span>
                   )}
-                </span>
-              }
-              bodyClassName="overflow-x-auto"
-            >
+                </p>
+              </header>
               <div className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-4">
                 <Stat
                   label="开仓笔数"
@@ -326,32 +329,43 @@ function Positions() {
                 rules={rules}
                 caption={`${dayHeading(group.date, weekdayOf(group.date))} 开仓的 ${group.count} 笔`}
               />
-            </Panel>
+            </section>
           ))
         )}
 
+        {/* 两处口径不一样，得写出来，不然会以为哪边算错了。
+            这里照常列已卖的盈亏，下面「历史战绩」却可能少几笔——少的那几笔
+            记在收盘后补记的那天（signalTime ≥ 15:00），整天不进统计。 */}
+        {closed.length > scored.length ? (
+          <p className="px-1 text-xs leading-relaxed text-muted">
+            下面「历史战绩」会比这里的已卖少 {closed.length - scored.length} 笔：那几笔记在收盘后补记的
+            交易日（signalTime ≥ 15:00），按口径整天不进统计。持仓列表照常显示它们的盈亏。
+          </p>
+        ) : null}
+
         <Panel title="历史战绩" note={<span>{closed.length === 0 ? "还没有卖出" : `${closed.length} 笔已卖`}</span>}>
-          <div className="grid grid-cols-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
             <Stat
               label="上涨占比"
               value={scored.length === 0 ? "—" : `${((wins / scored.length) * 100).toFixed(2)}%`}
-              className="border-r border-line"
+              className="bg-surface"
             />
             <Stat
               label="累计收益"
               value={scored.length === 0 ? "—" : signedPct(cum * 100)}
               tone={toneClass(scored.length ? cum * 100 : null)}
-              className="border-r border-line"
+              className="bg-surface"
             />
             <Stat
               label="最近 20 笔均值"
               value={recent == null ? "—" : signedPct(recent * 100)}
-              className="border-r border-line"
+              className="bg-surface"
             />
             <Stat
               label="沪深300"
               value={indexCum == null ? "—" : signedPct(indexCum * 100)}
               tone={toneClass(indexCum == null ? null : indexCum * 100)}
+              className="bg-surface"
             />
           </div>
           <p className="border-t border-line px-3 py-2 text-xs leading-relaxed text-muted">
