@@ -1,0 +1,31 @@
+{
+  "pages": [
+    "pages/lab/lab",
+    "pages/positions/positions",
+    "pages/news/news",
+    "pages/symbol/symbol",
+    "pages/flow/flow"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#161c25",
+    "navigationBarTitleText": "赤轨 · 策略实验台",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0e1218"
+  },
+  "tabBar": {
+    "color": "#8b95a6",
+    "selectedColor": "#eef2f6",
+    "backgroundColor": "#161c25",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/lab/lab", "text": "选股" },
+      { "pagePath": "pages/positions/positions", "text": "持仓" },
+      { "pagePath": "pages/news/news", "text": "消息" },
+      { "pagePath": "pages/symbol/symbol", "text": "个股" },
+      { "pagePath": "pages/flow/flow", "text": "资金" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

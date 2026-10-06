@@ -1,0 +1,87 @@
+<!--
+  持仓。最上面是「需处理」——盘中真正要动手的只有这几笔，
+  它们散落在各个日期分组里，合并到最上面省得一屏一屏找。
+-->
+<view class="wrap {{theme}}">
+
+  <!-- 合计 -->
+  <view wx:if="{{total}}" class="tiles">
+    <view class="tile">
+      <view class="k">开仓笔数</view>
+      <view class="v num">{{total.count}}</view>
+      <view class="h">{{total.openCount}} 只在拿 · {{total.closedCount}} 只已卖</view>
+    </view>
+    <view class="tile">
+      <view class="k">合计金额</view>
+      <view class="v num">{{total.amount}}</view>
+      <view class="h">名义金额，每笔按一手</view>
+    </view>
+    <view class="tile">
+      <view class="k">已实现</view>
+      <view class="v num">{{total.realized}}</view>
+      <view class="h">每笔收益率相加，已扣费</view>
+    </view>
+    <view class="tile">
+      <view class="k">浮动</view>
+      <view class="v num">{{total.unrealized}}</view>
+      <view class="h">按现价算</view>
+    </view>
+  </view>
+
+  <!-- 需处理：左边一条警示色，不看标题也知道这块要动手 -->
+  <view wx:if="{{urgent.length > 0}}" class="panel" style="margin-top:24rpx">
+    <view class="hd">
+      <view class="t">需处理 {{urgent.length}}</view>
+      <view class="n">到价了能卖的排最前</view>
+    </view>
+    <view class="urgent" style="padding:20rpx 24rpx">
+      <view wx:for="{{urgent}}" wx:key="id" class="row" style="padding:16rpx 0">
+        <view>
+          <view class="name">{{item.name}} <text class="muted" style="font-size:24rpx">{{item.code}}</text></view>
+          <view style="margin-top:6rpx"><text class="pill {{item.stateCls}}">{{item.state}}</text></view>
+        </view>
+        <view style="text-align:right">
+          <view class="num">{{item.price}}</view>
+          <view class="pill {{item.retCls}}">{{item.ret}}</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 按开仓日期分组 -->
+  <view wx:for="{{groups}}" wx:key="heading" class="daygroup">
+    <view class="hd">
+      <view class="d">{{item.heading}}</view>
+      <view class="muted num">{{item.count}} 笔 · {{item.shares}} 股 · {{item.amount}} · 盈亏 <text class="{{item.totalCls}}">{{item.total}}</text></view>
+    </view>
+    <view wx:for="{{item.rows}}" wx:for-item="r" wx:key="id" class="row">
+      <view>
+        <view class="name">{{r.name}}</view>
+        <view style="font-size:24rpx;color:var(--muted);margin-top:6rpx">
+          {{r.code}} · 买 {{r.entry}} · {{r.styleName}} <text class="pill {{r.stateCls}}" style="margin-left:12rpx">{{r.state}}</text>
+        </view>
+      </view>
+      <view style="text-align:right">
+        <view class="num">{{r.price}} <text class="pill {{r.chgCls}}" style="margin-left:12rpx">{{r.chg}}</text></view>
+        <view class="pill {{r.retCls}}" style="margin-top:6rpx">{{r.ret}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{empty}}" class="statebox">
+    <view class="glyph muted"></view>
+    <view class="hint">还没有开过仓。打到买入价才记一笔，名额按天算，每套每天最多 10 只。</view>
+  </view>
+
+  <view wx:if="{{error}}" class="statebox">
+    <view class="glyph warn"></view>
+    <view class="hint">现价没拉到：{{error}}。持仓照常显示，只是收益率先空着。</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="statebox"><view class="hint">正在读账本…</view></view>
+
+  <view class="note-line">
+    金额是名义金额：这套模拟盘不记仓位大小，每笔按一手（100 股）折算，不是投入的钱。
+    收益率已扣佣金和印花税。
+  </view>
+</view>

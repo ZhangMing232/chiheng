@@ -1,0 +1,9 @@
+{
+  "name": "quote",
+  "version": "1.0.0",
+  "description": "抓行情、算选股。小程序所有外部数据都从这里出",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

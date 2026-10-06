@@ -1,0 +1,233 @@
+"use strict";
+/**
+ * 这个文件是干什么的：
+ * 负责资金这块。拉行业、个股的主力净流入，北向成交额，还有沪深两市按单子大小拆开的资金和成交额。
+ * 整理成一本资金账，给页面和海报用。
+ *
+ * 你需要知道的：
+ * 金额大多是万元。主力净额和散户净额是同一笔成交的两边，不是两群人。
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.readMarket = readMarket;
+exports.loadFlow = loadFlow;
+/** 主力与散户是同一笔成交的两边。真正的差别在单子大小和沪深是否同向。 */
+function readMarket(parts) {
+    if (parts.length === 0)
+        return [];
+    const sum = (key) => parts.reduce((total, part) => total + part[key], 0);
+    const lines = ["主力净额和散户净额是同一笔成交的两边，不是两群人。散户净流入大约等于主力净流出。"];
+    const superNet = sum("super");
+    const big = sum("big");
+    if (superNet * big < 0) {
+        lines.push(superNet > 0
+            ? "主力内部不一致：超大单在进，大单在出。只看主力净额会把这个差别抹平。"
+            : "主力内部不一致：超大单在出，大单在进。只看主力净额会把这个差别抹平。");
+    }
+    else {
+        lines.push("超大单和大单同向，主力内部没有对着做。");
+    }
+    const mid = sum("mid");
+    const small = sum("small");
+    if (mid * small < 0) {
+        lines.push(small > 0 ? "散户这边也不齐：小单在进，中单在出。" : "散户这边也不齐：小单在出，中单在进。");
+    }
+    const sh = parts.find((part) => part.name === "沪市");
+    const sz = parts.find((part) => part.name === "深市");
+    if (sh && sz && sh.main * sz.main < 0) {
+        lines.push(sh.main > 0 ? "沪市主力在进，深市主力在出。不要合成一个方向。" : "沪市主力在出，深市主力在进。不要合成一个方向。");
+    }
+    else if (sh && sz && (sh.main !== 0 || sz.main !== 0)) {
+        lines.push(Math.abs(sh.main) >= Math.abs(sz.main) ? "两市主力同向，幅度主要在沪市。" : "两市主力同向，幅度主要在深市。");
+    }
+    return lines;
+}
+const TTL_MS = 60000;
+let cache = null;
+function num(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+async function rank(url) {
+    var _a;
+    const res = await fetch(url, {
+        headers: { "user-agent": "Mozilla/5.0", referer: "https://stockapp.finance.qq.com/" },
+        signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok)
+        throw new Error(`status ${res.status}`);
+    const body = (await res.json());
+    return Array.isArray((_a = body.data) === null || _a === void 0 ? void 0 : _a.rank_list) ? body.data.rank_list : [];
+}
+function rowOf(raw, kind) {
+    var _a, _b, _c;
+    const id = String((_a = raw.code) !== null && _a !== void 0 ? _a : "");
+    const name = String((_b = raw.name) !== null && _b !== void 0 ? _b : "").trim();
+    const inflow = num(raw.zljlr);
+    if (!id || !name || inflow == null)
+        return null;
+    if (kind === "stock" && (name.startsWith("N") || name.includes("ST") || name.includes("退")))
+        return null;
+    const leader = raw.lzg && typeof raw.lzg === "object" ? String((_c = raw.lzg.name) !== null && _c !== void 0 ? _c : "") : "";
+    return { id, name, chg: num(raw.zdf), inflow, leader };
+}
+function take(list, kind, limit) {
+    const rows = [];
+    for (const raw of list) {
+        const row = rowOf(raw, kind);
+        if (!row)
+            continue;
+        rows.push(row);
+        if (rows.length >= limit)
+            break;
+    }
+    return rows;
+}
+async function loadNorth() {
+    const legs = [
+        { type: "001", name: "沪股通" },
+        { type: "003", name: "深股通" },
+    ];
+    const rows = await Promise.all(legs.map(async (leg) => {
+        var _a, _b, _c, _d;
+        const url = "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_MUTUAL_DEAL_HISTORY" +
+            "&columns=TRADE_DATE,DEAL_AMT,LEAD_STOCKS_NAME" +
+            `&filter=(MUTUAL_TYPE=%22${leg.type}%22)&pageNumber=1&pageSize=1&sortColumns=TRADE_DATE&sortTypes=-1`;
+        const res = await fetch(url, {
+            headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
+            signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok)
+            return null;
+        const body = (await res.json());
+        const row = (_b = (_a = body.result) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b[0];
+        const amount = num(row === null || row === void 0 ? void 0 : row.DEAL_AMT);
+        if (!row || amount == null)
+            return null;
+        return {
+            name: leg.name,
+            date: String((_c = row.TRADE_DATE) !== null && _c !== void 0 ? _c : "").slice(0, 10),
+            amount: amount * 100,
+            leader: String((_d = row.LEAD_STOCKS_NAME) !== null && _d !== void 0 ? _d : ""),
+        };
+    }));
+    return rows.filter((row) => row != null);
+}
+function wanYuan(value) {
+    const n = num(value);
+    return n == null ? 0 : n / 10000;
+}
+async function marketPart(code, name) {
+    var _a;
+    const res = await fetch(`https://proxy.finance.qq.com/cgi/cgi-bin/fundflow/hsfundtab?code=${code}&type=todayFundFlow&klineNeedDay=1`, {
+        headers: { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" },
+        signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok)
+        return null;
+    const body = (await res.json());
+    const row = (_a = body.data) === null || _a === void 0 ? void 0 : _a.todayFundFlow;
+    if (!row)
+        return null;
+    return {
+        name,
+        main: wanYuan(row.mainNetIn),
+        super: wanYuan(row.superFlow),
+        big: wanYuan(row.bigFlow),
+        mid: wanYuan(row.normalFlow),
+        small: wanYuan(row.smallFlow),
+        retail: wanYuan(num(row.retailIn) != null && num(row.retailOut) != null ? Number(row.retailIn) - Number(row.retailOut) : null),
+    };
+}
+async function loadMarket() {
+    const rows = await Promise.all([marketPart("sh000001", "沪市"), marketPart("sz399001", "深市")]);
+    return rows.filter((row) => row != null);
+}
+async function loadTape() {
+    var _a, _b, _c, _d, _e, _f;
+    const [quoteRes, shRes, szRes] = await Promise.all([
+        fetch("https://web.sqt.gtimg.cn/utf8/q=sh000001,sz399001", {
+            headers: { "user-agent": "Mozilla/5.0" },
+            signal: AbortSignal.timeout(12000),
+        }),
+        fetch("https://proxy.finance.qq.com/cgi/cgi-bin/stockinfoquery/kline/app/get?code=sh000001&ktype=day&fq=none&limit=3", {
+            headers: { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" },
+            signal: AbortSignal.timeout(12000),
+        }),
+        fetch("https://proxy.finance.qq.com/cgi/cgi-bin/stockinfoquery/kline/app/get?code=sz399001&ktype=day&fq=none&limit=3", {
+            headers: { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" },
+            signal: AbortSignal.timeout(12000),
+        }),
+    ]);
+    if (!quoteRes.ok)
+        return [];
+    const bars = new Map();
+    for (const res of [shRes, szRes]) {
+        if (!res.ok)
+            continue;
+        const body = (await res.json());
+        const code = (_a = body.data) === null || _a === void 0 ? void 0 : _a.stockCode;
+        if (!code)
+            continue;
+        bars.set(code, ((_c = (_b = body.data) === null || _b === void 0 ? void 0 : _b.nodes) !== null && _c !== void 0 ? _c : []).flatMap((node) => {
+            const amount = num(node.amount);
+            if (!node.date || amount == null)
+                return [];
+            return [{ date: node.date, amount }];
+        }));
+    }
+    const text = await quoteRes.text();
+    const names = { sh000001: "上证", sz399001: "深成" };
+    const rows = [];
+    for (const line of text.split(";")) {
+        const match = line.match(/_([a-z]{2}\d+)="(.*)"/);
+        if (!match)
+            continue;
+        const parts = match[2].split("~");
+        const slash = parts.find((part) => part.split("/").length === 3);
+        const amountYuan = num(slash === null || slash === void 0 ? void 0 : slash.split("/")[2]);
+        const volume = num(parts[6]);
+        if (amountYuan == null || volume == null)
+            continue;
+        const stamp = (_d = parts[30]) !== null && _d !== void 0 ? _d : "";
+        const today = stamp.length >= 8 ? `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}` : "";
+        const days = (_e = bars.get(match[1])) !== null && _e !== void 0 ? _e : [];
+        const prior = [...days].reverse().find((row) => row.date !== today);
+        rows.push({
+            name: (_f = names[match[1]]) !== null && _f !== void 0 ? _f : match[1],
+            amount: amountYuan / 10000,
+            volume,
+            prevAmount: prior ? prior.amount / 10000 : null,
+        });
+    }
+    return rows;
+}
+/** 腾讯行业和个股的主力净流入。大约一分钟更新一次。 */
+async function loadFlow() {
+    if (cache && Date.now() - cache.at < TTL_MS)
+        return cache.book;
+    const sector = (direct) => `https://proxy.finance.qq.com/cgi/cgi-bin/rank/pt/getRank?board_type=hy&sort_type=netMainIn&direct=${direct}&offset=0&count=12`;
+    const stock = (direct) => `https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?board_code=aStock&sort_type=netMainIn&direct=${direct}&offset=0&count=20`;
+    const [sectorsIn, sectorsOut, stocksIn, stocksOut] = await Promise.all([
+        rank(sector("down")),
+        rank(sector("up")),
+        rank(stock("down")),
+        rank(stock("up")),
+    ]);
+    const [north, market, tape] = await Promise.all([
+        loadNorth().catch(() => []),
+        loadMarket().catch(() => []),
+        loadTape().catch(() => []),
+    ]);
+    const book = {
+        sectorsIn: take(sectorsIn, "sector", 8),
+        sectorsOut: take(sectorsOut, "sector", 8),
+        stocksIn: take(stocksIn, "stock", 8),
+        stocksOut: take(stocksOut, "stock", 8),
+        north,
+        market,
+        tape,
+        asOf: Date.now(),
+    };
+    cache = { at: book.asOf, book };
+    return book;
+}

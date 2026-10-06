@@ -1,0 +1,84 @@
+<!-- 消息：利好 / 利空两栏（侧边一条红/绿），下面是 7×24 电报 -->
+<view class="wrap {{theme}}">
+
+  <view class="panel">
+    <view class="hd">
+      <view class="t">利好 / 利空</view>
+      <view class="n">按快讯用词归类，不是研报{{at ? ' · ' + at : ''}}</view>
+    </view>
+
+    <view class="bd" style="display:flex;flex-wrap:wrap">
+      <!-- 利好 -->
+      <view style="flex:1 1 300rpx;border-left:4rpx solid var(--up);padding-right:24rpx">
+        <view class="up" style="font-size:28rpx;font-weight:500">利好</view>
+        <view wx:if="{{good.boards.length === 0 && good.stocks.length === 0}}" style="padding:24rpx 0">
+          <view class="hint muted" style="font-size:24rpx">这批没有判成利好的。</view>
+        </view>
+        <view wx:else>
+          <view style="display:flex;flex-wrap:wrap;gap:12rpx;margin-top:16rpx">
+            <view wx:for="{{good.boards}}" wx:key="name" class="pill p-mute">{{item.name}} {{item.n}}</view>
+          </view>
+          <view wx:for="{{good.stocks}}" wx:key="name" class="row" style="padding:16rpx 0">
+            <view class="name">{{item.name}} <text class="muted" style="font-size:24rpx">{{item.code}}</text></view>
+            <view class="num {{item.chgCls}}">{{item.chgText}}</view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 利空 -->
+      <view style="flex:1 1 300rpx;border-left:4rpx solid var(--down);padding-left:24rpx">
+        <view class="down" style="font-size:28rpx;font-weight:500">利空</view>
+        <view wx:if="{{bad.boards.length === 0 && bad.stocks.length === 0}}" style="padding:24rpx 0">
+          <view class="hint muted" style="font-size:24rpx">这批没有判成利空的。</view>
+        </view>
+        <view wx:else>
+          <view style="display:flex;flex-wrap:wrap;gap:12rpx;margin-top:16rpx">
+            <view wx:for="{{bad.boards}}" wx:key="name" class="pill p-mute">{{item.name}} {{item.n}}</view>
+          </view>
+          <view wx:for="{{bad.stocks}}" wx:key="name" class="row" style="padding:16rpx 0">
+            <view class="name">{{item.name}} <text class="muted" style="font-size:24rpx">{{item.code}}</text></view>
+            <view class="num {{item.chgCls}}">{{item.chgText}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="hd">
+      <view class="t">7×24 电报</view>
+      <view class="n">利好在前</view>
+    </view>
+    <view class="bd" style="padding:0">
+      <view wx:if="{{tape.length === 0}}" class="statebox">
+        <view class="glyph muted"></view>
+        <view class="hint">这批没有快讯。休市时本来就没有新的。</view>
+      </view>
+      <view wx:for="{{tape}}" wx:key="id" class="row" style="align-items:flex-start">
+        <view style="width:96rpx;flex:none">
+          <view class="num" style="font-size:28rpx;font-weight:500">{{item.time}}</view>
+          <view class="muted num" style="font-size:22rpx">{{item.date}}</view>
+        </view>
+        <view style="flex:1;min-width:0">
+          <view style="display:flex;gap:12rpx;align-items:flex-start">
+            <text class="pill {{item.toneCls}}">{{item.tone}}</text>
+            <text style="flex:1">{{item.title}}</text>
+          </view>
+          <view wx:if="{{item.summary}}" class="muted" style="font-size:24rpx;margin-top:8rpx;line-height:1.6">{{item.summary}}</view>
+          <view wx:if="{{item.boards.length > 0 || item.stocks.length > 0}}" style="display:flex;flex-wrap:wrap;gap:10rpx;margin-top:12rpx">
+            <text wx:for="{{item.boards}}" wx:for-item="b" wx:key="*this" class="pill p-mute">{{b}}</text>
+            <text wx:for="{{item.stocks}}" wx:for-item="s" wx:key="*this" class="pill p-mute">{{s.name}} {{s.chg}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{error}}" class="statebox">
+    <view class="glyph warn"></view>
+    <view class="hint">消息源没响应：{{error}}。行情和持仓不受影响，只有这一页空着。</view>
+  </view>
+  <view wx:if="{{loading}}" class="statebox"><view class="hint">正在拉快讯…</view></view>
+
+  <view class="note-line">这里只展示。看消息不会改买入价，也不会改账。</view>
+</view>

@@ -1,0 +1,351 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.MAX_POSITIONS = exports.ACTIVE_STYLES = exports.STYLE_IDS = exports.STYLES = void 0;
+exports.styleOf = styleOf;
+exports.daySlotsLeft = daySlotsLeft;
+exports.watchList = watchList;
+exports.takeBuys = takeBuys;
+exports.bookRisk = bookRisk;
+exports.quoteOrder = quoteOrder;
+/**
+ * 这个文件是干什么的：
+ * 五套选股策略。每套自己算买入价、卖出价、止损价，互不混用。
+ *
+ * 你需要知道的：
+ * 每套最多同时拿 10 只。现价打到买入价才算买进，打到卖出价或止损价才算卖出。
+ * 涨停不算能买进。买入当天不能卖（T+1），卖出日的判断在 journal-book.ts。
+ * 「次日补涨」不在这里算价，它有自己的尾盘逻辑，所以 quoteOrder 对它直接返回空。
+ */
+const model_1 = require("./model");
+/** 页面上的五套标签。hint 是给用户看的一句人话，真正的门槛在下面各个函数里。 */
+exports.STYLES = [
+    {
+        id: "early",
+        name: "启动前期",
+        hint: "刚转强、还没走远。买入价在当天允许涨幅的中部，现价回到这个价才买。",
+    },
+    {
+        id: "trend",
+        name: "趋势回踩",
+        hint: "20 日和 60 日已经向上。买入价是昨收，等它回踩到昨收再买，不追当天的高点。",
+    },
+    {
+        id: "breakout",
+        name: "放量突破",
+        hint: "量比和换手起来，突破昨收上面 2%。现价刚过买入价才买，已经冲远了不追。",
+    },
+    {
+        id: "value",
+        name: "低估值",
+        // 这句话要和 valueOrder 的实际行为对得上，别写成「按 15 倍折」就完了：
+        // 已经不到 15 倍的，折完就是现价，等于按市价买；15 到 18 倍的要等股价
+        // 回落到 15 倍才成交（16 倍得跌 6%，18 倍得跌 17%），短线里很少走到。
+        hint: "市盈率不超过 18 倍、市净率不超过 2 倍。不到 15 倍的按现价买；15 到 18 倍的要等回落到 15 倍才买得上，盘中很少走到。目标 22 倍、止损 10 倍，两头都夹住。",
+    },
+    {
+        id: "rebound",
+        name: "中期反转",
+        hint: "60 日里跌得最惨的十只，按现价买，拿满 10 个交易日卖。不设贴身止损——止损会把反弹切短。",
+    },
+    {
+        id: "relay",
+        name: "次日补涨",
+        hint: "收盘前半小时，在当天最强的三个概念板块里，买还能成交的次强，不买龙头和涨停。下一交易日卖。",
+    },
+];
+/** 把价格四舍五入到分。A 股报价最小是 0.01 元。 */
+function round2(n) {
+    return Math.round(n * 100) / 100;
+}
+/** 用现价和涨跌幅倒推昨收。涨跌幅是百分比，例如 10 表示涨了 10%。 */
+function prevClose(quote) {
+    if (quote.chg == null || !(quote.price > 0))
+        return null;
+    const denom = 1 + quote.chg / 100;
+    if (!(denom > 0))
+        return null;
+    return quote.price / denom;
+}
+/**
+ * 这只票现在能不能拿来做计划。
+ * 不要：ST、股价低于 4 元、总市值低于 40 亿、已经贴着涨停或跌停（那种价往往买不进或卖不出）。
+ */
+function tradable(quote) {
+    if (quote.st || quote.price < 4 || quote.cap < 40 || quote.chg == null)
+        return false;
+    const limit = (0, model_1.limitPct)(quote);
+    if (quote.chg >= limit - 0.3 || quote.chg <= -limit + 0.3)
+        return false;
+    return true;
+}
+/**
+ * 启动前期。门槛在 rules.ts，这里只把「允许涨幅的中间」换成买入价。
+ * 现价回到买入价和止损价之间才算 hit，也就是等它回落，不追高。
+ */
+function earlyOrder(quote, rules) {
+    const scored = (0, model_1.screen)(quote, true, rules);
+    const prev = prevClose(quote);
+    if (!scored || prev == null)
+        return null;
+    const mid = (rules.chgMin + rules.chgMax) / 2;
+    const buy = round2(prev * (1 + mid / 100));
+    const plan = (0, model_1.planExit)(buy, quote.d20, rules);
+    const stop = Math.min(plan.stop, round2(prev * (1 + rules.chgMin / 100)));
+    if (!(stop < buy && buy < plan.target))
+        return null;
+    return {
+        ...scored,
+        buy,
+        sell: plan.target,
+        stop,
+        hit: quote.price <= buy && quote.price >= stop,
+    };
+}
+/**
+ * 趋势回踩。20 日涨了 10% 到 40%，60 日至少涨了 5%，今天在 0 到跌 4% 之间。
+ * 买入价就是昨收。止损按 20 日涨幅的四分之一，至少 3%。
+ */
+function trendOrder(quote) {
+    const prev = prevClose(quote);
+    if (!tradable(quote) || prev == null || quote.d20 == null || quote.d60 == null)
+        return null;
+    if (quote.d20 < 10 || quote.d20 > 40 || quote.d60 < 5)
+        return null;
+    if (quote.chg == null || quote.chg > 1 || quote.chg < -4)
+        return null;
+    if (quote.amount < 5000 || quote.volRatio < 0.8)
+        return null;
+    const buy = round2(prev);
+    const give = Math.max(3, quote.d20 * 0.25);
+    const stop = round2(buy * (1 - give / 100));
+    const sell = round2(buy * (1 + Math.max(40 - quote.d20, give) / 100));
+    if (!(stop < buy && buy < sell))
+        return null;
+    return {
+        score: Math.round(quote.d20),
+        reasons: [`20 日 +${quote.d20.toFixed(1)}%，趋势还在`, `60 日 +${quote.d60.toFixed(1)}%`, "回到昨收再买"],
+        buy,
+        sell,
+        stop,
+        hit: quote.price <= buy && quote.price >= stop,
+    };
+}
+/**
+ * 放量突破。量比至少 1.8，换手至少 2%，成交额至少 8000 万元。
+ * 买入价是昨收再往上 2%。现价刚过这个价、还没再冲过 1.5% 才买。止损放在昨收。
+ */
+function breakoutOrder(quote) {
+    const prev = prevClose(quote);
+    if (!tradable(quote) || prev == null || quote.d5 == null || quote.d20 == null)
+        return null;
+    if (quote.volRatio < 1.8 || quote.turnover < 2 || quote.amount < 8000)
+        return null;
+    // 20 日涨幅上限从 20% 收到 10%：回测里更早介入的一批平均单笔从 +0.36%
+    // 提到 +0.50%，而且前后半段都为正。已经走远的票不再追。
+    if (quote.d5 < 0 || quote.d5 > 8 || quote.d20 < 0 || quote.d20 > 10)
+        return null;
+    if (quote.chg == null || quote.chg < 0 || quote.chg > 7)
+        return null;
+    const buy = round2(prev * 1.02);
+    const stop = round2(prev);
+    const sell = round2(buy * (1 + Math.max(20 - quote.d20, 2) / 100));
+    if (!(stop < buy && buy < sell))
+        return null;
+    const ceiling = round2(buy * 1.015);
+    return {
+        score: Math.round(quote.volRatio * 10),
+        reasons: [`量比 ${quote.volRatio.toFixed(2)}`, `5 日 +${quote.d5.toFixed(1)}%`, "过昨收 2% 才买"],
+        buy,
+        sell,
+        stop,
+        hit: quote.price >= buy && quote.price <= ceiling,
+    };
+}
+/**
+ * 低估值。市盈率不超过 18 倍，市净率不超过 2 倍，总市值至少 100 亿。
+ * 买入价按市盈率 15 倍折算，卖出价按 22 倍折算，止损按 10 倍折算。
+ *
+ * 止损和卖出都要夹在合理区间里：一只票市盈率本来就接近 10 倍时，按 10 倍
+ * 算出来的止损会紧贴在现价（实测过有只到 -0.1% 的），随便一个波动就被扫掉；
+ * 而按 22 倍算出来的目标能到 +114%，短线根本等不到。所以两头都夹住。
+ */
+function valueOrder(quote) {
+    if (!tradable(quote) || quote.pe == null || quote.pb == null || quote.pe <= 0 || quote.pb <= 0)
+        return null;
+    if (quote.pe > 18 || quote.pb > 2 || quote.cap < 100)
+        return null;
+    if (quote.d60 != null && quote.d60 < -25)
+        return null;
+    if (quote.amount < 3000)
+        return null;
+    // 「按 15 倍买」分两种情形，别只看公式：
+    // 已经不到 15 倍的（min(pe,15) === pe），折完还是现价，等于市价单，现价一到就成交；
+    // 15 到 18 倍之间的，折完比现价低，要等股价跌到那个位置才成交——
+    // 16 倍得跌 6%、18 倍得跌 17%，短线里基本等不到。所以名义门槛 18 倍，
+    // 实际能进场的多半是 15 倍以内的那批。
+    const buy = round2(quote.price * (Math.min(quote.pe, 15) / quote.pe));
+    const entryPe = quote.pe * (buy / quote.price);
+    // 目标夹在 +5% ~ +12%，止损夹在 -12% ~ -6%
+    const sell = round2(Math.max(Math.min(buy * (22 / entryPe), buy * 1.12), buy * 1.05));
+    const stop = round2(Math.min(Math.max(buy * (10 / entryPe), buy * 0.88), buy * 0.94));
+    if (!(stop < buy && buy < sell))
+        return null;
+    return {
+        score: Math.round(40 - quote.pe),
+        reasons: [`市盈率 ${quote.pe.toFixed(1)} 倍`, `市净率 ${quote.pb.toFixed(2)} 倍`, "按 15 倍市盈率买，22 倍卖"],
+        buy,
+        sell,
+        stop,
+        hit: quote.price <= buy && quote.price >= stop,
+    };
+}
+/**
+ * 中期反转。60 日里跌得最惨的十只，按现价买，拿满 10 个交易日。
+ *
+ * 这是目前唯一测出阿尔法的一套，用的是同一台回测机器跑出来的数：
+ * 60 日涨幅分五档后，未来 10 天的超额是 +0.63% / +0.30% / +0.22% / -0.16% / -0.38%，
+ * t=-2.81，而且前半段 t=-3.80、后半段 t=-1.68，两段同号；换一批完全不重叠的股票
+ * 再跑一遍是 +1.02%（t=4.91），和原来那批的 +1.03% 几乎一样。
+ * 作为对照，放量突破的超额是 +0.01%（t=0.03），等于没有。
+ *
+ * 三个刻意的选择，改之前先看懂：
+ * 1. 按现价买，不挂限价单。这套买的就是连续下跌的票，等它回到某个更高价位没有任何道理。
+ * 2. 止损放到 -25%，不是常见的 -5%。回测里 -8% 止损的超额是 -0.02%（t=-0.13），
+ *    不设止损是 +1.03%（t=5.06）——止损把这批高波动票的反弹整齐地切在了前夜。
+ *    -25% 只用来挡崩塌式下跌，实测超额 +0.96%，几乎不损失收益。
+ * 3. 拿满 10 天。8 天时因子信号还没走完。
+ *
+ * 这套买的是连续下跌的票，退市和 ST 的风险明显高于别的策略。tradable 已经挡掉
+ * ST、4 元以下、40 亿以下和贴着涨跌停的，但回测的股票池里没有已退市的票，
+ * 这部分风险在回测数字里是看不见的，真实结果会比上面的数差。
+ */
+function reboundOrder(quote) {
+    if (!tradable(quote) || quote.d60 == null)
+        return null;
+    if (quote.amount < 3000)
+        return null;
+    const buy = round2(quote.price);
+    const stop = round2(buy * 0.75);
+    const sell = round2(buy * 1.2);
+    if (!(stop < buy && buy < sell))
+        return null;
+    return {
+        // d60 越小越优先：跌 40% 的排在跌 10% 的前面
+        score: Math.round(-quote.d60),
+        reasons: [`60 日 ${quote.d60.toFixed(1)}%`, "跌得多的后面弹得快", "按现价买，拿满 10 天"],
+        buy,
+        sell,
+        stop,
+        hit: true,
+    };
+}
+/** 五套策略的固定顺序。页面上的标签就按这个排。 */
+exports.STYLE_IDS = ["early", "trend", "breakout", "value", "relay", "rebound"];
+/**
+ * 真正还会买进账的是这几套。
+ *
+ * 趋势回踩、启动前期在一年无前视回测里扣掉同期全池后是负的（-0.13%、-0.18%），
+ * 留着只会越买越亏，所以只留在页面上看，不再自动建仓。
+ * 放量突破也一并留着：它的超额是 +0.01%（t=0.03），换一批股票再跑是 -0.15%，
+ * 说白了赚的是这批活跃票本身的贝塔，不是选股挑出来的。先不动它，
+ * 等中期反转跑够一段时间有了实盘数字，再决定去留。
+ */
+exports.ACTIVE_STYLES = ["breakout", "value", "relay", "rebound"];
+/** 每一套每天最多新进这么多只。 */
+exports.MAX_POSITIONS = 10;
+/** 一笔成交属于哪一套。旧账上没有这五套之一的名字时返回空，不塞进任何一套。 */
+function styleOf(trade) {
+    if (trade.style === "early" ||
+        trade.style === "trend" ||
+        trade.style === "breakout" ||
+        trade.style === "value" ||
+        trade.style === "relay" ||
+        trade.style === "rebound")
+        return trade.style;
+    return null;
+}
+/**
+ * 这套策略「这一天」还剩几个名额。
+ * 名额按天算：看的是当天已经记进了几只，不受前几天还没卖出的影响。
+ * 昨天那批占的是昨天的名额，今天照样能进新的。
+ * 当天已经卖出的也算占过名额，不会退回——它进过这一天的池子。
+ */
+function daySlotsLeft(dayTrades, style) {
+    const taken = dayTrades.filter((trade) => styleOf(trade) === style).length;
+    return Math.max(0, exports.MAX_POSITIONS - taken);
+}
+/** 一套策略只看分数最高的 10 只。记账也只从这 10 只里打到买入价的来，不从全市场另买。 */
+function watchList(quotes, style, rules, allow) {
+    const rows = [];
+    for (const quote of quotes) {
+        if (!allow(quote))
+            continue;
+        const order = quoteOrder(style, quote, rules);
+        if (!order)
+            continue;
+        rows.push({
+            quote,
+            score: order.score,
+            reasons: order.reasons,
+            buy: order.buy,
+            sell: order.sell,
+            stop: order.stop,
+            hit: order.hit,
+        });
+    }
+    rows.sort((a, b) => b.score - a.score || b.quote.cap - a.quote.cap);
+    return rows.slice(0, exports.MAX_POSITIONS);
+}
+/**
+ * 从观察名单里挑出现在该记入的买单。
+ * 条件：现价已经 hit、不是涨停、手上已经有的不再重复买、当天的名额还够。
+ * dayTrades 是「这一天」已经记下的成交，用来算当天还剩几个名额；
+ * held 是所有还没卖出的成交，用来排重——同一只已经在手上就只在最早那笔，不再开第二笔。
+ */
+function takeBuys(list, held, style, dayTrades) {
+    // 这里刻意不按 style 过滤：钱是同一个账户出的，一只票手上已经有了，
+    // 换一套策略再买一遍等于在同一只票上双倍下注，风险集中而且事后没法归因
+    // ——两笔的止损和目标各不相同，收益算不清是哪套挣的。
+    // 名额（每套 10 个）仍然分开设，daySlotsLeft 那边还是按 style 数。
+    const openIds = new Set(held.filter((trade) => trade.exit == null).map((trade) => trade.id));
+    // 名单自己也可能把同一只股票列两次（接力按概念板块提名，一只票可能同属几个板块），
+    // 只认第一次出现的那行，以最先的为准。
+    const seen = new Set();
+    return list
+        .filter((row) => row.hit && (0, model_1.limitTag)(row.quote) !== "涨停" && !openIds.has(row.quote.id))
+        .filter((row) => (seen.has(row.quote.id) ? false : (seen.add(row.quote.id), true)))
+        .slice(0, daySlotsLeft(dayTrades, style));
+}
+/** 已持仓同时打到止损时，占这套 10 个名额的比例。空着的名额不算。 */
+function bookRisk(trades, style) {
+    let sum = 0;
+    let count = 0;
+    for (const trade of trades) {
+        if (trade.exit != null || styleOf(trade) !== style)
+            continue;
+        if (!(trade.entry > 0) || trade.stop == null || !(trade.stop > 0) || trade.stop >= trade.entry)
+            continue;
+        sum += (trade.entry - trade.stop) / trade.entry;
+        count += 1;
+    }
+    if (count === 0)
+        return null;
+    return sum / exports.MAX_POSITIONS;
+}
+/**
+ * 给一只行情算出这一套的计划价。
+ * 次日补涨不走这里。对不上趋势、突破、低估值时，按启动前期算。
+ */
+function quoteOrder(style, quote, rules) {
+    if (style === "relay")
+        return null;
+    if (style === "trend")
+        return trendOrder(quote);
+    if (style === "breakout")
+        return breakoutOrder(quote);
+    if (style === "value")
+        return valueOrder(quote);
+    if (style === "rebound")
+        return reboundOrder(quote);
+    return earlyOrder(quote, rules);
+}

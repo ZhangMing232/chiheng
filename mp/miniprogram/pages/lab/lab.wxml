@@ -1,0 +1,125 @@
+<!--
+  选股（策略实验台）。
+  顺序是刻意的：先结论 → 再样本墙 → 再按策略拆 → 最后才是今天买什么。
+  盈亏退到最后，因为这套东西要回答的是「规则行不行」，不是「今天赚多少」。
+-->
+<view class="wrap {{theme}}">
+
+  <!-- ① 结论：能不能下结论 -->
+  <view class="panel">
+    <view class="verdict">
+      <view class="eyebrow">这套自动规则现在能下结论吗</view>
+      <view class="big">{{report.canSay ? "能下结论了" : "还不能说"}}</view>
+      <view class="sub">
+        样本不够不等于成绩不好——现在是<text class="up">还没有成绩</text>，不是成绩差。{{report.reason}}
+      </view>
+
+      <view class="gap">
+        <view>
+          <view class="k">能对比指数的已结样本</view>
+          <view class="v num">{{report.closed}}<text> / {{report.goal}}</text></view>
+          <view class="h">门槛来自 rules.minClosed</view>
+        </view>
+        <view>
+          <view class="k">还差</view>
+          <view class="v num">{{report.needMore}}<text> 笔</text></view>
+          <view class="h">中期反转拿满 10 个交易日出结果</view>
+        </view>
+        <view>
+          <view class="k">同期沪深300</view>
+          <view class="v {{report.benchmark.available ? '' : 'warn'}}">
+            {{report.benchmark.available ? "有对照" : "拿不到"}}
+          </view>
+          <view class="h">缺对照价 {{report.benchmark.missingDays}} 天</view>
+        </view>
+      </view>
+
+      <view class="meter"><view class="fill" style="width:{{report.progress}}%"></view></view>
+    </view>
+  </view>
+
+  <!-- ② 样本墙：一格一笔 -->
+  <view class="panel">
+    <view class="hd">
+      <view class="t">全部样本 · {{report.total}} 笔</view>
+      <view class="n">一格一笔</view>
+    </view>
+    <view class="bd">
+      <view class="wall">
+        <view wx:for="{{cells}}" wx:key="*this" class="cell {{item.cls}}" style="background:{{item.bg}}" data-t="{{item.title}}"></view>
+      </view>
+      <view class="legend">
+        <view><text class="sw" style="border:1rpx solid var(--line)"></text>在拿 {{report.open}} 笔 · 还没有答案</view>
+        <view><text class="sw" style="background:var(--down)"></text>卖出亏损</view>
+        <view><text class="sw" style="background:var(--up)"></text>卖出盈利</view>
+      </view>
+      <view class="note-line">
+        空心的那些格不是「亏了」，是<text class="up">还没走到终点</text>。拿它们当 0 去算平均，
+        等于凭空往样本里塞一堆中性样本，胜率会被拉平——看起来稳，其实什么也没测出来。
+      </view>
+      <view wx:if="{{report.skipped.days > 0}}" class="note-line">
+        另有 {{report.skipped.days}} 个交易日（{{report.skipped.trades}} 笔）是收盘后补记的，
+        按口径不进样本——持仓页仍会显示它们已实现的盈亏。
+      </view>
+    </view>
+  </view>
+
+  <!-- ③ 按策略拆开看 -->
+  <view class="panel">
+    <view class="hd">
+      <view class="t">按策略拆开看</view>
+      <view class="n">每套要满 {{goal}} 笔才能单独说话</view>
+    </view>
+    <view class="bd">
+      <view wx:for="{{styles}}" wx:key="name" style="padding:20rpx 0;border-top:1rpx solid var(--line)">
+        <view style="display:flex;justify-content:space-between;font-size:26rpx">
+          <text>{{item.name}}</text>
+          <text class="muted num">{{item.total}} 笔</text>
+        </view>
+        <view style="display:flex;gap:32rpx;font-size:24rpx;color:var(--muted);margin-top:16rpx">
+          <text>已结 <text style="color:var(--fg)">{{item.closed}}</text></text>
+          <text>盈利 <text style="color:var(--fg)">{{item.win}}</text></text>
+          <text>均值 <text style="color:var(--fg)">{{item.avg}}</text></text>
+          <text>还差 <text style="color:var(--fg)">{{item.needMore}}</text></text>
+        </view>
+        <view class="meter" style="margin-top:20rpx"><view class="fill" style="width:{{item.bar}}%"></view></view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ④ 今天的精选 -->
+  <view wx:for="{{picks}}" wx:key="name" class="panel">
+    <view class="hd">
+      <view class="t">{{item.name}} · 精选 {{item.rows.length}}</view>
+      <view class="n">名单 {{item.total}} 只</view>
+    </view>
+    <view class="bd" style="padding:0">
+      <view wx:if="{{item.rows.length === 0}}" class="statebox" style="padding:48rpx 0">
+        <view class="hint">今天这套没有打到买入价的。</view>
+      </view>
+      <view wx:for="{{item.rows}}" wx:for-item="r" wx:key="code" class="row">
+        <view>
+          <view class="name">{{r.name}} <text class="muted" style="font-size:24rpx">{{r.code}}</text></view>
+          <view style="font-size:24rpx;color:var(--muted);margin-top:6rpx">
+            买 {{r.buy}} · 卖 {{r.sell}} · 止损 {{r.stop}}
+          </view>
+        </view>
+        <view style="text-align:right">
+          <view class="num">{{r.price}}</view>
+          <view class="pill {{r.chgCls}}">{{r.chg}}</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{error}}" class="statebox">
+    <view class="glyph warn"></view>
+    <view class="hint">数据没拉到：{{error}}。下拉可以重试。</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="statebox">
+    <view class="hint">正在拉行情…</view>
+  </view>
+
+  <view class="note-line">这里只展示。打到买入价才记一笔，看这些不会改账。</view>
+</view>

@@ -1,0 +1,116 @@
+<!-- 资金：概览四格 + 大盘资金表 + 行业/个股净流入流出 -->
+<view class="wrap {{theme}}">
+
+  <view wx:if="{{tiles}}" class="tiles">
+    <view class="tile">
+      <view class="k">涨跌家数</view>
+      <view class="v num"><text class="up">{{tiles.up}}</text><text class="muted"> : </text><text class="down">{{tiles.down}}</text></view>
+      <view class="h">{{tiles.limits}}</view>
+    </view>
+    <view class="tile">
+      <view class="k">两市成交额</view>
+      <view class="v num">{{tiles.amount}}</view>
+      <view class="h">红是净流入，绿是净流出</view>
+    </view>
+    <view class="tile">
+      <view class="k">{{tiles.mainLabel}}</view>
+      <view class="v num {{tiles.mainCls}}">{{tiles.mainText}}</view>
+      <view class="h">{{tiles.share}}</view>
+    </view>
+    <view class="tile">
+      <view class="k">北向成交额</view>
+      <view class="v num">{{tiles.north}}</view>
+      <view class="h">盘中净流入不再公布</view>
+    </view>
+  </view>
+
+  <!-- 大盘资金：几类资金在几个板块的净额 -->
+  <view class="panel" style="margin-top:24rpx">
+    <view class="hd">
+      <view class="t">大盘资金</view>
+      <view class="n">主力大约一分钟更新</view>
+    </view>
+    <view class="bd" style="padding:0">
+      <view wx:for="{{notes}}" wx:key="*this" class="row" style="padding:16rpx 32rpx">
+        <text class="muted" style="font-size:24rpx;line-height:1.7">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 行业 -->
+  <view class="panel">
+    <view class="hd"><view class="t">行业净流入</view><view class="n">前 8</view></view>
+    <view class="bd" style="padding:0">
+      <view wx:if="{{sectorsIn.length === 0}}" class="statebox" style="padding:40rpx 0"><view class="hint">这一块源头没给数据，刷新页面会再拉一次。</view></view>
+      <view wx:for="{{sectorsIn}}" wx:key="name" class="row">
+        <view>
+          <view class="name">{{item.name}}</view>
+          <view class="muted" style="font-size:24rpx;margin-top:4rpx">{{item.chg}}{{item.leader ? ' · 领涨 ' + item.leader : ''}}</view>
+        </view>
+        <view class="num {{item.inflowCls}}">{{item.inflow}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="hd"><view class="t">行业净流出</view><view class="n">前 8</view></view>
+    <view class="bd" style="padding:0">
+      <view wx:if="{{sectorsOut.length === 0}}" class="statebox" style="padding:40rpx 0"><view class="hint">这一块源头没给数据。</view></view>
+      <view wx:for="{{sectorsOut}}" wx:key="name" class="row">
+        <view>
+          <view class="name">{{item.name}}</view>
+          <view class="muted" style="font-size:24rpx;margin-top:4rpx">{{item.chg}}</view>
+        </view>
+        <view class="num {{item.inflowCls}}">{{item.inflow}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 个股 -->
+  <view class="panel">
+    <view class="hd"><view class="t">个股净流入</view><view class="n">已去掉新股和 ST</view></view>
+    <view class="bd" style="padding:0">
+      <view wx:if="{{stocksIn.length === 0}}" class="statebox" style="padding:40rpx 0"><view class="hint">这一块源头没给数据。</view></view>
+      <view wx:for="{{stocksIn}}" wx:key="name" class="row">
+        <view class="name">{{item.name}}</view>
+        <view class="num {{item.inflowCls}}">{{item.inflow}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="hd"><view class="t">个股净流出</view><view class="n">已去掉新股和 ST</view></view>
+    <view class="bd" style="padding:0">
+      <view wx:if="{{stocksOut.length === 0}}" class="statebox" style="padding:40rpx 0"><view class="hint">这一块源头没给数据。</view></view>
+      <view wx:for="{{stocksOut}}" wx:key="name" class="row">
+        <view class="name">{{item.name}}</view>
+        <view class="num {{item.inflowCls}}">{{item.inflow}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 北向 -->
+  <view class="panel">
+    <view class="hd">
+      <view class="t">北向</view>
+      <view class="n">合计 {{northTotal}}</view>
+    </view>
+    <view class="bd" style="padding:0">
+      <view wx:for="{{north}}" wx:key="name" class="row">
+        <view>
+          <view class="name">{{item.name}}</view>
+          <view class="muted" style="font-size:24rpx;margin-top:4rpx">{{item.date}}</view>
+        </view>
+        <view class="num">{{item.amount}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{error}}" class="statebox">
+    <view class="glyph warn"></view>
+    <view class="hint">资金流向暂时拉不下来：{{error}}</view>
+  </view>
+  <view wx:if="{{loading}}" class="statebox"><view class="hint">正在拉资金…</view></view>
+
+  <view class="note-line">这里只展示，看资金不会改变买入价。</view>
+</view>

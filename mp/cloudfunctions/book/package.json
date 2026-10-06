@@ -1,0 +1,9 @@
+{
+  "name": "book",
+  "version": "1.0.0",
+  "description": "账本读写：按 openid 分，存在云数据库 days / rules 两个集合",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

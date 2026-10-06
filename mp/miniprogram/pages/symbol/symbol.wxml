@@ -1,0 +1,76 @@
+<!-- 个股：搜代码或名称看资讯和公告；不搜就列出手上的票，利空的排前面 -->
+<view class="wrap {{theme}}">
+
+  <view style="display:flex;gap:16rpx;margin-bottom:20rpx">
+    <input
+      class="panel"
+      style="flex:1;margin:0;padding:20rpx 24rpx;font-size:28rpx"
+      value="{{input}}"
+      bindinput="onInput"
+      bindconfirm="onSearch"
+      confirm-type="search"
+      placeholder="代码或名称"
+      placeholder-class="muted"
+    />
+    <view class="panel" style="margin:0;padding:20rpx 32rpx" bindtap="onSearch">
+      <text>搜索</text>
+    </view>
+  </view>
+
+  <!-- 多只重名：给一排候选 -->
+  <view wx:if="{{matches.length > 1}}" style="display:flex;flex-wrap:wrap;gap:12rpx;margin-bottom:20rpx">
+    <view
+      wx:for="{{matches}}"
+      wx:key="id"
+      class="pill p-mute"
+      style="padding:10rpx 20rpx"
+      data-code="{{item.code}}"
+      bindtap="onPickMatch"
+    >{{item.name}} {{item.code}}</view>
+  </view>
+
+  <view wx:for="{{groups}}" wx:key="id" class="panel">
+    <view class="hd">
+      <view class="t">{{item.title}}</view>
+      <view class="n">{{item.counts}}</view>
+    </view>
+    <view class="bd" style="padding:0">
+      <view wx:if="{{item.articles.length === 0}}" class="statebox" style="padding:48rpx 0">
+        <view class="hint">这只股票暂时没有消息。</view>
+      </view>
+      <view
+        wx:for="{{item.articles}}"
+        wx:for-item="a"
+        wx:key="id"
+        class="row"
+        style="align-items:flex-start"
+        data-url="{{a.url}}"
+        bindtap="onOpenArticle"
+      >
+        <view style="flex:1;min-width:0">
+          <view style="display:flex;gap:12rpx;align-items:baseline">
+            <text class="muted" style="font-size:24rpx">{{a.kind}}</text>
+            <text class="pill {{a.toneCls}}">{{a.tone}}</text>
+            <text class="muted num" style="font-size:24rpx">{{a.time}}</text>
+          </view>
+          <view style="margin-top:8rpx">{{a.title}}</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="statebox"><view class="hint">正在取资讯…</view></view>
+  <view wx:if="{{error}}" class="statebox">
+    <view class="glyph warn"></view>
+    <view class="hint">没拉到：{{error}}</view>
+  </view>
+  <view wx:if="{{!loading && groups.length === 0}}" class="statebox">
+    <view class="glyph muted"></view>
+    <view class="hint">账上没有持仓。上面可以搜一只股票。</view>
+  </view>
+
+  <view class="note-line">
+    资讯和公告按标题用词分成利好或利空。有利空的持仓排在前面。不改买入价。
+    点一条会复制原链接（小程序里不能直接开外部网页）。
+  </view>
+</view>

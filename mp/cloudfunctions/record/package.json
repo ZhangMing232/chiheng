@@ -1,0 +1,9 @@
+{
+  "name": "record",
+  "version": "1.0.0",
+  "description": "定时记账：记录当天打到的买入价、结算到期的持仓、记沪深300对照价",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

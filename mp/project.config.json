@@ -1,0 +1,19 @@
+{
+  "description": "赤轨 · 策略实验台",
+  "appid": "wx8063d8d8becf28ee",
+  "projectname": "chiheng",
+  "miniprogramRoot": "miniprogram/",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "compileType": "miniprogram",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "ignoreDevUnusedFiles": true
+  },
+  "condition": {}
+}
