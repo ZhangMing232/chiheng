@@ -160,7 +160,7 @@ function avg(list: number[]): number {
   return list.reduce((a, b) => a + b, 0) / list.length;
 }
 
-type Signal = { buy: number; stop: number; sell: number; score: number };
+type Signal = { buy: number; stop: number; sell: number; score: number; atClose?: boolean };
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
 function trend(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
@@ -311,17 +311,34 @@ function reversal2(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
  * 也正因为买的是连续下跌的票，退市风险、ST 风险会比别的策略高，
  * 而回测的股票池里没有已退市的票，这部分风险在回测里是看不见的。
  */
+/**
+ * 中期反转。
+ *
+ * **买价有两种口径，默认 `limit` 是老的那个，`spot` 才是线上在跑的那个**——
+ * 这个开关是 2026-10-06 加的，因为发现回测和线上根本不是同一个策略：
+ *
+ *   limit（默认，回测口径）：挂在昨收上方 3% 的限价单。高开超过 3% 就不追。
+ *        这个口径下测出来的超额是 +0.63%（t=3.62），见 data/backtest/baseline-2026-10-06.txt
+ *   spot（线上口径）：按第 t 天收盘价直接买，不挂单、不追高。
+ *        线上 src/lib/market/strategies.ts 的 reboundOrder 就是这个（buy = round2(quote.price)，hit 恒 true）
+ *
+ * 之前只测过 limit 就把数字拿去给线上背书，而线上跑的是 spot。
+ * `BT_RSTOP` / `BT_RTARGET` 对应线上的 −25% 止损和 +20% 目标。
+ */
 function rebound(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
   if (m.d60 == null) return null;
   if (m.c < 4 || m.amountWan < 3000) return null;
-  // 挂单放在昨收上方 3%：跳空低开就按开盘价拿到（这正是因子检验里的买法），
-  // 高开超过 3% 就不追。刻意不设涨跌幅门槛，排名全交给 d60，少一个参数少一分过拟合。
-  const buy = m.prev * 1.03;
+  // spot 口径：第 t 天收盘价就是买价，不加 3%，也不设高开过滤。
+  // 成交在 t+1 开盘（下面的撮合逻辑会把 buy 当成限价单处理，
+  // 开盘价高于 buy 时会判为「开在止损下方不算」——对现价单来说这个口径是保守的，
+  // 因为现价单在 t 日收盘就成交了，不存在跳空。spot 的撮合修正见 exitFill 调用处的注释。
+  const spot = (process.env.BT_BUYMODE ?? "limit") === "spot";
+  const buy = spot ? m.c : m.prev * 1.03;
   const stop = buy * (1 - (stopPct ?? Number(process.env.BT_RSTOP ?? 8)) / 100);
   const sell = buy * (1 + Number(process.env.BT_RTARGET ?? 10) / 100);
   if (!(stop < buy && buy < sell)) return null;
   // d60 越小越优先
-  return { buy, stop, sell, score: -m.d60 };
+  return { buy, stop, sell, score: -m.d60, atClose: spot };
 }
 
 /** 更严的一版：除了收阳，还要求当天最低价没有跌破前一日最低价（真正企稳），且缩量更狠。 */
@@ -507,7 +524,7 @@ async function main() {
   function runPass(stopPct?: number): Record<string, Trade[]> {
   const results: Record<string, Trade[]> = {};
   for (const key of Object.keys(STRATEGIES)) results[key] = [];
-  const stats = { gap: 0, belowStop: 0 };
+  const stats = { gap: 0, belowStop: 0, atClose: 0 };
 
   // 样本外验证：把区间劈成前后两段分别跑，看参数是不是只在这段数据上好看
   const half = process.env.BT_HALF;
@@ -536,9 +553,43 @@ async function main() {
       for (const pick of list.slice(0, MAX_POSITIONS)) {
         const rows = klines.get(pick.id);
         if (!rows) continue;
+        const tIdx = idxOf.get(pick.id)?.get(dates[t]) ?? -1;
         const nextIdx = idxOf.get(pick.id)?.get(dates[t + 1]) ?? -1;
         if (nextIdx < 0) continue;
         const bar = rows[nextIdx];
+
+        // 现价单（BT_BUYMODE=spot，线上口径）：第 t 天收盘就成交了。
+        // 所以不走下面那套限价单撮合——它会拿 t+1 的开盘/最低价去比，
+        // 对一个已经成交完的单子来说那是错的（跳空跟我无关）。
+        // 持股天数也从 t 当天算起：t+1 才是第一个完整交易日。
+        if (pick.sig.atClose) {
+          if (tIdx < 0) continue;
+          stats.atClose += 1;
+          const spotFill = exitFill(
+            rows as Bar[],
+            rows[tIdx].date,
+            pick.sig.buy,
+            pick.sig.stop,
+            pick.sig.sell,
+            boardLimit(pick.id, ""),
+            key === "rebound" ? Number(process.env.BT_HOLD ?? 10) : undefined,
+          );
+          if (!spotFill) continue;
+          const spotRet = (spotFill.price - pick.sig.buy) / pick.sig.buy - FEE;
+          const spotExitIdx = idxOf.get(pick.id)?.get(spotFill.date) ?? -1;
+          results[key].push({
+            id: pick.id,
+            date: rows[tIdx].date,
+            entry: pick.sig.buy,
+            exit: spotFill.price,
+            reason: spotFill.reason,
+            ret: spotRet,
+            bench: benchOver(t, spotExitIdx),
+            hold: Math.max(0, spotExitIdx - tIdx),
+          });
+          continue;
+        }
+
         // 限价单撮合。挂在 P，第二天只有两种成交方式：
         //   开盘价就不高于 P —— 开盘那一刻直接成交，拿到的是开盘价（比挂单价好）
         //   盘中最低价碰到 P —— 按 P 成交
