@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { ACTIVE_STYLES, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
-import { boardLimit, limitTag, planExit } from "@/lib/market/model";
+import { boardLimit, HOLD_SESSIONS, limitTag, planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
 import type { EarlyRules } from "@/lib/market/rules";
 import { getKline } from "@/lib/market/quotes.functions";
@@ -138,12 +138,12 @@ export function Journal({
               plan.stop,
               plan.target,
               boardLimit(trade.id, trade.name),
-              trade.hold ?? 8,
+              trade.hold ?? HOLD_SESSIONS,
             );
             if (!filled) continue;
             settle(day.date, trade.id, filled.price, filled.date, trade.entry);
           } catch {
-            // 还没走到第 8 个交易日，或日线暂时没返回。
+            // 还没走到结算日（默认 8 个交易日），或日线暂时没返回。
           }
         }
         if (day.indexExit == null && day.indexEntry != null) {
@@ -151,7 +151,7 @@ export function Journal({
             const data = await getKline({ data: { id: "sh000300" } });
             // 同一天的持仓天数不一样（次日补涨 1 天、多数 8 天、中期反转 10 天），
             // 指数对照一天只有一个数，按最长的那个算，往对自己不利的方向偏。
-            const longest = day.trades.reduce((max, trade) => Math.max(max, trade.hold ?? 8), 8);
+            const longest = day.trades.reduce((max, trade) => Math.max(max, trade.hold ?? HOLD_SESSIONS), HOLD_SESSIONS);
             const next = nthClose(data.bars ?? [], day.date, longest);
             if (next) settleIndex(day.date, next.price);
           } catch {

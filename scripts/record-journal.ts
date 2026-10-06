@@ -22,7 +22,7 @@ import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
-import { boardLimit, limitTag, planExit } from "../src/lib/market/model.ts";
+import { boardLimit, HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
 import { ACTIVE_STYLES, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
@@ -263,7 +263,7 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
             plan.stop,
             plan.target,
             boardLimit(trade.id, trade.name),
-            trade.hold ?? 8,
+            trade.hold ?? HOLD_SESSIONS,
           );
           if (!filled) {
             stillOpen = true;
@@ -277,7 +277,7 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
               stuck.push(`${trade.name} ${day.date}（K 线里没有买入日这根，最早 ${bars[0]?.date ?? "无"}）`);
               continue;
             }
-            const hold = trade.hold ?? 8;
+            const hold = trade.hold ?? HOLD_SESSIONS;
             const passed = bars.filter((bar) => bar.date > day.date).length;
             if (passed < hold) continue;
             stuck.push(`${trade.name} ${day.date}（已过 ${passed} 个交易日仍算不出卖出价）`);
@@ -305,7 +305,7 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           // 这一天里的持仓拿的天数并不一样（次日补涨 1 天、多数 8 天、中期反转 10 天），
           // 而指数对照一天只有一个数。取最长的那个：指数多走几天等于多给了它一点涨幅，
           // 往对自己不利的方向偏，不至于把「跑赢沪深300」说得比实际好看。
-          const longest = day.trades.reduce((max, trade) => Math.max(max, trade.hold ?? 8), 8);
+          const longest = day.trades.reduce((max, trade) => Math.max(max, trade.hold ?? HOLD_SESSIONS), HOLD_SESSIONS);
           const next = nthClose(data.bars, day.date, longest);
           if (next) {
             day.indexExit = next.price;

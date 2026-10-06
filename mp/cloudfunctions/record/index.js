@@ -19,7 +19,7 @@ const db = cloud.database();
 const _ = db.command;
 
 const { fetchUniverse, fetchIndices } = require("./market/providers/index.js");
-const { ACTIVE_STYLES, watchList, takeBuys, styleOf } = require("./market/strategies.js");
+const { ACTIVE_STYLES, watchList, takeBuys } = require("./market/strategies.js");
 const { planExit, HOLD_SESSIONS, limitTag, isIdleBook } = require("./market/model.js");
 const { shanghaiDate, exitAfterSessions, isTradingDay, formatClock } = require("./market/session.js");
 const DEFAULT_RULES = require("./market/rules.js").DEFAULT_RULES;
@@ -134,7 +134,7 @@ async function recordIndex(openid, days, now) {
   return { ok: true, price: row.price };
 }
 
-exports.main = async (event) => {
+exports.main = async () => {
   const { OPENID } = cloud.getWXContext();
   const now = Date.now();
   try {

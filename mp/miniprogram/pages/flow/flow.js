@@ -6,7 +6,6 @@
 const api = require("../../lib/api.js");
 const { readMarket } = require("../../lib/market/flow.js");
 const { fmtWan, signedPct } = require("../../lib/market/format.js");
-const { limitTag } = require("../../lib/market/model.js");
 
 function tone(v) {
   return v > 0 ? "up" : v < 0 ? "down" : "muted";

@@ -26,7 +26,6 @@ const { loadHotMoney } = require("./market/hotmoney.js");
 const { loadIndexFutures } = require("./market/index-futures.js");
 const { ACTIVE_STYLES, watchList, takeBuys } = require("./market/strategies.js");
 const { limitTag } = require("./market/model.js");
-const { shanghaiDate } = require("./market/session.js");
 
 const DEFAULT_RULES = require("./market/rules.js").DEFAULT_RULES;
 const INDEX_IDS = ["sh000001", "sz399001", "sz399006", "sh000300"];
@@ -38,7 +37,7 @@ async function cached(key, ttlMinutes, producer) {
   try {
     const res = await col.doc(key).get();
     hit = res.data;
-  } catch (e) {
+  } catch {
     hit = null; // 没有这条缓存，正常
   }
   const now = Date.now();
@@ -49,7 +48,7 @@ async function cached(key, ttlMinutes, producer) {
   const doc = { at: now, data: fresh };
   try {
     await col.doc(key).set({ data: doc });
-  } catch (e) {
+  } catch {
     // 第一次写，用 add 也行；set 在某些版本对不存在的 doc 报错，这里兜住
     await col.add({ data: Object.assign({ _id: key }, doc) });
   }

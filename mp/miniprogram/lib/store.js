@@ -25,7 +25,7 @@ function read(key, fallback) {
   try {
     const v = wx.getStorageSync(key);
     return v === "" || v === undefined || v === null ? fallback : v;
-  } catch (e) {
+  } catch {
     return fallback;
   }
 }
@@ -33,7 +33,7 @@ function read(key, fallback) {
 function write(key, value) {
   try {
     wx.setStorageSync(key, value);
-  } catch (e) {
+  } catch {
     // 存储满了就满了，别让写入失败把整个流程带崩
   }
 }
