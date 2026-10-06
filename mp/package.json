@@ -1,0 +1,6 @@
+{
+  "name": "chiheng-mp-port",
+  "private": true,
+  "type": "commonjs",
+  "description": "赤轨搬到微信小程序的移植工作区。src/ 是从 web 版 src/lib/market 复制的 TS，编译成 CommonJS 后同步到 miniprogram/lib 和各云函数目录。"
+}
