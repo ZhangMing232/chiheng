@@ -16,11 +16,15 @@
  * 还有一处更要紧的：**这个文件里的选股条件是另抄了一份，和线上
  * `src/lib/market/strategies.ts` 已经对不上了。** 已知对不上的地方：
  *   - 放量突破：线上 d20 上限 10，这里写的是 20（线上是收紧过的，bk2/bk3/bk4 才是 10）
- *   - 放量突破：线上还要求换手率 ≥ 2%，这里没有这一条
  *   - 线上还有 tradable 的几道闸（ST、股价 < 4、市值 < 40 亿、贴涨跌停），
  *     回测里只有「股价 < 4」，因为 K 线不带市值和 ST 标记
  * 所以这里的数字衡量的是「略微宽松一点的放量突破」，不是线上那一版。
  * 改线上策略时记得回来同步这里，或者干脆让两边共用同一份条件。
+ *
+ * 2026-10-06 补上一条：放量突破的**换手率 ≥ 2%** 这道闸以前也缺，现在用
+ * 流通市值反推补上了（成交额 ÷ 流通市值，和腾讯的 hsl 同口径，吻合率 99.8%）。
+ * 跑 `node scripts/build-floatcap.mjs` 生成缓存；没有缓存时会在开头大声提示
+ * 这道闸没生效，不会静默地退回宽松口径。
  *
  * 用法：node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts
  */
@@ -109,7 +113,7 @@ async function loadKlines(ids: string[]): Promise<Map<string, Row[]>> {
 }
 
 /** 只用第 i 天及之前的数据算指标。这是「无前视」的落地点。 */
-function metrics(rows: Row[], i: number) {
+function metrics(rows: Row[], i: number, floatCap: number | null = null, turnoverGateOn = false) {
   const at = (k: number) => (i - k >= 0 ? rows[i - k].c : null);
   const c = rows[i].c;
   const pct = (base: number | null) => (base && base > 0 ? ((c - base) / base) * 100 : null);
@@ -118,6 +122,8 @@ function metrics(rows: Row[], i: number) {
   const vol = rows[i].v;
   const avg5 = avg(rows.slice(Math.max(0, i - 4), i + 1).map((r) => r.v));
   const avg20 = avg(rows.slice(Math.max(0, i - 19), i + 1).map((r) => r.v));
+  // 成交量单位是手，×100 股 × 价格 = 元，再换成万元
+  const amountWan = (vol * 100 * c) / 1e4;
   return {
     c,
     prev,
@@ -130,8 +136,22 @@ function metrics(rows: Row[], i: number) {
     d60: pct(at(60)),
     volRatio: avg5 > 0 ? vol / avg5 : 0,
     volShrink: avg20 > 0 ? avg5 / avg20 : 1,
-    // 成交量单位是手，×100 股 × 价格 = 元，再换成万元
-    amountWan: (vol * 100 * c) / 1e4,
+    amountWan,
+    /**
+     * 换手率 = 成交额 / 流通市值。用本地缓存的流通市值反推，
+     * 口径和腾讯的 hsl 一致（实测 5224 只里 99.8% 吻合）。
+     * 拿不到流通市值时是 null——**不是 0**。0 会被读成「一点没换手」，
+     * 而真相是「不知道」，这两件事不能混。
+     */
+    turnover: floatCap && floatCap > 0 ? amountWan / (floatCap * 100) : null,
+    /**
+     * 这道闸这次是否生效。三种状态必须分清，混在一起会得出「关掉闸反而 0 笔」
+     * 这种荒谬结论：
+     *   闸开 + 查得到流通市值 → 按 2% 卡
+     *   闸开 + 查不到该票      → 拒绝（默认不放行，否则宽松口径偷偷回来了）
+     *   闸关（BT_TURNOVER=0）  → 完全不卡
+     */
+    turnoverGateOn,
   };
 }
 
@@ -165,6 +185,9 @@ function breakout(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nul
   if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 20) return null;
   if (m.chg < 0 || m.chg > 7) return null;
   if (m.c < 4) return null;
+  // 线上要求换手率 ≥ 2%，这道闸以前回测里没有（见文件头「已知对不上的地方」）。
+  // 现在流通市值能反推了，补上。三态见 metrics 的注释：闸关时完全不卡。
+  if (m.turnoverGateOn && (m.turnover == null || m.turnover < 2)) return null;
   const buy = m.prev * 1.02;
   const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
@@ -450,6 +473,27 @@ async function main() {
 
   // 环境总闸：沪深 300 在 20 日均线下方时，认为逆风，当天不开新仓
   const useFilter = process.env.BT_FILTER === "1";
+
+  // 流通市值缓存，给放量突破的换手率闸用。缺了要**大声说**，不能静默跳过那道闸——
+  // 静默跳过的话，回测又会变回那个比线上宽松的版本，而报告里看不出来。
+  // BT_TURNOVER=0 可以强制关掉这道闸，专门用来做 A/B 对照（改动前后差多少）。
+  let floatCapMap: Record<string, number> = {};
+  try {
+    floatCapMap = JSON.parse(await readFile(`${CACHE}/../floatcap.json`, "utf8")) as Record<string, number>;
+  } catch {
+    floatCapMap = {};
+  }
+  const useTurnoverGate = Object.keys(floatCapMap).length > 0 && process.env.BT_TURNOVER !== "0";
+  if (useTurnoverGate) {
+    console.log(`流通市值缓存 ${Object.keys(floatCapMap).length} 条，放量突破的换手率闸已启用（≥2%）\n`);
+  } else if (process.env.BT_TURNOVER === "0") {
+    console.log("BT_TURNOVER=0：换手率闸被强制关掉，本次结果比线上宽松，别拿它下结论。\n");
+  } else {
+    console.log(
+      "⚠ 没有 data/backtest/floatcap.json —— 放量突破的换手率闸（线上 ≥2%）这次没生效，\n" +
+        "  回测结果会偏宽松。先跑 node scripts/build-floatcap.mjs（不联网，读本地行情缓存）。\n",
+    );
+  }
   // 入场撮合口径，三选一；默认 b（跳空按开盘价成交）
   const fillMode = process.env.BT_FILL ?? "b";
   let fillStats = { gap: 0, belowStop: 0 };
@@ -480,7 +524,7 @@ async function main() {
       // 找到这只票在第 t 天的位置：只能用 <= t 的数据
       const idx = idxOf.get(id)?.get(dates[t]) ?? -1;
       if (idx < 61) continue;
-      const m = metrics(rows, idx);
+      const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate);
       for (const [key, def] of Object.entries(STRATEGIES)) {
         const sig = def.fn(m, stopPct);
         if (sig) picks[key].push({ id, sig });
@@ -753,7 +797,7 @@ async function main() {
         const inPrice = rows[nIdx].o;
         const outPrice = rows[xIdx].c;
         if (!(inPrice > 0) || !(outPrice > 0)) continue;
-        const m = metrics(rows, idx);
+        const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate);
         today.push({ vals: getters.map((g) => g.get(m)), ex: outPrice / inPrice - 1 - benchOver(t + 1, t + N) });
       }
       daily.push(today);
