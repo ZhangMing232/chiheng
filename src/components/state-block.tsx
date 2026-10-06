@@ -50,6 +50,7 @@ export function StateBlock({
   title,
   hint,
   action,
+  compact = false,
 }: {
   kind: StateKind;
   /** 覆盖默认标题。写具体点，别写「出错了」这种。 */
@@ -58,9 +59,23 @@ export function StateBlock({
   hint?: string;
   /** 能真的解决问题的操作，比如「重新拉一次」。 */
   action?: { label: string; onClick: () => void; busy?: boolean };
+  /**
+   * 紧凑版：左对齐、不加上下留白，用在窄栏里（比如消息页利好/利空那两栏）。
+   *
+   * 默认版是居中 + 上下 40px，那是给整块区域用的；塞进一个并排的窄栏里会把
+   * 那一栏撑得比有内容时还高，看着像布局坏了。同一套文案、同一个组件，
+   * 只是换个排法——别为了紧凑就自己另写一句，那又回到各处口径不一致的老毛病。
+   */
+  compact?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+    <div
+      className={
+        compact
+          ? "flex flex-col items-start gap-1 text-left"
+          : "flex flex-col items-center gap-2 px-6 py-10 text-center"
+      }
+    >
       <div className={`flex items-center gap-2 text-sm ${TONE[kind]}`}>
         <Glyph kind={kind} />
         <span className="font-medium">{title ?? TITLE[kind]}</span>

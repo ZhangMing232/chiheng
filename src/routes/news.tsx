@@ -11,6 +11,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
 import { Panel } from "@/components/terminal";
+import { StateBlock } from "@/components/state-block";
 import { signedPct, toneClass } from "@/lib/market/format";
 import { drawNewsPoster } from "@/lib/market/page-posters";
 import { shanghaiDate } from "@/lib/market/session";
@@ -81,7 +82,7 @@ function ToneSide({
   stocks,
   held,
   picked,
-  empty,
+  failed,
 }: {
   title: string;
   tone: "good" | "bad";
@@ -89,7 +90,8 @@ function ToneSide({
   stocks: { id: string; name: string; code: string; chg: number | null; title: string }[];
   held: Set<string>;
   picked: Set<string>;
-  empty: string;
+  /** 快讯整体没拉到。这时候是「降级」不是「没有」，两件事要分开说。 */
+  failed: boolean;
 }) {
   const quiet = tone === "good" ? "text-up" : "text-down";
   return (
@@ -102,7 +104,24 @@ function ToneSide({
     >
       <h2 className={"text-sm font-medium " + quiet}>{title}</h2>
       {boards.length === 0 && stocks.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">{empty}</p>
+        <div className="mt-2">
+          <StateBlock
+            compact
+            kind={failed ? "error" : "empty"}
+            title={
+              failed
+                ? "消息暂时拉不下来"
+                : tone === "good"
+                  ? "这批没有判成利好的"
+                  : "这批没有判成利空的"
+            }
+            hint={
+              failed
+                ? "快讯源没响应，不是这一栏没内容——等源恢复了会自己填上。"
+                : "利好利空只看快讯用词，不是研报。换一批快讯结果就会变。"
+            }
+          />
+        </div>
       ) : (
         <>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -174,7 +193,7 @@ function NewsPage() {
               stocks={good.stocks}
               held={heldSet}
               picked={pickedSet}
-              empty={failed ? "消息暂时拉不下来。" : "这批没有判成利好的。"}
+              failed={failed}
             />
             <ToneSide
               title="利空"
@@ -183,13 +202,21 @@ function NewsPage() {
               stocks={bad.stocks}
               held={heldSet}
               picked={pickedSet}
-              empty="这批没有判成利空的。"
+              failed={failed}
             />
           </div>
         </Panel>
         <Panel title="7x24 电报" note={<span>利好在前。板块和个股是快讯自己点的名。</span>}>
           {ordered.length === 0 ? (
-            <p className="border-t border-line px-3 py-6 text-sm text-muted">没有拉到快讯。</p>
+            <StateBlock
+              kind={failed ? "error" : "empty"}
+              title={failed ? "快讯暂时拉不下来" : "这批没有快讯"}
+              hint={
+                failed
+                  ? "消息源没响应。行情和持仓不受影响，只有这一页空着。"
+                  : "快讯按时间倒序排，利好在前。休市时本来就没有新快讯。"
+              }
+            />
           ) : (
             <ul>
               {ordered.map((item) => {
