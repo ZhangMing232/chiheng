@@ -43,4 +43,6 @@ module.exports = {
   /** 一次性导入 web 版账本。只在 days 集合为空时可用 */
   importSeed: (days) => call("book", { action: "importSeed", days }),
   whoami: () => call("book", { action: "whoami" }),
+  /** 手动触发一次记账（和定时触发器跑的是同一个函数） */
+  runRecord: () => call("record", { action: "run" }),
 };

@@ -28,6 +28,8 @@ Page({
     goal: lab.PER_STYLE_GOAL,
     pickedAt: "",
     bookEmpty: false,
+    lastRecord: "还没有记过",
+    recording: false,
   },
 
   onLoad() {
@@ -99,7 +101,39 @@ Page({
       pickedAt: picksRes.at ? new Date(picksRes.at).toLocaleTimeString("zh-CN", { hour12: false }) : "",
       error: picksRes.error || "",
       bookEmpty: days.length === 0,
+      lastRecord: days.length === 0
+        ? "还没有记过"
+        : `${days[0].date}（${days[0].signalTime || "时间未记"} 记了 ${days[0].trades.length} 笔）`,
     });
+  },
+
+  /**
+   * 手动记一次。跑的和定时触发器是同一个 record 云函数——
+   * 区别只是这次是你点的，不是到点自动跑的。
+   * 记账这件事本来就不该依赖「你正好打开着小程序」。
+   */
+  async onRunRecord() {
+    if (this.data.recording) return;
+    this.setData({ recording: true });
+    wx.showLoading({ title: "正在跑策略…" });
+    const res = await api.runRecord();
+    wx.hideLoading();
+    this.setData({ recording: false });
+
+    if (res.error) {
+      wx.showToast({ title: res.error, icon: "none" });
+      return;
+    }
+    if (res.skipped) {
+      wx.showModal({ title: "今天不用记", content: res.skipped, showCancel: false });
+      return;
+    }
+    wx.showModal({
+      title: "记完了",
+      content: `新记 ${res.buys.recorded} 笔 · 卖出 ${res.settled.sold} 笔${res.settled.blocked ? ` · 跌停顺延 ${res.settled.blocked} 笔` : ""}`,
+      showCancel: false,
+    });
+    this.load();
   },
 
   /**

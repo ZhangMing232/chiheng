@@ -118,6 +118,25 @@
     </view>
   </view>
 
+  <!-- ③b 记账：定时触发器配了就自己跑，没配也能手动点一次 -->
+  <view class="panel">
+    <view class="hd">
+      <view class="t">记账</view>
+      <view class="n">上次：{{lastRecord}}</view>
+    </view>
+    <view class="bd">
+      <view class="statebox" style="padding:24rpx 0">
+        <view class="hint">
+          记账不该依赖「你正好打开着小程序」。配了定时触发器，它每个交易日到点自己跑；
+          没配就点一下，跑的是同一个云函数。
+        </view>
+        <view class="pill p-mute" style="padding:16rpx 32rpx;margin-top:24rpx" bindtap="onRunRecord">
+          {{recording ? '正在跑…' : '立即记一次'}}
+        </view>
+      </view>
+    </view>
+  </view>
+
   <!-- ④ 今天的精选 -->
   <view wx:for="{{picks}}" wx:key="name" class="panel">
     <view class="hd">
