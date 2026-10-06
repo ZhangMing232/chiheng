@@ -5,6 +5,23 @@
 -->
 <view class="wrap {{theme}}">
 
+  <!--
+    数据没到手时不要画结论区。report 是 null 时 WXML 不会报错，
+    但会渲染出「能对比指数的已结样本 /」这种半截数字——比空白更误导人，
+    看着像「结果是 0」。所以整块用 wx:if 挡住，另给一个状态。
+  -->
+  <view wx:if="{{!report}}" class="statebox">
+    <view class="glyph {{error ? 'warn' : 'muted'}}"></view>
+    <view class="hint" wx:if="{{error}}">数据没拉到：{{error}}</view>
+    <view class="hint" wx:elif="{{loading}}">正在读账本和行情…</view>
+    <view class="hint" wx:else>还没有拿到账本。</view>
+    <view class="hint" wx:if="{{error}}" style="margin-top:16rpx">
+      九成是云函数还没部署：右键 cloudfunctions/book 和 quote → 上传并部署。
+    </view>
+  </view>
+
+  <block wx:else>
+
   <!-- ① 结论：能不能下结论 -->
   <view class="panel">
     <view class="verdict">
@@ -112,14 +129,7 @@
     </view>
   </view>
 
-  <view wx:if="{{error}}" class="statebox">
-    <view class="glyph warn"></view>
-    <view class="hint">数据没拉到：{{error}}。下拉可以重试。</view>
-  </view>
-
-  <view wx:if="{{loading}}" class="statebox">
-    <view class="hint">正在拉行情…</view>
-  </view>
+  </block>
 
   <view class="note-line">这里只展示。打到买入价才记一笔，看这些不会改账。</view>
 </view>

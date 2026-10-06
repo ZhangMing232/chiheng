@@ -20,9 +20,15 @@ const _ = db.command;
 const DEFAULT_RULES = require("./market/rules.js").DEFAULT_RULES;
 
 async function readDays(openid) {
-  // 一次最多 100 条，自用几年都够；真超了再说分页
-  const res = await db.collection("days").where({ _openid: openid }).orderBy("date", "desc").limit(100).get();
-  return res.data;
+  // 第一次跑的时候 days 集合可能还不存在。那种情况不是错，是「还没有账」——
+  // 页面要显示空态，不是一句「云函数异常」。所以这里兜住，返回空数组。
+  try {
+    const res = await db.collection("days").where({ _openid: openid }).orderBy("date", "desc").limit(100).get();
+    return res.data;
+  } catch (e) {
+    console.warn("读 days 失败，按空账本处理：", e && e.message);
+    return [];
+  }
 }
 
 /** 记一天。同一天重复调用只补新的成交，不覆盖已有的——和 web 版 recordDay 一个规矩。 */
