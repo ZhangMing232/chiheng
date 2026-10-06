@@ -55,6 +55,20 @@
     </view>
   </view>
 
+  <!-- 账本还是空的：给一条把 web 版那 71 笔导进来的路，
+       否则样本永远是 0 笔，看着像「规则没用」，其实只是没数据 -->
+  <view wx:if="{{bookEmpty}}" class="panel">
+    <view class="bd">
+      <view class="statebox" style="padding:32rpx 0">
+        <view class="hint">云数据库里还没有账本，所以样本是 0 笔。</view>
+        <view class="hint" style="margin-top:12rpx">web 版记了 2 天 71 笔，可以一次性导进来对口径。</view>
+        <view class="pill p-mute" style="padding:16rpx 32rpx;margin-top:28rpx" bindtap="onImportSeed">
+          导入 web 版账本
+        </view>
+      </view>
+    </view>
+  </view>
+
   <!-- ② 样本墙：一格一笔 -->
   <view class="panel">
     <view class="hd">

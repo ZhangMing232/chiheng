@@ -67,3 +67,18 @@ node mp/verify.cjs                            # 用真实账本验一遍数字�
 - **个股详情侧栏**：web 版点开一只票弹出的那一栏。
 - **筛选范围**（板块/股价/市值）：偏好存在 `prefs` 集合里，页面还没做。
 - 定时触发器不会自动配，得手动在控制台建。
+
+## 导入 web 版账本（一次性）
+
+云数据库是空的，不导的话实验台永远 0 笔 0 样本，看着像「这套规则没用」，
+其实只是没数据。选股页空态上有个「导入 web 版账本」，点一下把 web 版
+`data/books/dev-user.json` 的 2 天 71 笔写进 `days` 集合（openid 由云函数自己取）。
+
+只在这个人的 `days` 为空时可用。已经记过的日期会被跳过——记下的成交不许改。
+
+想重新生成种子数据（比如 web 版又记了新的）：
+
+```bash
+node -e "const b=require('./data/books/dev-user.json');console.log(JSON.stringify(b.days))"
+# 把输出的数组替换掉 miniprogram/lib/seed-days.js 里 module.exports 的那一行
+```

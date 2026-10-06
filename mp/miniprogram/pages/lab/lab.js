@@ -9,6 +9,7 @@
  */
 const api = require("../../lib/api.js");
 const lab = require("../../lib/market/lab.js");
+const seedDays = require("../../lib/seed-days.js");
 const { DEFAULT_RULES } = require("../../lib/market/rules.js");
 const { STYLES } = require("../../lib/market/strategies.js");
 const { shanghaiDate } = require("../../lib/market/session.js");
@@ -26,6 +27,7 @@ Page({
     picks: [],
     goal: lab.PER_STYLE_GOAL,
     pickedAt: "",
+    bookEmpty: false,
   },
 
   onLoad() {
@@ -96,6 +98,23 @@ Page({
       picks,
       pickedAt: picksRes.at ? new Date(picksRes.at).toLocaleTimeString("zh-CN", { hour12: false }) : "",
       error: picksRes.error || "",
+      bookEmpty: days.length === 0,
     });
+  },
+
+  /**
+   * 一次性把 web 版的账本导进云数据库。只在账本为空时给这个入口——
+   * 已经有记录了就绝不覆盖，记下的成交不许改。
+   */
+  async onImportSeed() {
+    wx.showLoading({ title: "正在导入…" });
+    const res = await api.importSeed(seedDays);
+    wx.hideLoading();
+    if (res.error) {
+      wx.showToast({ title: res.error, icon: "none" });
+      return;
+    }
+    wx.showToast({ title: `导进 ${res.added} 天`, icon: "none" });
+    this.load();
   },
 });

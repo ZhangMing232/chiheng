@@ -85,6 +85,27 @@ async function setRules(openid, rules) {
   return { ok: true };
 }
 
+/**
+ * 一次性导入 web 版的账本。只在这个人的 days 集合为空时可用——
+ * 已经记过的成交一个字都不动。记下的成交不许改，这是项目一直的规矩。
+ */
+async function importSeed(openid, days) {
+  const col = db.collection("days");
+  const existing = await readDays(openid);
+  const have = new Set(existing.map((d) => d.date));
+  let added = 0;
+  let skipped = 0;
+  for (const day of days || []) {
+    if (have.has(day.date)) {
+      skipped += 1;
+      continue;
+    }
+    await col.add({ data: Object.assign({ _openid: openid }, day) });
+    added += 1;
+  }
+  return { added, skipped };
+}
+
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action;
@@ -102,6 +123,10 @@ exports.main = async (event) => {
         return { rules: await getRules(OPENID) };
       case "setRules":
         return await setRules(OPENID, event.rules);
+      case "importSeed":
+        return await importSeed(OPENID, event.days);
+      case "whoami":
+        return { openid: OPENID };
       default:
         return { error: "没有这个 action：" + action };
     }

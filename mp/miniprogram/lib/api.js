@@ -40,4 +40,7 @@ module.exports = {
 
   readBook: () => call("book", { action: "read" }),
   getRules: () => call("book", { action: "getRules" }),
+  /** 一次性导入 web 版账本。只在 days 集合为空时可用 */
+  importSeed: (days) => call("book", { action: "importSeed", days }),
+  whoami: () => call("book", { action: "whoami" }),
 };
