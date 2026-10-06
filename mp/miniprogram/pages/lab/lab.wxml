@@ -13,7 +13,7 @@
   <view wx:if="{{!report}}" class="statebox">
     <view class="glyph {{error ? 'warn' : 'muted'}}"></view>
     <view class="hint" wx:if="{{error}}">数据没拉到：{{error}}</view>
-    <view class="hint" wx:elif="{{loading}}">正在读账本和行情…</view>
+    <view class="hint" wx:elif="{{loading}}">正在读账本…</view>
     <view class="hint" wx:else>还没有拿到账本。</view>
     <view class="hint" wx:if="{{error}}" style="margin-top:16rpx">
       九成是云函数还没部署：右键 cloudfunctions/book 和 quote → 上传并部署。
@@ -21,6 +21,13 @@
   </view>
 
   <block wx:else>
+
+  <!-- 先给你看的是上次的数据，正在同步。写出来是为了不让人以为这就是最终结果 -->
+  <view wx:if="{{stale}}" class="panel" bindtap="onPullSeed">
+    <view class="bd" style="padding:20rpx 32rpx">
+      <text style="font-size:24rpx;color:var(--muted)">{{staleText}}</text>
+    </view>
+  </view>
 
   <!-- ① 结论：能不能下结论 -->
   <view class="panel">

@@ -1,10 +1,16 @@
 <!-- 消息：利好 / 利空两栏（侧边一条红/绿），下面是 7×24 电报 -->
 <view class="wrap {{theme}}">
 
+  <view wx:if="{{stale}}" class="panel">
+    <view class="bd" style="padding:20rpx 32rpx">
+      <text style="font-size:24rpx;color:var(--muted)">这是上次抓到的快讯，正在刷新…</text>
+    </view>
+  </view>
+
   <view class="panel">
     <view class="hd">
       <view class="t">利好 / 利空</view>
-      <view class="n">按快讯用词归类，不是研报{{at ? ' · ' + at : ''}}</view>
+      <view class="n">按快讯用词归类，不是研报</view>
     </view>
 
     <view class="bd" style="display:flex;flex-wrap:wrap">

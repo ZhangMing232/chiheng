@@ -7,6 +7,7 @@
  * 从 web 版搬过来的。这一页只做两件额外的事：把现价从云函数拉来，然后渲染。
  */
 const api = require("../../lib/api.js");
+const store = require("../../lib/store.js");
 const P = require("../../lib/market/positions.js");
 const { DEFAULT_RULES } = require("../../lib/market/rules.js");
 const { planExit, limitTag } = require("../../lib/market/model.js");
@@ -86,6 +87,9 @@ Page({
 
   onLoad() {
     this.setData({ theme: getApp().globalData.theme });
+    // 先用本机保存的账本画一遍（同步，不等网络），再拿云端的补现价
+    store.ensureSeed();
+    this.paint(store.localDays() || [], {});
     this.load();
   },
 
@@ -95,12 +99,8 @@ Page({
 
   async load() {
     this.setData({ loading: true, error: "" });
-    const bookRes = await api.readBook();
-    if (bookRes.error && !bookRes.days) {
-      this.setData({ loading: false, error: bookRes.error });
-      return;
-    }
-    const days = bookRes.days || [];
+    const r = await store.sync();
+    const days = r.days || [];
 
     // 只问手上还没卖的那几只的现价，不问全市场
     const openIds = [];
@@ -110,8 +110,11 @@ Page({
     for (const q of qRes.rows || []) liveById[q.id] = q;
 
     const rulesRes = await api.getRules();
-    const rules = rulesRes.rules || DEFAULT_RULES;
+    this.paint(days, liveById, rulesRes.rules || DEFAULT_RULES, qRes.error || r.error || "");
+  },
 
+  /** 把账本 + 现价画成页面上的东西。分开是为了让「先本地后云端」能复用。 */
+  paint(days, liveById, rules = DEFAULT_RULES, error = "") {
     const rows = buildRows(days, liveById, rules);
     const groups = P.groupByDay(rows).map((g) => ({
       heading: P.dayHeading(g.date, weekdayOf(g.date)),
@@ -126,7 +129,7 @@ Page({
     const total = P.overallOf(P.groupByDay(rows));
     this.setData({
       loading: false,
-      error: qRes.error || "",
+      error,
       empty: rows.length === 0,
       total: {
         count: total.count,

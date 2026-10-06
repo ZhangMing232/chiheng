@@ -8,6 +8,7 @@
  * 从 web 版搬过来的。
  */
 const api = require("../../lib/api.js");
+const store = require("../../lib/store.js");
 const { signedPct } = require("../../lib/market/format.js");
 
 const TONE_LABEL = { good: "利好", bad: "利空", flat: "未表态" };
@@ -47,38 +48,38 @@ Page({
     theme: "dark",
     loading: true,
     error: "",
+    stale: false,
     good: { boards: [], stocks: [] },
     bad: { boards: [], stocks: [] },
     tape: [],
-    at: "",
   },
 
   onLoad() {
     this.setData({ theme: getApp().globalData.theme });
-    this.load();
+    // 先画上次抓到的快讯（同步，不等网络），再拉新的替换
+    const c = store.cached("news", () => api.news());
+    if (c.cached) this.paint(c.cached.data || [], "", true);
+    c.refresh().then((res) => this.paint(res.data || [], res.error || "", false));
   },
 
   onPullDownRefresh() {
-    this.load().then(() => wx.stopPullDownRefresh());
+    store
+      .cached("news", () => api.news())
+      .refresh()
+      .then((res) => {
+        this.paint(res.data || [], res.error || "", false);
+        wx.stopPullDownRefresh();
+      });
   },
 
-  async load() {
-    this.setData({ loading: true, error: "" });
-    const res = await api.news();
-    const items = res.data || [];
-    if (res.error && items.length === 0) {
-      this.setData({ loading: false, error: res.error, good: { boards: [], stocks: [] }, bad: { boards: [], stocks: [] }, tape: [] });
-      return;
-    }
+  paint(items, error, stale) {
+    this.setData({ loading: false, error, stale });
     const rank = (x) => (x.tone === "good" ? 0 : x.tone === "bad" ? 1 : 2);
     const ordered = [...items].sort((a, b) => rank(a) - rank(b));
 
     this.setData({
-      loading: false,
-      error: res.error || "",
       good: tally(items, "good"),
       bad: tally(items, "bad"),
-      at: res.at ? new Date(res.at).toLocaleTimeString("zh-CN", { hour12: false }) : "",
       tape: ordered.map((it) => ({
         id: it.id,
         time: (it.time || "").slice(11, 16),
