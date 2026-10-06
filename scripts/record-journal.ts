@@ -17,7 +17,8 @@ import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
-import { exitFill, nthClose } from "../src/lib/market/journal-book.ts";
+import { exitFill, hardGate, nthClose, softGate } from "../src/lib/market/journal-book.ts";
+import { appendGateLog } from "../src/lib/market/gate-log.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
@@ -161,13 +162,72 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     // 名额按天算：只数这一天已经记下的，前几天还没卖出的不占今天的名额。
     const todayTrades: Trade[] = existing ? [...existing.trades] : [];
     const additions: Trade[] = [];
+    // 提示闸每天最多记一条，别刷屏
+    let buysPresentThisRun = true;
+
+    // ── 风控闸门 ──────────────────────────────────────────────
+    // 以前这里什么都不查，「连亏就停手」只活在持仓页的一行文案里
+    // （liveGate 全项目唯一调用点是 positions.tsx:200，record-journal 从不 import 它）。
+    // 现在它是真的会执行的闸门。分两种：
+    //   硬闸 = 策略在亏（连亏天数 / 最近 20 笔均值）→ 这一套今天不开仓
+    //   提示闸 = 样本不够 → 只记一笔，不拦。样本少不是策略的错，拦了等于永远不许开始
+    const closedForGate = days.flatMap((day) =>
+      day.trades
+        .filter((trade) => trade.exit != null)
+        .map((trade) => ({ date: trade.exitDate ?? day.date, ret: (trade.exit! - trade.entry) / trade.entry })),
+    );
+    const hard = hardGate(closedForGate, rules);
+
+    // 提示闸：样本不够只记一笔，不拦开仓。样本少不是策略的错——
+    // 新策略刚上线必然样本少，拿这个当闸门等于「永远不许开始」。
+    // 记下来的意义是：以后想说「这套行不行」时，能指出还差多少样本。
+    if (!softGate(days.length, [], rules).ok) {
+      const soft = softGate(days.length, [], rules);
+      if (buysPresentThisRun) {
+        appendGateLog({
+          at: Date.now(),
+          tradingDate: phase.date!,
+          style: ACTIVE_STYLES[0],
+          gate: "soft",
+          reason: soft.reason,
+          candidates: [],
+        });
+        buysPresentThisRun = false;
+      }
+    }
+
     // 只跑还在用的那几套。停掉的两套仍留在页面上查看，但不再自动建仓。
     for (const style of ACTIVE_STYLES) {
       const list =
         style === "relay"
           ? relay.filter((row) => matchPrefs(row.quote, prefs))
           : watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs));
-      for (const row of takeBuys(list, held, style, todayTrades)) {
+      const buys = takeBuys(list, held, style, todayTrades);
+
+      if (!hard.ok) {
+        // 拦下之前先把「本来想买什么」记下来。不记的话事后只知道「今天没开仓」，
+        // 没法判断闸门是不是拦过头了——而这是唯一能验证它合理性的办法。
+        if (buys.length > 0) {
+          appendGateLog({
+            at: Date.now(),
+            tradingDate: phase.date!,
+            style,
+            gate: "hard",
+            reason: hard.reason,
+            candidates: buys.map((row) => ({
+              id: row.quote.id,
+              name: row.quote.name,
+              buy: row.buy,
+              score: row.score,
+            })),
+          });
+        }
+        // 跳过这一套，继续跑别的——一套被拦不影响别的套。
+        // 只停**开仓**，下面的结算段照常执行，持仓的止损止盈照管。
+        continue;
+      }
+
+      for (const row of buys) {
         const trade: Trade = {
           id: row.quote.id,
           code: row.quote.code,

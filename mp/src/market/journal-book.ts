@@ -205,6 +205,77 @@ export function liveGate(
   return { ok: true, reason: "可以按计划的小仓位做。连亏或近期亏损变大就会再关上" };
 }
 
+/**
+ * 硬闸：只放「策略在亏」这两条。不通过就完全停止**新开仓**。
+ *
+ * 为什么要从 liveGate 里拆出来：
+ * liveGate 混了两种判据——「策略在亏」和「样本够不够」。后者现在恒为不满足
+ * （indexExit 从来没记上，minClosed=20 永远差），拿它当硬闸会**永远不开仓**。
+ * 样本不够该阻止的是**下结论**，不是开仓。这是两件事。
+ *
+ * 这两条只依赖已结样本的收益统计，与 indexExit 无关 → 数据永远够判，
+ * 不会因为对照价没记而锁死。
+ *
+ * 注意它只停**开仓**，不停持仓的止损止盈——停手线不是「不管了」。
+ */
+export function hardGate(
+  trades: { date: string; ret: number }[],
+  rules: Pick<EarlyRules, "maxDrawdownPct" | "maxLosingStreak"> = DEFAULT_RULES,
+): { ok: boolean; reason: string } {
+  const perDay = dayReturns(trades);
+  const streak = losingStreak(perDay);
+  const lossDays = perDay.filter((value) => value < 0).length;
+  const lossDayRate = perDay.length >= 20 ? lossDays / perDay.length : null;
+  // 门槛按这套策略自己的亏损日比例反推：胜率五成的策略连亏三天是常事，
+  // 胜率七成的才少见。规则里写的 maxLosingStreak 是下限。
+  const natural =
+    lossDayRate != null && lossDayRate > 0 ? Math.ceil(Math.log(0.05) / Math.log(lossDayRate)) : 0;
+  const streakLimit = Math.max(rules.maxLosingStreak, natural);
+  if (rules.maxLosingStreak > 0 && streak >= streakLimit) {
+    const usual =
+      lossDayRate == null
+        ? ""
+        : `（这套平时 ${Math.round(lossDayRate * 100)}% 的交易日是亏的，连亏 ${streakLimit} 天以上才反常）`;
+    return { ok: false, reason: `已连续亏损 ${streak} 个交易日${usual}，停止新开仓` };
+  }
+  const recent = recentMean(
+    trades.map((trade) => trade.ret),
+    20,
+  );
+  if (rules.maxDrawdownPct > 0 && recent != null && recent < -rules.maxDrawdownPct / 100) {
+    return {
+      ok: false,
+      reason: `最近 20 笔平均每笔 ${(recent * 100).toFixed(1)}%，超过 ${rules.maxDrawdownPct}%，停止新开仓`,
+    };
+  }
+  return { ok: true, reason: "" };
+}
+
+/**
+ * 提示闸：只放「样本够不够」。不通过**不拦开仓**，只提示别下结论。
+ *
+ * 为什么不拦：样本少不是策略的错。新策略刚上线时必然样本少，
+ * 拿这个当闸门等于「永远不许开始」。
+ */
+export function softGate(
+  days: number,
+  closed: { ret: number | null; indexRet: number | null }[],
+  rules: Pick<EarlyRules, "minDays" | "minClosed"> = DEFAULT_RULES,
+): { ok: boolean; reason: string } {
+  if (rules.minDays > 0 && days < rules.minDays) {
+    return { ok: false, reason: `交易日记录 ${days}/${rules.minDays}，样本还不够下结论` };
+  }
+  const paired = closed.filter((trade) => trade.ret != null && trade.indexRet != null);
+  if (rules.minClosed > 0 && paired.length < rules.minClosed) {
+    return { ok: false, reason: `能对比沪深300的闭环 ${paired.length}/${rules.minClosed}，还不能说这套行不行` };
+  }
+  if (rules.minClosed > 0 && paired.length > 0) {
+    const excess = paired.reduce((sum, trade) => sum + (trade.ret! - trade.indexRet!), 0) / paired.length;
+    if (!(excess > 0)) return { ok: false, reason: "扣费后没有跑赢沪深300" };
+  }
+  return { ok: true, reason: "" };
+}
+
 /** 14:40 之后的信号当成当天已经冻结。provisional 表示还在变，不能当买入价。 */
 export function dayLocked(day: { status?: string; signalTime?: string }): boolean {
   if (day.status === "locked") return true;
