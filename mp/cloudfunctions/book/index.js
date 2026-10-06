@@ -127,6 +127,20 @@ exports.main = async (event) => {
         return await importSeed(OPENID, event.days);
       case "whoami":
         return { openid: OPENID };
+      case "bindOwner":
+        // 把这个 openid 绑成账本的主人，让 record 云函数的定时触发能找到账本。
+        // 背景：定时触发**没有用户上下文**，getWXContext().OPENID 是空的，
+        // record 只能靠 owner 集合反查（见 record/index.js 的 resolveOpenid）。
+        // 小程序首次成功同步时调一次，零人工配置。
+        if (!OPENID) return { error: "没有用户上下文，绑不了（这个 action 必须从小程序里调）" };
+        try {
+          await db.collection("owner").doc("owner").set({ data: { openid: OPENID, at: Date.now() } });
+        } catch (err) {
+          // owner 集合可能还没建（云数据库第一次写会自动建，但权限可能挡住）。
+          // 绑不上不该拖垮整个同步——record 还有「反查 days」那条兜底。
+          return { openid: OPENID, bound: false, why: String((err && err.message) || err) };
+        }
+        return { openid: OPENID, bound: true };
       default:
         return { error: "没有这个 action：" + action };
     }

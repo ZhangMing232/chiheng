@@ -42,6 +42,27 @@ function byDateDesc(days) {
   return [...days].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
+/**
+ * 一次性把 openid 绑成账本主人，失败也不重试。
+ *
+ * 为什么需要：微信云开发的**定时触发没有用户上下文**，record 云函数拿不到
+ * OPENID，只能靠 owner 集合反查账本（见 record/index.js 的 resolveOpenid）。
+ * 少了这一步，自动记账会把成交写进 `_openid:""` 的文档，而小程序按真实
+ * openid 查 —— 读不到，自动记账全部进黑洞。
+ *
+ * 为什么只做一次：这个调用在每次 sync 里都会被触发，但绑定是幂等的，
+ * 没必要每次都往返一趟云端。用本地标记记住「这次会话已经试过了」。
+ * 万一失败，record 还有「反查 days 唯一 openid」那条兜底，不会卡死。
+ */
+let ownerBindTried = false;
+function bindOwnerOnce() {
+  if (ownerBindTried) return;
+  ownerBindTried = true;
+  Promise.resolve(api.bindOwner()).catch(() => {
+    /* 绑不上不影响读账本，record 有兜底 */
+  });
+}
+
 module.exports = {
   /** 本地账本。页面第一屏用它渲染，保证不空白。 */
   localDays() {
@@ -63,6 +84,7 @@ module.exports = {
 
     if (!res.error && res.days && res.days.length > 0) {
       this.saveDays(res.days);
+      bindOwnerOnce();
       return { days: byDateDesc(res.days), from: "cloud" };
     }
 
@@ -73,6 +95,7 @@ module.exports = {
         const again = await api.readBook();
         if (!again.error && again.days && again.days.length > 0) {
           this.saveDays(again.days);
+          bindOwnerOnce();
           return { days: byDateDesc(again.days), from: "cloud" };
         }
       }

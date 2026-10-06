@@ -122,14 +122,23 @@ exports.main = async (event) => {
         // 3 分钟缓存里取，不额外抓一次——两份缓存的 TTL 一样，天然对齐
         const uni = await cached("universe", 3, fetchUniverse);
         const quotes = uni.data.quotes || [];
-        return Object.assign({}, res, {
-          breadth: {
-            up: quotes.filter((q) => (q.chg || 0) > 0).length,
-            down: quotes.filter((q) => (q.chg || 0) < 0).length,
-            limitUp: quotes.filter((q) => limitTag(q) === "涨停").length,
-            limitDown: quotes.filter((q) => limitTag(q) === "跌停").length,
-          },
-        });
+        const breadth = {
+          up: quotes.filter((q) => (q.chg || 0) > 0).length,
+          down: quotes.filter((q) => (q.chg || 0) < 0).length,
+          limitUp: quotes.filter((q) => limitTag(q) === "涨停").length,
+          limitDown: quotes.filter((q) => limitTag(q) === "跌停").length,
+        };
+        // breadth 进 data，不挂在信封上。
+        // cached() 的契约是「信封只放 {data, at, cached}」——at 是抓取时间、
+        // cached 是命中标记，都是缓存元信息。往信封上挂业务字段会破坏这个契约，
+        // 而且页面读的是 res.data，挂在信封上它永远拿不到
+        // （之前就是这么写的：Object.assign({}, res, {breadth})，
+        //  结果资金页第一个 tile 恒显示「— : —」+「全市场行情没拉下来」）。
+        return {
+          data: Object.assign({}, res.data, { breadth }),
+          at: res.at,
+          cached: res.cached,
+        };
       }
 
       case "news":

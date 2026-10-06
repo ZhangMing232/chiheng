@@ -89,6 +89,60 @@ try {
   checks.push([`漂移检查跑不起来：${err.message}`, false]);
 }
 
+// ── 防回归断言：三个曾经真出过的 bug ──────────────────────────
+//
+// 为什么用 fs.readFileSync + 正则而不用 grep：
+// 这台机器的 grep 是 WorkBuddy 装的 shell 转发器，**会间歇性返回假阴性**
+// （实测：对着明明有 OPENID 的 record/index.js 搜 OPENID，返回 0 行）。
+// 断言跑在 Node 进程里，不经过 shell，所以不受影响。
+//
+// 每一条都对应一个真实修过的 bug。改坏了这里会立刻红，别删。
+
+const recordSrc = fs.readFileSync(path.join(__dirname, "cloudfunctions/record/index.js"), "utf8");
+const quoteSrc = fs.readFileSync(path.join(__dirname, "cloudfunctions/quote/index.js"), "utf8");
+const bookSrc = fs.readFileSync(path.join(__dirname, "cloudfunctions/book/index.js"), "utf8");
+const flowJs = fs.readFileSync(path.join(__dirname, "miniprogram/pages/flow/flow.js"), "utf8");
+
+// ① cron 注释必须是 6 段。微信云开发是「秒 分 时 日 月 周」，
+//    7 段（末尾多一个 *）是 Linux crontab 习惯，粘进去报「表达式不合法」。
+const cronLine = (recordSrc.split("\n").find((l) => l.includes("0 30 14")) || "").trim();
+checks.push([
+  "record 注释里的 cron 是 6 段（微信云开发口径，不是 7 段）",
+  /^\*\s*0 30 14 \* \* MON-FRI\s*(\（.*\）)?\s*$/.test(cronLine),
+]);
+
+// ② record 不能裸用 getWXContext().OPENID 当 key。
+//    定时触发没有用户上下文，OPENID 是空的 → 自动记账写进 _openid:""，
+//    而小程序按真实 openid 查 → 读不到，全部进黑洞。
+checks.push([
+  "record 有 openid 兜底，不裸用 getWXContext().OPENID（定时触发没用户上下文）",
+  /resolveOpenid/.test(recordSrc) && !/const \{ OPENID \} = cloud\.getWXContext\(\);/.test(recordSrc),
+]);
+
+// ③ openid 拿不到时必须「不记」，而不是往空 openid 写。
+checks.push([
+  "record 拿不到 openid 时明确跳过，不往空 openid 写",
+  /skipped:.*还没有账本/.test(recordSrc) && /ambiguous/.test(recordSrc),
+]);
+
+// ④ book 要有 bindOwner，让小程序首次同步时把 openid 绑上。
+checks.push(["book 有 bindOwner（小程序首次同步时绑账本主人）", /case "bindOwner"/.test(bookSrc)]);
+
+// ⑤ flow 的 breadth 必须在 data 里，不能挂在信封上。
+//    cached() 的契约是信封只放 {data, at, cached}；挂信封上页面读 res.data 拿不到，
+//    资金页第一个 tile 会恒显示「— : —」。
+checks.push([
+  "flow 的 breadth 进了 data，没挂在信封上",
+  /data: Object\.assign\(\{\}, res\.data, \{ breadth \}\)/.test(quoteSrc),
+]);
+
+// ⑥ 涨跌家数不能用 `|| "—"`：全市场 0 只上涨时 0 会被显示成「—」，
+//    看起来像没数据。那是假的——数据来了，只是恰好是 0。
+checks.push([
+  "flow 页没用 `|| \"—\"` 显示涨跌家数（0 会被误显示成没数据）",
+  !/book\.breadth && book\.breadth\.up\) \|\|/.test(flowJs),
+]);
+
 let ok = true;
 for (const [name, pass] of checks) {
   console.log((pass ? "  ✓ " : "  ✗ ") + name);

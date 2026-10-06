@@ -51,13 +51,27 @@ Page({
     const share = amount > 0 && main != null ? (main / amount) * 100 : null;
     const northTotal = (book.north || []).reduce((s, l) => s + l.amount, 0);
 
+    // breadth 现在从 book 里拿（云函数已经把它挪进 data 了）。
+    // 拿不到就显示「—」，但拿到 0 要显示 0。
+    const raw = book.breadth;
+    const breadth = {
+      ok: raw != null && Number.isFinite(raw.up) && Number.isFinite(raw.down),
+      up: raw && Number.isFinite(raw.up) ? raw.up : "—",
+      down: raw && Number.isFinite(raw.down) ? raw.down : "—",
+      limitUp: raw ? raw.limitUp : 0,
+      limitDown: raw ? raw.limitDown : 0,
+    };
+
     this.setData({
       loading: false,
       error: res.error || "",
       tiles: {
-        up: (book.breadth && book.breadth.up) || "—",
-        down: (book.breadth && book.breadth.down) || "—",
-        limits: book.breadth ? `涨停 ${book.breadth.limitUp} · 跌停 ${book.breadth.limitDown}` : "全市场行情没拉下来",
+        // 用 Number.isFinite 而不是 `|| "—"`：后者在「全市场 0 只上涨」这种
+        // 极端但真实存在的行情下，会把数字 0 变成「—」，看起来像「没数据」。
+        // 那是假的——数据来了，只是恰好是 0。
+        up: breadth.up,
+        down: breadth.down,
+        limits: breadth.ok ? `涨停 ${breadth.limitUp} · 跌停 ${breadth.limitDown}` : "全市场行情没拉下来",
         amount: amount > 0 ? fmtWan(amount) : "—",
         mainText: main == null ? "—" : fmtWan(main),
         mainCls: tone(main),

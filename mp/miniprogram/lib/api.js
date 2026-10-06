@@ -57,6 +57,9 @@ module.exports = {
   /** 一次性导入 web 版账本。只在 days 集合为空时可用 */
   importSeed: (days) => call("book", { action: "importSeed", days }),
   whoami: () => call("book", { action: "whoami" }),
+  // 把当前 openid 绑成账本主人，让 record 的定时触发找得到账本。
+  // 定时触发没有用户上下文，只能靠 owner 集合反查——见 record/index.js 的 resolveOpenid。
+  bindOwner: () => call("book", { action: "bindOwner" }),
   /** 手动触发一次记账（和定时触发器跑的是同一个函数） */
   runRecord: () => call("record", { action: "run" }),
 };
