@@ -158,8 +158,9 @@ html[data-theme="light"] {
  *    盯盘页不需要半粗体，密集数字里 font-semibold 会糊成一片。
  *
  * 颜色只表达涨跌和状态，不表达好坏：--color-up 红、--color-down 绿（A 股约定），
- * --color-warn 琥珀只给"出问题了但不致命"。品牌色 --color-brand 只用在一处：
- * 顶部那条品牌条。正文区几乎全是中性灰，颜色是稀缺资源。
+ * --color-warn 琥珀只给"出问题了但不致命"。品牌色 --color-brand 用在四处：
+ * 顶部 2px 品牌条、名字旁的竖条、焦点环、以及「选中/按压」的 brand-soft 垫底。
+ * 除此之外正文区全中性灰，颜色是稀缺资源，别再往内容上洒。
  */
 /* === 窄屏（<768px）：表格降级成卡片流 ===
  *
@@ -222,10 +223,10 @@ html[data-theme="light"] {
   .data-table tbody td[data-opt] {
     display: table-cell;
   }
-  /* 鼠标为主，页签的触达尺寸可以收一点 */
+  /* 鼠标为主，页签的触达尺寸可以收一点。左右内边距要在这里给——
+     页签现在是「选中项垫底」的药丸式，没有左右内边距会挤成一坨 */
   .nav-tab {
-    padding-top: 6px;
-    padding-bottom: 6px;
+    padding: 6px 12px;
   }
 }
 

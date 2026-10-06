@@ -130,13 +130,18 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex gap-5 overflow-x-auto scroll-slim border-b border-line">
+      {/* 策略切换。和顶栏页签同一套：选中项 surface-2 垫底，不再用红线红字 */}
+      <div className="flex gap-0.5 overflow-x-auto scroll-slim">
         {books.map((book) => (
           <button
             key={book.id}
             type="button"
             onClick={() => onStyle(book.id)}
-            className={"shrink-0 border-b-2 pb-2 text-sm " + (book.id === style ? "-mb-px border-brand font-medium text-brand" : "border-transparent text-muted")}
+            aria-pressed={book.id === style}
+            className={
+              "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
+              (book.id === style ? "bg-surface-2 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")
+            }
           >
             {book.name}
             <span className="ml-1 tabular-nums">{book.n}</span>
@@ -267,12 +272,12 @@ export function Picks({
         title={
           <span className="flex items-baseline gap-2">
             今日建仓
-            <span className="text-brand tabular-nums">{todayTaken}</span>
+            <span className="tabular-nums">{todayTaken}</span>
             <span className="text-muted tabular-nums">/{MAX_POSITIONS}</span>
           </span>
         }
         note={
-          <Link to="/positions" className="text-brand hover:underline">
+          <Link to="/positions" className="hover:text-fg hover:underline">
             当前持有 {open.length} 只 · 全部持仓 →
           </Link>
         }
@@ -284,8 +289,9 @@ export function Picks({
           {onServer ? "" : "（本机浏览器的账）"}
         </p>
         <div className="mt-2 h-1 w-full overflow-hidden rounded bg-surface-2" role="img" aria-label={`今日建仓 ${todayTaken} / ${MAX_POSITIONS}`}>
+          {/* 中性色的进度条：名额用没用完不是涨跌也不是警告，不需要颜色说话 */}
           <div
-            className="h-full bg-brand"
+            className="h-full bg-fg"
             style={{ width: `${Math.min(100, (todayTaken / MAX_POSITIONS) * 100)}%` }}
           />
         </div>

@@ -115,22 +115,27 @@ function FlowTabs() {
     return () => observer.disconnect();
   }, []);
   return (
-    <div className="-mx-4 bg-navy px-4 md:-mx-6 md:px-6">
-      <div className="flex gap-5 overflow-x-auto scroll-slim">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActive(tab.id);
-              document.getElementById(tab.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            className={"shrink-0 border-b-2 py-2 text-sm " + (active === tab.id ? "border-brand font-medium text-white" : "border-transparent text-white/60")}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+    // 子页签和顶栏同一套：中性、选中项 surface-2 垫底。
+    // 原来是一条深蓝横条加红色下划线——一页里出现第二套导航语言，
+    // 等于没有导航语言。页内跳转的交互（点一下平滑滚过去）不变。
+    <div className="flex gap-0.5 overflow-x-auto scroll-slim">
+      {TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => {
+            setActive(tab.id);
+            document.getElementById(tab.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          aria-pressed={active === tab.id}
+          className={
+            "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
+            (active === tab.id ? "bg-surface-2 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")
+          }
+        >
+          {tab.label}
+        </button>
+      ))}
     </div>
   );
 }

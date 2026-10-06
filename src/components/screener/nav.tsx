@@ -1,7 +1,8 @@
 /**
  * 这个文件是干什么的：
- * 每个页面顶上共用的那一排，参考财联社的版面：红色品牌条、扁平页签、刷新，以及字号和明暗。
- * 点「选股 / 消息 / 个股 / 资金」换页，点「显示」改字号和深浅色。
+ * 每个页面顶上共用的那一排。原来是一条品牌红横幅，参考财联社；现在收成
+ * 「2px 品牌线 + 中性色的名字、页签、按钮」，参考 design/app.html。
+ * 点「选股 / 持仓 / 消息 / 个股 / 资金」换页，点「显示」改字号和深浅色。
  *
  * 你需要知道的：
  * 字号和明暗只存在这台浏览器里，不改账，也不改买入价。
@@ -110,16 +111,25 @@ export function TypeSize() {
   );
 }
 
-/** 四个页面入口，财联社式扁平页签：选中的那页标红加底线。 */
+/** 四个页面入口。选中态用 surface-2 垫底，不再用红线加红字——
+ *  之前选中的页签是全页唯一一处品牌色，五个页签抢一个颜色，反而哪页都不突出。
+ *  品牌色现在只留给顶部那条 2px 品牌条和焦点环（见 styles.css 的注释）。 */
 export function TopNav() {
   const path = useRouterState({ select: (state) => state.location.pathname });
   return (
-    <nav className="flex min-w-0 flex-1 gap-5 overflow-x-auto scroll-slim">
+    <nav className="order-last -mx-1 flex w-full min-w-0 gap-0.5 overflow-x-auto scroll-slim md:order-none md:ml-auto md:w-auto">
       {LINKS.map((link) => (
         <Link
           key={link.to}
           to={link.to}
-          className={"nav-tab shrink-0 border-b-2 py-2 text-sm " + (path === link.to ? "border-brand font-medium text-brand" : "border-transparent text-muted")}
+          className={
+            "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
+            // aria-current 给读屏器；视觉上靠 surface-2 那块垫底
+            (path === link.to
+              ? "bg-surface-2 font-medium text-fg"
+              : "text-muted hover:bg-surface-2 hover:text-fg")
+          }
+          aria-current={path === link.to ? "page" : undefined}
         >
           {link.label}
         </Link>
@@ -128,7 +138,10 @@ export function TopNav() {
   );
 }
 
-/** 每个页面的外壳：顶部品牌红条、导航、刷新和「显示」。aside、extra 是顶栏里额外的一行。 */
+/** 每个页面的外壳。原来的顶部是一整条品牌红横幅（logo、标题、按钮全在红底上），
+ *  那是券商 App 的门面：颜色只证明了「这是个行情软件」，别的什么都没说。
+ *  现在照 app.html 收掉：一条 2px 品牌线 + 中性色的名字和页签。
+ *  aside、extra 是顶栏下面额外的一行（页面状态、指数条）。 */
 export function Frame({
   aside,
   extra,
@@ -153,46 +166,41 @@ export function Frame({
   }
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20">
-        <div className="bg-brand text-white">
-          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 pt-3 pb-2 md:px-6">
-            <Link to="/" className="flex items-center gap-2">
-              <svg viewBox="0 0 72 24" className="h-6 w-18" aria-hidden>
-                <rect x="0" y="12" width="30" height="8" fill="currentColor" />
-                <rect x="42" y="2" width="30" height="8" fill="currentColor" opacity="0.6" />
-              </svg>
-              <span className="text-xl font-medium tracking-tight">赤轨</span>
-            </Link>
-            <span className="hidden text-xs text-white/70 sm:inline">A股自动选股</span>
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void refresh()}
-                disabled={refreshing}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded border border-white/40 px-3 text-sm text-white disabled:opacity-60"
-              >
-                <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
-                刷新
-              </button>
-              <details className="relative shrink-0">
-                <summary className="cursor-pointer list-none rounded border border-white/40 px-2.5 py-1.5 text-xs text-white [&::-webkit-details-marker]:hidden">显示</summary>
-                <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded border border-line bg-surface p-2">
-                  <ThemeMode />
-                  <TypeSize />
-                </div>
-              </details>
-            </div>
+      {/* 全站唯一的大面积用色：顶上这条 2px。正文区全中性灰，颜色是稀缺资源 */}
+      <div className="h-0.5 bg-brand" aria-hidden />
+      <header className="sticky top-0 z-20 border-b border-line bg-bg/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 px-4 pt-1 md:px-6">
+          <Link to="/" className="flex shrink-0 items-center gap-2 py-2">
+            <span className="h-4 w-[3px] rounded-full bg-brand" aria-hidden />
+            <span className="text-[15px] font-medium tracking-widest">赤轨</span>
+            <span className="hidden text-xs text-muted sm:inline">策略实验台</span>
+          </Link>
+          <TopNav />
+          <div className="ml-auto flex shrink-0 items-center gap-2 py-2 md:ml-0">
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded border border-line bg-surface px-3 text-sm text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-60"
+            >
+              <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
+              刷新
+            </button>
+            <details className="relative shrink-0">
+              <summary className="cursor-pointer list-none rounded border border-line bg-surface px-2.5 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden">显示</summary>
+              <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded border border-line bg-surface p-2">
+                <ThemeMode />
+                <TypeSize />
+              </div>
+            </details>
           </div>
         </div>
-        <div className="border-b border-line bg-bg/95 backdrop-blur-md">
-          <div className="mx-auto max-w-3xl px-4 md:px-6">
-            <div className="flex items-center gap-3">
-              <TopNav />
-            </div>
-            {aside ? <div className="pb-2">{aside}</div> : null}
+        {aside || extra ? (
+          <div className="mx-auto max-w-3xl px-4 pb-2 md:px-6">
+            {aside}
             {extra}
           </div>
-        </div>
+        ) : null}
       </header>
       <main className="mx-auto flex max-w-3xl flex-col gap-3 px-3 py-3 md:px-6">{children}</main>
     </div>

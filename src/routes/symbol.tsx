@@ -109,7 +109,7 @@ function SymbolPage() {
                 setValue(item.code);
                 void navigate({ to: "/symbol", search: { q: item.code } });
               }}
-              className={"shrink-0 rounded border border-line px-2.5 py-1.5 text-xs " + (data.picked?.id === item.id ? "border-brand text-brand font-medium" : "text-muted")}
+              className={"shrink-0 rounded border px-2.5 py-1.5 text-xs " + (data.picked?.id === item.id ? "border-brand bg-brand-soft font-medium text-brand" : "border-line text-muted")}
             >
               {item.name} {item.code}
             </button>
@@ -154,9 +154,10 @@ function ArticleList({
   const counts = tally(articles);
   return (
     <section className="overflow-hidden rounded border border-line bg-surface">
-      <div className="flex items-baseline justify-between gap-3 border-b border-line px-3 py-2">
+      <div className="flex items-baseline justify-between gap-3 border-b border-line px-3.5 py-2">
         <div className="min-w-0">
-          <h2 className="truncate text-base font-medium">{title}</h2>
+          {/* 和 Panel 同档：14px/500。标题的分量交给分隔线，不靠字号 */}
+          <h2 className="truncate text-sm font-medium">{title}</h2>
           {articles.length > 0 ? (
             <p className="mt-0.5 text-xs text-muted">
               <span className={counts.bad > 0 ? "text-down" : ""}>利空 {counts.bad}</span>
@@ -171,7 +172,7 @@ function ArticleList({
       ) : (
         <ul>
           {articles.map((item) => (
-            <li key={item.id} className="border-b border-line px-3 py-2 last:border-0">
+            <li key={item.id} className="border-b border-line px-3.5 py-2 last:border-0">
               <div className="flex items-baseline justify-between gap-3 text-xs text-muted">
                 <span>
                   <span className="mr-2">{KIND_LABEL[item.kind]}</span>

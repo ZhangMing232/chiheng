@@ -95,7 +95,8 @@ export function Detail({
               {quote.st ? " · ST" : ""}
               {tag ? ` · ${tag}` : ""}
             </div>
-            <h2 className="truncate font-serif text-2xl font-medium">{quote.name}</h2>
+            {/* 和全站标题同档（14px/500）。这只股票叫什么，眼睛靠位置找，不靠字大 */}
+            <h2 className="truncate text-sm font-medium">{quote.name}</h2>
           </div>
           <button
             type="button"
