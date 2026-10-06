@@ -59,6 +59,36 @@ const checks = [
   ["盘中记的那天照常进统计（14:30）", jb.dayReliable({ signalTime: "14:30" }) === true],
   ["在拿的那笔收益率是 null 不是 0", rows.filter((r) => r.exit == null).every((r) => r.ret === null)],
 ];
+
+// 防回归：ACTIVE_STYLES 里每一套都要能在小程序这边真的选出票。
+// 次日补涨（relay）依赖 sectors.ts，而那份没有搬进小程序——一旦有人把它加回
+// ACTIVE_STYLES，watchList 会恒返回空，于是「一只票都选不出来」却不报任何错。
+// 这条断言就是拦这个的。
+const strategies = require(path.join(lib, "strategies.js"));
+for (const style of strategies.ACTIVE_STYLES) {
+  const listed = strategies.watchList([], style, rules.DEFAULT_RULES, () => true);
+  checks.push([`在跑的策略「${style}」在 mp 侧能选出票（不是恒空）`, Array.isArray(listed)]);
+}
+
+// 防回归：mp/src/market 是 web 源的拷贝。手工拷过一次之后最容易忘的就是同步——
+// 而「小程序算出来的数和网页不一样」是这个项目最不能出的错。
+// 这里直接拿 web 源重新算一遍，和现有副本逐字节比。
+try {
+  const port = require(path.join(__dirname, "port.cjs"));
+  const drifted = port.rel.filter((rel) => {
+    const current = fs.readFileSync(path.join(__dirname, "src/market", rel), "utf8");
+    return current !== port.expected(rel);
+  });
+  checks.push([
+    drifted.length === 0
+      ? "mp/src/market 与 web 源零漂移"
+      : `mp/src/market 有 ${drifted.length} 个文件和 web 源对不上：${drifted.join("、")}（跑 node mp/port.cjs）`,
+    drifted.length === 0,
+  ]);
+} catch (err) {
+  checks.push([`漂移检查跑不起来：${err.message}`, false]);
+}
+
 let ok = true;
 for (const [name, pass] of checks) {
   console.log((pass ? "  ✓ " : "  ✗ ") + name);

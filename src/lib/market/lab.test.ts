@@ -76,20 +76,51 @@ test("一套一笔都没卖出：平均收益和胜率都是 null，不能是 0"
       day({
         date: "2026-09-29",
         trades: [
-          trade({ id: "a", entry: 10, style: "relay" }),
-          trade({ id: "b", entry: 20, style: "relay" }),
+          // 用一套还在自动建仓的策略。已经下线的策略 needMore 恒为 0，
+          // 那条规则由下面单独的测试管，别混在一条里。
+          trade({ id: "a", entry: 10, style: "breakout" }),
+          trade({ id: "b", entry: 20, style: "breakout" }),
         ],
       }),
     ],
     DEFAULT_RULES,
   );
+  const row = report.byStyle.find((item) => item.style === "breakout");
+  assert.ok(row);
+  assert.equal(row.retired, false);
+  assert.equal(row.closed, 0);
+  assert.equal(row.open, 2);
+  assert.equal(row.avg, null);
+  assert.equal(row.win, null);
+  assert.equal(row.needMore, PER_STYLE_GOAL);
+});
+
+test("已下线的策略标 retired，needMore 是 0——不会再来样本，等一个不会到的数没意义", () => {
+  const report = buildLabReport(
+    [
+      day({
+        date: "2026-09-29",
+        trades: [
+          trade({ id: "a", entry: 10, style: "value" }),
+          trade({ id: "b", entry: 20, style: "relay" }),
+          trade({ id: "c", entry: 30, style: "rebound" }),
+        ],
+      }),
+    ],
+    DEFAULT_RULES,
+  );
+  const value = report.byStyle.find((row) => row.style === "value");
   const relay = report.byStyle.find((row) => row.style === "relay");
-  assert.ok(relay);
-  assert.equal(relay.closed, 0);
-  assert.equal(relay.open, 2);
-  assert.equal(relay.avg, null);
-  assert.equal(relay.win, null);
-  assert.equal(relay.needMore, PER_STYLE_GOAL);
+  const rebound = report.byStyle.find((row) => row.style === "rebound");
+  assert.ok(value && relay && rebound);
+  // 历史样本照常显示——历史要看得见，这是正确行为
+  assert.equal(value.total, 1);
+  assert.equal(value.retired, true);
+  assert.equal(value.needMore, 0);
+  assert.equal(relay.retired, true);
+  assert.equal(relay.needMore, 0);
+  assert.equal(rebound.retired, false);
+  assert.equal(rebound.needMore, PER_STYLE_GOAL);
 });
 
 test("卖出里赚亏都有的那套：胜率和平均照实算，打平的不算赢", () => {

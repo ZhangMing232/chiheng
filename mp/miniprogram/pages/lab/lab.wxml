@@ -111,16 +111,23 @@
     <view class="bd">
       <view wx:for="{{styles}}" wx:key="name" style="padding:20rpx 0;border-top:1rpx solid var(--line)">
         <view style="display:flex;justify-content:space-between;font-size:26rpx">
-          <text>{{item.name}}</text>
-          <text class="muted num">{{item.total}} 笔</text>
+          <text>
+            {{item.name}}
+            <text wx:if="{{item.retired}}" class="pill p-mute" style="margin-left:12rpx">已下线</text>
+            <text class="muted" style="font-size:24rpx;margin-left:12rpx">{{item.total}} 笔</text>
+          </text>
+          <text class="muted num">{{item.closed}} / {{item.total}}</text>
         </view>
         <view style="display:flex;gap:32rpx;font-size:24rpx;color:var(--muted);margin-top:16rpx">
           <text>已结 <text style="color:var(--fg)">{{item.closed}}</text></text>
           <text>盈利 <text style="color:var(--fg)">{{item.win}}</text></text>
           <text>均值 <text style="color:var(--fg)">{{item.avg}}</text></text>
-          <text>还差 <text style="color:var(--fg)">{{item.needMore}}</text></text>
+          <text wx:if="{{!item.retired}}">还差 <text style="color:var(--fg)">{{item.needMore}}</text></text>
+          <text wx:else>不再建仓，历史样本保留</text>
         </view>
-        <view class="meter" style="margin-top:20rpx"><view class="fill" style="width:{{item.bar}}%"></view></view>
+        <view wx:if="{{!item.retired}}" class="meter" style="margin-top:20rpx">
+          <view class="fill" style="width:{{item.bar}}%"></view>
+        </view>
       </view>
     </view>
   </view>

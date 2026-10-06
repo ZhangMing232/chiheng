@@ -76,6 +76,7 @@ Page({
 
     const styles = report.byStyle.map((s) => ({
       name: s.name,
+      retired: s.retired,
       total: s.total,
       closed: s.closed,
       win: s.win == null ? "—" : s.win,

@@ -161,13 +161,17 @@ export function LabPanel({ report }: { report: LabReport }) {
         </p>
       ) : null}
 
-      {/* 按策略拆 */}
+      {/* 按策略拆。已下线的策略标出来，并且不显示「离 N 还差 M」——
+          那是个永远填不满的数字，显示它只会让人一直等。 */}
       <div className="mt-5 grid gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-2">
         {report.byStyle.map((row) => (
           <div key={row.style} className="bg-surface px-3 py-2.5">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm text-fg">
                 {row.name}
+                {row.retired ? (
+                  <span className="ml-1.5 rounded bg-surface-2 px-1.5 py-px text-xs text-muted">已下线</span>
+                ) : null}
                 <span className="ml-1.5 text-xs text-muted">{row.total} 笔</span>
               </span>
               <span className={`text-sm tabular-nums ${row.avg == null ? "text-muted" : pctClass(row.avg * 100)}`}>
@@ -181,16 +185,22 @@ export function LabPanel({ report }: { report: LabReport }) {
               <span>
                 盈利 <span className="tabular-nums text-fg">{row.win ?? "—"}</span>
               </span>
-              <span>
-                离 {row.goal} 还差 <span className="tabular-nums text-fg">{row.needMore}</span>
-              </span>
+              {row.retired ? (
+                <span>不再建仓，历史样本保留</span>
+              ) : (
+                <span>
+                  离 {row.goal} 还差 <span className="tabular-nums text-fg">{row.needMore}</span>
+                </span>
+              )}
             </div>
-            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-surface-2">
-              <div
-                className="h-full rounded-full bg-warn"
-                style={{ width: `${Math.min(100, (row.closed / row.goal) * 100)}%` }}
-              />
-            </div>
+            {row.retired ? null : (
+              <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-surface-2">
+                <div
+                  className="h-full rounded-full bg-warn"
+                  style={{ width: `${Math.min(100, (row.closed / row.goal) * 100)}%` }}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>

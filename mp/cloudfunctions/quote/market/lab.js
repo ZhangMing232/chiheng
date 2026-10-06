@@ -124,16 +124,20 @@ function buildLabReport(days, rules) {
         const mine = rows.filter((row) => row.style === style);
         const mineClosed = mine.filter((row) => !row.open);
         const rets = mineClosed.map((row) => row.ret).filter((v) => v != null);
+        // 已下线的策略不会再有新样本，所以「离 30 笔还差 N 笔」是个永远填不满的
+        // 数字。标出来，让界面显示成「已下线」而不是让人一直等一个不会来的数。
+        const retired = !strategies_1.ACTIVE_STYLES.includes(style);
         return {
             style,
             name: styleName(style),
+            retired,
             total: mine.length,
             closed: mineClosed.length,
             open: mine.length - mineClosed.length,
             win: rets.length > 0 ? rets.filter((value) => value > 0).length : null,
             avg: rets.length > 0 ? rets.reduce((sum, value) => sum + value, 0) / rets.length : null,
             goal: exports.PER_STYLE_GOAL,
-            needMore: Math.max(0, exports.PER_STYLE_GOAL - mineClosed.length),
+            needMore: retired ? 0 : Math.max(0, exports.PER_STYLE_GOAL - mineClosed.length),
         };
     })
         .filter((row) => row.total > 0)

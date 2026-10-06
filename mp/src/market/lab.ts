@@ -34,7 +34,7 @@
 
 import type { PaperDay, PaperTrade } from "./paper-types";
 import { dayReliable, netReturn } from "./journal-book";
-import { STYLES } from "./strategies";
+import { ACTIVE_STYLES, STYLES } from "./strategies";
 
 /**
  * 一套策略要单独说话，需要多少笔已结样本。
@@ -74,8 +74,14 @@ export type LabStyleRow = {
   avg: number | null;
   /** 这套要单独说话需要的已结笔数 */
   goal: number;
-  /** 离这套自己的门槛还差几笔 */
+  /** 离这套自己的门槛还差几笔。已下线的是 0——不会再有新样本，这个数永远填不满 */
   needMore: number;
+  /**
+   * 这套已经不再自动建仓（不在 ACTIVE_STYLES 里）。
+   * 界面对它显示「已下线」而不是「还差 N 笔」：让人一直等一个不会来的数，
+   * 比直接告诉他这套停了更让人困惑。
+   */
+  retired: boolean;
 };
 
 /** 指数对照能不能比。 */
@@ -189,16 +195,20 @@ export function buildLabReport(days: PaperDay[], rules: { minClosed: number }): 
       const mine = rows.filter((row) => row.style === style);
       const mineClosed = mine.filter((row) => !row.open);
       const rets = mineClosed.map((row) => row.ret).filter((v): v is number => v != null);
+      // 已下线的策略不会再有新样本，所以「离 30 笔还差 N 笔」是个永远填不满的
+      // 数字。标出来，让界面显示成「已下线」而不是让人一直等一个不会来的数。
+      const retired = !ACTIVE_STYLES.includes(style as (typeof ACTIVE_STYLES)[number]);
       return {
         style,
         name: styleName(style),
+        retired,
         total: mine.length,
         closed: mineClosed.length,
         open: mine.length - mineClosed.length,
         win: rets.length > 0 ? rets.filter((value) => value > 0).length : null,
         avg: rets.length > 0 ? rets.reduce((sum, value) => sum + value, 0) / rets.length : null,
         goal: PER_STYLE_GOAL,
-        needMore: Math.max(0, PER_STYLE_GOAL - mineClosed.length),
+        needMore: retired ? 0 : Math.max(0, PER_STYLE_GOAL - mineClosed.length),
       };
     })
     .filter((row) => row.total > 0)
