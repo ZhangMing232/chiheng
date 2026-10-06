@@ -103,12 +103,18 @@ const quoteSrc = fs.readFileSync(path.join(__dirname, "cloudfunctions/quote/inde
 const bookSrc = fs.readFileSync(path.join(__dirname, "cloudfunctions/book/index.js"), "utf8");
 const flowJs = fs.readFileSync(path.join(__dirname, "miniprogram/pages/flow/flow.js"), "utf8");
 
-// ① cron 注释必须是 6 段。微信云开发是「秒 分 时 日 月 周」，
-//    7 段（末尾多一个 *）是 Linux crontab 习惯，粘进去报「表达式不合法」。
+// ① cron 必须是 7 段。微信云开发是「秒 分 时 日 月 星期 年」，
+//    末尾那个 * 是「年」。6 段会报「cron 表达式不合法」。
+//    同时 config.json 里也要有一份一模一样的 triggers（上传触发器用）。
 const cronLine = (recordSrc.split("\n").find((l) => l.includes("0 30 14")) || "").trim();
+const cronCfg = fs.readFileSync(path.join(__dirname, "cloudfunctions/record/config.json"), "utf8");
 checks.push([
-  "record 注释里的 cron 是 6 段（微信云开发口径，不是 7 段）",
-  /^\*\s*0 30 14 \* \* MON-FRI\s*(\（.*\）)?\s*$/.test(cronLine),
+  "record 注释里的 cron 是 7 段（微信云开发口径，末尾是年）",
+  /^\*\s*0 30 14 \* \* MON-FRI \*\s*(\（.*\）)?\s*$/.test(cronLine),
+]);
+checks.push([
+  "record/config.json 里 triggers 的 cron 也是 7 段、和注释一致",
+  cronCfg.includes('"0 30 14 * * MON-FRI *"'),
 ]);
 
 // ② record 不能裸用 getWXContext().OPENID 当 key。
