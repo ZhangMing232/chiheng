@@ -17,6 +17,7 @@ Page({
     theme: "dark",
     loading: true,
     error: "",
+    needDeploy: "",
     tiles: null,
     notes: [],
     sectorsIn: [],

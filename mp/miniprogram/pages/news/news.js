@@ -49,6 +49,7 @@ Page({
     loading: true,
     error: "",
     stale: false,
+    needDeploy: "",
     good: { boards: [], stocks: [] },
     bad: { boards: [], stocks: [] },
     tape: [],
@@ -58,8 +59,8 @@ Page({
     this.setData({ theme: getApp().globalData.theme });
     // 先画上次抓到的快讯（同步，不等网络），再拉新的替换
     const c = store.cached("news", () => api.news());
-    if (c.cached) this.paint(c.cached.data || [], "", true);
-    c.refresh().then((res) => this.paint(res.data || [], res.error || "", false));
+    if (c.cached) this.paint(c.cached.data || [], "", true, "");
+    c.refresh().then((res) => this.paint(res.data || [], res.error || "", false, res.needDeploy));
   },
 
   onPullDownRefresh() {
@@ -67,13 +68,13 @@ Page({
       .cached("news", () => api.news())
       .refresh()
       .then((res) => {
-        this.paint(res.data || [], res.error || "", false);
+        this.paint(res.data || [], res.error || "", false, res.needDeploy);
         wx.stopPullDownRefresh();
       });
   },
 
-  paint(items, error, stale) {
-    this.setData({ loading: false, error, stale });
+  paint(items, error, stale, needDeploy) {
+    this.setData({ loading: false, error, stale, needDeploy: needDeploy || "" });
     const rank = (x) => (x.tone === "good" ? 0 : x.tone === "bad" ? 1 : 2);
     const ordered = [...items].sort((a, b) => rank(a) - rank(b));
 

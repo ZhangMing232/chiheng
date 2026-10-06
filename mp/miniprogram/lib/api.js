@@ -18,7 +18,21 @@ function call(name, data) {
       if (!r) return { error: "云函数没有返回内容" };
       return r;
     })
-    .catch((err) => ({ error: String((err && err.message) || err) }));
+    .catch((err) => {
+      const msg = String((err && (err.errMsg || err.message)) || err);
+      // 云端没有这个函数，十有八九是忘了部署。原始报错对用户没意义，
+      // 换成一句「去哪儿点什么」。
+      if (/FUNCTION_NOT_FOUND|-501000/.test(msg)) {
+        return {
+          error: `云函数「${name}」还没部署`,
+          needDeploy: name,
+        };
+      }
+      if (/environment|ENV_NOT_EXIST|-502003/.test(msg)) {
+        return { error: "云开发环境不对，检查 config.js 里的 ENV_ID 和工具栏当前环境", needEnv: true };
+      }
+      return { error: msg };
+    });
 }
 
 module.exports = {

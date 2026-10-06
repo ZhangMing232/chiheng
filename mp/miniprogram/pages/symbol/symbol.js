@@ -35,6 +35,7 @@ Page({
     input: "",
     loading: false,
     error: "",
+    needDeploy: "",
     matches: [],
     groups: [],
   },

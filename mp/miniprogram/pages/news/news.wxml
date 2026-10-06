@@ -82,7 +82,8 @@
 
   <view wx:if="{{error}}" class="statebox">
     <view class="glyph warn"></view>
-    <view class="hint">消息源没响应：{{error}}。行情和持仓不受影响，只有这一页空着。</view>
+    <view class="hint">{{error}}</view>
+    <view wx:if="{{needDeploy}}" class="hint" style="margin-top:16rpx">在开发者工具左侧右键 cloudfunctions/{{needDeploy}} → 上传并部署：云端安装依赖</view>
   </view>
   <view wx:if="{{loading}}" class="statebox"><view class="hint">正在拉快讯…</view></view>
 
