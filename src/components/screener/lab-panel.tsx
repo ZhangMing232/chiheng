@@ -42,60 +42,75 @@ export function LabPanel({ report }: { report: LabReport }) {
       : "—";
 
   return (
-    <Panel
-      title={
-        <span>
-          策略实验台 <span className="font-normal text-muted">这套规则能不能下结论</span>
-        </span>
-      }
-      className="mb-4"
-      bodyClassName="px-3 py-3 space-y-3"
-    >
-      {/* 结论 + 三个缺口数字 */}
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-3">
-        <div>
-          <div className="text-xs text-muted">现在能下结论吗</div>
-          <div className={`mt-0.5 text-3xl font-medium ${report.canSay ? "text-fg" : "text-warn"}`}>
-            {report.canSay ? "能下结论了" : "还不能说"}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
-          <div className="min-w-[6.5rem]">
-            <div className="text-xs text-muted">已结样本</div>
-            <div className="text-lg font-medium tabular-nums text-fg">
+    <Panel title="策略实验台" className="mb-4" bodyClassName="px-4 py-6 sm:px-8 sm:py-8">
+      {/*
+        结论区。这一块的排法来自 design/app.html：巨号结论 + 留白 + 三个缺口数字。
+        字号用 clamp 而不是写死——窄屏（375）会自己收到 32px，不会把「还不能说」
+        挤成两行。真实首屏下面还有精选表，所以上限压到 52px，比 app.html 的 68px
+        矮一档：原型里它独占一屏，产品里不能。
+      */}
+      <div className="border-b border-line pb-6">
+        <div className="text-xs tracking-wide text-muted">这套自动规则现在能下结论吗</div>
+        <p
+          className={`mt-3 font-medium leading-none tracking-tight ${
+            report.canSay ? "text-fg" : "text-warn"
+          }`}
+          style={{ fontSize: "clamp(32px, 5vw, 52px)" }}
+        >
+          {report.canSay ? "能下结论了" : "还不能说"}
+        </p>
+        <p className="mt-4 max-w-[56ch] text-xs leading-relaxed text-muted">
+          样本不够不等于成绩不好——现在是<b className="font-normal text-fg">还没有成绩</b>，不是成绩差。
+          {report.reason ? ` ${report.reason}。` : ""}
+        </p>
+
+        <div className="mt-7 flex flex-wrap gap-x-8 gap-y-5">
+          <div>
+            <div className="text-xs text-muted">能对比指数的已结样本</div>
+            <div className="mt-1 text-2xl font-medium tabular-nums text-fg">
               {report.closed}
               <span className="text-sm font-normal text-muted"> / {report.goal}</span>
             </div>
+            <div className="mt-1 text-[11px] text-muted">门槛来自 rules.minClosed</div>
           </div>
-          <div className="min-w-[6.5rem]">
+          <div>
             <div className="text-xs text-muted">还差</div>
-            <div className="text-lg font-medium tabular-nums text-fg">
+            <div className="mt-1 text-2xl font-medium tabular-nums text-fg">
               {report.needMore}
               <span className="text-sm font-normal text-muted"> 笔</span>
             </div>
+            <div className="mt-1 text-[11px] text-muted">中期反转拿满 10 个交易日出结果</div>
           </div>
-          <div className="min-w-[6.5rem]">
+          <div>
             <div className="text-xs text-muted">同期沪深300</div>
-            <div className="text-lg font-medium tabular-nums text-fg">{benchmarkLabel}</div>
+            <div
+              className={`mt-1 text-2xl font-medium tabular-nums ${
+                report.benchmark.available ? "text-fg" : "text-warn"
+              }`}
+            >
+              {benchmarkLabel}
+            </div>
+            <div className="mt-1 text-[11px] text-muted">
+              {report.benchmark.available ? "可以算有没有跑赢" : "账本没存 indexExit，从记录那天就缺"}
+            </div>
           </div>
+        </div>
+
+        <div
+          className="mt-7 h-1.5 w-full max-w-xl overflow-hidden rounded-full bg-surface-2"
+          role="progressbar"
+          aria-valuenow={Math.round(report.progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="样本积累进度"
+        >
+          <div className="h-full rounded-full bg-warn" style={{ width: `${report.progress}%` }} />
         </div>
       </div>
 
-      {/* 进度条：到门槛还差多远 */}
-      <div
-        className="h-1.5 w-full max-w-xl overflow-hidden rounded-full bg-surface-2"
-        role="progressbar"
-        aria-valuenow={Math.round(report.progress)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label="样本积累进度"
-      >
-        <div className="h-full rounded-full bg-warn" style={{ width: `${report.progress}%` }} />
-      </div>
-
       {/* 样本墙 */}
-      <div>
-        <div className="mb-1.5 text-xs text-muted">
+      <div className="pt-6">
+        <div className="mb-2 text-xs text-muted">
           全部样本 {report.total} 笔：已结 {report.closed} 格着色，在拿 {report.open} 格空心
         </div>
         <div
@@ -140,14 +155,14 @@ export function LabPanel({ report }: { report: LabReport }) {
 
       {/* 被口径排掉的那部分，明说，别让样本凭空少一截 */}
       {report.skipped.trades > 0 ? (
-        <p className="text-xs text-muted">
+        <p className="pt-4 text-xs text-muted">
           另有 {report.skipped.days} 个交易日（{report.skipped.trades} 笔）是收盘后补记的，
           按口径不进样本——持仓页仍会显示它们已实现的盈亏。
         </p>
       ) : null}
 
       {/* 按策略拆 */}
-      <div className="grid gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-2">
+      <div className="mt-5 grid gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-2">
         {report.byStyle.map((row) => (
           <div key={row.style} className="bg-surface px-3 py-2.5">
             <div className="flex items-baseline justify-between gap-2">
