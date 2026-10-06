@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赤轨 · 设计规范系统</title>
+<style>
+/* ============================================================
+   赤轨设计规范系统
+   ------------------------------------------------------------
+   这个页面本身就是用自己那套规范画出来的：色板、间距、圆角、
+   组件全部走 token，没有一处写死色值。规范改了，这页跟着变。
+
+   为什么做成单文件：design/ 下三个原型都是单文件，双击就能开，
+   不用起服务。规范这种东西要能随手翻。
+   ============================================================ */
+
+/* 默认（深色）写在 :root 上，浅色在下面的 [data-theme="light"] 里覆盖。
+   和 src/styles.css 的结构一致，改那边这里跟着改。 */
+:root[data-theme="dark"], :root {
+  --bg:#0e1218; --fg:#eef2f6; --muted:#8b95a6;
+  --surface:#161c25; --surface-2:#1e2632; --line:#2c3544;
+  --up:#ff6b6b; --up-soft:#3a1e26;
+  --down:#3ecb8e; --down-soft:#143028;
+  --warn:#e8a33d; --warn-soft:#33260f;
+  /* brand 只用在两处：顶部 2px 品牌条和焦点环。正文区全是中性灰 */
+  --brand:#e8665e; --brand-soft:#38201f;
+  --navy:#2b3245;
+}
+:root[data-theme="light"] {
+  --bg:#f5f6f8; --fg:#1a1d23; --muted:#5e6779;
+  --surface:#ffffff; --surface-2:#eef1f5; --line:#e3e7ee;
+  --up:#c9202e; --up-soft:#fdecee;
+  --down:#0b7040; --down-soft:#e7f6ef;
+  --warn:#8f5c00; --warn-soft:#fdf1dc;
+  --brand:#c62016; --brand-soft:#fdecea;
+  --navy:#2b3245;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 14px/1.6 "WenQuanYi Zen Hei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  scrollbar-gutter: stable;
+}
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
+a { color: inherit; }
+
+/* 顶部 2px 品牌条。品牌色只在这里和焦点环出现，别处一律中性 */
+.topbar { height: 2px; background: var(--brand); }
+
+.wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; max-width: 1180px; margin: 0 auto; padding: 0 24px 80px; }
+
+/* ── 侧边目录 ── */
+.side { position: sticky; top: 0; align-self: start; padding: 24px 0; }
+.side .brandmark { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.side .brandmark i { width: 3px; height: 16px; background: var(--brand); border-radius: 1px; }
+.side .brandmark b { font-size: 15px; font-weight: 500; letter-spacing: .04em; }
+.side .sub { font-size: 12px; color: var(--muted); margin: 0 0 20px; }
+.side ol { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.side ol li { margin-bottom: 2px; }
+.side ol a { display: block; padding: 5px 10px; border-radius: 4px; color: var(--muted); text-decoration: none; }
+.side ol a:hover { background: var(--surface-2); color: var(--fg); }
+
+/* ── 顶栏控制 ── */
+.bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 16px 0 0; margin-bottom: 24px; }
+.bar .spacer { flex: 1; }
+.btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  border-radius: 4px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+  transition: background-color .2s, color .2s, border-color .2s;
+}
+.btn:hover { background: var(--surface-2); color: var(--fg); }
+.btn[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); }
+
+/* ── 章节 ── */
+section { margin-bottom: 48px; scroll-margin-top: 20px; }
+h2 { font-size: 15px; font-weight: 500; margin: 0 0 4px; letter-spacing: .01em; }
+h2 .num { color: var(--muted); font-weight: 400; margin-right: 8px; }
+.lede { font-size: 13px; color: var(--muted); margin: 0 0 20px; max-width: 62ch; line-height: 1.75; }
+h3 { font-size: 13px; font-weight: 500; margin: 28px 0 10px; color: var(--fg); }
+
+/* ── 卡片 ── */
+.card { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.card > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 8px 14px; }
+.card > header h4 { margin: 0; font-size: 12px; font-weight: 500; }
+.card > header .note { font-size: 11px; color: var(--muted); }
+.card .body { padding: 14px; }
+.card .body.tight { padding: 0; }
+
+/* ── 原则 ── */
+.principles { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.principle { background: var(--surface); padding: 16px 18px; }
+.principle b { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+.principle p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.principle .anti { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); opacity: .85; }
+.principle .anti::before { content: "反例 · "; color: var(--warn); }
+
+/* ── 色板 ── */
+.swatches { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.swatch { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.swatch .chip { height: 56px; display: flex; align-items: flex-end; padding: 8px 12px; font-size: 11px; }
+.swatch .meta { padding: 10px 12px; font-size: 11px; }
+.swatch .meta .tok { color: var(--fg); font-size: 12px; }
+.swatch .meta .use { color: var(--muted); margin-top: 3px; line-height: 1.6; }
+.swatch .meta .cr { color: var(--muted); margin-top: 5px; font-variant-numeric: tabular-nums; }
+.swatch .meta .cr b { color: var(--down); font-weight: 400; }
+.pass::after { content: " ✓ AA"; color: var(--down); }
+
+/* ── 刻度演示 ── */
+.scale { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.scale div { text-align: center; font-size: 11px; color: var(--muted); }
+.scale .box { background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; }
+.radii { display: flex; gap: 16px; flex-wrap: wrap; }
+.radii div { text-align: center; font-size: 11px; color: var(--muted); }
+.radii .box { width: 72px; height: 48px; background: var(--surface-2); border: 1px solid var(--line); }
+.type { display: grid; gap: 8px; }
+.type .row { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.type .row:last-child { border-bottom: 0; }
+.type .row .tag { width: 90px; flex: none; font-size: 11px; color: var(--muted); }
+.type .row .sm { width: 150px; flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ── 组件演示 ── */
+.demo { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 16px; }
+.demo + .demo { margin-top: 10px; }
+.grid2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+table.demo-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.demo-table th { padding: 6px 10px; text-align: right; font-weight: 400; font-size: 12px; color: var(--muted); }
+table.demo-table th:first-child, table.demo-table td:first-child { text-align: left; }
+table.demo-table td { padding: 6px 10px; text-align: right; border-top: 1px solid var(--line); }
+
+/* 视口模拟：媒体查询只看视口，容器宽度改不动它，所以用属性选择器模拟。
+   这里复刻的是 styles.css 里 .data-table 在 <768px 的行为。 */
+[data-viewport="375"] table.demo-table thead { display: none; }
+[data-viewport="375"] table.demo-table tbody tr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px; padding: 12px 2px; border-top: 1px solid var(--line); }
+[data-viewport="375"] table.demo-table tbody td { display: block; padding: 0; border: 0; text-align: left; }
+[data-viewport="375"] table.demo-table tbody td::before { content: attr(data-l); display: block; font-size: 10px; color: var(--muted); margin-bottom: 1px; }
+[data-viewport="375"] table.demo-table tbody td:first-child { grid-column: 1 / -1; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+[data-viewport="375"] table.demo-table tbody td:first-child::before { display: none; }
+[data-viewport="375"] table.demo-table tbody td[data-opt] { display: none; }
+
+/* ── 标签 / 色块 ── */
+.tagx { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+.t-up { background: var(--up-soft); color: var(--up); }
+.t-down { background: var(--down-soft); color: var(--down); }
+.t-warn { background: var(--warn-soft); color: var(--warn); }
+.t-brand { background: var(--brand-soft); color: var(--brand); }
+.t-mute { background: var(--surface-2); color: var(--muted); }
+
+/* ── 状态块 ── */
+.state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 20px; text-align: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.state.compact { align-items: flex-start; text-align: left; padding: 0; border: 0; background: none; gap: 4px; }
+.state .hd { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.state .glyph { width: 12px; height: 12px; border-radius: 3px; border: 1px solid currentColor; }
+.state .hint { font-size: 11px; color: var(--muted); max-width: 40ch; line-height: 1.7; }
+
+/* ── 样本墙（微可视化） ── */
+.wall { display: flex; flex-wrap: wrap; gap: 3px; }
+.wall i { width: 14px; height: 14px; border-radius: 2px; display: block; }
+.wall i.open { border: 1px solid var(--line); background: none; }
+.meter { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--warn); border-radius: 999px; }
+
+.note-line { font-size: 12px; color: var(--muted); line-height: 1.75; margin: 10px 0 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 12px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; font-size: 11.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: 1fr; gap: 0; }
+  .side { position: static; padding-bottom: 0; }
+  .side ol { display: flex; flex-wrap: wrap; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+
+<div class="wrap">
+  <aside class="side">
+    <div class="brandmark"><i></i><b>赤轨</b></div>
+    <p class="sub">设计规范系统 v4</p>
+    <ol>
+      <li><a href="#p">1 设计原则</a></li>
+      <li><a href="#color">2 色彩</a></li>
+      <li><a href="#type">3 字阶与字重</a></li>
+      <li><a href="#scale">4 间距与圆角</a></li>
+      <li><a href="#comp">5 组件目录</a></li>
+      <li><a href="#state">6 状态规则</a></li>
+      <li><a href="#resp">7 响应式</a></li>
+      <li><a href="#a11y">8 可及性</a></li>
+      <li><a href="#motion">9 动效</a></li>
+    </ol>
+  </aside>
+
+  <main>
+    <div class="bar">
+      <button class="btn" id="themeBtn" type="button">切换深浅</button>
+      <span class="spacer"></span>
+      <span class="muted" style="font-size:12px">视口</span>
+      <button class="btn vp" data-v="1280" aria-pressed="true" type="button">1280</button>
+      <button class="btn vp" data-v="768" aria-pressed="false" type="button">768</button>
+      <button class="btn vp" data-v="375" aria-pressed="false" type="button">375</button>
+    </div>
+
+    <section id="p">
+      <h2><span class="num">01</span>设计原则</h2>
+      <p class="lede">八条，每条都能追溯到一个具体的事故或一次实测。不是从设计书抄来的，是这套产品自己踩出来的。</p>
+      <div class="principles">
+        <div class="principle"><b>状态诚实</b><p>「拿不到」和「没有」是两件事，用两种文案、两种视觉。数字不知道就写「—」。</p><span class="anti">账本读不到时摆一个全零的账本，把「我拿不到」说成了「真的一笔没有」。</span></div>
+        <div class="principle"><b>颜色不单独承载信息</b><p>涨跌三重编码：色块 + 正负号 + 数字。只给颜色，色弱用户和黑白打印都读不出来。</p><span class="anti">只把涨的字染成红的，扫一眼要靠读数字才知道方向。</span></div>
+        <div class="principle"><b>层次靠边框，不靠阴影</b><p>暗色界面里阴影会让密集数字发灰。1px 边框 + 背景分层就够。</p><span class="anti">给每张卡片加投影，12px 的小数字糊成一片。</span></div>
+        <div class="principle"><b>视觉搜索：颜色比文字快</b><p>涨跌幅上色块底而不是只上字色，余光扫过去就能分出红绿。</p><span class="anti">一列 40 个带符号的百分数，要逐个读才知道今天哪个最惨。</span></div>
+        <div class="principle"><b>信息完整 &gt; 版面紧凑</b><p>375px 宁可多占几行，也不能让一列滚到屏幕外面去。</p><span class="anti">窄屏保留横向滚动，一半的列永远看不到。</span></div>
+        <div class="principle"><b>字重只有两档</b><p>400 和 500。`font-semibold` 在 12px 的表格里让数字糊成一团。</p><span class="anti">标题、正文、数字三种字重，密集区一屏下来眼睛累。</span></div>
+        <div class="principle"><b>品牌色是稀缺资源</b><p>只有两处：顶部 2px 品牌条、焦点环。正文区一律中性灰。</p><span class="anti">标题、按钮、标签都用品牌色，于是没有一处是重点。</span></div>
+        <div class="principle"><b>每个页面只答一个问题</b><p>这是判断一个页面该留该删的唯一标准。答不上来就拆。</p><span class="anti">选股页底下塞持仓表，盯盘时要往下翻三屏。</span></div>
+      </div>
+    </section>
+
+    <section id="color">
+      <h2><span class="num">02</span>色彩</h2>
+      <p class="lede">两套主题，同一套语义。红涨绿跌是 A 股约定，不要改。每个色下面标的是它在最坏背景上的对比度——两套主题最低 4.66，全部过 WCAG AA。</p>
+
+      <h3>中性（承载信息，不表态）</h3>
+      <div class="swatches" id="swNeutral"></div>
+
+      <h3>语义（表态，但不承载信息）</h3>
+      <div class="swatches" id="swSemantic"></div>
+      <p class="note-line">语义色只用来回答「涨还是跌」「有没有问题」。它们永远跟着一个符号和一个数字出现，绝不单独出现。</p>
+    </section>
+
+    <section id="type">
+      <h2><span class="num">03</span>字阶与字重</h2>
+      <p class="lede">字重只有 400 / 500 两档。层级靠字号和颜色，不靠加粗——密集表格里半粗体让数字发糊。</p>
+      <div class="card"><div class="body"><div class="type" id="typeScale"></div></div></div>
+    </section>
+
+    <section id="scale">
+      <h2><span class="num">04</span>间距与圆角</h2>
+      <p class="lede">间距走 8px 基线，只留 6 档（原来有 13 种组合，每个组件一个样）。圆角 3 档，阴影 0 个。</p>
+      <div class="card"><div class="body">
+        <div class="scale" id="spScale"></div>
+        <h3 style="margin-top:24px">圆角</h3>
+        <div class="radii" id="rScale"></div>
+        <p class="note-line">6px 是卡片，4px 是小元素（标签、按钮），999px 是胶囊（药丸标签、进度条）。除此之外没有第四种。</p>
+      </div></div>
+    </section>
+
+    <section id="comp">
+      <h2><span class="num">05</span>组件目录</h2>
+      <p class="lede">每个组件给了它在真实页面里会出现的形态。「视口」切到 375 可以看表格怎么降成卡片流。</p>
+
+      <h3>Panel — 一块扁平容器</h3>
+      <div class="grid2" id="vpWrap">
+        <div class="card">
+          <header><h4>带标题和注释</h4><span class="note">标题左、注释右</span></header>
+          <div class="body"><p class="muted" style="margin:0;font-size:12px">层次用 1px 边框分隔，不用阴影。</p></div>
+        </div>
+        <div class="card">
+          <header><h4>带操作</h4><span class="note"><span class="tagx t-mute">重新拉一次</span></span></header>
+          <div class="body"><p class="muted" style="margin:0;font-size:12px">能真的解决问题的操作才放进 header。</p></div>
+        </div>
+      </div>
+
+      <h3>Table — 窄屏会降成卡片流</h3>
+      <div class="demo" id="tableDemo" data-viewport="1280">
+        <table class="demo-table">
+          <thead><tr><th>名称</th><th>现价</th><th>涨跌幅</th><th>收益率</th><th>策略</th></tr></thead>
+          <tbody>
+            <tr><td>三六零</td><td class="num">9.24</td><td data-l="涨跌幅"><span class="tagx t-up">+0.43%</span></td><td data-l="收益率"><span class="tagx t-down">−1.8%</span></td><td data-l="策略" data-opt>启动前期</td></tr>
+            <tr><td>平高电气</td><td class="num">20.31</td><td data-l="涨跌幅"><span class="tagx t-down">−0.62%</span></td><td data-l="收益率"><span class="tagx t-up">+0.6%</span></td><td data-l="策略" data-opt>启动前期</td></tr>
+            <tr><td>弘亚数控</td><td class="num">19.02</td><td data-l="涨跌幅"><span class="tagx t-up">+2.15%</span></td><td data-l="收益率"><span class="tagx t-up">+0.2%</span></td><td data-l="策略" data-opt>启动前期</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note-line">窄屏下 <code>thead</code> 隐藏，每行变网格，字段名由 <code>td::before{content:attr(data-l)}</code> 补上；标了 <code>data-opt</code> 的次要列直接不显示。降级的是排法，不是信息量。</p>
+
+      <h3>Tag — 五种语调</h3>
+      <div class="demo" style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="tagx t-up">+3.2%</span><span class="tagx t-down">−1.4%</span>
+        <span class="tagx t-warn">止损</span><span class="tagx t-brand">接力</span>
+        <span class="tagx t-mute">持有</span>
+      </div>
+      <p class="note-line">色块底 + 同色字。单个 Tag 在它自己的 soft 底色上最低 4.66，过 AA。</p>
+
+      <h3>StateBlock — 三态，两种排法</h3>
+      <div class="grid2">
+        <div class="state">
+          <div class="hd"><span class="glyph" style="color:var(--muted)"></span><span>这里现在是空的</span></div>
+          <p class="hint">影响：这一栏今天没有内容。接下来：换一批快讯结果就会变。</p>
+        </div>
+        <div class="state">
+          <div class="hd" style="color:var(--warn)"><span class="glyph"></span><span>消息暂时拉不下来</span></div>
+          <p class="hint">影响：快讯源没响应，不是这一栏没内容。接下来：等源恢复会自动填上。</p>
+        </div>
+      </div>
+      <div class="demo" style="margin-top:10px">
+        <div class="state compact">
+          <div class="hd" style="color:var(--muted)"><span class="glyph"></span><span>这批没有判成利好的</span></div>
+          <p class="hint">利好利空只看快讯用词，不是研报。</p>
+        </div>
+      </div>
+      <p class="note-line">默认版居中、上下留白 40px，给整块区域用。<code>compact</code> 左对齐、不留白，给并排窄栏用——默认版塞进窄栏会把那一栏撑得比有内容时还高。同一套文案同一个组件，只换排法。</p>
+
+      <h3>样本墙 — 一格一笔的微可视化</h3>
+      <div class="demo">
+        <div class="wall" id="wall"></div>
+        <p class="note-line" style="margin-top:12px">空心的那 60 格不是「亏了」，是<b>还没走到终点</b>。拿它们当 0 去算平均，等于凭空往样本里塞 60 个中性样本，胜率会被拉平。</p>
+        <div class="meter" style="margin-top:14px"><i style="width:18.3%"></i></div>
+        <p class="note-line">进度条只表示「离门槛还差多少」，不到门槛就只是进度，不是结论。</p>
+      </div>
+    </section>
+
+    <section id="state">
+      <h2><span class="num">06</span>状态规则</h2>
+      <p class="lede">四条状态，每一条都必须说清三件事：发生了什么、影响什么、接下来怎么办。缺一件就不算写完。</p>
+      <div class="card"><div class="body">
+        <dl class="kv" id="stateList"></dl>
+      </div></div>
+    </section>
+
+    <section id="resp">
+      <h2><span class="num">07</span>响应式</h2>
+      <p class="lede">只有 4 个断点。断点不是「适配一下」，是每一档都有明确的版面规则。</p>
+      <div class="card"><div class="body tight">
+        <table class="demo-table">
+          <thead><tr><th>断点</th><th>版面规则</th></tr></thead>
+          <tbody>
+            <tr><td>&lt; 576</td><td style="text-align:left">单列。表格降成卡片流，字段名由 <code>data-l</code> 补上，次要列隐藏</td></tr>
+            <tr><td>≥ 576</td><td style="text-align:left">两列网格（策略卡、状态块）</td></tr>
+            <tr><td>≥ 768</td><td style="text-align:left">表格恢复表头，横向滚动；<code>data-opt</code> 列重新出现</td></tr>
+            <tr><td>≥ 992</td><td style="text-align:left">侧边目录固定，页签触达尺寸从 44px 收到正常</td></tr>
+          </tbody>
+        </table>
+      </div></div>
+      <p class="note-line">触摸目标 44px 是硬指标：手指点不准的按钮等于没有。鼠标为主时（≥768px）可以收到 6px padding。</p>
+    </section>
+
+    <section id="a11y">
+      <h2><span class="num">08</span>可及性</h2>
+      <p class="lede">不是加分项，是验收项。每一条都能被机器或读屏器验证。</p>
+      <div class="card"><div class="body">
+        <dl class="kv" id="a11yList"></dl>
+      </div></div>
+    </section>
+
+    <section id="motion">
+      <h2><span class="num">09</span>动效</h2>
+      <p class="lede">只动 <code>transform</code> 和 <code>opacity</code>。盘中禁止非必要动画——视线被拉走一次，价格就变了。</p>
+      <div class="card"><div class="body">
+        <dl class="kv" id="motionList"></dl>
+        <p class="note-line" style="margin-top:14px">全部动效都包在 <code>@media (prefers-reduced-motion: reduce)</code> 里降级。系统开了「减弱动态效果」，页面就得静止。</p>
+      </div></div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* 假数据只用来演示形态。真实的色值和对比度来自 src/styles.css。 */
+const NEUTRAL = [
+  ["--bg", "页面底色", "最底一层"],
+  ["--surface", "卡片、面板", "比底色高一层"],
+  ["--surface-2", "次级块、输入框底", "再高一层"],
+  ["--line", "1px 分隔线", "层次靠它，不靠阴影"],
+  ["--fg", "正文", "最高对比"],
+  ["--muted", "次要文字、字段名", "还是正文，只是轻一点"],
+];
+const SEMANTIC = [
+  ["--up", "涨 / 盈利（红）", "A 股约定：红涨"],
+  ["--down", "跌 / 亏损（绿）", "A 股约定：绿跌"],
+  ["--warn", "出问题但不致命", "不能用 up，那会被读成涨停"],
+  ["--brand", "品牌：顶部 2px 条 + 焦点环", "正文区一律不用"],
+];
+
+/* 最坏背景上的对比度。这些数字是用 WCAG 相对亮度公式从 styles.css 的真值算出来的，
+   两套主题各算了 14 组，最低 4.66。改任何色值都要重算，别凭眼睛判断。 */
+const CR = {
+  "--bg": ["—", ""], "--surface": ["—", ""], "--surface-2": ["—", ""], "--line": ["—", ""],
+  "--fg": ["13.5", "on surface-2"],
+  "--muted": ["5.0", "on surface-2"],
+  "--up": ["4.9", "on up-soft"],
+  "--down": ["5.5", "on down-soft"],
+  "--warn": ["5.0", "on warn-soft"],
+  "--brand": ["4.66", "on brand-soft"],
+};
+
+function swatch(tok, use, extra) {
+  const [v, on] = CR[tok] || ["—", ""];
+  return `<div class="swatch">
+    <div class="chip" style="background:var(${tok});color:var(--fg)"><code style="background:rgba(128,128,128,.25);border-color:transparent">${tok}</code></div>
+    <div class="meta">
+      <div class="tok">${use}</div>
+      ${extra ? `<div class="use">${extra}</div>` : ""}
+      <div class="cr">对比 ${v}${on ? " <span class='muted'>on " + on + "</span>" : ""}<b class="pass"></b></div>
+    </div>
+  </div>`;
+}
+document.getElementById("swNeutral").innerHTML = NEUTRAL.map(([t, u]) => swatch(t, u)).join("");
+document.getElementById("swSemantic").innerHTML = SEMANTIC.map(([t, u, e]) => swatch(t, u, e)).join("");
+
+const TYPE = [
+  ["大数字", "28px / 500", "结论、总览数字，一屏只有一两个"],
+  ["区块标题", "14px / 500", "Panel 的 h2"],
+  ["正文", "14px / 400", "表格、说明"],
+  ["次要", "12px / 400", "字段名、注释"],
+  ["微标签", "10px / 400", "窄屏卡片里的字段名"],
+];
+document.getElementById("typeScale").innerHTML = TYPE.map(([n, s, u]) =>
+  `<div class="row"><span class="tag">${n}</span><span class="sm">${s}</span><span style="font-size:${s.split(" ")[0]};font-weight:${s.split(" / ")[1] === "500" ? 500 : 400}">${u}</span></div>`).join("");
+
+document.getElementById("spScale").innerHTML = [4, 8, 12, 16, 24, 32].map((n) =>
+  `<div><div class="box" style="width:${n}px;height:${Math.max(n, 12)}px"></div><div style="margin-top:6px">${n}</div></div>`).join("");
+document.getElementById("rScale").innerHTML = [
+  ["6px", "卡片 / 面板"],
+  ["4px", "标签 / 按钮"],
+  ["999px", "胶囊 / 进度条"],
+].map(([r, u]) => `<div><div class="box" style="border-radius:${r}"></div><div style="margin-top:6px">${u}</div></div>`).join("");
+
+/* 样本墙：11 笔已结着色 + 60 笔在拿空心。和首屏实验台同一个画法。 */
+const CLOSED = [2.1, -1.4, 0.8, -0.6, -2.2, 1.3, -0.9, -3.1, 0.5, 1.7, -0.4];
+const wall = CLOSED.map((r) => `<i style="background:var(--${r >= 0 ? "up" : "down"})" title="${r > 0 ? "+" : "−"}${Math.abs(r).toFixed(1)}%"></i>`).join("")
+  + Array.from({ length: 60 }, () => '<i class="open" title="在拿，没有答案"></i>').join("");
+document.getElementById("wall").innerHTML = wall;
+
+const STATES = [
+  ["就绪", "正常渲染", "没有这一态的专门样式——不需要。别给正常状态加装饰。", ""],
+  ["加载中", "转圈的方块 + 「正在拉取」", "只在真的要等的时候出现。loader 预取已经把大部分加载消掉了。", ""],
+  ["空", "空心方块 + 「这里现在是空的」", "说清是「本来就没有」还是「筛选后没有」，两者文案不同。", ""],
+  ["降级", "实心方块 + warn 色 + 「出了点问题」", "必须说清影响范围（哪块数据不可用）和接下来怎么办。", ""],
+];
+document.getElementById("stateList").innerHTML = STATES.map(([k, what, hint]) =>
+  `<dt>${k}</dt><dd><b style="font-weight:500">${what}</b><div class="muted" style="margin-top:3px">${hint}</div></dd>`).join("");
+
+const A11Y = [
+  ["对比度", "所有文字/背景组合 ≥ 4.5:1，大字号 ≥ 3:1。两套主题各 14 组，最低 4.66。"],
+  ["焦点环", "全局 :focus-visible，2px 品牌色 + 2px offset。键盘走一圈必须看得见停在哪。"],
+  ["颜色不单独表意", "涨跌 = 色块 + 符号 + 数字。只靠颜色区分的信息对色弱用户等于不存在。"],
+  ["表格有名字", "每张表都有 &lt;caption&gt;（sr-only）。没名字时读屏器只念「表格，3 列 12 行」。"],
+  ["触摸目标", "≥ 44px。手指点不准的按钮等于没有。"],
+  ["动效可关", "全部包在 prefers-reduced-motion 里降级。"],
+];
+document.getElementById("a11yList").innerHTML = A11Y.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+
+const MOTION = [
+  ["悬停", "scale(1.05) / 背景变色", "200ms cubic-bezier(.2,.8,.2,1)"],
+  ["按下", "scale(.97)", "200ms，同曲线"],
+  ["表格行悬停", "只变背景，不变形", "变形会让相邻行的数字跳位"],
+  ["面板展开", "height 过渡", "300ms"],
+  ["数字更新", "不变", "盘中数字自己会跳，再加动画就是干扰"],
+];
+document.getElementById("motionList").innerHTML = MOTION.map(([k, v, t]) =>
+  `<dt>${k}</dt><dd><b style="font-weight:500">${v}</b> <span class="muted">· ${t}</span></dd>`).join("");
+
+/* 主题切换 */
+document.getElementById("themeBtn").addEventListener("click", () => {
+  const el = document.documentElement;
+  const next = el.dataset.theme === "light" ? "dark" : "light";
+  el.dataset.theme = next;
+  document.querySelectorAll("[data-theme]").forEach(() => {});
+});
+
+/* 视口模拟：改属性而不是改宽度——媒体查询只看视口，容器宽度改不动它 */
+document.querySelectorAll(".vp").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".vp").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    document.getElementById("tableDemo").dataset.viewport = btn.dataset.v;
+  });
+});
+document.documentElement.dataset.theme = "dark";
+</script>
+</body>
+</html>

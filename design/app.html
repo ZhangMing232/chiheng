@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赤轨 · 全新界面</title>
+<style>
+/* ============================================================
+   赤轨全新界面
+   ------------------------------------------------------------
+   和旧版的根本区别不是配色，是隐喻：
+
+     旧版 = 券商 App。持仓、买入、卖出、一张接一张的表格。
+            它会告诉你「赚了多少」，但从不回答「这套规则行不行」。
+     新版 = 策略实验台。样本、假设、对照组、结论是否成立。
+            第一屏给的是「能不能下结论，还差什么」，盈亏退到第二位。
+
+   视觉跟着换：密集表格 → 巨数字 + 留白 + 微可视化（一格一笔）。
+   没变的：红涨绿跌、无阴影、1px 边框、等宽数字、8px 刻度。
+    ============================================================ */
+
+:root[data-theme="dark"], :root {
+  --bg:#0e1218; --fg:#eef2f6; --muted:#8b95a6;
+  --surface:#161c25; --surface-2:#1e2632; --line:#2c3544;
+  --up:#ff6b6b; --up-soft:#3a1e26;
+  --down:#3ecb8e; --down-soft:#143028;
+  --warn:#e8a33d; --warn-soft:#33260f;
+  --brand:#e8665e; --brand-soft:#38201f;
+}
+:root[data-theme="light"] {
+  --bg:#f5f6f8; --fg:#1a1d23; --muted:#5e6779;
+  --surface:#ffffff; --surface-2:#eef1f5; --line:#e3e7ee;
+  --up:#c9202e; --up-soft:#fdecee;
+  --down:#0b7040; --down-soft:#e7f6ef;
+  --warn:#8f5c00; --warn-soft:#fdf1dc;
+  --brand:#c62016; --brand-soft:#fdecea;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 400 14px/1.6 "WenQuanYi Zen Hei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; scrollbar-gutter: stable;
+}
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
+.topbar { height: 2px; background: var(--brand); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+/* ── 顶栏 ── */
+header.top { border-bottom: 1px solid var(--line); }
+header.top .in { max-width: 1180px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.mark { display: flex; align-items: center; gap: 8px; }
+.mark i { width: 3px; height: 16px; background: var(--brand); border-radius: 1px; }
+.mark b { font-size: 15px; font-weight: 500; letter-spacing: .05em; }
+.mark span { font-size: 12px; color: var(--muted); }
+nav.tabs { display: flex; gap: 2px; margin-left: auto; flex-wrap: wrap; }
+nav.tabs button {
+  border: 0; background: none; color: var(--muted); cursor: pointer;
+  padding: 6px 12px; border-radius: 4px; font-size: 13px; font-family: inherit;
+  min-height: 44px; transition: background-color .2s, color .2s;
+}
+nav.tabs button:hover { background: var(--surface-2); color: var(--fg); }
+nav.tabs button[aria-pressed="true"] { background: var(--surface-2); color: var(--fg); }
+@media (min-width: 768px) { nav.tabs button { min-height: 0; padding: 6px 12px; } }
+
+main { max-width: 1180px; margin: 0 auto; padding: 24px 24px 80px; }
+.page { display: none; }
+.page.on { display: block; }
+
+/* ── 通用块 ── */
+.panel { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; margin-bottom: 24px; }
+.panel > .hd { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.panel > .hd h2 { margin: 0; font-size: 13px; font-weight: 500; }
+.panel > .hd .note { font-size: 12px; color: var(--muted); }
+.panel > .bd { padding: 16px; }
+.panel > .bd.flush { padding: 0; }
+
+/* ── 结论区（第一屏的核心） ── */
+.verdict { padding: 40px 16px 32px; border-bottom: 1px solid var(--line); }
+.verdict .eyebrow { font-size: 12px; color: var(--muted); letter-spacing: .04em; margin-bottom: 14px; }
+.verdict .big { font-size: clamp(40px, 7vw, 68px); line-height: 1.05; font-weight: 500; letter-spacing: -.01em; margin: 0; }
+.verdict .big .em { color: var(--warn); }
+.verdict .sub { font-size: 13px; color: var(--muted); margin-top: 14px; max-width: 56ch; line-height: 1.8; }
+.gap { display: flex; flex-wrap: wrap; gap: 32px; margin-top: 28px; }
+.gap .k { font-size: 12px; color: var(--muted); }
+.gap .v { font-size: 26px; font-weight: 500; margin-top: 4px; }
+.gap .v small { font-size: 14px; font-weight: 400; color: var(--muted); }
+.gap .h { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ── 进度 / 墙 ── */
+.meter { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 24px; max-width: 520px; }
+.meter i { display: block; height: 100%; background: var(--warn); border-radius: 999px; }
+.wall { display: flex; flex-wrap: wrap; gap: 3px; }
+.wall i { width: 14px; height: 14px; border-radius: 2px; }
+.wall i.open { border: 1px solid var(--line); background: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+/* ── 策略卡 ── */
+.strats { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.strat { background: var(--surface); padding: 14px 16px; }
+.strat .nm { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.strat .nm b { font-weight: 400; font-size: 13px; }
+.strat .nm .n { font-size: 11px; color: var(--muted); }
+.strat .st { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+.strat .st b { font-weight: 400; color: var(--fg); }
+.strat .bar { height: 3px; background: var(--surface-2); border-radius: 999px; margin-top: 12px; overflow: hidden; }
+.strat .bar i { display: block; height: 100%; background: var(--warn); border-radius: 999px; }
+
+/* ── 表格 ── */
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.t th { padding: 8px 12px; text-align: right; font-weight: 400; font-size: 12px; color: var(--muted); }
+table.t th:first-child, table.t td:first-child { text-align: left; }
+table.t td { padding: 8px 12px; text-align: right; border-top: 1px solid var(--line); }
+table.t td.name { font-weight: 500; }
+.pill { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+.p-up { background: var(--up-soft); color: var(--up); }
+.p-down { background: var(--down-soft); color: var(--down); }
+.p-warn { background: var(--warn-soft); color: var(--warn); }
+.p-mute { background: var(--surface-2); color: var(--muted); }
+
+/* 窄屏卡片流：同一张表，排法换掉，信息不减 */
+[data-vp="375"] table.t thead { display: none; }
+[data-vp="375"] table.t tbody tr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px; padding: 12px 2px; border-top: 1px solid var(--line); }
+[data-vp="375"] table.t tbody td { display: block; padding: 0; border: 0; text-align: left; }
+[data-vp="375"] table.t tbody td::before { content: attr(data-l); display: block; font-size: 10px; color: var(--muted); margin-bottom: 1px; }
+[data-vp="375"] table.t tbody td:first-child { grid-column: 1 / -1; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+[data-vp="375"] table.t tbody td:first-child::before { display: none; }
+[data-vp="375"] table.t tbody td[data-opt] { display: none; }
+
+/* ── 持仓 ── */
+.urgent { border-left: 2px solid var(--warn); padding-left: 14px; }
+.daygroup { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); margin-bottom: 12px; }
+.daygroup > .hd { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 14px; background: var(--surface-2); font-size: 12px; }
+.daygroup > .hd b { font-weight: 500; font-size: 13px; }
+
+/* ── 消息 ── */
+.two { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; grid-template-columns: 1fr; }
+@media (min-width: 768px) { .two { grid-template-columns: 1fr 1fr; } }
+.tone { background: var(--surface); padding: 14px 16px; border-left: 2px solid; }
+.tone.good { border-left-color: var(--up); }
+.tone.bad { border-left-color: var(--down); }
+.tone h3 { margin: 0 0 10px; font-size: 13px; font-weight: 500; }
+.tone.good h3 { color: var(--up); }
+.tone.bad h3 { color: var(--down); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span { background: var(--surface-2); border-radius: 4px; padding: 4px 10px; font-size: 12px; }
+.tape li { border-top: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 14px; }
+.tape { list-style: none; margin: 0; padding: 0; }
+.tape .t { width: 44px; flex: none; font-size: 12px; color: var(--muted); }
+.tape .t b { display: block; font-weight: 500; color: var(--fg); font-size: 13px; }
+
+/* ── 资金 ── */
+.tiles { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 768px) { .tiles { grid-template-columns: repeat(4, 1fr); } }
+.tile { background: var(--surface); padding: 14px 16px; }
+.tile .k { font-size: 12px; color: var(--muted); }
+.tile .v { font-size: 24px; font-weight: 500; margin-top: 6px; }
+.tile .h { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+.statebox { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 20px; text-align: center; }
+.statebox .hd { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.statebox .glyph { width: 12px; height: 12px; border-radius: 3px; border: 1px solid currentColor; }
+.statebox .hint { font-size: 12px; color: var(--muted); max-width: 42ch; line-height: 1.7; }
+
+.ctl { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 4px; padding: 6px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.btn:hover { background: var(--surface-2); color: var(--fg); }
+.btn[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); }
+.note-line { font-size: 12px; color: var(--muted); line-height: 1.75; margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+
+<header class="top"><div class="in">
+  <div class="mark"><i></i><b>赤轨</b><span>策略实验台</span></div>
+  <nav class="tabs" id="tabs">
+    <button data-p="pick" aria-pressed="true" type="button">选股</button>
+    <button data-p="hold" aria-pressed="false" type="button">持仓</button>
+    <button data-p="news" aria-pressed="false" type="button">消息</button>
+    <button data-p="flow" aria-pressed="false" type="button">资金</button>
+  </nav>
+  <button class="btn" id="themeBtn" type="button">深浅</button>
+</div></header>
+
+<main>
+  <!-- ═══ 选股：第一屏就是结论 ═══ -->
+  <section class="page on" id="p-pick">
+    <div class="panel"><div class="verdict">
+      <div class="eyebrow">这套自动规则现在能下结论吗</div>
+      <p class="big">还<span class="em">不能</span>说</p>
+      <p class="sub">跑了 71 笔，只有 11 笔走到了卖出。要判断这套规则有没有用，样本得到 20 笔能和指数对比的闭环——现在一笔都没有。这不是「成绩不好」，是「还没有成绩」。</p>
+      <div class="gap">
+        <div><div class="k">能对比指数的已结样本</div><div class="v num">0<small> / 20</small></div><div class="h">门槛来自 rules.minClosed</div></div>
+        <div><div class="k">还差</div><div class="v num">20<small> 笔</small></div><div class="h">中期反转拿满 10 个交易日出结果</div></div>
+        <div><div class="k">同期沪深300</div><div class="v num">拿不到</div><div class="h">账本没存 indexExit，从记录那天就缺</div></div>
+      </div>
+      <div class="meter"><i style="width:0%"></i></div>
+    </div></div>
+
+    <div class="panel">
+      <div class="hd"><h2>全部样本 · 71 笔</h2><span class="note">一格一笔</span></div>
+      <div class="bd">
+        <div class="wall" id="wall"></div>
+        <div class="legend">
+          <span><i style="border:1px solid var(--line)"></i>在拿 60 笔 · 还没有答案</span>
+          <span><i style="background:var(--down)"></i>卖出亏损 6 笔</span>
+          <span><i style="background:var(--up)"></i>卖出盈利 5 笔</span>
+        </div>
+        <p class="note-line">空心的 60 格不是「亏了」，是<b>还没走到终点</b>。拿它们当 0 去算平均，等于凭空往样本里塞 60 个中性样本，胜率会被拉平——看起来稳，其实什么也没测出来。</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="hd"><h2>按策略拆开看</h2><span class="note">每套要满 30 笔才能单独说话</span></div>
+      <div class="bd flush"><div class="strats" id="strats"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="hd">
+        <h2>今天这套的精选</h2>
+        <span class="note">
+          <button class="btn vp" data-v="1280" aria-pressed="true" type="button">宽屏</button>
+          <button class="btn vp" data-v="375" aria-pressed="false" type="button">窄屏</button>
+        </span>
+      </div>
+      <div class="bd flush" id="pickTable" data-vp="1280">
+        <table class="t">
+          <thead><tr><th>名称</th><th>现价</th><th>涨跌幅</th><th>买入价</th><th>卖出价</th><th>止损</th></tr></thead>
+          <tbody>
+            <tr><td class="name">三六零</td><td class="num">9.24</td><td data-l="涨跌幅"><span class="pill p-up">+0.43%</span></td><td data-l="买入价" class="num">9.20</td><td data-l="卖出价" data-opt class="num">10.35</td><td data-l="止损" data-opt class="num">8.79</td></tr>
+            <tr><td class="name">平高电气</td><td class="num">20.31</td><td data-l="涨跌幅"><span class="pill p-down">−0.62%</span></td><td data-l="买入价" class="num">20.19</td><td data-l="卖出价" data-opt class="num">22.53</td><td data-l="止损" data-opt class="num">19.28</td></tr>
+            <tr><td class="name">弘亚数控</td><td class="num">19.02</td><td data-l="涨跌幅"><span class="pill p-up">+2.15%</span></td><td data-l="买入价" class="num">18.98</td><td data-l="卖出价" data-opt class="num">21.00</td><td data-l="止损" data-opt class="num">18.13</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 持仓 ═══ -->
+  <section class="page" id="p-hold">
+    <div class="panel">
+      <div class="hd"><h2>需处理</h2><span class="note">到价了能卖的排最前，跌停卖不出的也列出来</span></div>
+      <div class="bd flush">
+        <div class="urgent" style="padding:14px 16px">
+          <table class="t">
+            <thead><tr><th>名称</th><th>现价</th><th>收益率</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td class="name">弘亚数控</td><td class="num">19.02</td><td><span class="pill p-down">−3.1%</span></td><td><span class="pill p-warn">止损</span></td></tr>
+              <tr><td class="name">平高电气</td><td class="num">20.31</td><td><span class="pill p-up">+0.6%</span></td><td><span class="pill p-mute">卖出</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="daygroup">
+      <div class="hd"><b>10月6日 周二</b><span class="muted">10 笔 · 10 笔在拿</span></div>
+      <table class="t">
+        <thead><tr><th>名称</th><th>现价</th><th>涨跌幅</th><th>收益率</th><th>策略</th></tr></thead>
+        <tbody>
+          <tr><td class="name">三六零</td><td class="num">9.24</td><td><span class="pill p-up">+0.43%</span></td><td><span class="pill p-down">−1.8%</span></td><td class="muted">启动前期</td></tr>
+          <tr><td class="name">平高电气</td><td class="num">20.31</td><td><span class="pill p-down">−0.62%</span></td><td><span class="pill p-up">+0.6%</span></td><td class="muted">启动前期</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note-line" style="margin-bottom:24px">收盘后补记的那一天整日不进统计（signalTime ≥ 15:00），但页面上照样显示它已实现的盈亏——两处口径不同，所以要写出来，不然会以为哪边算错了。</p>
+  </section>
+
+  <!-- ═══ 消息 ═══ -->
+  <section class="page" id="p-news">
+    <div class="panel">
+      <div class="hd"><h2>利好 / 利空</h2><span class="note">按快讯用词归类，不是研报</span></div>
+      <div class="bd flush">
+        <div class="two">
+          <div class="tone good">
+            <h3>利好</h3>
+            <div class="chips"><span>人工智能 3</span><span>半导体 2</span><span>光伏 1</span></div>
+          </div>
+          <div class="tone bad">
+            <h3>利空</h3>
+            <div class="statebox" style="padding:12px 0">
+              <div class="hd muted"><span class="glyph"></span><span>这批没有判成利空的</span></div>
+              <p class="hint">利好利空只看快讯用词，不是研报。换一批快讯结果就会变。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="hd"><h2>7x24 电报</h2><span class="note">利好在前</span></div>
+      <div class="bd flush">
+        <ul class="tape">
+          <li><div class="t"><b>09:41</b>10-06</div><div>三六零：与某头部厂商签订框架协议，金额未披露</div></li>
+          <li><div class="t"><b>09:28</b>10-06</div><div>平高电气：中标国家电网特高压项目 2.3 亿元</div></li>
+          <li><div class="t"><b>09:15</b>10-06</div><div>央行开展 4500 亿元逆回购操作，净投放 1200 亿元</div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 资金 ═══ -->
+  <section class="page" id="p-flow">
+    <div class="panel">
+      <div class="hd"><h2>概览</h2><span class="note">红是净流入，绿是净流出</span></div>
+      <div class="bd flush">
+        <div class="tiles">
+          <div class="tile"><div class="k">涨跌家数</div><div class="v num"><span style="color:var(--up)">2841</span><span class="muted"> : </span><span style="color:var(--down)">1926</span></div><div class="h">涨停 42 · 跌停 8</div></div>
+          <div class="tile"><div class="k">两市成交额</div><div class="v num">1.32 万亿</div><div class="h">较上日 放量</div></div>
+          <div class="tile"><div class="k">主力净流入</div><div class="v num" style="color:var(--up)">128 亿</div><div class="h">占成交额 0.97%</div></div>
+          <div class="tile"><div class="k">北向成交额</div><div class="v num">—</div><div class="h">盘中净流入不再公布</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="hd"><h2>大盘资金</h2><span class="note">主力大约一分钟更新</span></div>
+      <div class="bd flush">
+        <table class="t">
+          <thead><tr><th>成分</th><th>合计净流入</th><th>沪市</th><th>深市</th><th>创业板</th></tr></thead>
+          <tbody>
+            <tr><td class="name">主力</td><td style="color:var(--up)">净流入 128 亿</td><td style="color:var(--up)">62 亿</td><td style="color:var(--up)">54 亿</td><td style="color:var(--down)">−12 亿</td></tr>
+            <tr><td class="name">超大单</td><td style="color:var(--up)">净流入 88 亿</td><td style="color:var(--up)">41 亿</td><td style="color:var(--up)">39 亿</td><td style="color:var(--down)">−8 亿</td></tr>
+            <tr><td class="name">散户</td><td style="color:var(--down)">净流出 34 亿</td><td style="color:var(--down)">−15 亿</td><td style="color:var(--down)">−14 亿</td><td style="color:var(--up)">5 亿</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* 假数据只用来演示形态，不改账。11 笔已结的盈亏方向和账本一致。 */
+const CLOSED = [2.1, -1.4, 0.8, -0.6, -2.2, 1.3, -0.9, -3.1, 0.5, 1.7, -0.4];
+document.getElementById("wall").innerHTML =
+  CLOSED.map((r) => `<i style="background:var(--${r >= 0 ? "up" : "down"})" title="${r > 0 ? "+" : "−"}${Math.abs(r).toFixed(1)}%"></i>`).join("")
+  + Array.from({ length: 60 }, () => '<i class="open" title="在拿，没有答案"></i>').join("");
+
+const STRATS = [
+  { name: "低估值", total: 20, closed: 4, win: 1 },
+  { name: "趋势回踩", total: 17, closed: 3, win: 2 },
+  { name: "启动前期", total: 16, closed: 3, win: 1 },
+  { name: "放量突破", total: 13, closed: 1, win: 0 },
+  { name: "次日补涨", total: 5, closed: 0, win: null },
+];
+document.getElementById("strats").innerHTML = STRATS.map((s) => `
+  <div class="strat">
+    <div class="nm"><b>${s.name}</b><span class="n">${s.total} 笔</span></div>
+    <div class="st">
+      <span>已结 <b class="num">${s.closed}</b></span>
+      <span>盈利 <b class="num">${s.win ?? "—"}</b></span>
+      <span>离 30 差 <b class="num">${Math.max(0, 30 - s.closed)}</b></span>
+    </div>
+    <div class="bar"><i style="width:${Math.min(100, (s.closed / 30) * 100)}%"></i></div>
+  </div>`).join("");
+
+/* 页签：每个页面只答一个问题，这是判断去留的唯一标准 */
+document.querySelectorAll("#tabs button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    document.querySelectorAll(".page").forEach((p) => p.classList.toggle("on", p.id === "p-" + btn.dataset.p));
+  });
+});
+
+/* 窄屏：改属性不改宽度——媒体查询只看视口，容器宽度动不了它 */
+document.querySelectorAll(".vp").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".vp").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    document.getElementById("pickTable").dataset.vp = btn.dataset.v;
+  });
+});
+
+document.getElementById("themeBtn").addEventListener("click", () => {
+  const el = document.documentElement;
+  el.dataset.theme = el.dataset.theme === "light" ? "dark" : "light";
+});
+</script>
+</body>
+</html>

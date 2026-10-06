@@ -15,7 +15,10 @@
   --color-down: #3ecb8e;
   --color-up-soft: #3a1e26;
   --color-down-soft: #143028;
-  --color-brand: #e35d55;
+  /* brand 只用在两处：顶部 2px 品牌条和焦点环。正文区全是中性灰。
+     这个值按 AA 反推过：在 surface-2(#1e2632) 上 4.71、在 brand-soft 上 4.66，
+     都比 4.5 高一点。原来的 #e35d55 在 surface-2 上只有 4.33，浅色 Tag 会踩线。 */
+  --color-brand: #e8665e;
   --color-brand-soft: #38201f;
   /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
      也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
@@ -30,7 +33,7 @@ html[data-theme="light"] {
   color-scheme: light;
   --color-bg: #f5f6f8;
   --color-fg: #1a1d23;
-  --color-muted: #667084;
+  --color-muted: #5e6779;
   --color-surface: #ffffff;
   --color-surface-2: #eef1f5;
   --color-line: #e3e7ee;
@@ -38,7 +41,7 @@ html[data-theme="light"] {
   --color-down: #0b7040;
   --color-up-soft: #fdecee;
   --color-down-soft: #e7f6ef;
-  --color-brand: #d8261c;
+  --color-brand: #c62016;
   --color-brand-soft: #fdecea;
   /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
      也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
@@ -54,7 +57,7 @@ html[data-theme="light"] {
     color-scheme: light;
     --color-bg: #f5f6f8;
     --color-fg: #1a1d23;
-    --color-muted: #667084;
+    --color-muted: #5e6779;
     --color-surface: #ffffff;
     --color-surface-2: #eef1f5;
     --color-line: #e3e7ee;
@@ -62,7 +65,7 @@ html[data-theme="light"] {
     --color-down: #0b7040;
     --color-up-soft: #fdecee;
     --color-down-soft: #e7f6ef;
-    --color-brand: #d8261c;
+    --color-brand: #c62016;
     --color-brand-soft: #fdecea;
     /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
        也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
