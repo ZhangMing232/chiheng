@@ -25,6 +25,7 @@ export function pctClass(value: number | null | undefined): string {
 
 /** 一块扁平面板。盯盘页的基本容器。 */
 export function Panel({
+  id,
   title,
   note,
   action,
@@ -32,6 +33,8 @@ export function Panel({
   className = "",
   bodyClassName = "",
 }: {
+  /** 锚点跳转要用到（资金页每个区块都有 id，目录点一下滚过去） */
+  id?: string;
   title?: ReactNode;
   note?: ReactNode;
   action?: ReactNode;
@@ -40,7 +43,7 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <section className={`overflow-hidden rounded border border-line bg-surface ${className}`}>
+    <section id={id} className={`overflow-hidden rounded border border-line bg-surface ${className}`}>
       {title ? (
         <header className="flex items-baseline justify-between gap-3 border-b border-line px-3 py-2">
           <h2 className="text-sm font-medium text-fg">{title}</h2>
@@ -149,11 +152,26 @@ export function Tag({
 /**
  * 表格外壳。盯盘页的表格都要横向滚（列多），滚动容器统一在这里，
  * 免得每处都写一遍 overflow-x-auto scroll-slim。
+ *
+ * caption 是给读屏器的表格名字，视觉上藏起来（sr-only）。表格没有名字时，
+ * 读屏器只能念「表格，3 列 12 行」，听的人不知道这是持仓还是资金流向。
+ * 每张表都要给，这是 §7 可及性的要求，不是可选的润色。
  */
-export function Table({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Table({
+  children,
+  caption,
+  className = "",
+}: {
+  children: ReactNode;
+  caption?: string;
+  className?: string;
+}) {
   return (
     <div className={`overflow-x-auto scroll-slim ${className}`}>
-      <table className="w-full text-sm">{children}</table>
+      <table className="w-full text-sm">
+        {caption ? <caption className="sr-only">{caption}</caption> : null}
+        {children}
+      </table>
     </div>
   );
 }

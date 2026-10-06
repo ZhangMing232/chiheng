@@ -13,6 +13,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
+import { Table, tdClass, thClass } from "@/components/terminal";
 import { INDEX_LABEL } from "@/components/screener/screener";
 import { fmtPrice, fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { limitTag } from "@/lib/market/model";
@@ -316,36 +317,43 @@ function Market({ parts }: { parts: MarketPart[] }) {
       {parts.length === 0 ? (
         <p className="border-t border-line px-3 py-6 text-sm text-muted">大盘资金暂时拉不下来。</p>
       ) : (
-        <div className="overflow-x-auto border-t border-line">
-          <table className="w-full text-left">
-            <thead className="text-sm text-muted">
-              <tr>
-                <th className="px-3 py-2 font-normal">成分</th>
-                <th className="px-3 py-2 text-right font-normal">合计净流入</th>
+        <Table
+          className="data-table border-t border-line"
+          caption={`大盘资金流向：${rows.length} 类资金在 ${parts.length} 个板块的净流入`}
+        >
+          <thead>
+            <tr>
+              <th className={thClass("text-left")}>成分</th>
+              <th className={thClass()}>合计净流入</th>
+              {parts.map((part) => (
+                <th key={part.name} className={thClass()}>
+                  {part.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr
+                key={row.key}
+                className={
+                  "border-t border-line " +
+                  (row.key === "main" || row.key === "retail" ? "font-medium" : "text-muted")
+                }
+              >
+                <td className={tdClass("text-left")}>{row.name}</td>
+                <td data-l="合计" className={tdClass(toneClass(sum(row.key)))}>
+                  {flowWord(sum(row.key))} {fmtWan(sum(row.key))}
+                </td>
                 {parts.map((part) => (
-                  <th key={part.name} className="px-3 py-2 text-right font-normal">
-                    {part.name}
-                  </th>
+                  <td key={part.name} data-l={part.name} className={tdClass(toneClass(part[row.key]))}>
+                    {flowWord(part[row.key])} {fmtWan(part[row.key])}
+                  </td>
                 ))}
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.key} className={"border-t border-line " + (row.key === "main" || row.key === "retail" ? "font-medium" : "text-muted")}>
-                  <td className="px-3 py-2">{row.name}</td>
-                  <td className={toneClass(sum(row.key)) + " px-3 py-2 text-right tabular-nums"}>
-                    {flowWord(sum(row.key))} {fmtWan(sum(row.key))}
-                  </td>
-                  {parts.map((part) => (
-                    <td key={part.name} className={toneClass(part[row.key]) + " px-3 py-2 text-right tabular-nums"}>
-                      {flowWord(part[row.key])} {fmtWan(part[row.key])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </Table>
       )}
       {parts.length > 0 ? (
         <ul className="border-t border-line px-3 py-2 text-sm text-muted">
@@ -426,36 +434,41 @@ function Futures({ book }: { book: FutBook | null }) {
       {!book || book.rows.length === 0 ? (
         <p className="border-t border-line px-3 py-6 text-sm text-muted">股指期货持仓暂时没有。</p>
       ) : (
-        <div className="overflow-x-auto border-t border-line">
-          <table className="w-full text-left text-sm">
-            <thead className="text-muted">
-              <tr>
-                <th className="px-3 py-2 font-normal">合约</th>
-                <th className="px-3 py-2 text-right font-normal">多单</th>
-                <th className="px-3 py-2 text-right font-normal">空单</th>
-                <th className="px-3 py-2 text-right font-normal">净持仓</th>
-              </tr>
-            </thead>
-            <tbody>
-              {book.rows.map((row) => {
-                const net = row.longLots - row.shortLots;
-                return (
-                  <tr key={row.contract} className="border-t border-line">
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{row.name}</div>
-                      <div className="text-xs text-muted">{row.contract}</div>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-up">{lotsText(row.longLots)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-down">{lotsText(row.shortLots)}</td>
-                    <td className={toneClass(net) + " px-3 py-2 text-right tabular-nums"}>
-                      {net > 0 ? "净多" : net < 0 ? "净空" : "持平"} {lotsText(net)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          className="data-table border-t border-line"
+          caption={`股指期货前 20 名会员持仓，共 ${book.rows.length} 个合约`}
+        >
+          <thead>
+            <tr>
+              <th className={thClass("text-left")}>合约</th>
+              <th className={thClass()}>多单</th>
+              <th className={thClass()}>空单</th>
+              <th className={thClass()}>净持仓</th>
+            </tr>
+          </thead>
+          <tbody>
+            {book.rows.map((row) => {
+              const net = row.longLots - row.shortLots;
+              return (
+                <tr key={row.contract} className="border-t border-line">
+                  <td className={tdClass("text-left")}>
+                    <div className="font-medium">{row.name}</div>
+                    <div className="text-xs text-muted">{row.contract}</div>
+                  </td>
+                  <td data-l="多单" className={tdClass("text-up")}>
+                    {lotsText(row.longLots)}
+                  </td>
+                  <td data-l="空单" className={tdClass("text-down")}>
+                    {lotsText(row.shortLots)}
+                  </td>
+                  <td data-l="净持仓" className={tdClass(toneClass(net))}>
+                    {net > 0 ? "净多" : net < 0 ? "净空" : "持平"} {lotsText(net)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
       )}
     </section>
   );

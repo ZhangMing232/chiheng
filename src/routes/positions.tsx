@@ -94,9 +94,18 @@ function buildRows(days: PaperDay[], universe: Universe | null, rules: EarlyRule
   return rows;
 }
 
-function TradeTable({ rows, rules }: { rows: PositionRow[]; rules: EarlyRules }) {
+function TradeTable({
+  rows,
+  rules,
+  caption,
+}: {
+  rows: PositionRow[];
+  rules: EarlyRules;
+  /** 给读屏器的表格名字。同一张表在「需处理」和各日期分组里都用到，名字要跟着变 */
+  caption: string;
+}) {
   return (
-    <Table className="data-table">
+    <Table className="data-table" caption={caption}>
       <thead>
         <tr className="border-b border-line">
           <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>名称</th>
@@ -245,7 +254,11 @@ function Positions() {
             note={<span>到价了能卖的排最前，跌停卖不出的也列出来</span>}
             bodyClassName="overflow-x-auto"
           >
-            <TradeTable rows={urgent} rules={rules} />
+            <TradeTable
+              rows={urgent}
+              rules={rules}
+              caption={`需要现在处理的持仓，共 ${urgent.length} 笔`}
+            />
           </Panel>
         ) : null}
 
@@ -308,7 +321,11 @@ function Positions() {
                   }
                 />
               </div>
-              <TradeTable rows={[...group.closed, ...group.open]} rules={rules} />
+              <TradeTable
+                rows={[...group.closed, ...group.open]}
+                rules={rules}
+                caption={`${dayHeading(group.date, weekdayOf(group.date))} 开仓的 ${group.count} 笔`}
+              />
             </Panel>
           ))
         )}

@@ -80,6 +80,7 @@ export function Picks({
   // 所以标签上的数字和「仓位已满」都只看当天建了几只，
   // 账上还拿着几只（含前几天没卖出的）单独统计。
   const todayTrades = source.filter((day) => day.date === date).flatMap((day) => day.trades);
+  const styleLabel = STYLES.find((item) => item.id === style)?.name ?? style;
   const books = STYLES.map((item) => ({
     id: item.id,
     name: item.name,
@@ -199,7 +200,7 @@ export function Picks({
             }
           />
         ) : (
-          <Table className="data-table">
+          <Table className="data-table" caption={`${styleLabel} 今天符合条件的 ${picks.length} 只票`}>
             <thead>
               <tr className="border-b border-line">
                 <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>名称</th>
