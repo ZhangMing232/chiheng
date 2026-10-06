@@ -29,10 +29,21 @@
  * 用法：node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { exitFill } from "@/lib/market/journal-book";
 import { boardLimit } from "@/lib/market/model";
 import type { Bar } from "@/lib/market/types";
+import {
+  FACTORS,
+  analyzeFactors,
+  gateMonotonic,
+  gateT,
+  gateHalves,
+  gateResample,
+  gateBonferroni,
+  gateTradable,
+} from "@/lib/market/factors";
+import type { FactorRun, DailyRow } from "@/lib/market/factors";
 
 /** 回测多长。250 个交易日约等于一年。 */
 const LOOKBACK = 250;
@@ -112,6 +123,60 @@ async function loadKlines(ids: string[]): Promise<Map<string, Row[]>> {
   return out;
 }
 
+/**
+ * 给因子检验准备一套独立样本的数据（换样本 G4 用）。
+ * 和 main 里主样本那套逻辑是同一份，只是抽出来能对任意一批票重跑。
+ * 返回因子检验需要的全部：klines、idxOf、dates、benchOver。
+ */
+async function factorPrep(sampleIds: string[], capFloor: number) {
+  let klines = await loadKlines(sampleIds);
+  if (capFloor > 0) {
+    let cap: Record<string, number> = {};
+    try {
+      cap = JSON.parse(await readFile(`${CACHE}/../cap.json`, "utf8")) as Record<string, number>;
+    } catch {
+      cap = {};
+    }
+    for (const id of [...klines.keys()]) {
+      const value = cap[id];
+      if (value != null && value >= capFloor) continue;
+      klines.delete(id);
+    }
+  }
+  const idxOf = new Map<string, Map<string, number>>();
+  for (const [id, rows] of klines) {
+    const map = new Map<string, number>();
+    rows.forEach((row, i) => map.set(row.date, i));
+    idxOf.set(id, map);
+  }
+  const dates = [...(klines.values().next().value as Row[] | undefined ?? [])].map((r) => r.date);
+  const uniRet = new Float64Array(dates.length);
+  for (let i = 1; i < dates.length; i += 1) {
+    let sum = 0;
+    let n = 0;
+    for (const [id, rows] of klines) {
+      const pos = idxOf.get(id);
+      if (!pos) continue;
+      const a = pos.get(dates[i - 1]);
+      const b = pos.get(dates[i]);
+      if (a == null || b == null) continue;
+      const from = rows[a].c;
+      const to = rows[b].c;
+      if (from > 0 && to > 0) {
+        sum += to / from - 1;
+        n += 1;
+      }
+    }
+    uniRet[i] = n > 0 ? sum / n : 0;
+  }
+  const benchOver = (fromIdx: number, toIdx: number): number => {
+    let acc = 1;
+    for (let i = fromIdx + 1; i <= toIdx && i < uniRet.length; i += 1) acc *= 1 + uniRet[i];
+    return acc - 1;
+  };
+  return { klines, idxOf, dates, benchOver };
+}
+
 /** 只用第 i 天及之前的数据算指标。这是「无前视」的落地点。 */
 function metrics(rows: Row[], i: number, floatCap: number | null = null, turnoverGateOn = false) {
   const at = (k: number) => (i - k >= 0 ? rows[i - k].c : null);
@@ -124,6 +189,40 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
   const avg20 = avg(rows.slice(Math.max(0, i - 19), i + 1).map((r) => r.v));
   // 成交量单位是手，×100 股 × 价格 = 元，再换成万元
   const amountWan = (vol * 100 * c) / 1e4;
+
+  // —— 新增因子指标（都只用 <= i 的数据，无前视）——
+  const d5 = pct(at(5));
+  const d20 = pct(at(20));
+  const win20 = rows.slice(Math.max(0, i - 19), i + 1);
+  const win60 = rows.slice(Math.max(0, i - 59), i + 1);
+  const rets20 = retSeries(rows, i, 20);
+  const closes20 = win20.map((r) => r.c);
+  const ma20 = avg(closes20);
+  const sd20Price = stdOf(closes20);
+
+  let rsi14: number | null = null;
+  if (i >= 14) {
+    let gain = 0;
+    let loss = 0;
+    for (let k = i - 13; k <= i; k += 1) {
+      const diff = rows[k].c - rows[k - 1].c;
+      if (diff >= 0) gain += diff;
+      else loss -= diff;
+    }
+    rsi14 = loss === 0 ? 100 : 100 - 100 / (1 + gain / loss);
+  }
+  const bias20 = ma20 > 0 ? c / ma20 - 1 : null;
+  const bollB = sd20Price != null && sd20Price > 0 ? (c - (ma20 - 2 * sd20Price)) / (4 * sd20Price) : null;
+  const amp20 = avg(win20.map((r) => (r.c > 0 ? ((r.h - r.l) / r.c) * 100 : 0)));
+  const corrVRet = corrOf(win20.map((r) => r.v), rets20);
+  const shrinkDays = win20.filter((r) => r.v < avg20).length;
+  const high20 = Math.max(...win20.map((r) => r.h));
+  const low20 = Math.min(...win20.map((r) => r.l));
+  const low60 = Math.min(...win60.map((r) => r.l));
+  const distHigh20 = high20 > 0 ? c / high20 - 1 : null;
+  const distLow60 = low60 > 0 ? c / low60 - 1 : null;
+  const rangePos20 = high20 > low20 ? (c - low20) / (high20 - low20) : null;
+
   return {
     c,
     prev,
@@ -131,9 +230,22 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
     low: rows[i].l,
     prevLow: i - 1 >= 0 ? rows[i - 1].l : rows[i].l,
     chg,
-    d5: pct(at(5)),
-    d20: pct(at(20)),
+    d5,
+    d10: pct(at(10)),
+    d20,
     d60: pct(at(60)),
+    momAccel: d5 != null && d20 != null ? d5 - d20 : null,
+    rsi14,
+    bias20,
+    std20: stdOf(rets20),
+    std60: stdOf(retSeries(rows, i, 60)),
+    amp20,
+    corrVRet,
+    shrinkDays,
+    distHigh20,
+    distLow60,
+    bollB,
+    rangePos20,
     volRatio: avg5 > 0 ? vol / avg5 : 0,
     volShrink: avg20 > 0 ? avg5 / avg20 : 1,
     amountWan,
@@ -152,12 +264,52 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
      *   闸关（BT_TURNOVER=0）  → 完全不卡
      */
     turnoverGateOn,
+    floatCap,
   };
 }
 
 function avg(list: number[]): number {
   if (list.length === 0) return 0;
   return list.reduce((a, b) => a + b, 0) / list.length;
+}
+
+/** 样本标准差（n-1）。少于 2 个样本时返回 null。 */
+function stdOf(list: number[]): number | null {
+  if (list.length < 2) return null;
+  const m = avg(list);
+  return Math.sqrt(list.reduce((s, v) => s + (v - m) ** 2, 0) / (list.length - 1));
+}
+
+/**
+ * 到第 end 天为止、往回 count 个交易日的日收益率（%）。
+ * 只用到 <= end 的数据，无前视。
+ */
+function retSeries(rows: Row[], end: number, count: number): number[] {
+  const out: number[] = [];
+  for (let k = end - count + 1; k <= end; k += 1) {
+    if (k - 1 < 0 || rows[k - 1].c <= 0) continue;
+    out.push((rows[k].c / rows[k - 1].c - 1) * 100);
+  }
+  return out;
+}
+
+/** Pearson 相关系数。数据不足 2 组或分母为 0 时返回 null。 */
+function corrOf(x: number[], y: number[]): number | null {
+  const n = Math.min(x.length, y.length);
+  if (n < 2) return null;
+  const xs = x.slice(-n);
+  const ys = y.slice(-n);
+  const mx = avg(xs);
+  const my = avg(ys);
+  let num = 0;
+  let dx = 0;
+  let dy = 0;
+  for (let i = 0; i < n; i += 1) {
+    num += (xs[i] - mx) * (ys[i] - my);
+    dx += (xs[i] - mx) ** 2;
+    dy += (ys[i] - my) ** 2;
+  }
+  return dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : null;
 }
 
 type Signal = { buy: number; stop: number; sell: number; score: number; atClose?: boolean };
@@ -819,88 +971,117 @@ async function main() {
    */
   if (process.env.BT_FACTOR === "1") {
     const N = Number(process.env.BT_N ?? 3);
-    const getters: { name: string; get: (m: ReturnType<typeof metrics>) => number | null }[] = [
-      { name: "当日涨幅", get: (m) => m.chg },
-      { name: "5日涨幅", get: (m) => m.d5 },
-      { name: "20日涨幅", get: (m) => m.d20 },
-      { name: "60日涨幅", get: (m) => m.d60 },
-      { name: "量比", get: (m) => m.volRatio },
-      { name: "量能萎缩", get: (m) => m.volShrink },
-      { name: "成交额", get: (m) => m.amountWan },
-      { name: "股价", get: (m) => m.c },
-    ];
-    // 每天一份：[各因子取值, 未来 N 天超额]
-    const daily: { vals: (number | null)[]; ex: number }[][] = [];
-    // 前后半段分开跑：只在其中一段好看的因子，多半是那段行情碰巧
-    const half = process.env.BT_HALF;
-    const mid = Math.floor((startIdx + dates.length - 2) / 2);
-    const from = half === "second" ? mid : startIdx;
-    const to = half === "first" ? Math.min(mid, dates.length - N) : dates.length - N;
-    for (let t = from; t < to; t += 1) {
-      const today: { vals: (number | null)[]; ex: number }[] = [];
-      for (const [id, rows] of klines) {
-        const idx = idxOf.get(id)?.get(dates[t]);
-        if (idx == null || idx < 61) continue;
-        const nIdx = idxOf.get(id)?.get(dates[t + 1]);
-        const xIdx = idxOf.get(id)?.get(dates[t + N]);
-        if (nIdx == null || xIdx == null) continue;
-        // 信号是 t 日收盘才有的，最早只能次日开盘买
-        const inPrice = rows[nIdx].o;
-        const outPrice = rows[xIdx].c;
-        if (!(inPrice > 0) || !(outPrice > 0)) continue;
-        const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate);
-        today.push({ vals: getters.map((g) => g.get(m)), ex: outPrice / inPrice - 1 - benchOver(t + 1, t + N) });
-      }
-      daily.push(today);
-    }
-    console.log(
-      `因子检验${half ? `（${half} 段）` : ""}：${daily.length} 个交易日 × 每天约 ${Math.round(daily.reduce((s, d) => s + d.length, 0) / Math.max(1, daily.length))} 只，` +
-        `t 日收盘排序，次日开盘买入、持有 ${N} 天后按收盘卖出\n`,
-    );
-    // 默认分五档。BT_BUCKETS=10 可以看更细——「越跌越好」到底是不是一直成立到
-    // 最惨的那一小撮。极端档如果塌了，策略就得给跌幅设个下限，不能无脑买最惨的。
     const buckets = Number(process.env.BT_BUCKETS ?? 5);
-    const head = getters[0].name.padEnd(10);
-    console.log(
-      head + Array.from({ length: buckets }, (_, b) => `${b === 0 ? "最低" : b === buckets - 1 ? "最高" : "第" + (b + 1)}`.padStart(9)).join("") + "   最高-最低    t值",
-    );
-    console.log("-".repeat(84 + (buckets - 5) * 9));
-    for (let f = 0; f < getters.length; f += 1) {
-      const sum = new Array(buckets).fill(0);
-      let days = 0;
-      const spreads: number[] = [];
-      for (const today of daily) {
-        const usable = today.filter((r) => r.vals[f] != null);
-        if (usable.length < buckets * 10) continue;
-        usable.sort((a, b) => (a.vals[f] as number) - (b.vals[f] as number));
-        const q = Math.floor(usable.length / buckets);
-        const meanOf = (slice: { ex: number }[]) => slice.reduce((s, r) => s + r.ex, 0) / slice.length;
-        const low = usable.slice(0, q);
-        const high = usable.slice(usable.length - q);
-        for (let b = 0; b < buckets; b += 1) {
-          const slice = usable.slice(b * q, b === buckets - 1 ? usable.length : (b + 1) * q);
-          if (slice.length > 0) sum[b] += meanOf(slice);
+    const factorCount = FACTORS.length;
+    const offsetVal = Number(process.env.BT_OFFSET ?? 0);
+
+    // 生成某段区间的 daily 数据（每因子取值 + 未来 N 天超额 + 可交易近似）
+    const buildDaily = (
+      kl: Map<string, Row[]>,
+      io: Map<string, Map<string, number>>,
+      ds: string[],
+      bo: (a: number, b: number) => number,
+      from: number,
+      to: number,
+    ): DailyRow[][] => {
+      const daily: DailyRow[][] = [];
+      for (let t = from; t < to; t += 1) {
+        const today: DailyRow[] = [];
+        for (const [id, rows] of kl) {
+          const idx = io.get(id)?.get(ds[t]);
+          if (idx == null || idx < 61) continue;
+          const nIdx = io.get(id)?.get(ds[t + 1]);
+          const xIdx = io.get(id)?.get(ds[t + N]);
+          if (nIdx == null || xIdx == null) continue;
+          const inPrice = rows[nIdx].o;
+          const outPrice = rows[xIdx].c;
+          if (!(inPrice > 0) || !(outPrice > 0)) continue;
+          const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate);
+          // 回测侧可交易近似：股价 >= 4、流通市值（快照）>= 40 亿。
+          // ST 标记和真实涨跌停回测里拿不到，这里只做能确定的。
+          const tradable = m.c >= 4 && (m.floatCap == null || m.floatCap >= 40);
+          today.push({ vals: FACTORS.map((f) => f.get(m)), ex: outPrice / inPrice - 1 - bo(t + 1, t + N), tradable });
         }
-        spreads.push(meanOf(high) - meanOf(low));
-        days += 1;
+        daily.push(today);
       }
-      const each = sum.map((s) => s / Math.max(1, days));
-      const meanSpread = spreads.reduce((s, v) => s + v, 0) / Math.max(1, spreads.length);
-      const sd =
-        spreads.length > 1
-          ? Math.sqrt(spreads.reduce((s, v) => s + (v - meanSpread) ** 2, 0) / (spreads.length - 1))
-          : 0;
-      const tStat = sd > 0 ? meanSpread / (sd / Math.sqrt(spreads.length)) : 0;
-      const cells = each.map((v) => `${(v >= 0 ? "+" : "") + (v * 100).toFixed(2)}%`.padStart(9)).join("");
+      return daily;
+    };
+
+    const mid = Math.floor((startIdx + dates.length - 2) / 2);
+    const full = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, startIdx, dates.length - N), factorCount, buckets);
+    const first = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, startIdx, Math.min(mid, dates.length - N)), factorCount, buckets);
+    const second = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, mid, dates.length - N), factorCount, buckets);
+
+    // G4 换样本：自动加载错开一位的一批票，跑同一套检验
+    const step = Math.max(1, Math.floor(ids.length / SAMPLE));
+    const resampleIds = ids.filter((_, i) => (i + offsetVal + 1) % step === 0).slice(0, SAMPLE);
+    const rp = await factorPrep(resampleIds, capFloor);
+    const rStart = Math.max(0, rp.dates.length - LOOKBACK);
+    const resample = analyzeFactors(buildDaily(rp.klines, rp.idxOf, rp.dates, rp.benchOver, rStart, rp.dates.length - N), factorCount, buckets);
+
+    const nTested = factorCount;
+    const totalDays = full.reduce((s, r) => Math.max(s, r.nDays), 0);
+    console.log(
+      `因子检验：${totalDays} 个交易日 · ${factorCount} 个因子 · 持有 ${N} 天 · ${buckets} 档` +
+        `${offsetVal ? ` · 换样本 offset=${offsetVal}` : ""}\n` +
+        `  t 日收盘排序，次日开盘买入、持有 ${N} 天后按收盘卖出，减同期全池\n`,
+    );
+
+    const mark = (g: { pass: boolean }) => (g.pass ? "✓" : "✗");
+    console.log("因子          方向   G1    G2    G3    G4    G5    G6      顶-底      t");
+    console.log("-".repeat(92));
+
+    const logLines: string[] = [];
+    for (let f = 0; f < factorCount; f += 1) {
+      const factor = FACTORS[f];
+      const run = full[f];
+      const g1 = gateMonotonic(run.bucketMeans, factor.direction);
+      const g2 = gateT(run.t);
+      const g3 = gateHalves(first[f], second[f]);
+      const g4 = gateResample(run, resample[f]);
+      const g5 = gateBonferroni(run.t, nTested);
+      const g6 = gateTradable(run.topBlockedRatio);
       console.log(
-        getters[f].name.padEnd(10) +
-          cells +
-          `${(meanSpread >= 0 ? "+" : "") + (meanSpread * 100).toFixed(2)}%`.padStart(11) +
-          tStat.toFixed(2).padStart(8),
+        factor.name.padEnd(10) +
+          (factor.direction > 0 ? "正向" : "反向").padEnd(5) +
+          [g1, g2, g3, g4, g5, g6].map((g) => mark(g).padEnd(5)).join("") +
+          `${(run.meanSpread >= 0 ? "+" : "") + (run.meanSpread * 100).toFixed(2)}%`.padStart(9) +
+          run.t.toFixed(2).padStart(7),
+      );
+      logLines.push(
+        JSON.stringify({
+          at: new Date().toISOString(),
+          factor: factor.id,
+          name: factor.name,
+          direction: factor.direction,
+          n: N,
+          buckets,
+          offset: offsetVal,
+          nDays: run.nDays,
+          meanSpread: run.meanSpread,
+          t: run.t,
+          topBlockedRatio: run.topBlockedRatio,
+          bucketMeans: run.bucketMeans,
+          resampleSpread: resample[f].meanSpread,
+          resampleT: resample[f].t,
+          gates: { g1: g1.pass, g2: g2.pass, g3: g3.pass, g4: g4.pass, g5: g5.pass, g6: g6.pass },
+          nTested,
+        }),
       );
     }
-    console.log("-".repeat(84 + (buckets - 5) * 9));
-    console.log("\n注：这是等权、不含手续费的粗检；t 值不到 2 就等于这个因子没测出预测力。");
+    console.log("-".repeat(92));
+
+    // 分档均值明细（全区间），看单调形状
+    console.log("\n分档均值（全区间，从最低档到最高档）：");
+    for (let f = 0; f < factorCount; f += 1) {
+      const cells = full[f].bucketMeans.map((v) => `${(v >= 0 ? "+" : "") + (v * 100).toFixed(2)}%`.padStart(8)).join(" ");
+      console.log(`  ${FACTORS[f].name.padEnd(10)} ${cells}`);
+    }
+
+    const logPath = "data/backtest/factor-runs.jsonl";
+    await appendFile(logPath, logLines.join("\n") + "\n");
+    console.log(`\n因子日志已追加 → ${logPath}（${logLines.length} 条）`);
+    console.log("判据：|t|<2=没测出；两段翻号=不能用；Bonferroni 后不显著=降级；顶档被挡过半=不可交易。");
     return;
   }
 
