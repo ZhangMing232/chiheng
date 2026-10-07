@@ -50,19 +50,28 @@ function paint(level: Level, text: string): string {
   return `\x1b[${code}m${text}\x1b[0m`;
 }
 
-/** 服务探活：node:http 直连，不走代理。 */
-function probeServer(port = 8787): Promise<{ up: boolean; ms: number }> {
+/**
+ * 探「网页进程在不在」，用一个**静态文件**而不是首页。
+ *
+ * 为什么不用 `/`：首页要走 Nitro SSR、要现拉全市场行情渲染，实测耗时在 80ms 到
+ * 3.15 秒之间飘（冷启动最慢）。而记账进程每 60 秒要拉 60 笔 K 线，跟它抢同一个
+ * 行情源，耗时更飘。拿一个飘的耗时去判断「服务死没死」= 误报，2026-10-07 晚上
+ * 因为这个误报过一次（curl 明明 200，preflight 却说连不上）。
+ * 静态文件是纯磁盘返回，实测 8ms，任何状态码（哪怕 404）都说明进程活着。
+ */
+function probeWeb(port = 8787): Promise<{ up: boolean; ms: number; reason: string }> {
   return new Promise((resolve) => {
     const started = Date.now();
-    const done = (up: boolean) => resolve({ up, ms: Date.now() - started });
-    const req = get({ host: "127.0.0.1", port, path: "/", timeout: 3000 }, (res) => {
+    const done = (up: boolean, reason: string) => resolve({ up, ms: Date.now() - started, reason });
+    const req = get({ host: "127.0.0.1", port, path: "/favicon.svg", timeout: 5_000 }, (res) => {
       res.resume();
-      done((res.statusCode ?? 0) < 500);
+      // 404 也算活着——有 HTTP 响应就说明进程在监听并应答了。
+      done(true, "");
     });
-    req.on("error", () => done(false));
+    req.on("error", (e: Error) => done(false, e.message));
     req.on("timeout", () => {
       req.destroy();
-      done(false);
+      done(false, "5 秒没响应");
     });
   });
 }
@@ -121,13 +130,13 @@ async function checkAll(): Promise<{ checks: Check[]; trading: boolean; level: L
       : `${phase.label} · 建仓窗口：否${trading ? (phase.sealed ? "（已收盘）" : "（9:30 才开始，9:25–9:30 那五分钟不建仓）") : ""}`,
   });
 
-  // 1 服务
-  const probe = await probeServer();
+  // 1 网页进程（注意：这一项只管「页面能不能开」，不管记账会不会发生——那是心跳的事）
+  const probe = await probeWeb();
   checks.push({
-    name: "服务",
-    level: probe.up ? "ok" : trading ? "block" : "warn",
-    value: probe.up ? `在跑（${probe.ms}ms）` : `没在跑（8787 连不上）`,
-    fix: probe.up ? undefined : "双击桌面「赤轨.app」，或 npm run mac:start",
+    name: "网页进程",
+    level: probe.up ? "ok" : "warn",
+    value: probe.up ? `在跑（${probe.ms}ms）` : `连不上：${probe.reason}`,
+    fix: probe.up ? undefined : "页面打不开，但记账不依赖页面——看下面「记账心跳」那一行判断要不要处理",
   });
 
   // 8 记账心跳（阈值和页面 RecordLine 对齐：3 分钟）
@@ -145,12 +154,12 @@ async function checkAll(): Promise<{ checks: Check[]; trading: boolean; level: L
         level: "block",
         // snapshotAge 自带「前」字，别再加一个（会变成「3 小时前前」）
         value: `${snapshotAge(now - (rec.at ?? now))}（${formatClock(rec.at ?? now)}）`,
-        fix: "服务挂了，或记账脚本卡住（典型是 K 线撞腾讯 WAF）",
+        fix: "这是记账会不会发生的唯一证据（心跳不依赖网页）。起服务：双击桌面「赤轨.app」或 npm run mac:start；或记账脚本卡住了（典型是 K 线撞腾讯 WAF）",
       };
     } else if (ageMin > 3) {
       heartbeat = { name: "记账心跳", level: "warn", value: `${Math.round(ageMin)} 分钟前` };
     } else {
-      heartbeat = { name: "记账心跳", level: "ok", value: `${Math.round(ageMin)} 分钟前` };
+      heartbeat = { name: "记账心跳", level: "ok", value: `${Math.round(ageMin)} 分钟前（记账在跑）` };
     }
   } catch {
     heartbeat = { name: "记账心跳", level: "warn", value: "读不到 data/recorder.json" };
