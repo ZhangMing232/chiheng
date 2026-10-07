@@ -32,6 +32,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "report": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/style-report.ts",
+    "preflight": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/preflight.ts",
+    "watch:open": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/preflight.ts --watch",
     "build:note": "node scripts/after-build.mjs"
   },
   "dependencies": {
