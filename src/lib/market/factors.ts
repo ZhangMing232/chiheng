@@ -344,8 +344,11 @@ export function diagnoseShrinkDays(
   const corrPerDay: number[] = [];
   const spreadPerDay: number[] = [];
   const neutSpreadPerDay: number[] = [];
+  // 每天的 (在 daily 里的下标, 顶-底 spread)，给「精确到交易日」用。
+  const spreadSeries: { idx: number; spread: number }[] = [];
 
-  for (const today of daily) {
+  for (let di = 0; di < daily.length; di += 1) {
+    const today = daily[di];
     const usable = today.filter((r) => r.vals[fShrink] != null && r.vals[fD60] != null);
     if (usable.length < buckets * 10) continue;
 
@@ -358,7 +361,10 @@ export function diagnoseShrinkDays(
 
     const byShrink = [...usable].sort((a, b) => (a.vals[fShrink] as number) - (b.vals[fShrink] as number));
     const sp = spreadOf(byShrink, buckets);
-    if (sp != null) spreadPerDay.push(sp);
+    if (sp != null) {
+      spreadPerDay.push(sp);
+      spreadSeries.push({ idx: di, spread: sp });
+    }
 
     // d60 分档中性化后，档内 shrinkDays 的 spread 平均
     const byD60 = [...usable].sort((a, b) => (a.vals[fD60] as number) - (b.vals[fD60] as number));
@@ -397,6 +403,7 @@ export function diagnoseShrinkDays(
     corrAll,
     corrSeg,
     spreadSeg,
+    spreadSeries,
     neutSpread: m,
     neutT,
     neutDays: neutSpreadPerDay.length,

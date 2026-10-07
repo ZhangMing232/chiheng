@@ -1104,7 +1104,7 @@ async function main() {
       if (fShrink >= 0 && fD60 >= 0) {
         const diag = diagnoseShrinkDays(fullDaily, fShrink, fD60, buckets);
         console.log("\n缩量天数归因（BT_DIAG=shrinkDays）：");
-        console.log(`  shrinkDays 与 d60 横截面 Spearman 均值 = ${diag.corrAll.toFixed(3)}（|ρ| 越高越像同一个信号）`);
+        console.log(`  shrinkDays 与 d60 横截面 Spearman 均值 = ${diag.corrAll.toFixed(3)}（|ρ| 越低越不像同一个信号）`);
         console.log(`  分段相关性：${diag.corrSeg.map((v) => v.toFixed(2)).join(" / ")}`);
         console.log(
           `  分段 shrinkDays 顶-底 spread：${diag.spreadSeg
@@ -1115,13 +1115,45 @@ async function main() {
           `  d60 中性化后 shrinkDays 独立 spread = ${(diag.neutSpread >= 0 ? "+" : "") + (diag.neutSpread * 100).toFixed(2)}%` +
             `（t=${diag.neutT.toFixed(2)}，${diag.neutDays} 天）`,
         );
-        console.log("  判读：中性化后 |t| 掉到 2 以下 → shrinkDays 基本是 d60 的马甲，没有独立信息。");
+        console.log("  判读：中性化后 |t| 仍在 2 以上 → shrinkDays 有独立于 d60 的信息，不是马甲。");
+
+        // 精确到交易日：5 日滚动平均滤掉单日噪声，定位翻号（spread>0）的日期段
+        const series = diag.spreadSeries;
+        const win = 5;
+        const smooth = series.map((x, k) => {
+          const slice = series.slice(Math.max(0, k - win + 1), k + 1);
+          return { date: dates[startIdx + x.idx], spread: slice.reduce((s, y) => s + y.spread, 0) / slice.length };
+        });
+        console.log("\n精确到交易日（5 日滚动平均后的顶-底 spread，只列正的=翻号段；同期全池=这段全市场等权涨跌）：");
+        let runStart: number | null = null;
+        let found = 0;
+        for (let k = 0; k <= smooth.length; k += 1) {
+          const pos = k < smooth.length && smooth[k].spread > 0;
+          if (pos && runStart == null) runStart = k;
+          if ((!pos || k === smooth.length) && runStart != null) {
+            const seg = smooth.slice(runStart, k);
+            const segSpread = seg.reduce((s, x) => s + x.spread, 0) / seg.length;
+            const a = datePos.get(seg[0].date) ?? -1;
+            const b = datePos.get(seg[seg.length - 1].date) ?? -1;
+            const pool = a >= 0 && b >= 0 ? benchOver(a, b) : 0;
+            console.log(
+              `  ${seg[0].date} ~ ${seg[seg.length - 1].date}：滚动 spread ${(segSpread >= 0 ? "+" : "") + (segSpread * 100).toFixed(2)}%` +
+                `（${seg.length} 天）· 同期全池 ${(pool >= 0 ? "+" : "") + (pool * 100).toFixed(1)}%`,
+            );
+            runStart = null;
+            found += 1;
+          }
+        }
+        if (found === 0) console.log("  （没有连续为正的交易日段）");
       }
     }
 
     const logPath = "data/backtest/factor-runs.jsonl";
-    await appendFile(logPath, logLines.join("\n") + "\n");
-    console.log(`\n因子日志已追加 → ${logPath}（${logLines.length} 条）`);
+    // 诊断/复跑时用 BT_NO_LOG=1 跳过追加，避免同一批因子反复污染日志。
+    if (process.env.BT_NO_LOG !== "1") {
+      await appendFile(logPath, logLines.join("\n") + "\n");
+      console.log(`\n因子日志已追加 → ${logPath}（${logLines.length} 条）`);
+    }
     console.log("判据：|t|<2=没测出；两段翻号=不能用；Bonferroni 后不显著=降级；顶档被挡过半=不可交易。");
     return;
   }
