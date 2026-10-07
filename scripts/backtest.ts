@@ -43,6 +43,7 @@ import {
   gateBonferroni,
   gateTradable,
   diagnoseShrinkDays,
+  diagnoseShrinkBull,
 } from "@/lib/market/factors";
 import type { FactorRun, DailyRow } from "@/lib/market/factors";
 
@@ -1145,6 +1146,69 @@ async function main() {
           }
         }
         if (found === 0) console.log("  （没有连续为正的交易日段）");
+      }
+    }
+
+    // —— 缩量+止跌复合诊断（BT_DIAG=shrinkBull，研究性）——
+    if (process.env.BT_DIAG === "shrinkBull") {
+      const fShrink = FACTORS.findIndex((f) => f.id === "shrinkDays");
+      const fChg = FACTORS.findIndex((f) => f.id === "chg");
+      const fD60 = FACTORS.findIndex((f) => f.id === "d60");
+      if (fShrink >= 0 && fChg >= 0 && fD60 >= 0) {
+        const byDay = diagnoseShrinkBull(fullDaily, fShrink, fChg, buckets);
+        const mean = (l: number[]) => (l.length ? l.reduce((a, b) => a + b, 0) / l.length : 0);
+        const tOf = (l: number[]) => {
+          if (l.length < 2) return 0;
+          const m = mean(l);
+          const sd = Math.sqrt(l.reduce((s, v) => s + (v - m) ** 2, 0) / (l.length - 1));
+          return sd > 0 ? m / (sd / Math.sqrt(l.length)) : 0;
+        };
+        const bull = byDay.map((d) => d.topBull).filter((v): v is number => v != null);
+        const bear = byDay.map((d) => d.topBear).filter((v): v is number => v != null);
+        const premium = byDay
+          .map((d) => (d.topBull != null && d.topBear != null ? d.topBull - d.topBear : null))
+          .filter((v): v is number => v != null);
+
+        console.log("\n缩量+止跌复合诊断（BT_DIAG=shrinkBull，顶档=缩量最多那一档）：");
+        console.log(`  止跌组（当日收涨）平均超额 ${(mean(bull) >= 0 ? "+" : "") + (mean(bull) * 100).toFixed(2)}%（${bull.length} 天）`);
+        console.log(`  不止跌组平均超额       ${(mean(bear) >= 0 ? "+" : "") + (mean(bear) * 100).toFixed(2)}%（${bear.length} 天）`);
+        console.log(`  止跌溢价（止跌−不止跌）${(mean(premium) >= 0 ? "+" : "") + (mean(premium) * 100).toFixed(2)}%，t=${tOf(premium).toFixed(2)}`);
+
+        // 翻号段（缩量整体失效的时段）里，止跌组是否还扛得住
+        const diagDays = diagnoseShrinkDays(fullDaily, fShrink, fD60, buckets);
+        const win = 5;
+        const smooth = diagDays.spreadSeries.map((x, k) => {
+          const s = diagDays.spreadSeries.slice(Math.max(0, k - win + 1), k + 1);
+          return { date: dates[startIdx + x.idx], spread: s.reduce((a, y) => a + y.spread, 0) / s.length };
+        });
+        const byDate = new Map(byDay.map((d) => [dates[startIdx + d.idx], d]));
+        console.log("\n翻号段（5 日滚动 spread>0）里，止跌 vs 不止跌：");
+        let rs: number | null = null;
+        let rows = 0;
+        for (let k = 0; k <= smooth.length; k += 1) {
+          const pos = k < smooth.length && smooth[k].spread > 0;
+          if (pos && rs == null) rs = k;
+          if ((!pos || k === smooth.length) && rs != null) {
+            const seg = smooth.slice(rs, k);
+            const d0 = seg[0].date;
+            const d1 = seg[seg.length - 1].date;
+            const inSeg = byDay.filter((d) => {
+              const dd = dates[startIdx + d.idx];
+              return dd >= d0 && dd <= d1;
+            });
+            const b = inSeg.map((d) => d.topBull).filter((v): v is number => v != null);
+            const e = inSeg.map((d) => d.topBear).filter((v): v is number => v != null);
+            if (b.length || e.length) {
+              console.log(
+                `  ${d0} ~ ${d1}：止跌 ${(mean(b) >= 0 ? "+" : "") + (mean(b) * 100).toFixed(2)}% / 不止跌 ${(mean(e) >= 0 ? "+" : "") + (mean(e) * 100).toFixed(2)}%（${seg.length} 天）`,
+              );
+              rows += 1;
+            }
+            rs = null;
+          }
+        }
+        if (rows === 0) console.log("  （没有翻号段）");
+        console.log("  判读：止跌溢价 t≥2 且翻号段里止跌组仍显著为正 → 止跌条件能把失效滤掉。");
       }
     }
 

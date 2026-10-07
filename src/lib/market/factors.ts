@@ -409,3 +409,38 @@ export function diagnoseShrinkDays(
     neutDays: neutSpreadPerDay.length,
   };
 }
+
+/**
+ * 「缩量 + 止跌」复合诊断（研究性，不进 6 关）。
+ * 背景：shrinkDays 单因子约四成交易日失效，失效期和全池方向无关。假设失效来自
+ * 「缩量里混着还在阴跌的票」——缩量有两种，抛压衰竭（好）和无人问津（坏），
+ * 单看缩量分不出来。这里加一个「当日止跌」（收涨 chg > 0）条件，看能不能把
+ * 坏的滤掉。
+ *
+ * 每天把票按 shrinkDays 分档取顶档（缩量最多），再按是否止跌劈两半，输出两半
+ * 各自的平均超额。关键看「止跌 - 不止跌」的溢价是不是稳定为正——尤其在最长
+ * 的翻号段（缩量整体失效时）里，止跌组是不是还扛得住。
+ */
+export function diagnoseShrinkBull(daily: DailyRow[][], fShrink: number, fChg: number, buckets = 5) {
+  const byDay: { idx: number; topBull: number | null; topBear: number | null; topAll: number | null; bullN: number; bearN: number }[] = [];
+  for (let di = 0; di < daily.length; di += 1) {
+    const today = daily[di];
+    const usable = today.filter((r) => r.vals[fShrink] != null);
+    if (usable.length < buckets * 10) continue;
+    const sorted = [...usable].sort((a, b) => (a.vals[fShrink] as number) - (b.vals[fShrink] as number));
+    const q = Math.floor(sorted.length / buckets);
+    const top = sorted.slice(sorted.length - q);
+    const bulls = top.filter((r) => (r.vals[fChg] ?? 0) > 0);
+    const bears = top.filter((r) => (r.vals[fChg] ?? 0) <= 0);
+    const mean = (s: DailyRow[]) => (s.length ? s.reduce((a, r) => a + r.ex, 0) / s.length : null);
+    byDay.push({
+      idx: di,
+      topBull: mean(bulls),
+      topBear: mean(bears),
+      topAll: mean(top),
+      bullN: bulls.length,
+      bearN: bears.length,
+    });
+  }
+  return byDay;
+}
