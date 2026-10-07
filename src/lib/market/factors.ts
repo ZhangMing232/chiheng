@@ -61,6 +61,12 @@ export interface MetricRow {
   turnover: number | null;
   /** 流通市值快照（今天的，非历史）。拿不到是 null。 */
   floatCap: number | null;
+  /** 当日下影线占比：(min(open,close) - low) / (high - low)。0~1，一字板无振幅时 null。 */
+  lowerWick: number | null;
+  /** 波动压缩：std20 / std60。越小表示短期波动相对长期在收缩。 */
+  volCompress: number | null;
+  /** 连跌天数：截至今日连续「收盘 < 前收」的天数。今日收阳则 0。 */
+  downStreak: number;
 }
 
 /**
@@ -104,6 +110,9 @@ export const FACTORS: Factor[] = [
   { id: "amountWan", name: "成交额", category: "规模", direction: -1, rationale: "冷门小成交额的票被忽视，可能有溢价。", get: (m) => m.amountWan },
   { id: "floatCap", name: "流通市值", category: "规模", direction: -1, rationale: "小市值效应（注意是今天快照，非历史）。", get: (m) => m.floatCap },
   { id: "c", name: "股价", category: "规模", direction: -1, rationale: "低价股效应。", get: (m) => m.c },
+  { id: "lowerWick", name: "下影线占比", category: "形态", direction: -1, rationale: "长下影线=当日下方有承接，超跌后倾向反弹。", get: (m) => m.lowerWick },
+  { id: "volCompress", name: "波动压缩", category: "波动率", direction: -1, rationale: "短期波动相对长期收缩=蓄势，延续低波动异象。", get: (m) => m.volCompress },
+  { id: "downStreak", name: "连跌天数", category: "反转", direction: -1, rationale: "连续下跌越久越超跌，均值回归倾向越强。", get: (m) => m.downStreak },
 ];
 
 /** 一次因子检验里，单个因子的分档结果（某一段区间、某一份样本）。 */
@@ -303,4 +312,93 @@ export const TRADABLE_MAX_BLOCKED = 0.5;
 export function gateTradable(blockedRatio: number): Gate {
   const pass = blockedRatio <= TRADABLE_MAX_BLOCKED;
   return { pass, detail: `顶档被挡 ${(blockedRatio * 100).toFixed(0)}%（阈值 ≤${(TRADABLE_MAX_BLOCKED * 100).toFixed(0)}%）` };
+}
+
+/** 把一组已按因子值排序的票切成 buckets 档，返回顶档减底档的超额。样本不足返回 null。 */
+function spreadOf(sorted: DailyRow[], buckets: number): number | null {
+  if (sorted.length < buckets) return null;
+  const q = Math.floor(sorted.length / buckets);
+  const lo = sorted.slice(0, q);
+  const hi = sorted.slice(sorted.length - q);
+  const mean = (s: DailyRow[]) => s.reduce((a, r) => a + r.ex, 0) / s.length;
+  return mean(hi) - mean(lo);
+}
+
+/**
+ * 缩量天数归因（研究性诊断，不进 6 关）：
+ * 回答「shrinkDays 是不是 d60 的马甲」。如果是，它俩横截面高度相关，
+ * 且把 d60 分档中性化之后，shrinkDays 的独立超额会缩到接近 0。
+ * 同时按时间切成几段，看顶-底 spread 的翻号发生在哪一段——是不是和
+ * 60 日反转同一波「环境变了」。
+ *
+ * daily 是 analyzeFactors 的输入（每交易日 × 每只票的因子值 + 未来超额）。
+ * fShrink / fD60 是这两个因子在 vals 里的下标。
+ */
+export function diagnoseShrinkDays(
+  daily: DailyRow[][],
+  fShrink: number,
+  fD60: number,
+  buckets = 5,
+  segments = 6,
+) {
+  const corrPerDay: number[] = [];
+  const spreadPerDay: number[] = [];
+  const neutSpreadPerDay: number[] = [];
+
+  for (const today of daily) {
+    const usable = today.filter((r) => r.vals[fShrink] != null && r.vals[fD60] != null);
+    if (usable.length < buckets * 10) continue;
+
+    corrPerDay.push(
+      spearman(
+        usable.map((r) => r.vals[fShrink] as number),
+        usable.map((r) => r.vals[fD60] as number),
+      ),
+    );
+
+    const byShrink = [...usable].sort((a, b) => (a.vals[fShrink] as number) - (b.vals[fShrink] as number));
+    const sp = spreadOf(byShrink, buckets);
+    if (sp != null) spreadPerDay.push(sp);
+
+    // d60 分档中性化后，档内 shrinkDays 的 spread 平均
+    const byD60 = [...usable].sort((a, b) => (a.vals[fD60] as number) - (b.vals[fD60] as number));
+    const qd = Math.floor(byD60.length / buckets);
+    const perBucket: number[] = [];
+    for (let b = 0; b < buckets; b += 1) {
+      const slice = byD60.slice(b * qd, b === buckets - 1 ? byD60.length : (b + 1) * qd);
+      const sub = [...slice].sort((a, b) => (a.vals[fShrink] as number) - (b.vals[fShrink] as number));
+      const s = spreadOf(sub, buckets);
+      if (s != null) perBucket.push(s);
+    }
+    if (perBucket.length > 0) neutSpreadPerDay.push(perBucket.reduce((a, v) => a + v, 0) / perBucket.length);
+  }
+
+  const avg = (l: number[]) => (l.length ? l.reduce((a, b) => a + b, 0) / l.length : 0);
+  const corrAll = avg(corrPerDay);
+
+  const segLen = Math.ceil(corrPerDay.length / segments);
+  const corrSeg: number[] = [];
+  const spreadSeg: number[] = [];
+  for (let s = 0; s < segments; s += 1) {
+    const c = corrPerDay.slice(s * segLen, (s + 1) * segLen);
+    const p = spreadPerDay.slice(s * segLen, (s + 1) * segLen);
+    if (c.length) corrSeg.push(avg(c));
+    if (p.length) spreadSeg.push(avg(p));
+  }
+
+  const m = avg(neutSpreadPerDay);
+  const sd =
+    neutSpreadPerDay.length > 1
+      ? Math.sqrt(neutSpreadPerDay.reduce((s, v) => s + (v - m) ** 2, 0) / (neutSpreadPerDay.length - 1))
+      : 0;
+  const neutT = sd > 0 ? m / (sd / Math.sqrt(neutSpreadPerDay.length)) : 0;
+
+  return {
+    corrAll,
+    corrSeg,
+    spreadSeg,
+    neutSpread: m,
+    neutT,
+    neutDays: neutSpreadPerDay.length,
+  };
 }

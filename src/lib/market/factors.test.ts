@@ -37,6 +37,13 @@ test("因子注册表：每个因子都有方向假设和经济逻辑（预注�
   for (const legacy of ["chg", "d5", "d20", "d60", "volRatio", "volShrink", "amountWan", "c"]) {
     assert.ok(ids.includes(legacy), `老因子 ${legacy} 不能丢`);
   }
+  // 2026-10-06 新扩充的三个因子也要在，方向预注册为反向（超跌/低波动异象）
+  for (const added of ["lowerWick", "volCompress", "downStreak"]) {
+    assert.ok(ids.includes(added), `新因子 ${added} 要注册`);
+  }
+  for (const f of FACTORS.filter((x) => ["lowerWick", "volCompress", "downStreak"].includes(x.id))) {
+    assert.equal(f.direction, -1, `新因子 ${f.id} 预注册方向应为反向`);
+  }
 });
 
 test("analyzeFactors：正相关因子应该分档单调、顶底 spread 为正", () => {

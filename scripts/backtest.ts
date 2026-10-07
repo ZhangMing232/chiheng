@@ -42,6 +42,7 @@ import {
   gateResample,
   gateBonferroni,
   gateTradable,
+  diagnoseShrinkDays,
 } from "@/lib/market/factors";
 import type { FactorRun, DailyRow } from "@/lib/market/factors";
 
@@ -223,6 +224,20 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
   const distLow60 = low60 > 0 ? c / low60 - 1 : null;
   const rangePos20 = high20 > low20 ? (c - low20) / (high20 - low20) : null;
 
+  // —— 2026-10-06 新扩充的三个因子（都只用 <= i 的数据）——
+  const std20 = stdOf(rets20);
+  const std60 = stdOf(retSeries(rows, i, 60));
+  const volCompress = std20 != null && std60 != null && std60 > 0 ? std20 / std60 : null;
+  const dayHi = rows[i].h;
+  const dayLo = rows[i].l;
+  const bodyLow = Math.min(rows[i].o, c);
+  const lowerWick = dayHi > dayLo ? (bodyLow - dayLo) / (dayHi - dayLo) : null;
+  let downStreak = 0;
+  for (let k = i; k >= 1; k -= 1) {
+    if (rows[k].c < rows[k - 1].c) downStreak += 1;
+    else break;
+  }
+
   return {
     c,
     prev,
@@ -237,8 +252,8 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
     momAccel: d5 != null && d20 != null ? d5 - d20 : null,
     rsi14,
     bias20,
-    std20: stdOf(rets20),
-    std60: stdOf(retSeries(rows, i, 60)),
+    std20,
+    std60,
     amp20,
     corrVRet,
     shrinkDays,
@@ -265,6 +280,9 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
      */
     turnoverGateOn,
     floatCap,
+    lowerWick,
+    volCompress,
+    downStreak,
   };
 }
 
@@ -1008,7 +1026,8 @@ async function main() {
     };
 
     const mid = Math.floor((startIdx + dates.length - 2) / 2);
-    const full = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, startIdx, dates.length - N), factorCount, buckets);
+    const fullDaily = buildDaily(klines, idxOf, dates, benchOver, startIdx, dates.length - N);
+    const full = analyzeFactors(fullDaily, factorCount, buckets);
     const first = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, startIdx, Math.min(mid, dates.length - N)), factorCount, buckets);
     const second = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, mid, dates.length - N), factorCount, buckets);
 
@@ -1076,6 +1095,28 @@ async function main() {
     for (let f = 0; f < factorCount; f += 1) {
       const cells = full[f].bucketMeans.map((v) => `${(v >= 0 ? "+" : "") + (v * 100).toFixed(2)}%`.padStart(8)).join(" ");
       console.log(`  ${FACTORS[f].name.padEnd(10)} ${cells}`);
+    }
+
+    // —— 缩量天数归因（BT_DIAG=shrinkDays，研究性，不进 6 关）——
+    if (process.env.BT_DIAG === "shrinkDays") {
+      const fShrink = FACTORS.findIndex((f) => f.id === "shrinkDays");
+      const fD60 = FACTORS.findIndex((f) => f.id === "d60");
+      if (fShrink >= 0 && fD60 >= 0) {
+        const diag = diagnoseShrinkDays(fullDaily, fShrink, fD60, buckets);
+        console.log("\n缩量天数归因（BT_DIAG=shrinkDays）：");
+        console.log(`  shrinkDays 与 d60 横截面 Spearman 均值 = ${diag.corrAll.toFixed(3)}（|ρ| 越高越像同一个信号）`);
+        console.log(`  分段相关性：${diag.corrSeg.map((v) => v.toFixed(2)).join(" / ")}`);
+        console.log(
+          `  分段 shrinkDays 顶-底 spread：${diag.spreadSeg
+            .map((v) => (v >= 0 ? "+" : "") + (v * 100).toFixed(2) + "%")
+            .join(" / ")}`,
+        );
+        console.log(
+          `  d60 中性化后 shrinkDays 独立 spread = ${(diag.neutSpread >= 0 ? "+" : "") + (diag.neutSpread * 100).toFixed(2)}%` +
+            `（t=${diag.neutT.toFixed(2)}，${diag.neutDays} 天）`,
+        );
+        console.log("  判读：中性化后 |t| 掉到 2 以下 → shrinkDays 基本是 d60 的马甲，没有独立信息。");
+      }
     }
 
     const logPath = "data/backtest/factor-runs.jsonl";
