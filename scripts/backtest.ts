@@ -1222,6 +1222,127 @@ async function main() {
     return;
   }
 
+  // —— 资金流因子探路（BT_FLOW=1，东财 120 日主力净流入）——
+  // 这是「最小验证」：先花小代价看资金流维度有没有独立于 OHLCV 的信息，再决定
+  // 要不要建长历史缓存。所以：
+  //   - G4 换样本没做（只有主样本的资金流缓存）
+  //   - G3 两段在 120 天窗口里各 60 天，偏短，结论只当「方向」，不当「过关」
+  if (process.env.BT_FLOW === "1") {
+    const N = Number(process.env.BT_N ?? 10);
+    const buckets = Number(process.env.BT_BUCKETS ?? 5);
+
+    // 1. 加载资金流缓存
+    const flowOf = new Map<string, Map<string, { main: number; ratio: number }>>();
+    let flowLoaded = 0;
+    for (const id of klines.keys()) {
+      try {
+        const rows = JSON.parse(await readFile(`${CACHE}/../flow/${id}.json`, "utf8")) as { date: string; main: number; ratio: number }[];
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+        const m = new Map<string, { main: number; ratio: number }>();
+        for (const r of rows) m.set(r.date, { main: r.main, ratio: r.ratio });
+        flowOf.set(id, m);
+        flowLoaded += 1;
+      } catch {
+        // 没拉到缓存，跳过
+      }
+    }
+    console.log(`资金流探路：缓存命中 ${flowLoaded}/${klines.size} 只\n`);
+
+    // 2. 资金流因子（预注册，方向 +1 = 主力净流入越多未来超额越高）
+    //    mainRatio  = 当日主力净流入 / 当日成交额
+    //    mainRatio5 = 近 5 日主力净流入累计 / 近 5 日成交额累计
+    // 陷阱：这俩和当日涨跌幅强相关，下面用 chg 中性化看独立信息。
+    const flowFactors = [
+      { name: "主力净流入占比", direction: 1 },
+      { name: "主力5日累计占比", direction: 1 },
+    ];
+
+    // 3. 构建 daily（vals = [mainRatio, mainRatio5, chg]，chg 只用于正交化）
+    const flowDaily: DailyRow[][] = [];
+    for (let t = startIdx; t < dates.length - N; t += 1) {
+      const today: DailyRow[] = [];
+      for (const [id, rows] of klines) {
+        const idx = idxOf.get(id)?.get(dates[t]);
+        if (idx == null || idx < 61) continue;
+        const flow = flowOf.get(id);
+        if (!flow) continue;
+        const nIdx = idxOf.get(id)?.get(dates[t + 1]);
+        const xIdx = idxOf.get(id)?.get(dates[t + N]);
+        if (nIdx == null || xIdx == null) continue;
+        const inPrice = rows[nIdx].o;
+        const outPrice = rows[xIdx].c;
+        if (!(inPrice > 0) || !(outPrice > 0)) continue;
+
+        const f = flow.get(dates[t]);
+        if (!f) continue;
+        const amount = rows[idx].v * 100 * rows[idx].c;
+        if (amount <= 0) continue;
+        const mainRatio = f.main / amount;
+
+        let main5 = 0;
+        let amount5 = 0;
+        for (let k = idx - 4; k <= idx; k += 1) {
+          if (k < 0) continue;
+          const fk = flow.get(rows[k].date);
+          const ak = rows[k].v * 100 * rows[k].c;
+          if (fk) {
+            main5 += fk.main;
+            amount5 += ak;
+          }
+        }
+        const mainRatio5 = amount5 > 0 ? main5 / amount5 : null;
+
+        const prev = idx - 1 >= 0 ? rows[idx - 1].c : rows[idx].c;
+        const chg = prev > 0 ? ((rows[idx].c - prev) / prev) * 100 : 0;
+
+        today.push({ vals: [mainRatio, mainRatio5, chg], ex: outPrice / inPrice - 1 - benchOver(t + 1, t + N) });
+      }
+      flowDaily.push(today);
+    }
+
+    const effectiveDays = flowDaily.filter((d) => d.length > 0).length;
+    const halfLen = Math.floor(flowDaily.length / 2);
+    const runs = analyzeFactors(flowDaily, 2, buckets);
+    const first = analyzeFactors(flowDaily.slice(0, halfLen), 2, buckets);
+    const second = analyzeFactors(flowDaily.slice(halfLen), 2, buckets);
+
+    console.log(`资金流因子探路：${effectiveDays} 个有效交易日 · 持有 ${N} 天 · ${buckets} 档`);
+    console.log("因子          方向   G1    G2    G3         G5    G6      顶-底      t");
+    console.log("-".repeat(90));
+    const mark = (g: { pass: boolean }) => (g.pass ? "✓" : "✗");
+    for (let f = 0; f < 2; f += 1) {
+      const run = runs[f];
+      const g1 = gateMonotonic(run.bucketMeans, 1);
+      const g2 = gateT(run.t);
+      const g3 = gateHalves(first[f], second[f]);
+      const g5 = gateBonferroni(run.t, 2);
+      const g6 = gateTradable(run.topBlockedRatio);
+      console.log(
+        flowFactors[f].name.padEnd(10) +
+          "正向".padEnd(5) +
+          [g1, g2, g3, g5, g6].map((g) => mark(g).padEnd(5)).join("") +
+          `${(run.meanSpread >= 0 ? "+" : "") + (run.meanSpread * 100).toFixed(2)}%`.padStart(9) +
+          run.t.toFixed(2).padStart(7),
+      );
+    }
+    console.log("-".repeat(90));
+    for (let f = 0; f < 2; f += 1) {
+      const cells = runs[f].bucketMeans.map((v) => `${(v >= 0 ? "+" : "") + (v * 100).toFixed(2)}%`.padStart(8)).join(" ");
+      console.log(`  ${flowFactors[f].name.padEnd(10)} ${cells}`);
+    }
+
+    console.log("\nchg 正交化（控制当日涨幅后，资金流因子的独立 spread）：");
+    for (let f = 0; f < 2; f += 1) {
+      const diag = diagnoseShrinkDays(flowDaily, f, 2, buckets);
+      console.log(
+        `  ${flowFactors[f].name.padEnd(10)} 独立 spread ${(diag.neutSpread >= 0 ? "+" : "") + (diag.neutSpread * 100).toFixed(2)}%` +
+          `（t=${diag.neutT.toFixed(2)}）`,
+      );
+    }
+    console.log("判读：独立 t 仍在 2 以上 → 资金流有 OHLCV 之外的信息，值得建长历史缓存。");
+    return;
+  }
+
   if (process.env.BT_SWEEP === "1") {
     console.log("止损幅度扫描（同一套选股条件，只改止损百分比）\n");
     for (const stopPct of [2, 3, 4, 5, 6]) {
