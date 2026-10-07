@@ -80,8 +80,10 @@ await mkdir(CACHE, { recursive: true });
 
 const ids = await universe();
 const step = Math.max(1, Math.floor(ids.length / SAMPLE));
-const sample = ids.filter((_, i) => i % step === 0).slice(0, SAMPLE);
-console.log(`股票池 ${ids.length} 只，抽样 ${sample.length} 只\n`);
+// BT_OFFSET 换个起点就是另一批互不重叠的票，给 G4 换样本用（和 backtest.ts 同口径）。
+const offset = Number(process.env.BT_OFFSET ?? 0);
+const sample = ids.filter((_, i) => (i + offset) % step === 0).slice(0, SAMPLE);
+console.log(`股票池 ${ids.length} 只，抽样 ${sample.length} 只${offset ? `（offset=${offset}）` : ""}\n`);
 
 let ok = 0;
 let skip = 0;
