@@ -56,7 +56,27 @@ const MAX_POSITIONS = 10;
 /** 一来一回的手续费，和线上一致。 */
 const FEE = 0.00102;
 const CACHE = "data/backtest/kline";
+/**
+ * 数据目录。CHIHENG_DATA_DIR 可以换到别处（测试用），和 src/lib/market/gate-log.ts
+ * 同一个约定。没设就是项目根下的 data/。
+ */
+const DATA_DIR = process.env.CHIHENG_DATA_DIR ?? "data";
+/** 归因/探路这类研究性诊断的落盘文件。因子表落 factor-runs.jsonl，两类分开。 */
+const DIAG_LOG = `${DATA_DIR}/backtest/factor-diag.jsonl`;
 const KLINE_HEADERS = { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" };
+
+/**
+ * 追加一条诊断记录（factor-diag.jsonl）。
+ *
+ * 为什么是 append 不是覆盖写一个 json：三种诊断（缩量翻号 / 止跌溢价 / 资金流探路）
+ * 形状差别很大，塞一个文件里得靠 kind 分桶；而且 book-file.ts 以前被「写一半的文件
+ * 把整份数据废掉」坑过——append 天然幂等，跑崩了最多少一条，不会毁掉已有的。
+ */
+async function appendDiag(record: Record<string, unknown>): Promise<void> {
+  await mkdir(`${DATA_DIR}/backtest`, { recursive: true });
+  await appendFile(DIAG_LOG, JSON.stringify({ ...record, at: new Date().toISOString() }) + "\n");
+  console.log(`诊断已追加 → ${DIAG_LOG}（kind=${String(record.kind)}）`);
+}
 
 type Row = { date: string; o: number; c: number; h: number; l: number; v: number };
 
@@ -1084,6 +1104,22 @@ async function main() {
           bucketMeans: run.bucketMeans,
           resampleSpread: resample[f].meanSpread,
           resampleT: resample[f].t,
+          /**
+           * 前后两段各自的 spread / t。以前算完就丢了，导致 G3（两段同号）在页面
+           * 上只能显示 ✓/✗，说不出「前 +0.13% / 后 -0.72%」这种原话。
+           * 旧批次没有这两个字段——页面遇到就显示「这关没记」，不能编。
+           */
+          halfSpread: [first[f].meanSpread, second[f].meanSpread],
+          halfT: [first[f].t, second[f].t],
+          /** 每关的判据原话（如「|t|= 4.35 vs 临界 3.15（N=25）」），页面直接显示。 */
+          gateDetails: {
+            g1: g1.detail,
+            g2: g2.detail,
+            g3: g3.detail,
+            g4: g4.detail,
+            g5: g5.detail,
+            g6: g6.detail,
+          },
           gates: { g1: g1.pass, g2: g2.pass, g3: g3.pass, g4: g4.pass, g5: g5.pass, g6: g6.pass },
           nTested,
         }),
@@ -1126,6 +1162,9 @@ async function main() {
           return { date: dates[startIdx + x.idx], spread: slice.reduce((s, y) => s + y.spread, 0) / slice.length };
         });
         console.log("\n精确到交易日（5 日滚动平均后的顶-底 spread，只列正的=翻号段；同期全池=这段全市场等权涨跌）：");
+        // 翻号段也要落盘——它们在终端闪一下就没了，而「13 段零散、不是一整段」
+        // 正是这次归因最要紧的证据，必须留在页面上。
+        const segs: { from: string; to: string; days: number; rollingSpread: number; poolRet: number }[] = [];
         let runStart: number | null = null;
         let found = 0;
         for (let k = 0; k <= smooth.length; k += 1) {
@@ -1141,11 +1180,34 @@ async function main() {
               `  ${seg[0].date} ~ ${seg[seg.length - 1].date}：滚动 spread ${(segSpread >= 0 ? "+" : "") + (segSpread * 100).toFixed(2)}%` +
                 `（${seg.length} 天）· 同期全池 ${(pool >= 0 ? "+" : "") + (pool * 100).toFixed(1)}%`,
             );
+            segs.push({
+              from: seg[0].date,
+              to: seg[seg.length - 1].date,
+              days: seg.length,
+              rollingSpread: segSpread,
+              poolRet: pool,
+            });
             runStart = null;
             found += 1;
           }
         }
         if (found === 0) console.log("  （没有连续为正的交易日段）");
+
+        await appendDiag({
+          kind: "shrinkFlip",
+          n: N,
+          buckets,
+          nTested: factorCount,
+          nDays: diag.neutDays,
+          rollingWindow: win,
+          corrAll: diag.corrAll,
+          corrSeg: diag.corrSeg,
+          spreadSeg: diag.spreadSeg,
+          neutSpread: diag.neutSpread,
+          neutT: diag.neutT,
+          neutDays: diag.neutDays,
+          segments: segs,
+        });
       }
     }
 
@@ -1183,6 +1245,7 @@ async function main() {
         });
         const byDate = new Map(byDay.map((d) => [dates[startIdx + d.idx], d]));
         console.log("\n翻号段（5 日滚动 spread>0）里，止跌 vs 不止跌：");
+        const flipSegments: { from: string; to: string; days: number; bull: number | null; bear: number | null }[] = [];
         let rs: number | null = null;
         let rows = 0;
         for (let k = 0; k <= smooth.length; k += 1) {
@@ -1204,15 +1267,37 @@ async function main() {
               );
               rows += 1;
             }
+            // 一组都算不出来时存 null，不存 0——0 会被读成「不赚不亏」，其实是没答案。
+            flipSegments.push({
+              from: d0,
+              to: d1,
+              days: seg.length,
+              bull: b.length ? mean(b) : null,
+              bear: e.length ? mean(e) : null,
+            });
             rs = null;
           }
         }
         if (rows === 0) console.log("  （没有翻号段）");
         console.log("  判读：止跌溢价 t≥2 且翻号段里止跌组仍显著为正 → 止跌条件能把失效滤掉。");
+
+        await appendDiag({
+          kind: "shrinkBull",
+          n: N,
+          buckets,
+          bullMean: mean(bull),
+          bullDays: bull.length,
+          bearMean: mean(bear),
+          bearDays: bear.length,
+          premiumMean: mean(premium),
+          premiumT: tOf(premium),
+          premiumDays: premium.length,
+          flipSegments,
+        });
       }
     }
 
-    const logPath = "data/backtest/factor-runs.jsonl";
+    const logPath = `${DATA_DIR}/backtest/factor-runs.jsonl`;
     // 诊断/复跑时用 BT_NO_LOG=1 跳过追加，避免同一批因子反复污染日志。
     if (process.env.BT_NO_LOG !== "1") {
       await appendFile(logPath, logLines.join("\n") + "\n");
@@ -1253,8 +1338,8 @@ async function main() {
     //    mainRatio5 = 近 5 日主力净流入累计 / 近 5 日成交额累计
     // 陷阱：这俩和当日涨跌幅强相关，下面用 chg 中性化看独立信息。
     const flowFactors = [
-      { name: "主力净流入占比", direction: 1 },
-      { name: "主力5日累计占比", direction: 1 },
+      { id: "mainRatio", name: "主力净流入占比", direction: 1 },
+      { id: "mainRatio5", name: "主力5日累计占比", direction: 1 },
     ];
 
     // 3. 构建 daily（vals = [mainRatio, mainRatio5, chg]，chg 只用于正交化）
@@ -1332,13 +1417,47 @@ async function main() {
     }
 
     console.log("\nchg 正交化（控制当日涨幅后，资金流因子的独立 spread）：");
+    // 探路结果落盘：持有期压测（N=5/10/20）要三条凑成一张表才看得出「只在 N=10 过 2」，
+    // 终端里一条一条看是看不出来的。
+    const probeFactors = [];
     for (let f = 0; f < 2; f += 1) {
+      const run = runs[f];
+      const g1 = gateMonotonic(run.bucketMeans, 1);
+      const g2 = gateT(run.t);
+      const g3 = gateHalves(first[f], second[f]);
+      const g5 = gateBonferroni(run.t, 2);
+      const g6 = gateTradable(run.topBlockedRatio);
       const diag = diagnoseShrinkDays(flowDaily, f, 2, buckets);
       console.log(
         `  ${flowFactors[f].name.padEnd(10)} 独立 spread ${(diag.neutSpread >= 0 ? "+" : "") + (diag.neutSpread * 100).toFixed(2)}%` +
           `（t=${diag.neutT.toFixed(2)}）`,
       );
+      probeFactors.push({
+        id: flowFactors[f].id,
+        name: flowFactors[f].name,
+        direction: flowFactors[f].direction,
+        spread: run.meanSpread,
+        t: run.t,
+        nDays: run.nDays,
+        topBlockedRatio: run.topBlockedRatio,
+        bucketMeans: run.bucketMeans,
+        // 只有 5 关——这次探路确实没做 G4 换样本。缺的样子就是缺，别补 false。
+        gates: { g1: g1.pass, g2: g2.pass, g3: g3.pass, g5: g5.pass, g6: g6.pass },
+        gateDetails: { g1: g1.detail, g2: g2.detail, g3: g3.detail, g5: g5.detail, g6: g6.detail },
+        neutSpread: diag.neutSpread,
+        neutT: diag.neutT,
+        neutDays: diag.neutDays,
+      });
     }
+    await appendDiag({
+      kind: "flowProbe",
+      n: N,
+      buckets,
+      effectiveDays,
+      cacheHit: flowLoaded,
+      cacheTotal: klines.size,
+      factors: probeFactors,
+    });
     console.log("判读：独立 t 仍在 2 以上 → 资金流有 OHLCV 之外的信息，值得建长历史缓存。");
     return;
   }

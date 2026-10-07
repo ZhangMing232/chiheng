@@ -1,0 +1,345 @@
+/**
+ * 这个文件是干什么的：
+ * 「因子」页。把这一轮因子挖掘摆出来：25 个因子的 6 关判决、分档形状、
+ * 缩量天数归因、资金流探路，以及回测基线原文。
+ *
+ * 你需要知道的：
+ * 1. **数字全部从 data/backtest/ 下的产物算出来**，页面文案里不写第二份数字。
+ *    重跑一次回测，页面自己会变——这是这个页面存在的意义，硬编码就废了。
+ * 2. **data/ 在 .gitignore 里**，线上和新机器必然读不到。三份数据各自降级：
+ *    读不到就显示 StateBlock 并给出能复制的重跑命令，绝不显示「0 个因子」——
+ *    那是把「没跑过」说成「跑过了但没过关」，两件事差很远。
+ * 3. 未过关的因子一个都不藏。现在就是「25 个里 0 个全过」，这个数字要放大了给人看。
+ * 4. 长口径说明放在区块标题**正下方**（Section 的 hint），不用 Panel——
+ *    Panel 的 note 在右上角，这一页每块都要交代口径，塞右边读不顺（资金页同一个取舍）。
+ */
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Frame } from "@/components/screener/nav";
+import { Stat, Table, tdClass, thClass, pctClass } from "@/components/terminal";
+import { StateBlock } from "@/components/state-block";
+import { signedPct } from "@/lib/market/format";
+import { getFactorBaseline, getFactorDiag, getFactorRuns } from "@/lib/market/quotes.functions";
+import { batchSummary, factorRows, flowStress } from "@/lib/market/factors-view";
+import { FactorGateTable, BucketShape } from "@/components/screener/factor-gate-table";
+import { FlowProbePanel, ShrinkFlipPanel } from "@/components/screener/factor-diag-panels";
+import type {
+  FactorBaselinePayload,
+  FactorDiagPayload,
+  FactorRunsPayload,
+} from "@/lib/market/factor-runs-file";
+
+/** loader 里 catch 用的兜底。不 import factor-runs-file 里的 empty* —— 那个模块有 node:fs，
+ *  被前端打进来会炸。类型可以 import（编译期擦除），值不行。 */
+type Loader = {
+  runs: FactorRunsPayload;
+  diag: FactorDiagPayload;
+  baseline: FactorBaselinePayload;
+};
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+const RERUN_HINT =
+  "在项目根目录跑：BT_FACTOR=1 BT_N=10 node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts";
+
+export const Route = createFileRoute("/factors")({
+  loader: async (): Promise<Loader> => {
+    // 三份各自独立失败：某一块读不到就那一块空着，其余照常渲染。
+    const [runs, diag, baseline] = await Promise.all([
+      getFactorRuns().catch(
+        (e: unknown): FactorRunsPayload => ({
+          batch: null,
+          batches: [],
+          badLines: 0,
+          missing: messageOf(e),
+        }),
+      ),
+      getFactorDiag().catch(
+        (e: unknown): FactorDiagPayload => ({
+          shrinkFlip: null,
+          shrinkBull: null,
+          flowProbe: [],
+          badLines: 0,
+          missing: messageOf(e),
+        }),
+      ),
+      getFactorBaseline().catch(
+        (e: unknown): FactorBaselinePayload => ({ name: null, text: null, bytes: 0, missing: messageOf(e) }),
+      ),
+    ]);
+    return { runs, diag, baseline };
+  },
+  component: FactorsPage,
+});
+
+const TABS = [
+  { id: "factor-verdict", label: "结论" },
+  { id: "factor-gates", label: "6 关判决" },
+  { id: "factor-buckets", label: "分档明细" },
+  { id: "factor-attrib", label: "缩量归因" },
+  { id: "factor-flow", label: "资金流探路" },
+  { id: "factor-baseline", label: "基线原文" },
+] as const;
+
+/** 区块外壳。口径说明在标题正下方，不用 Panel（它的 note 在右侧）。 */
+function Section({
+  id,
+  title,
+  hint,
+  children,
+}: {
+  id?: string;
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-24 overflow-hidden rounded border border-line bg-surface">
+      <header className="border-b border-line px-3.5 py-2">
+        <h2 className="text-sm font-medium">{title}</h2>
+        {hint ? <p className="mt-1 text-xs leading-relaxed text-muted">{hint}</p> : null}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** 页内子页签：点一下滚过去，滚动时高亮当前块。和资金页同一套。 */
+function FactorTabs() {
+  const [active, setActive] = useState<string>(TABS[0].id);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        }
+      },
+      { rootMargin: "-10% 0px -75% 0px" },
+    );
+    for (const tab of TABS) {
+      const el = document.getElementById(tab.id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div className="flex gap-0.5 overflow-x-auto scroll-slim">
+      {TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => {
+            setActive(tab.id);
+            document.getElementById(tab.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          aria-pressed={active === tab.id}
+          className={
+            "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
+            (active === tab.id ? "bg-surface-2 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")
+          }
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FactorsPage() {
+  const data = Route.useLoaderData();
+  const runs = data.runs;
+  const diag = data.diag;
+  const baseline = data.baseline;
+
+  const rows = useMemo(() => factorRows(runs.batch?.rows ?? []), [runs.batch]);
+  const summary = useMemo(() => batchSummary(runs.batch?.rows ?? []), [runs.batch]);
+  const flowGroups = useMemo(() => flowStress(diag.flowProbe), [diag.flowProbe]);
+
+  const runAt = runs.batch?.at ? new Date(runs.batch.at).toLocaleString("zh-CN", { hour12: false }) : null;
+
+  return (
+    <Frame aside={runAt ? `因子批次 ${runAt}` : undefined}>
+      <FactorTabs />
+
+      {/* 1 结论 */}
+      <Section
+        id="factor-verdict"
+        title="现在能下结论吗"
+        hint="数字全部从 data/backtest/ 的产物算出，重跑回测会自动更新。结论只针对「单因子」这一层，不含组合。"
+      >
+        {runs.batch ? (
+          <div className="px-3.5 py-4">
+            <div className="text-xs tracking-wide text-muted">这一轮挖出来的因子里，有几个过了全部 6 关</div>
+            <p
+              className={`mt-3 font-medium leading-none tracking-tight ${summary.passed > 0 ? "text-fg" : "text-warn"}`}
+              style={{ fontSize: "clamp(28px, 4vw, 42px)" }}
+            >
+              {summary.total} 个里 {summary.passed} 个
+            </p>
+            <p className="mt-3 max-w-[56ch] text-xs leading-relaxed text-muted">
+              0 个过关不等于挖得不用心——是这套数据、这套判据下确实没有一个站得住的单因子。
+              {summary.strongest
+                ? ` |t| 最大的是「${summary.strongest.name}」（${summary.strongest.t.toFixed(2)}），也只过了 ${summary.strongest.passed}/6 关。`
+                : ""}
+            </p>
+            <div className="mt-5 grid gap-px bg-line sm:grid-cols-3">
+              {summary.nearMiss.slice(0, 3).map((row) => (
+                <Stat
+                  key={row.id}
+                  label={`最接近的：${row.name}`}
+                  value={`${row.passed}/${row.total} 关`}
+                  hint={`t=${row.t.toFixed(2)}，缺的那关：${
+                    row.gates.find((g) => g.pass !== true)?.key.toUpperCase() ?? "—"
+                  }`}
+                  className="bg-surface"
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="px-3.5 py-4">
+            <StateBlock
+              kind="empty"
+              title="因子判决还没跑出数据"
+              hint={`本机没有 data/backtest/factor-runs.jsonl。${RERUN_HINT}。data/ 不在 git 里，换机器要重跑。`}
+            />
+          </div>
+        )}
+      </Section>
+
+      {/* 2 六关判决 */}
+      <Section
+        id="factor-gates"
+        title="6 关判决总表"
+        hint="点因子名就地展开：五档形状 + 每关判据原话 + 跑之前写下的方向理由。t 日收盘排序，次日开盘等权买入、持有 10 天后按收盘卖出，收益减同期全池。「—」表示这一关这次没做或没记，不是没通过。"
+      >
+        {rows.length > 0 ? (
+          <div>
+            <FactorGateTable rows={rows} />
+            <p className="px-3 py-2 text-[11px] leading-relaxed text-muted">
+              六关判什么：G1 单调且方向符合预注册（Spearman ≥0.8）· G2 |t|≥2 · G3 前后两段同号且各 |t|≥1 ·
+              G4 换一批不重叠的股票仍同号且 |t|≥2 · G5 Bonferroni 按已测总数 N 收紧临界 · G6 顶档被可交易闸挡掉 ≤50%。
+            </p>
+          </div>
+        ) : (
+          <div className="px-3.5 py-4">
+            <StateBlock kind="empty" title="没有可展示的判决" hint={runs.missing ?? RERUN_HINT} />
+          </div>
+        )}
+      </Section>
+
+      {/* 3 分档明细 */}
+      <Section
+        id="factor-buckets"
+        title="分档均值明细"
+        hint="每一档是这一档所有票未来 10 天收益减去同期全池等权的平均——是超额，不是收益。看形状比看单个数字重要：单调才算数。"
+      >
+        {rows.length > 0 ? (
+          <Table className="data-table" caption="各因子五档平均超额，从因子值最低档到最高档">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={thClass("text-left")}>因子</th>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <th key={i} className={thClass()}>
+                    档{i}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b border-line last:border-b-0">
+                  <td data-l="因子" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
+                    <span className="font-medium">{row.name}</span>
+                    <span className="ml-1.5 text-[11px] text-muted">{row.category}</span>
+                  </td>
+                  {row.bucketMeans.map((v, i) => (
+                    <td key={i} data-l={`档${i + 1}`} className={tdClass(pctClass(v * 100))}>
+                      {signedPct(v * 100)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        ) : (
+          <div className="px-3.5 py-4">
+            <StateBlock kind="empty" title="没有分档数据" hint={runs.missing ?? RERUN_HINT} />
+          </div>
+        )}
+      </Section>
+
+      {/* 4 缩量归因 */}
+      <Section
+        id="factor-attrib"
+        title="缩量天数归因"
+        hint="缩量天数是 |t| 最大、最有希望的一个，但 G3 两段翻号没过关。这一块是「为什么没过关」的解释，它本身不是过关证明。"
+      >
+        {diag.shrinkFlip ? (
+          <ShrinkFlipPanel diag={diag.shrinkFlip} bull={diag.shrinkBull} />
+        ) : (
+          <div className="px-3.5 py-4">
+            <StateBlock
+              kind="empty"
+              title="归因诊断还没跑"
+              hint={
+                "在本机跑：BT_FACTOR=1 BT_N=10 BT_DIAG=shrinkDays BT_NO_LOG=1 node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts" +
+                "（BT_NO_LOG=1 必须带，否则会往因子日志里多塞一批）"
+              }
+            />
+          </div>
+        )}
+      </Section>
+
+      {/* 5 资金流探路 */}
+      <Section
+        id="factor-flow"
+        title="资金流探路"
+        hint="量价之外换了个维度再试：东财个股日级主力净流入。窗口只有 120 个交易日，G3 两段各 60 天偏短——这里的 t 只当方向，不当过关。"
+      >
+        {flowGroups.length > 0 ? (
+          <FlowProbePanel groups={flowGroups} />
+        ) : (
+          <div className="px-3.5 py-4">
+            <StateBlock
+              kind="empty"
+              title="资金流探路还没跑"
+              hint={
+                "两步：先 node scripts/build-flow.mjs 拉 300 只票的资金流缓存（约 10 分钟），" +
+                "再 for N in 5 10 20; do BT_FLOW=1 BT_N=$N node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts; done"
+              }
+            />
+          </div>
+        )}
+      </Section>
+
+      {/* 6 基线原文 */}
+      <Section
+        id="factor-baseline"
+        title="回测基线原文"
+        hint="整段原文，一字未加工。它是人工维护的结论记录，时间可能和上面最新批次对不上——以块里的数字为准。"
+      >
+        {baseline.text ? (
+          <details className="px-3.5 py-3">
+            <summary className="cursor-pointer text-xs text-muted">
+              {baseline.name}（{(baseline.bytes / 1024).toFixed(1)} KB，默认收起）
+            </summary>
+            <pre className="mt-3 max-h-[70vh] overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed">
+              {baseline.text}
+            </pre>
+          </details>
+        ) : (
+          <div className="px-3.5 py-4">
+            <StateBlock kind="empty" title="没有基线文本" hint={baseline.missing ?? "跑一次回测后会写 baseline-*.txt"} />
+          </div>
+        )}
+      </Section>
+
+      <p className="px-1 text-[11px] leading-relaxed text-warn">
+        超额 ≠ 收益；|t| &lt; 2 等于没测出来；两段翻号 = 不能用；禁调参过关。
+      </p>
+    </Frame>
+  );
+}

@@ -19,6 +19,8 @@ const LINKS = [
   { to: "/news", label: "消息" },
   { to: "/symbol", label: "个股" },
   { to: "/flow", label: "资金" },
+  // 因子研究：这一页不是盯盘用的，是看「这套规则到底有没有信号」的判据，放最后
+  { to: "/factors", label: "因子" },
 ] as const;
 
 const TYPE_SIZES = [

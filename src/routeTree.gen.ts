@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FactorsRouteImport } from './routes/factors'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as PositionsRouteImport } from './routes/positions'
@@ -18,6 +19,11 @@ import { Route as SymbolRouteImport } from './routes/symbol'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FactorsRoute = FactorsRouteImport.update({
+  id: '/factors',
+  path: '/factors',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FlowRoute = FlowRouteImport.update({
@@ -43,6 +49,7 @@ const SymbolRoute = SymbolRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
@@ -65,14 +74,15 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/flow' | '/news' | '/positions' | '/symbol'
+  fullPaths: '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/flow' | '/news' | '/positions' | '/symbol'
-  id: '__root__' | '/' | '/flow' | '/news' | '/positions' | '/symbol'
+  to: '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
+  id: '__root__' | '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  FactorsRoute: typeof FactorsRoute
   FlowRoute: typeof FlowRoute
   NewsRoute: typeof NewsRoute
   PositionsRoute: typeof PositionsRoute
@@ -86,6 +96,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/factors': {
+      id: '/factors'
+      path: '/factors'
+      fullPath: '/factors'
+      preLoaderRoute: typeof FactorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/flow': {
@@ -121,6 +138,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  FactorsRoute: FactorsRoute,
   FlowRoute: FlowRoute,
   NewsRoute: NewsRoute,
   PositionsRoute: PositionsRoute,

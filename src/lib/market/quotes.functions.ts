@@ -14,6 +14,7 @@ import { readRules, writeRules } from "@/lib/market/rules-file";
 import { parseRules } from "@/lib/market/rules";
 import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
+import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/factor-runs-file";
 import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
@@ -435,3 +436,17 @@ export const savePrefs = createServerFn({ method: "POST" })
     return parsed;
   })
   .handler(async ({ data }) => writePrefs(data));
+
+// ── 因子研究页（/factors）的三个数据源 ──────────────────────────
+// 这三条读的都是 data/backtest/ 下的本地产物。data/ 在 .gitignore 里，
+// 线上和新机器必然读不到——所以读不到要带回 why，让页面说「还没跑」并给重跑命令，
+// 绝不能返回空集合冒充「0 个因子」。
+
+/** 最近一次因子 6 关判决。 */
+export const getFactorRuns = createServerFn({ method: "GET" }).handler(async () => readFactorRuns());
+
+/** 缩量天数归因 + 资金流探路。 */
+export const getFactorDiag = createServerFn({ method: "GET" }).handler(async () => readFactorDiag());
+
+/** 回测基线原文（纯文本，不做任何解析）。 */
+export const getFactorBaseline = createServerFn({ method: "GET" }).handler(async () => readBaseline());

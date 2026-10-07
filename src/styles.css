@@ -213,6 +213,19 @@ html[data-theme="light"] {
   .data-table tbody td[data-opt] {
     display: none;
   }
+  /* 因子页展开的详情行：它只有一个跨列的 td，上面那条 3 列 grid 会把它撕成三块。
+     详情行是块状的正文，不该走卡片流那一套。 */
+  .data-table tbody tr[data-detail] {
+    display: block;
+    padding: 8px 2.5px;
+  }
+  .data-table tbody tr[data-detail] td {
+    padding: 0;
+    border: 0;
+  }
+  .data-table tbody tr[data-detail] td::before {
+    display: none;
+  }
   .data-table tbody tr:hover td,
   .data-table tbody tr:hover td:first-child {
     background: none;
