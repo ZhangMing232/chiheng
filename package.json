@@ -27,6 +27,8 @@
     "typecheck": "tsc --noEmit",
     "check:auth": "node scripts/check-auth-invariant.mjs",
     "test": "NODE_ENV=test node --test 'scripts/**/*.test.mjs' && NODE_ENV=test node --experimental-strip-types --import ./scripts/alias.mjs --test 'src/**/*.test.ts'",
+    "trade:dry": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/live-trader.ts",
+    "trade:live": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/live-trader.ts --confirm",
     "test:bridge": "NODE_ENV=test node scripts/test-bridge-contract.mjs",
     "test:all": "npm test && npm run test:bridge",
     "lint": "eslint .",
