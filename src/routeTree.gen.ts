@@ -77,7 +77,8 @@ export interface FileRouteTypes {
   fullPaths: '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
-  id: '__root__' | '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
+  id:
+    '__root__' | '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
