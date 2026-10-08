@@ -27,6 +27,7 @@ import { boardLimit, HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market
 import { ACTIVE_STYLES, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
+import { intradayFill } from "../src/lib/market/intraday-fill.ts";
 
 type Trade = {
   id: string;
@@ -39,6 +40,14 @@ type Trade = {
   hold?: number;
   exit: number | null;
   exitDate: string | null;
+  /**
+   * 卖出价是「盘中现价快照」还是「日线撮合」。没这个字段 = 2026-10-08 之前的旧账。
+   *
+   * 两者可信度不同：盘中只有触发那一刻的现价，没有开盘价也没有 high/low，跳空穿
+   * 止损只能按现价记；日线才有完整的跳空修正。**不要把两者混在一起算统计**——
+   * 旧账的卖出价一律是计划价、账面系统性偏乐观（见 data/books/PRE-FIX-NOTE.md）。
+   */
+  exitKind?: "intraday" | "daily";
 };
 
 type Day = {
@@ -282,16 +291,19 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
         const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
         const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
         const label = `${style} ${trade.name}`.trim();
-        const hit = quote.price <= plan.stop ? "stop" : quote.price >= plan.target ? "target" : null;
-        if (!hit) continue;
-        const key = `${userId}:${day.date}:${trade.id}:${hit}`;
+        // 判定和记账用同一个价（intradayFill），曾经这里判定用现价、记账用计划价，
+        // 账上虚记最多 9.5 个百分点，而 hardGate 读的就是这个数。详见 intraday-fill.ts。
+        const fill = intradayFill(quote.price, plan.stop, plan.target);
+        if (!fill) continue;
+        const key = `${userId}:${day.date}:${trade.id}:${fill.reason}`;
         if (!alerts.has(key)) {
           alerts.add(key);
           alertsChanged = true;
-          if (speak) (hit === "stop" ? stops : targets).push(label);
+          if (speak) (fill.reason === "stop" ? stops : targets).push(label);
         }
-        trade.exit = hit === "stop" ? plan.stop : plan.target;
+        trade.exit = fill.price;
         trade.exitDate = phase.date;
+        trade.exitKind = "intraday";
         changed = true;
       }
     }
@@ -345,6 +357,7 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           }
           trade.exit = filled.price;
           trade.exitDate = filled.date;
+          trade.exitKind = "daily";
           changed = true;
           const key = `${userId}:${day.date}:${trade.id}:${filled.reason}`;
           if (filled.reason === "time" && !alerts.has(key)) {
