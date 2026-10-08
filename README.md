@@ -126,6 +126,8 @@ cd /Volumes/colorful/chiheng && npm run install:mac
 
 账本在 `data/books/`，只在这台电脑上，不会进 Git。更新代码不会删账。
 
+每天的状态只有两种：`locked` 是当天第一批信号在收盘（15:00）封盘后才记的，`provisional` 是盘中记的。`provisional` 之后不会变成 `locked`，这不是结算丢失，是标注信号时点；持仓的卖出盯盘不受这个标签影响，照样自动成交。
+
 **项目放在外置硬盘上也可以，但要额外做一步。** macOS 的隐私保护不让 launchd 进可移动磁盘
 （会报 `getcwd: Operation not permitted`、退出码 78），所以自启配置里不能写 `WorkingDirectory`，
 改由 `scripts/start-mac.sh` 自己进目录；`npm run install:mac` 已经按这个要求生成配置了。
