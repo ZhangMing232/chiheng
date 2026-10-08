@@ -352,6 +352,30 @@ export const getHotMoney = createServerFn({ method: "GET" }).handler(async () =>
 /** 给页面用的股指期货持仓。没有参数。单位是手。 */
 export const getIndexFutures = createServerFn({ method: "GET" }).handler(async () => loadIndexFutures());
 
+/**
+ * 顶栏全局搜索（⌘K）。按名称或六位代码在全市场里找，最多 8 条。
+ * 空查询直接回空，不拉行情——省得每次点开下拉都去请求一遍。
+ */
+export const getQuickSearch = createServerFn({ method: "GET" })
+  .validator((data: unknown) => {
+    const q =
+      typeof data === "object" && data !== null && "q" in data && typeof (data as { q?: unknown }).q === "string"
+        ? (data as { q: string }).q.trim().slice(0, 20)
+        : "";
+    return { q };
+  })
+  .handler(async ({ data }) => {
+    if (!data.q) return { matches: [] as { id: string; code: string; name: string; chg: number | null }[] };
+    const universe = await loadUniverse(false).catch(() => null);
+    if (!universe) return { matches: [] as { id: string; code: string; name: string; chg: number | null }[] };
+    const needle = data.q.toLowerCase();
+    const matches = universe.quotes
+      .filter((quote) => quote.name.toLowerCase().includes(needle) || quote.code.includes(needle))
+      .slice(0, 8)
+      .map((quote) => ({ id: quote.id, code: quote.code, name: quote.name, chg: quote.chg }));
+    return { matches };
+  });
+
 /** 给页面用的日 K。传入 { id }，id 必须是 sh、sz 或 bj 加六位代码。 */
 export const getKline = createServerFn({ method: "GET" })
   .validator((data: unknown) => {

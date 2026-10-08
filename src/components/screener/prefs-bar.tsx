@@ -53,7 +53,7 @@ function Row<T extends string>({
               "h-9 rounded px-3 text-sm " +
               // 选中的那项用 brand-soft 垫底——app.html 的按压态就是这套。
               // 原来是整块品牌红 + 白字，一排里最扎眼的不是你选的，是按钮本身
-              (value === option.id ? "bg-brand-soft font-medium text-brand" : "bg-surface-2 text-fg")
+              (value === option.id ? "bg-brand-soft font-medium text-brand-text" : "bg-surface-2 text-fg")
             }
           >
             {option.label}

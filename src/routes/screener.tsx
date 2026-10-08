@@ -15,7 +15,7 @@ import { DEFAULT_RULES } from "@/lib/market/rules";
 import { DEFAULT_PREFS } from "@/lib/market/prefs";
 
 /** 首页路由。进页面之前把选股要的数据一次取好；失败就用空数据加一句说明。 */
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/screener")({
   loader: async () => {
     const phase = sessionPhase();
     try {

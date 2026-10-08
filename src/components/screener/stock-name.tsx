@@ -44,7 +44,7 @@ export function StockName({
       type="button"
       onClick={() => open(id, source)}
       title={title ?? "点开看详情"}
-      className={`cursor-pointer text-left hover:text-brand hover:underline ${className}`}
+      className={`cursor-pointer text-left hover:text-brand-text hover:underline ${className}`}
     >
       {name}
     </button>

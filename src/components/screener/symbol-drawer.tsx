@@ -377,7 +377,7 @@ function SymbolPanel({ id }: { id: string }) {
                     href={article.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="block hover:text-brand hover:underline"
+                    className="block hover:text-brand-text hover:underline"
                   >
                     {article.title}
                   </a>

@@ -144,7 +144,7 @@ export function Tag({
     up: "bg-up-soft text-up",
     down: "bg-down-soft text-down",
     warn: "bg-warn-soft text-warn",
-    brand: "bg-brand-soft text-brand",
+    brand: "bg-brand-soft text-brand-text",
   } as const;
   return <span className={`rounded px-1 py-px text-xs ${map[tone]}`}>{children}</span>;
 }

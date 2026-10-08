@@ -5,21 +5,29 @@
     "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
   --font-serif: "WenQuanYi Zen Hei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
     "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
-  --color-bg: #0e1218;
+  /* 深色基调按《赤轨 UI 重设计方案》PPT 对齐（2026-10-08）：
+     页面底 #0B0E15、卡片 #131926、悬停 #1A2233、
+     涨/买入 #F2495C、跌/卖出 #0BB97B、链接/辅助 #3D8BFF、品牌赤 #E63C4F。 */
+  --color-bg: #0b0e15;
   --color-fg: #eef2f6;
   --color-muted: #8b95a6;
-  --color-surface: #161c25;
-  --color-surface-2: #1e2632;
-  --color-line: #2c3544;
-  --color-up: #ff6b6b;
-  --color-down: #3ecb8e;
-  --color-up-soft: #3a1e26;
-  --color-down-soft: #143028;
-  /* brand 只用在两处：顶部 2px 品牌条和焦点环。正文区全是中性灰。
-     这个值按 AA 反推过：在 surface-2(#1e2632) 上 4.71、在 brand-soft 上 4.66，
-     都比 4.5 高一点。原来的 #e35d55 在 surface-2 上只有 4.33，浅色 Tag 会踩线。 */
-  --color-brand: #e8665e;
-  --color-brand-soft: #38201f;
+  --color-surface: #131926;
+  --color-surface-2: #1a2233;
+  --color-line: #242f45;
+  --color-up: #f2495c;
+  --color-down: #0bb97b;
+  --color-up-soft: #2e1f2c;
+  --color-down-soft: #173730;
+  /* 品牌赤（PPT #E63C4F）：只给大面积装饰——2px 品牌条、焦点环、导航激活垫底、
+     名字旁竖条。小字号品牌文字用 --color-brand-text（见下），那个才过 AA。 */
+  --color-brand: #e63c4f;
+  /* 品牌色的小字号文字版。#E63C4F 在 surface-2 上只有 3.88，不达 AA 4.5；
+     提亮到 #F0566A 后是 4.73 / 4.90，合格。两处肉眼几乎看不出差别。 */
+  --color-brand-text: #f0566a;
+  --color-brand-soft: #2c1d2b;
+  /* 链接与可点击强调（PPT #3D8BFF）：跳转、次级数据系列、可点提示。 */
+  --color-accent: #3d8bff;
+  --color-accent-soft: #182740;
   /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
      也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
   --color-warn: #e8a33d;

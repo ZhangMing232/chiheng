@@ -109,7 +109,7 @@ function SymbolPage() {
                 setValue(item.code);
                 void navigate({ to: "/symbol", search: { q: item.code } });
               }}
-              className={"shrink-0 rounded border px-2.5 py-1.5 text-xs " + (data.picked?.id === item.id ? "border-brand bg-brand-soft font-medium text-brand" : "border-line text-muted")}
+              className={"shrink-0 rounded border px-2.5 py-1.5 text-xs " + (data.picked?.id === item.id ? "border-brand bg-brand-soft font-medium text-brand-text" : "border-line text-muted")}
             >
               {item.name} {item.code}
             </button>

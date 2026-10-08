@@ -39,6 +39,7 @@ export type HotkeyHandlers = {
  * 不要在别处另写一份文案。
  */
 export const HOTKEYS: { keys: string[]; label: string; desc: string; group: string }[] = [
+  { keys: ["⌘", "K"], label: "全局搜索", desc: "跳到顶栏搜索框，输入代码或名称搜全市场", group: "页面" },
   { keys: ["F5"], label: "刷新", desc: "重跑当前页的 loader，复用行情缓存", group: "页面" },
   { keys: ["⌥", "F5"], label: "强制重拉行情", desc: "绕过缓存真拉一遍全市场。慢，且腾讯可能限流", group: "页面" },
   { keys: ["r"], label: "刷新", desc: "和 F5 同一件事", group: "页面" },

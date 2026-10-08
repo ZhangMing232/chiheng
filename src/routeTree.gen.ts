@@ -14,6 +14,7 @@ import { Route as FactorsRouteImport } from './routes/factors'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as PositionsRouteImport } from './routes/positions'
+import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const PositionsRoute = PositionsRouteImport.update({
   path: '/positions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ScreenerRoute = ScreenerRouteImport.update({
+  id: '/screener',
+  path: '/screener',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
+  '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
+  '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesById {
@@ -70,15 +78,37 @@ export interface FileRoutesById {
   '/flow': typeof FlowRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
+  '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
+  fullPaths:
+    | '/'
+    | '/factors'
+    | '/flow'
+    | '/news'
+    | '/positions'
+    | '/screener'
+    | '/symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
+  to:
+    | '/'
+    | '/factors'
+    | '/flow'
+    | '/news'
+    | '/positions'
+    | '/screener'
+    | '/symbol'
   id:
-    '__root__' | '/' | '/factors' | '/flow' | '/news' | '/positions' | '/symbol'
+    | '__root__'
+    | '/'
+    | '/factors'
+    | '/flow'
+    | '/news'
+    | '/positions'
+    | '/screener'
+    | '/symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -87,6 +117,7 @@ export interface RootRouteChildren {
   FlowRoute: typeof FlowRoute
   NewsRoute: typeof NewsRoute
   PositionsRoute: typeof PositionsRoute
+  ScreenerRoute: typeof ScreenerRoute
   SymbolRoute: typeof SymbolRoute
 }
 
@@ -127,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PositionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/screener': {
+      id: '/screener'
+      path: '/screener'
+      fullPath: '/screener'
+      preLoaderRoute: typeof ScreenerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symbol': {
       id: '/symbol'
       path: '/symbol'
@@ -143,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   FlowRoute: FlowRoute,
   NewsRoute: NewsRoute,
   PositionsRoute: PositionsRoute,
+  ScreenerRoute: ScreenerRoute,
   SymbolRoute: SymbolRoute,
 }
 export const routeTree = rootRouteImport
