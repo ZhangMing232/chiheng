@@ -48,6 +48,7 @@ import {
   diagnoseShrinkBull,
 } from "@/lib/market/factors";
 import type { FactorRun, DailyRow } from "@/lib/market/factors";
+import { detectWyckoffSpring } from "@/lib/market/wyckoff-spring";
 
 /** 回测多长。250 个交易日约等于一年。 */
 const LOOKBACK = 250;
@@ -217,7 +218,19 @@ async function factorPrep(sampleIds: string[], capFloor: number) {
 }
 
 /** 只用第 i 天及之前的数据算指标。这是「无前视」的落地点。 */
-function metrics(rows: Row[], i: number, floatCap: number | null = null, turnoverGateOn = false) {
+/**
+ * 第 i 天的全部指标。**只用 <= i 的数据，无前视。**
+ *
+ * id 只给威科夫 Spring 的跌停闸用（判板位），其余逻辑不依赖它，
+ * 所以放在末尾且有默认值——现有调用点一行都不用改。
+ */
+function metrics(
+  rows: Row[],
+  i: number,
+  floatCap: number | null = null,
+  turnoverGateOn = false,
+  id = "",
+) {
   const at = (k: number) => (i - k >= 0 ? rows[i - k].c : null);
   const c = rows[i].c;
   const pct = (base: number | null) => (base && base > 0 ? ((c - base) / base) * 100 : null);
@@ -276,6 +289,14 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
     else break;
   }
 
+  // 威科夫 Spring（假跌破）。阈值与标定纪律见 src/lib/market/wyckoff-spring.ts。
+  //
+  // ⚠️ buildDaily 的 `idx < 61` 会让第 61~65 天的票恒无 Spring（它要回看到 i-65）。
+  // 这是**样本起点少几天，不是前视泄漏**——宁可少算也不偷看。
+  // ⚠️ boardLimit(id, "") 判不出 ST（回测没有股票名），所以回测里 ST 股的跌停闸偏松，
+  // 这类票会混进 Spring 样本。K 线不带 ST 标记，本轮无法修。
+  const spring = detectWyckoffSpring(rows, i, boardLimit(id, ""));
+
   return {
     c,
     prev,
@@ -321,6 +342,11 @@ function metrics(rows: Row[], i: number, floatCap: number | null = null, turnove
     lowerWick,
     volCompress,
     downStreak,
+    // Spring 四件套。都是 null 而不是 0：null 是「没 Spring」，0 会被读成「强度为零」。
+    springStrength: spring ? spring.strength : null,
+    springAge: spring ? spring.age : null,
+    springLow: spring ? spring.springLow : null,
+    springRangeHigh: spring ? spring.springLow + spring.rangeHeight : null,
   };
 }
 
@@ -750,7 +776,7 @@ async function main() {
       // 找到这只票在第 t 天的位置：只能用 <= t 的数据
       const idx = idxOf.get(id)?.get(dates[t]) ?? -1;
       if (idx < 61) continue;
-      const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate);
+      const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate, id);
       for (const [key, def] of Object.entries(STRATEGIES)) {
         const sig = def.fn(m, stopPct);
         if (sig) picks[key].push({ id, sig });
@@ -1053,7 +1079,7 @@ async function main() {
           const inPrice = rows[nIdx].o;
           const outPrice = rows[xIdx].c;
           if (!(inPrice > 0) || !(outPrice > 0)) continue;
-          const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate);
+          const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate, id);
           // 回测侧可交易近似：股价 >= 4、流通市值（快照）>= 40 亿。
           // ST 标记和真实涨跌停回测里拿不到，这里只做能确定的。
           const tradable = m.c >= 4 && (m.floatCap == null || m.floatCap >= 40);

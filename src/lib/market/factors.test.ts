@@ -46,6 +46,20 @@ test("因子注册表：每个因子都有方向假设和经济逻辑（预注�
   }
 });
 
+test("威科夫Spring 已注册，且上一版失败的 wyckoffAccum 已下线", () => {
+  const ids = FACTORS.map((f) => f.id);
+  assert.ok(ids.includes("springStrength"), "Spring 因子要注册");
+  // 失败的乘积版不能留着当「备选」——那等于给自己留一个回头调参的后门
+  assert.ok(!ids.includes("wyckoffAccum"), "wyckoffAccum 必须删掉");
+  const spring = FACTORS.find((f) => f.id === "springStrength");
+  assert.ok(spring);
+  assert.equal(spring.direction, 1, "强度越大越好，预注册方向应为正向");
+  // 这两处是「刻意偏离威科夫原文」的地方，删了就等于把已验证的负收益条件请回来
+  assert.ok(spring.rationale.includes("刻意偏离"), "rationale 必须写清刻意偏离原文");
+  assert.ok(spring.rationale.includes("缩量"), "rationale 必须写清缩量条件是反的");
+  assert.ok(spring.rationale.includes("G6"), "rationale 必须预披露 G6 风险");
+});
+
 test("analyzeFactors：正相关因子应该分档单调、顶底 spread 为正", () => {
   const daily = [];
   for (let day = 0; day < 2; day += 1) {

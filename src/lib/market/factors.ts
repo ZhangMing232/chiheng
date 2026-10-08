@@ -67,6 +67,14 @@ export interface MetricRow {
   volCompress: number | null;
   /** 连跌天数：截至今日连续「收盘 < 前收」的天数。今日收阳则 0。 */
   downStreak: number;
+  /** 最近 6 日内最强威科夫 Spring 的强度 0~1。null = 最近没有 Spring，不是 0。 */
+  springStrength: number | null;
+  /** 那个 Spring 距今几天。0 = 就是今天。null = 没有 Spring。 */
+  springAge: number | null;
+  /** Spring 那根 K 线的最低价 = 结构失效位 = 止损价。null = 没有 Spring。 */
+  springLow: number | null;
+  /** Spring 所在区间的区间高点（算威科夫量幅目标用）。null = 没有 Spring。 */
+  springRangeHigh: number | null;
 }
 
 /**
@@ -114,16 +122,27 @@ export const FACTORS: Factor[] = [
   { id: "volCompress", name: "波动压缩", category: "波动率", direction: -1, rationale: "短期波动相对长期收缩=蓄势，延续低波动异象。", get: (m) => m.volCompress },
   { id: "downStreak", name: "连跌天数", category: "反转", direction: -1, rationale: "连续下跌越久越超跌，均值回归倾向越强。", get: (m) => m.downStreak },
   {
-    id: "wyckoffAccum",
-    name: "威科夫吸筹",
-    category: "量能",
-    direction: -1,
+    id: "springStrength",
+    name: "威科夫Spring",
+    category: "形态",
+    direction: 1,
     rationale:
-      "威科夫吸筹结构：大幅下跌之后缩量整理。逻辑是「跌透 + 卖压耗尽」两件事同时发生——" +
-      "单看跌幅只是超跌，单看缩量可能只是没人要，两者的乘积才接近吸筹。" +
-      "用「60日跌幅 × (1 − 近5日均量/20日均量)」把这一结构数值化，值越负=越接近吸筹完成。" +
-      "选它还有个理由：项目已实测 d60 与 shrinkDays 几乎不相关（ρ=-0.079），两者是独立的，组合有正交空间。",
-    get: (m) => (m.d60 != null && m.volShrink > 0 ? m.d60 * (1 - m.volShrink) : null),
+      "威科夫 Spring（假跌破）：股价跌到吸筹区下沿之下、当天被拉回区间内，" +
+      "是抛压被吸收的证据。判四件事同时成立——最低价跌破前 60 日低点 0.5%~8%、" +
+      "收盘收回区间内、下影线占全幅 ≥40%、跌幅未封跌停（跌停穿下沿是 SC 破坏，语义相反）。" +
+      "强度 = 跌破深度×0.35 + 下影线×0.35 + 量比×0.20 + 收阳×0.10，再乘时效衰减。" +
+      "**本因子刻意偏离威科夫原文两处，别「修正」回去：**" +
+      "（1）**不设缩量条件，且量比越大越好**——原文说 Spring 当日应缩量至均量 30~50%，" +
+      "按原文实现实测是负收益（量比<0.5 时前瞻 10 日超额 -0.54%，t=-1.00），分档单调递增到" +
+      "≥0.9 组 +1.27%（t=7.88）。A 股假跌破当天缩量说明没人接盘，放量长下影才说明有资金主动接货。" +
+      "（2）**只要求收在区间低点之上**，不要求回到区间 30% 位置——后者会把样本从 475 砍到 0，那是求新高。" +
+      "四项权重是预注册值不是网格搜索拟合的（权重搜索等于偷偷多测几百个因子而 Bonferroni 仍按 1 个算）。" +
+      "选它的理由：上一版 wyckoffAccum（d60×(1−volShrink) 的简单乘积）t=-1.69 不过 G2，比两个单因子都弱——" +
+      "威科夫的核心是结构与序列，不是同一时刻两个数值相乘。" +
+      "⚠️ 已知局限：本因子强度集中在低价小市值票上，回测侧 tradable（股价≥4、市值≥40亿）" +
+      "会挡掉顶档相当一部分，G6 有真实挂点风险。若 G6 不过，解读是「超额集中在我们买不到的小票上」，" +
+      "**不是「把闸门调低就能过」**——闸门对应真实下单约束。",
+    get: (m) => m.springStrength,
   },
 ];
 
