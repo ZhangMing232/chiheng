@@ -113,6 +113,18 @@ export const FACTORS: Factor[] = [
   { id: "lowerWick", name: "下影线占比", category: "形态", direction: -1, rationale: "长下影线=当日下方有承接，超跌后倾向反弹。", get: (m) => m.lowerWick },
   { id: "volCompress", name: "波动压缩", category: "波动率", direction: -1, rationale: "短期波动相对长期收缩=蓄势，延续低波动异象。", get: (m) => m.volCompress },
   { id: "downStreak", name: "连跌天数", category: "反转", direction: -1, rationale: "连续下跌越久越超跌，均值回归倾向越强。", get: (m) => m.downStreak },
+  {
+    id: "wyckoffAccum",
+    name: "威科夫吸筹",
+    category: "量能",
+    direction: -1,
+    rationale:
+      "威科夫吸筹结构：大幅下跌之后缩量整理。逻辑是「跌透 + 卖压耗尽」两件事同时发生——" +
+      "单看跌幅只是超跌，单看缩量可能只是没人要，两者的乘积才接近吸筹。" +
+      "用「60日跌幅 × (1 − 近5日均量/20日均量)」把这一结构数值化，值越负=越接近吸筹完成。" +
+      "选它还有个理由：项目已实测 d60 与 shrinkDays 几乎不相关（ρ=-0.079），两者是独立的，组合有正交空间。",
+    get: (m) => (m.d60 != null && m.volShrink > 0 ? m.d60 * (1 - m.volShrink) : null),
+  },
 ];
 
 /** 一次因子检验里，单个因子的分档结果（某一段区间、某一份样本）。 */
