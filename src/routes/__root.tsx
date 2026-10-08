@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { HotkeyProvider } from "@/lib/ui/hotkeys";
+import { SymbolDrawer } from "@/components/screener/symbol-drawer";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "赤轨 · 策略实验台";
@@ -56,6 +57,8 @@ export const Route = createRootRoute({
             {/* 快捷键挂在比 Frame 高一层：抽屉和键位表要跨路由活着 */}
             <HotkeyProvider>
               <Outlet />
+              {/* 抽屉挂在路由根：任意页面点股票名都能开，不用穿过四层 Provider */}
+              <SymbolDrawer />
             </HotkeyProvider>
           </QueryClientProvider>
         </AuthProvider>

@@ -16,17 +16,29 @@ import { create } from "zustand";
 /** 从哪个页面点开的。null = 不是从页面点开的（快捷键、Toast 等）。 */
 export type SymbolSource = "screener" | "positions" | "flow" | "news" | "alert" | null;
 
+/**
+ * 选股页额外知道的东西：这只票在当前模型里的得分和入选理由。
+ * 别的页面不知道这两个数（它们只看得到行情和账本），所以是可选的——
+ * 抽屉拿不到就显示「未参加当前模型」，不能编一个分数出来。
+ */
+export type SymbolNote = {
+  score: number | null;
+  reasons: string[];
+};
+
 type SymbolUiState = {
   /** 当前打开的股票 id（sh600519 这种带市场前缀的），null = 关闭 */
   id: string | null;
   source: SymbolSource;
-  open: (id: string, source?: SymbolSource) => void;
+  note: SymbolNote | null;
+  open: (id: string, source?: SymbolSource, note?: SymbolNote | null) => void;
   close: () => void;
 };
 
 export const useSymbolUi = create<SymbolUiState>()((set) => ({
   id: null,
   source: null,
-  open: (id, source = null) => set({ id, source }),
-  close: () => set({ id: null, source: null }),
+  note: null,
+  open: (id, source = null, note = null) => set({ id, source, note }),
+  close: () => set({ id: null, source: null, note: null }),
 }));

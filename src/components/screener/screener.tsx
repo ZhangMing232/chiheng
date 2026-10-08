@@ -9,7 +9,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { Detail } from "@/components/screener/detail";
 import { Journal } from "@/components/screener/paper";
 import { LabPanel } from "@/components/screener/lab-panel";
 import { Picks } from "@/components/screener/picks";
@@ -17,6 +16,7 @@ import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
 import { cycleTheme } from "@/components/screener/nav";
 import { useHotkeys } from "@/lib/ui/hotkeys";
+import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
@@ -68,7 +68,6 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [indices, setIndices] = useState(initial.indices);
   const [error, setError] = useState(initial.error);
   const [phase, setPhase] = useState(initial.phase);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [prefs, setPrefs] = useState(initial.prefs);
   const [recorder, setRecorder] = useState(initial.recorder);
   const [journal, setJournal] = useState(initial.journal);
@@ -116,18 +115,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     return () => window.clearInterval(timer);
   }, [phase.open, refresh]);
 
-  useEffect(() => {
-    if (!selectedId) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedId(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId]);
-
   // 全局快捷键。F5 / r 只复用缓存重跑本页；⌥F5 才真去拉全市场——
   // 全量重拉 5200 只会把腾讯顶到 WAF（quotes.functions.ts:34-38），所以放在要按两次的键上。
   const router = useRouter();
+  const openSymbol = useSymbolUi((s) => s.open);
   useHotkeys({
     onRefresh: () => {
       void refresh(false);
@@ -144,8 +135,6 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     return watchList(quotes, prefs.style, rules, (quote) => matchPrefs(quote, prefs));
   }, [quotes, rules, prefs, relay]);
 
-  const selected = quotes.find((quote) => quote.id === selectedId) ?? null;
-  const selectedRow = ranked.find((row) => row.quote.id === selectedId);
   const indexTime = indices.find((item) => item.time)?.time;
   const labReport = useMemo(() => buildLabReport(journal, rules), [journal, rules]);
 
@@ -230,17 +219,17 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             setPrefs(next);
             void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
           }}
-          onOpen={setSelectedId}
+          onOpen={(id) => {
+            // 抽屉改成全局的了（见 symbol-store）：这里不再持有 selectedId，
+            // 只负责把「模型得分 + 入选理由」一并带过去——别的页面打开时没有这两个数，
+            // 抽屉会显示「未参加当前模型」，不编分数。
+            const row = ranked.find((item) => item.quote.id === id);
+            openSymbol(id, "screener", {
+              score: row?.score ?? null,
+              reasons: row?.reasons ?? [],
+            });
+          }}
         />
-      {selected ? (
-        <Detail
-          quote={selected}
-          score={selectedRow?.score ?? null}
-          reasons={selectedRow?.reasons ?? []}
-          idle={!live}
-          onClose={() => setSelectedId(null)}
-        />
-      ) : null}
     </Frame>
   );
 }

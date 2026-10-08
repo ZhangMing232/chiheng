@@ -11,7 +11,8 @@
  * 折算名义金额**，不是投入的钱。收益率一律扣费。已实现和浮动分开显示。
  */
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
 import { DataStatusBadge, AccountStatus } from "@/components/screener/data-status";
 import { StateBlock } from "@/components/state-block";
@@ -20,7 +21,7 @@ import { signedPct, fmtPrice, fmtMoney, toneClass } from "@/lib/market/format";
 import { dayReliable, liveGate, recentMean } from "@/lib/market/journal-book";
 import { TRACK_NEED } from "@/lib/market/model";
 import { limitTag, planExit } from "@/lib/market/model";
-import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgency, type PositionRow } from "@/lib/market/positions";
+import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgency, tradeState, type PositionRow } from "@/lib/market/positions";
 import { STYLES, styleOf } from "@/lib/market/strategies";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
@@ -51,6 +52,7 @@ function weekdayOf(date: string): string {
 /** 把账本摊平成带收益率的行。未卖的去快照里找现价。 */
 function buildRows(days: PaperDay[], universe: Universe | null, rules: EarlyRules): PositionRow[] {
   const byId = new Map((universe?.quotes ?? []).map((q) => [q.id, q]));
+  const today = shanghaiDate();
   const rows: PositionRow[] = [];
   for (const day of days) {
     for (const trade of day.trades) {
@@ -58,18 +60,9 @@ function buildRows(days: PaperDay[], universe: Universe | null, rules: EarlyRule
       const price = live?.price ?? null;
       const ret = rowReturn(trade.entry, trade.exit, price);
       const exitPrice = trade.exit ?? price;
-      const state =
-        trade.exit != null
-          ? "已卖"
-          : day.date >= shanghaiDate()
-            ? "T+1"
-            : live && limitTag(live) === "跌停"
-              ? "跌停"
-              : live && live.price <= (trade.stop ?? planExit(trade.entry, null, rules).stop)
-                ? "止损"
-                : live && live.price >= (trade.target ?? planExit(trade.entry, null, rules).target)
-                  ? "卖出"
-                  : "持有";
+      // state 判定搬去了 lib/market/positions.ts 的 tradeState()——个股抽屉要用同一份，
+      // 两处各写一份迟早出现「持仓页说止损、抽屉说持有」。
+      const state = tradeState(trade, day.date, live, today, rules);
       rows.push({
         id: trade.id,
         code: trade.code,
@@ -126,9 +119,7 @@ function TradeTable({
           return (
             <tr key={`${row.day}-${row.id}-${row.exit ?? "open"}`} className="border-b border-line last:border-0 hover:bg-surface-2">
               <td data-l="名称" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
-                <Link to="/symbol" search={{ q: row.code }} className="font-medium hover:text-brand">
-                  {row.name}
-                </Link>
+                <StockName id={row.id} name={row.name} source="positions" className="font-medium" />
                 <div className="text-xs text-muted">
                   {row.code} · <Tag tone={tone}>{row.state}</Tag>
                 </div>

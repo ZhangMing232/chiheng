@@ -19,9 +19,50 @@
  */
 
 import { netReturn } from "@/lib/market/journal-book";
+import { planExit, limitTag } from "@/lib/market/model";
+import { shanghaiDate } from "@/lib/market/session";
+import type { Quote } from "@/lib/market/types";
+import type { EarlyRules } from "@/lib/market/rules";
 
 /** 一手是 100 股。「数量」按这个折算，见上面的口径说明。 */
 export const SHARES_PER_LOT = 100;
+
+/**
+ * 一笔成交现在是什么状态：已卖 / T+1 / 跌停 / 止损 / 卖出 / 持有。
+ *
+ * 为什么抽出来：这段判定原先内联在 `positions.tsx` 的 `buildRows` 里，而 PPT 要求的
+ * 「点任意股票滑出抽屉」意味着**持仓页和个股抽屉必须给出同一个 state**。
+ * 两处各写一份，迟早会出现「持仓页说止损、抽屉说持有」这种对不上的情况。
+ * 纯函数，能自动测——`npm test` 跑在 node 上不转译 JSX，所以判定逻辑必须住在 .ts 里。
+ *
+ * 判定顺序有讲究，不能重排：
+ *   已卖 > T+1 > 跌停 > 止损 > 卖出 > 持有。
+ * 跌停排在止损前面，因为跌停时价格已经等于或低于止损线，先判止损会把「卖不掉」说成
+ * 「该止损了」——这是两回事，一个是行情一个是操作。
+ */
+export function tradeState(
+  trade: { exit: number | null; entry: number; stop?: number | null; target?: number | null },
+  day: string,
+  live: Quote | null,
+  today: string,
+  rules: EarlyRules,
+): string {
+  if (trade.exit != null) return "已卖";
+  // 当天建的仓一律显示 T+1：A股当天不能卖，写「持有」会让人以为可以操作
+  if (day >= today) return "T+1";
+  if (live && limitTag(live) === "跌停") return "跌停";
+  if (live && trade.stop != null && live.price <= trade.stop) return "止损";
+  if (live && trade.target != null && live.price >= trade.target) return "卖出";
+  // 老账上的成交没有 stop/target 字段（只有 entry/exit），退回到按 chg 现算的默认档
+  if (live && trade.stop == null && live.price <= planExit(trade.entry, null, rules).stop) return "止损";
+  if (live && trade.target == null && live.price >= planExit(trade.entry, null, rules).target) return "卖出";
+  return "持有";
+}
+
+/** 今天的上海日期，抽出来给 tradeState 用（原来在 buildRows 里直接调 shanghaiDate()）。 */
+export function todayOf(): string {
+  return shanghaiDate();
+}
 
 /** 一笔成交，配上它属于哪一天、现在的价、以及算出来的收益率。 */
 export type PositionRow = {

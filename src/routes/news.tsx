@@ -8,6 +8,7 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router";
+import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
 import { Panel } from "@/components/terminal";
@@ -141,7 +142,7 @@ function ToneSide({
                 <li key={stock.id} className="border-t border-line py-2">
                   <div className="flex items-baseline justify-between gap-3">
                     <div className="min-w-0 truncate">
-                      {stock.name}
+                      <StockName id={stock.id} name={stock.name} source="news" />
                       <span className="ml-1.5 text-muted">{stock.code}</span>
                       {mark ? <span className={"ml-1.5 " + quiet}>{mark}</span> : null}
                     </div>

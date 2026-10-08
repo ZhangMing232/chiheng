@@ -10,6 +10,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { StockName } from "@/components/screener/stock-name";
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
@@ -140,7 +141,23 @@ function FlowTabs() {
   );
 }
 
-function List({ title, rows, hint }: { title: string; rows: FlowRow[]; hint?: string }) {
+/**
+ * 通用列表。加 renderName 是为了让「个股榜的股票名可点开抽屉、行业名不可点」这件事
+ * 由**调用方**决定——组件本身不该知道抽屉的存在。
+ * FlowRow.id 已经是 sh600519 这种带前缀的格式（实测腾讯资金榜原样返回），所以直接传给
+ * StockName 就行，不用反查。
+ */
+function List({
+  title,
+  rows,
+  hint,
+  renderName,
+}: {
+  title: string;
+  rows: FlowRow[];
+  hint?: string;
+  renderName?: (row: FlowRow) => ReactNode;
+}) {
   return (
     <Section title={title} hint={hint}>
       {rows.length === 0 ? (
@@ -151,7 +168,7 @@ function List({ title, rows, hint }: { title: string; rows: FlowRow[]; hint?: st
           {rows.map((row) => (
             <li key={row.id} className="flex items-baseline justify-between gap-3 border-t border-line px-3.5 py-2 first:border-t-0">
               <div className="min-w-0">
-                <div className="truncate font-medium">{row.name}</div>
+                <div className="truncate font-medium">{renderName ? renderName(row) : row.name}</div>
                 <div className="mt-0.5 text-xs text-muted">
                   <span className={toneClass(row.chg)}>{signedPct(row.chg)}</span>
                   {row.leader ? ` · 领涨 ${row.leader}` : null}
@@ -548,8 +565,18 @@ function FlowPage() {
         ) : null}
         {book ? (
           <div id="flow-stocks" className="scroll-mt-24 flex flex-col gap-3">
-            <List title="个股净流入" rows={book.stocksIn} hint="已去掉新股和 ST。" />
-            <List title="个股净流出" rows={book.stocksOut} hint="已去掉新股和 ST。" />
+            <List
+              title="个股净流入"
+              rows={book.stocksIn}
+              hint="已去掉新股和 ST。"
+              renderName={(row) => <StockName id={row.id} name={row.name} source="flow" />}
+            />
+            <List
+              title="个股净流出"
+              rows={book.stocksOut}
+              hint="已去掉新股和 ST。"
+              renderName={(row) => <StockName id={row.id} name={row.name} source="flow" />}
+            />
           </div>
         ) : null}
         <PosterButton draw={() => drawHotPoster(hot ?? { date: "", seats: [] })} />
