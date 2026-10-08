@@ -71,7 +71,9 @@ const CACHE = "data/backtest/kline";
  * 扫描持有期看信号在哪个天数最强，不该顺带把别的策略一起改了。
  */
 function holdFor(key: string): number {
-  if (key === "rebound" && process.env.BT_HOLD) return Number(process.env.BT_HOLD);
+  // BT_HOLD 同时扫 spring：威科夫说 Spring→SOS→LPS 要 2~4 周（14~28 日），
+  // 而项目已实测短周期因子普遍失效，所以持有期必须能扫。
+  if ((key === "rebound" || key === "spring") && process.env.BT_HOLD) return Number(process.env.BT_HOLD);
   return holdOf(key as StyleId);
 }
 /**
@@ -534,7 +536,44 @@ function reversal2(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
 }
 
 /**
- * 中期反转：买 60 日里跌得最惨的一批，拿 10 天。
+ * 威科夫 Spring 买入（候选策略，**只在回测里跑，绝不进 ACTIVE_STYLES**）。
+ *
+ * 进场的经济逻辑：Spring 之后需要一根 K 线确认「假跌破没有变成真跌破」——
+ * 也就是收盘没有跌回 Spring 低点之下。这一天就是威科夫的 Test 阶段。
+ *
+ * 止损 = **Spring 那一根的最低价**，这是威科夫说的结构失效位：跌回这里说明
+ * 卖压不是被吸收而是被释放，Spring 判定作废。这是本策略最干净的一条，
+ * 不含任何百分比旋钮（别的策略都在拍 stopPct）。×0.99 是防「恰好买在最低价上
+ * 立刻触发自己的止损」，那在实盘上等于噪声。
+ *
+ * ⚠️ 预注册默认值（**只标定一次**，扫参结果出来后要么采纳并重跑、要么如实记录
+ * 「预注册值更差」——不许反复调）：
+ *   进场时点 springAge ≥ 1（当天买实测是负的：−0.056%）
+ *   持有期   BT_HOLD 扫 5/10/15/20（威科夫说 2~4 周，实测 H=15 全线转负、H=10 最优）
+ */
+function springBuy(m: ReturnType<typeof metrics>): Signal | null {
+  if (m.springStrength == null || m.springLow == null || m.springRangeHigh == null) return null;
+  // 进场时点：Spring 后第 1 天（等一根 K 线确认）。0 = 当天，实测是负的。
+  const minAge = Number(process.env.BT_SPRING_AGE ?? 1);
+  // 强度阈值：0 = 只要有 Spring 就买。不额外筛——强度分档已经在因子里验过，
+  // 在这里再卡一刀就是双重筛选调参。
+  const minStrength = Number(process.env.BT_SPRING_MIN ?? 0);
+  if (m.springAge < minAge || m.springStrength < minStrength) return null;
+  if (m.c < 4 || m.amountWan < 3000) return null;
+
+  // 这一套默认 spot（与其他策略相反）：Spring 当天已在插针底部，
+  // 挂在昨收+3% 根本挂不上，那测的是另一个策略。
+  const spot = (process.env.BT_BUYMODE ?? "spot") === "spot";
+  const buy = spot ? m.c : m.prev * 1.03;
+  const stop = m.springLow * 0.99;
+  // 目标 = 威科夫量幅：区间高度从 Spring 低点量起来（SOS 的最小测算目标），
+  // 比「固定 +10%」有结构依据。
+  const target = m.springLow + (m.springRangeHigh - m.springLow);
+  if (!(stop < buy && buy < target)) return null;
+  return { buy, stop, sell: target, score: m.springStrength, atClose: spot };
+}
+
+/** 中期反转：买 60 日里跌得最惨的一批，拿 10 天。
  *
  * 这是因子检验里唯一站得住的信号，不是拍脑袋想的：60 日涨幅分五档后，
  * 未来 10 天的超额是 +0.63% / +0.30% / +0.22% / -0.16% / -0.38%（t=-2.81），
@@ -604,6 +643,9 @@ const STRATEGIES = {
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
   // 天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写死 10。
   rebound: { label: "中期反转", fn: rebound, hold: holdOf("rebound") },
+  // 威科夫 Spring。只在回测里跑 —— ACTIVE_STYLES 在 strategies.ts:274，
+  // 那一行是实盘记账的唯一开关，本方案绝不碰它。
+  spring: { label: "Spring·威科夫", fn: springBuy, hold: holdOf("rebound") },
 } as const;
 
 type Trade = {
