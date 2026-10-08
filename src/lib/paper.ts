@@ -20,6 +20,13 @@ export type PaperTrade = {
   hold?: number;
   exit: number | null;
   exitDate: string | null;
+  /**
+   * 卖出价是「盘中现价快照」（intraday）还是「日线撮合」（daily）。
+   * **没这个字段 = 修复之前记的旧账**：那一律按计划价记账、没做跳空修正，
+   * 账面系统性偏乐观（见 data/books/PRE-FIX-NOTE.md）。
+   * 两种口径可信度不同，统计时不该混在一起算。
+   */
+  exitKind?: "intraday" | "daily";
 };
 
 export type PaperDay = {
@@ -36,7 +43,15 @@ export type PaperDay = {
 type PaperState = {
   days: PaperDay[];
   recordDay: (day: PaperDay) => void;
-  settle: (date: string, id: string, exit: number, exitDate: string, entry: number) => void;
+  settle: (
+    date: string,
+    id: string,
+    exit: number,
+    exitDate: string,
+    entry: number,
+    /** 可选：这一笔的卖出价是哪把尺子量的。不传就当旧账（口径未知）。 */
+    exitKind?: "intraday" | "daily",
+  ) => void;
   settleIndex: (date: string, indexExit: number) => void;
 };
 
@@ -63,7 +78,7 @@ export const usePaper = create<PaperState>()(
           ),
         });
       },
-      settle: (date, id, exit, exitDate, entry) => {
+      settle: (date, id, exit, exitDate, entry, exitKind) => {
         set({
           days: get().days.map((day) => {
             if (day.date !== date) return day;
@@ -71,7 +86,14 @@ export const usePaper = create<PaperState>()(
               ...day,
               trades: day.trades.map((trade) => {
                 if (trade.id !== id || trade.exit != null) return trade;
-                return { ...trade, entry: entry > 0 ? entry : trade.entry, exit, exitDate };
+                return {
+                  ...trade,
+                  entry: entry > 0 ? entry : trade.entry,
+                  exit,
+                  exitDate,
+                  // 口径标记：现价快照还是日线撮合。没有它就分不清这本账是拿哪把尺子量的。
+                  ...(exitKind ? { exitKind } : {}),
+                };
               }),
             };
           }),

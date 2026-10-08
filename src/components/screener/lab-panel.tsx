@@ -161,6 +161,17 @@ export function LabPanel({ report }: { report: LabReport }) {
         </p>
       ) : null}
 
+      {/* 记账口径不一样的东西，明说。这不是免责声明，是「这些数字和上面那些不是
+          一把尺子量的」——旧账跳空穿止损时按计划价记账，账面系统性偏乐观。
+          修好之后新样本用新口径，这里会自己归零，不用重算历史。 */}
+      {report.legacyFills > 0 ? (
+        <p className="pt-3 text-xs leading-relaxed text-warn">
+          已结的 {report.closed} 笔里有 <strong className="font-normal">{report.legacyFills} 笔是旧口径</strong>
+          （2026-10-08 之前，判定用现价但记账按计划价，跳空穿止损时账面偏乐观）。
+          这些笔不能和修好之后的样本同等看待，但也不藏——藏了等于假装这些亏损不存在。
+        </p>
+      ) : null}
+
       {/* 按策略拆。已下线的策略标出来，并且不显示「离 N 还差 M」——
           那是个永远填不满的数字，显示它只会让人一直等。 */}
       <div className="mt-5 grid gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-2">

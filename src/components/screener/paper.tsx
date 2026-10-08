@@ -12,6 +12,7 @@ import { ACTIVE_STYLES, takeBuys, watchList, type Listed } from "@/lib/market/st
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { boardLimit, HOLD_SESSIONS, limitTag, planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
+import { intradayFill } from "@/lib/market/intraday-fill";
 import type { EarlyRules } from "@/lib/market/rules";
 import { getKline } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
@@ -104,8 +105,10 @@ export function Journal({
         const quote = quotes.find((item) => item.id === trade.id);
         if (!quote || limitTag(quote) === "跌停") continue;
         const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
-        if (quote.price <= plan.stop) settle(day.date, trade.id, plan.stop, date, trade.entry);
-        else if (quote.price >= plan.target) settle(day.date, trade.id, plan.target, date, trade.entry);
+        // 和记账脚本用同一个函数：判定和记账必须是同一个价。曾经这里判定用现价、
+        // 记账用 plan.stop，账上虚记最多 9.5 个百分点——两套账同病就得同治。
+        const fill = intradayFill(quote.price, plan.stop, plan.target);
+        if (fill) settle(day.date, trade.id, fill.price, date, trade.entry, "intraday");
       }
     }
   }, [ready, live, matching, bookReady, date, signalTime, quotes, indexPrice, recordDay, rules, prefs, relay, settle]);
@@ -141,7 +144,7 @@ export function Journal({
               trade.hold ?? HOLD_SESSIONS,
             );
             if (!filled) continue;
-            settle(day.date, trade.id, filled.price, filled.date, trade.entry);
+            settle(day.date, trade.id, filled.price, filled.date, trade.entry, "daily");
           } catch {
             // 还没走到结算日（默认 8 个交易日），或日线暂时没返回。
           }

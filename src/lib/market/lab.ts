@@ -119,6 +119,17 @@ export type LabReport = {
   cells: LabCell[];
   byStyle: LabStyleRow[];
   benchmark: LabBenchmark;
+  /**
+   * 已结样本里有多少笔是**旧口径**记账的（没有 exitKind 标记）。
+   *
+   * 2026-10-08 之前，判定用现价但记账用计划价，跳空穿止损的账面系统性偏乐观，
+   * 最多虚记 9.5 个百分点。这些笔**不能和新口径的样本同等看待**——但也不能藏起来：
+   * 藏了等于假装这些亏损不存在。这个数是给界面做诚实披露用的（见 lab-panel.tsx）。
+   *
+   * 修好之后自然变成 0，不需要重算历史：账本里从没存过当日盘中最低价，
+   * 缺口径所需的证据，技术上补不回来。
+   */
+  legacyFills: number;
 };
 
 const STYLE_NAMES = new Map<string, string>(STYLES.map((item) => [item.id, item.name]));
@@ -153,7 +164,7 @@ export function buildLabReport(days: PaperDay[], rules: { minClosed: number }): 
   const ordered = [...days].sort((a, b) => a.date.localeCompare(b.date));
 
   const cells: LabCell[] = [];
-  const rows: { style: string; name: string; ret: number | null; open: boolean }[] = [];
+  const rows: { style: string; name: string; ret: number | null; open: boolean; exitKind?: "intraday" | "daily" }[] = [];
   let countedDays = 0;
   let missingDays = 0;
   let comparableDays = 0;
@@ -177,7 +188,13 @@ export function buildLabReport(days: PaperDay[], rules: { minClosed: number }): 
     for (const item of flat) {
       const name = styleName(item.trade.style);
       cells.push({ style: item.trade.style ?? "", name, ret: item.ret, open: item.open });
-      rows.push({ style: item.trade.style ?? "", name, ret: item.ret, open: item.open });
+      rows.push({
+        style: item.trade.style ?? "",
+        name,
+        ret: item.ret,
+        open: item.open,
+        exitKind: item.trade.exitKind,
+      });
     }
   }
 
@@ -238,5 +255,7 @@ export function buildLabReport(days: PaperDay[], rules: { minClosed: number }): 
     cells,
     byStyle,
     benchmark: { available: comparableDays > 0, missingDays },
+    // 旧口径（判定用现价、记账用计划价）的已结笔数。没有 exitKind 标记 = 修复之前记的。
+    legacyFills: closed.filter((row) => row.exitKind == null).length,
   };
 }
