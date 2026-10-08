@@ -25,8 +25,26 @@
   --color-warn: #e8a33d;
   --color-warn-soft: #33260f;
   --color-navy: #2b3245;
+  /* 评分星级专用色。不能用 warn（那是「出问题了」）也不能用 brand（和涨跌红太近，
+     一眼扫过去像涨停）。PPT 视觉规范里定的 #C9A869。 */
+  --color-gold: #c9a869;
+  --color-gold-soft: #332a16;
   --shadow-card: 0 8px 24px rgb(0 0 0 / 0.28);
   --shadow-pop: 0 6px 18px rgb(0 0 0 / 0.28);
+}
+
+/* 键帽。快捷键面板和文档里都用它，两处看起来必须是同一样东西。 */
+.kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--color-muted);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 3px 5px;
+  white-space: nowrap;
 }
 
 html[data-theme="light"] {

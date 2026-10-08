@@ -57,11 +57,37 @@ function applyTheme(mode: string) {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0e1218" : "#f5f6f8");
 }
 
+/**
+ * 明暗轮换：系统 → 浅色 → 深色 → 系统。快捷键 `t` 调它。
+ *
+ * 为什么是独立函数而不是让快捷键去动组件：`useTheme` 是组件内 state，快捷键拿不到它。
+ * 所以改完 localStorage 之后必须**再发一个事件通知**「显示」那排按钮更新选中态——
+ * 否则主题已经换了、按钮还停在旧的一档，看起来像没生效。
+ */
+export function cycleTheme(): void {
+  const order = THEMES.map((item) => item.id);
+  const current = localStorage.getItem("chiheng-theme") ?? "system";
+  const at = order.indexOf(current as (typeof order)[number]);
+  const next = order[(at + 1) % order.length] ?? "system";
+  applyTheme(next);
+  localStorage.setItem("chiheng-theme", next);
+  window.dispatchEvent(new CustomEvent("chiheng-theme-change", { detail: next }));
+}
+
 function useTheme() {
   const [mode, setMode] = useState("system");
   useEffect(() => {
     const saved = localStorage.getItem("chiheng-theme");
     if (saved === "light" || saved === "dark" || saved === "system") setMode(saved);
+  }, []);
+  // 快捷键 t 改了 localStorage 之后，这里要跟着走 —— 见 cycleTheme 的注释。
+  useEffect(() => {
+    const onChange = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail;
+      if (next === "light" || next === "dark" || next === "system") setMode(next);
+    };
+    window.addEventListener("chiheng-theme-change", onChange);
+    return () => window.removeEventListener("chiheng-theme-change", onChange);
   }, []);
   useEffect(() => {
     applyTheme(mode);

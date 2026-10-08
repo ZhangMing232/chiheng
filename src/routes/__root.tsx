@@ -10,6 +10,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
+import { HotkeyProvider } from "@/lib/ui/hotkeys";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "赤轨 · 策略实验台";
@@ -52,7 +53,10 @@ export const Route = createRootRoute({
         <PreviewHostBridge />
         <AuthProvider>
           <QueryClientProvider client={queryClient}>
-            <Outlet />
+            {/* 快捷键挂在比 Frame 高一层：抽屉和键位表要跨路由活着 */}
+            <HotkeyProvider>
+              <Outlet />
+            </HotkeyProvider>
           </QueryClientProvider>
         </AuthProvider>
         <Scripts />

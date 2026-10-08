@@ -8,12 +8,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { Detail } from "@/components/screener/detail";
 import { Journal } from "@/components/screener/paper";
 import { LabPanel } from "@/components/screener/lab-panel";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
+import { cycleTheme } from "@/components/screener/nav";
+import { useHotkeys } from "@/lib/ui/hotkeys";
 import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, type Listed } from "@/lib/market/strategies";
@@ -121,6 +124,18 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId]);
+
+  // 全局快捷键。F5 / r 只复用缓存重跑本页；⌥F5 才真去拉全市场——
+  // 全量重拉 5200 只会把腾讯顶到 WAF（quotes.functions.ts:34-38），所以放在要按两次的键上。
+  const router = useRouter();
+  useHotkeys({
+    onRefresh: () => {
+      void refresh(false);
+      void router.invalidate();
+    },
+    onForceRefresh: () => void refresh(true),
+    onToggleTheme: cycleTheme,
+  });
 
   const quotes = universe?.quotes ?? [];
   const live = !isIdleBook(quotes);
