@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { ACTIVE_STYLES, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
+import { ACTIVE_STYLES, holdOf, takeBuys, watchList, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { boardLimit, HOLD_SESSIONS, limitTag, planExit } from "@/lib/market/model";
 import { exitFill, nthClose } from "@/lib/market/journal-book";
@@ -79,7 +79,7 @@ export function Journal({
           stop: row.stop,
           target: row.sell,
           style,
-          hold: style === "relay" ? 1 : style === "rebound" ? 10 : undefined,
+          hold: holdOf(style),
           exit: null,
           exitDate: null,
         });

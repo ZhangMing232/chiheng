@@ -264,7 +264,12 @@ async function refreshFrozen(picks: Listed[]): Promise<Listed[]> {
   });
 }
 
-/** 接力策略拿几天。固定返回 1，表示尾盘买、下一交易日卖。 */
+/**
+ * 接力策略拿几天。固定返回 1，表示尾盘买、下一交易日卖。
+ *
+ * 已废弃：全项目零引用，持股天数统一查 strategies.ts 的 `holdOf(style)`
+ * （STYLE_HOLD 表）。留着这个函数只会让人以为「改这里能改持股天数」——改不了。
+ */
 export function relayHold(): number {
   return 1;
 }

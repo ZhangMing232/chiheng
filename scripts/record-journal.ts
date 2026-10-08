@@ -24,7 +24,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { boardLimit, HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
-import { ACTIVE_STYLES, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
+import { ACTIVE_STYLES, holdOf, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 import { intradayFill } from "../src/lib/market/intraday-fill.ts";
@@ -245,8 +245,8 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           stop: row.stop,
           target: row.sell,
           style,
-          // 中期反转要拿满 10 个交易日，别的（除了次日补涨的 1 天）沿用 8 天
-          hold: style === "relay" ? 1 : style === "rebound" ? 10 : undefined,
+          // 持股天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写三元字面量
+          hold: holdOf(style),
           exit: null,
           exitDate: null,
         };

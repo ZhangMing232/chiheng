@@ -32,6 +32,8 @@
 import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { exitFill } from "@/lib/market/journal-book";
 import { boardLimit } from "@/lib/market/model";
+import { holdOf } from "@/lib/market/strategies";
+import type { StyleId } from "@/lib/market/strategies";
 import type { Bar } from "@/lib/market/types";
 import {
   FACTORS,
@@ -56,6 +58,21 @@ const MAX_POSITIONS = 10;
 /** 一来一回的手续费，和线上一致。 */
 const FEE = 0.00102;
 const CACHE = "data/backtest/kline";
+
+/**
+ * 这套策略拿几个交易日。
+ *
+ * 默认值一律查 strategies.ts 的 `holdOf`（STYLE_HOLD 表）——那是持股天数的唯一
+ * 定义处。以前这里写死 `rebound ? 10 : undefined`，和记账脚本、网页端各写一遍，
+ * 改一处忘两处，而这个数直接决定结算价记多少，写错了账就废了。
+ *
+ * BT_HOLD 环境变量仍然优先，且**只对中期反转生效**（保持原语义）：它存在的意义是
+ * 扫描持有期看信号在哪个天数最强，不该顺带把别的策略一起改了。
+ */
+function holdFor(key: string): number {
+  if (key === "rebound" && process.env.BT_HOLD) return Number(process.env.BT_HOLD);
+  return holdOf(key as StyleId);
+}
 /**
  * 数据目录。CHIHENG_DATA_DIR 可以换到别处（测试用），和 src/lib/market/gate-log.ts
  * 同一个约定。没设就是项目根下的 data/。
@@ -558,8 +575,9 @@ const STRATEGIES = {
   bk2: { label: "突破·早期版", fn: breakout2 },
   bk3: { label: "突破·排天量", fn: breakout3 },
   bk4: { label: "突破·早期+排天量", fn: breakout4 },
-  // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强
-  rebound: { label: "中期反转", fn: rebound, hold: 10 },
+  // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
+  // 天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写死 10。
+  rebound: { label: "中期反转", fn: rebound, hold: holdOf("rebound") },
 } as const;
 
 type Trade = {
@@ -763,7 +781,7 @@ async function main() {
             pick.sig.stop,
             pick.sig.sell,
             boardLimit(pick.id, ""),
-            key === "rebound" ? Number(process.env.BT_HOLD ?? 10) : undefined,
+            holdFor(key),
           );
           if (!spotFill) continue;
           const spotRet = (spotFill.price - pick.sig.buy) / pick.sig.buy - FEE;
@@ -817,7 +835,7 @@ async function main() {
           pick.sig.sell,
           boardLimit(pick.id, ""),
           // 中期反转的持有天数可以扫（BT_HOLD），其余沿用 8 天的老规矩
-          key === "rebound" ? Number(process.env.BT_HOLD ?? 10) : undefined,
+          holdFor(key),
         );
         if (!fill) continue;
         const ret = (fill.price - entry) / entry - FEE;

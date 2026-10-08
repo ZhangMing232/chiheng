@@ -7,7 +7,7 @@
  * 涨停不算能买进。买入当天不能卖（T+1），卖出日的判断在 journal-book.ts。
  * 「次日补涨」不在这里算价，它有自己的尾盘逻辑，所以 quoteOrder 对它直接返回空。
  */
-import { limitPct, limitTag, planExit, screen, type Scored } from "./model.ts";
+import { HOLD_SESSIONS, limitPct, limitTag, planExit, screen, type Scored } from "./model.ts";
 import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
 
@@ -274,6 +274,27 @@ export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "rel
 export const ACTIVE_STYLES: StyleId[] = ["breakout", "rebound"];
 /** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;
+
+/**
+ * 每套策略拿几个交易日。**持股天数的唯一定义处**，没登记的走 `HOLD_SESSIONS`（=8）。
+ *
+ * 以前这个数字散在四处各写一遍字面量（record-journal / paper / backtest / sectors），
+ * 改一处忘三处——而这个数直接决定什么时候结算、结算价记多少，写错了账就废了。
+ * 2026-10-08 收成这一张表，加新策略时（尤其短线）只需在这里加一行。
+ *
+ * 它和止盈止损不同的地方：**持股天数是实证出来的，不是能调的旋钮**。
+ * 中期反转的 10 天是因子检验里信号最强的持有期（见 data/backtest/ 的基线记录），
+ * 改它就毁掉目前唯一站得住的正结论。要改，先重跑回测。
+ */
+export const STYLE_HOLD: Partial<Record<StyleId, number>> = {
+  relay: 1,
+  rebound: 10,
+};
+
+/** 这套策略拿几个交易日。没登记的走 model.ts 的 HOLD_SESSIONS（=8）。 */
+export function holdOf(style: StyleId | undefined): number {
+  return (style ? STYLE_HOLD[style] : undefined) ?? HOLD_SESSIONS;
+}
 
 /** 一笔成交属于哪一套。旧账上没有这五套之一的名字时返回空，不塞进任何一套。 */
 export function styleOf(trade: { style?: string }): StyleId | null {
