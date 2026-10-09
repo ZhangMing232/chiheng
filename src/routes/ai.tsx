@@ -528,7 +528,7 @@ function AIPage() {
         res.ok
           ? `本轮提议 ${res.proposed} 个进队列` +
               (res.rejected > 0 ? `，拒了 ${res.rejected} 个（${res.rejectReasons.slice(0, 2).join("；")}${res.rejectReasons.length > 2 ? "…" : ""}）` : "") +
-              "。跑一次 BT_FACTOR=1 回测就会进 6 关检验。"
+              "。收盘后记账进程会自动跑 6 关判决（等不及也可以手动 BT_FACTOR=1）。"
           : `没跑成：${res.error ?? "未知原因"}`,
       );
       await router.invalidate();
@@ -695,7 +695,7 @@ function AIPage() {
 
       <Section
         title="因子层：待验队列"
-        hint="AI 读最近一轮 6 关判决，针对败因提 1~3 个新假设；进队列后跑一次 BT_FACTOR=1 自动进检验，连续 2 次没过 6 关自动淘汰。"
+        hint="AI 读最近一轮 6 关判决，针对败因提 1~3 个新假设；进队列后收盘自动进 6 关检验，连续 2 次没过自动淘汰，过关/淘汰推微信。"
       >
         <div className="border-b border-line px-3.5 py-2">
           {ai.allowed ? (
@@ -761,7 +761,7 @@ function AIPage() {
             <StateBlock
               kind="empty"
               title="待验队列是空的"
-              hint={ai.allowed ? "点上面的「让 AI 提议一轮新因子」；提议进队列后跑一次 BT_FACTOR=1 回测。" : "主人账号配置 AI 接口后可以自动补充新因子。"}
+              hint={ai.allowed ? "点上面的「让 AI 提议一轮新因子」；进队列后收盘自动判决，过关/淘汰会推微信。开自动进化后每晚自己转。" : "主人账号配置 AI 接口后可以自动补充新因子。"}
             />
           )}
           {queue.missing ? <p className="mt-2 text-[11px] text-muted">{queue.missing}（还没跑过，正常）</p> : null}
