@@ -11,12 +11,13 @@
  * 折算名义金额**，不是投入的钱。收益率一律扣费。已实现和浮动分开显示。
  */
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
 import { DataStatusBadge, AccountStatus } from "@/components/screener/data-status";
 import { StateBlock } from "@/components/state-block";
+import { RowMenuPortal, useRowMenu, type RowMenuItem } from "@/components/row-menu";
 import { Panel, Stat, Tag, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { signedPct, fmtPrice, fmtMoney, toneClass } from "@/lib/market/format";
 import { dayReliable, liveGate, recentMean } from "@/lib/market/journal-book";
@@ -28,6 +29,7 @@ import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
 import { getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
 import { usePaper, type PaperDay } from "@/lib/paper";
+import { useSymbolUi } from "@/lib/ui/symbol-store";
 import type { Universe } from "@/lib/market/types";
 
 export const Route = createFileRoute("/positions")({
@@ -100,8 +102,18 @@ function TradeTable({
   /** 给读屏器的表格名字。同一张表在「需处理」和各日期分组里都用到，名字要跟着变 */
   caption: string;
 }) {
+  const navigate = useNavigate();
+  const openSymbol = useSymbolUi((s) => s.open);
+  const rowMenu = useRowMenu();
+  // 和选股页结果表同一套右键菜单：看个股 / 看资金流向 / 复制代码。
+  const menuFor = (row: PositionRow): RowMenuItem[] => [
+    { label: "看个股", onClick: () => openSymbol(row.id, "positions") },
+    { label: "看资金流向", onClick: () => void navigate({ to: "/flow", hash: "flow-stocks" }) },
+    { label: "复制代码", onClick: () => void navigator.clipboard?.writeText(row.code) },
+  ];
   return (
-    <Table className="data-table" caption={caption}>
+    <>
+      <Table className="data-table" caption={caption}>
       <thead>
         <tr className="border-b border-line">
           <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>名称</th>
@@ -120,7 +132,11 @@ function TradeTable({
           const levels = row.stop && row.target ? { stop: row.stop, target: row.target } : planExit(row.entry, null, rules);
           const tone = row.state === "止损" ? "down" : row.state === "卖出" ? "up" : "muted";
           return (
-            <tr key={`${row.day}-${row.id}-${row.exit ?? "open"}`} className="border-b border-line last:border-0 hover:bg-surface-2">
+            <tr
+              key={`${row.day}-${row.id}-${row.exit ?? "open"}`}
+              className="border-b border-line last:border-0 hover:bg-surface-2"
+              onContextMenu={(event) => rowMenu.openFor(event, menuFor(row))}
+            >
               <td data-l="名称" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
                 <StockName id={row.id} name={row.name} source="positions" className="font-medium" />
                 <div className="text-xs text-muted">
@@ -150,10 +166,11 @@ function TradeTable({
           );
         })}
       </tbody>
-    </Table>
+      </Table>
+      <RowMenuPortal menu={rowMenu.menu} onClose={rowMenu.close} />
+    </>
   );
 }
-
 function Positions() {
   const { universe, journal, nav, rules, date } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);

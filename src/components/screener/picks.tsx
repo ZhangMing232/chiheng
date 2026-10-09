@@ -7,8 +7,9 @@
  * 这里只展示。打到买入价才进股票池，当天不能卖。生成图片不会改变买入价。
  */
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { PosterButton } from "@/components/screener/poster-button";
+import { RowMenuPortal, useRowMenu, type RowMenuItem } from "@/components/row-menu";
 import { fmtPrice, signedPct } from "@/lib/market/format";
 import { drawPicksPoster } from "@/lib/market/page-posters";
 import { nowAction } from "@/lib/market/action";
@@ -78,6 +79,14 @@ export function Picks({
   onOpen: (id: string) => void;
 }) {
   const browserDays = usePaper((state) => state.days);
+  const navigate = useNavigate();
+  const rowMenu = useRowMenu();
+  // 右键菜单三项：看个股开抽屉，资金流向跳资金页个股区（锚点 flow-stocks），复制代码进剪贴板。
+  const menuFor = (pick: Pick): RowMenuItem[] => [
+    { label: "看个股", onClick: () => onOpen(pick.quote.id) },
+    { label: "看资金流向", onClick: () => void navigate({ to: "/flow", hash: "flow-stocks" }) },
+    { label: "复制代码", onClick: () => void navigator.clipboard?.writeText(pick.quote.code) },
+  ];
   const source = personal || serverDays.length > 0 ? serverDays : browserDays;
   // 名额是按「天」算的：昨天进的那批占昨天的名额，不影响今天。
   // 所以标签上的数字和「仓位已满」都只看当天建了几只，
@@ -246,7 +255,11 @@ export function Picks({
                             ? "已到买入价"
                             : "等待买入";
                 return (
-                  <tr key={pick.quote.id} className="border-b border-line last:border-0 hover:bg-surface-2">
+                  <tr
+                    key={pick.quote.id}
+                    className="border-b border-line last:border-0 hover:bg-surface-2"
+                    onContextMenu={(event) => rowMenu.openFor(event, menuFor(pick))}
+                  >
                     <td data-l="名称" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
                       <button type="button" onClick={() => onOpen(pick.quote.id)} className="block max-w-48 text-left">
                         <div className="truncate font-medium">{pick.quote.name}</div>
@@ -302,6 +315,7 @@ export function Picks({
           />
         </div>
       </Panel>
+      <RowMenuPortal menu={rowMenu.menu} onClose={rowMenu.close} />
     </div>
   );
 }

@@ -120,6 +120,18 @@ cd /Volumes/colorful/chiheng && npm run install:mac
 `data/app-launch.log`、出错弹系统对话框（比早前好），但既然终端这条路已经够用，
 日常就用终端。真要用 app，出问题先看 `cat data/app-launch.log`。
 
+## 预警微信推送（PushPlus）
+
+记账进程发现新预警（到止损价 / 到卖出价 / 到期该卖）时，除了 Mac 通知还会推一条微信。
+token 放在 `data/push-config.json`（已被 git 忽略，不会进代码库）：
+
+```json
+{ "token": "你的 PushPlus token" }
+```
+
+在 [PushPlus 官网](http://www.pushplus.plus) 扫码登录就能拿到 token。不填或留空就静默跳过，
+只发 Mac 通知——推送失败永远不会影响记账本身。页面上的铃铛红点 / Toast 不受影响。
+
 ## 部署到 Mac mini
 
 需要 Node.js 22，以及 Mac 自带的「终端」。交易日电脑要开着、联网，至少从 9:30 到 15:00。系统设置里把接通电源时的睡眠关掉。14:30 不能休眠，否则补涨按开机后第一次看到的名单冻结。

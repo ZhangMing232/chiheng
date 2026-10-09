@@ -28,6 +28,7 @@ import { ACTIVE_STYLES, holdOf, STYLES, styleOf, takeBuys, watchList } from "../
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 import { intradayFill } from "../src/lib/market/intraday-fill.ts";
+import { sendPushPlus } from "../src/lib/market/push.ts";
 
 type Trade = {
   id: string;
@@ -334,6 +335,17 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     if (speak) {
       notifyNames("到止损价", stops);
       notifyNames("到卖出价", targets);
+      // PushPlus 微信推送：和 Mac 通知同一份名单（stops/targets 只在新预警出现时才有内容）。
+      if (stops.length > 0 || targets.length > 0) {
+        void sendPushPlus(
+          "赤轨预警",
+          [
+            ...(stops.length > 0 ? [`到止损价：${stops.join("、")}`] : []),
+            ...(targets.length > 0 ? [`到卖出价：${targets.join("、")}`] : []),
+            `时间：${time}`,
+          ].join("\n"),
+        );
+      }
     }
   }
 
@@ -415,7 +427,10 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     }
     nextSettleAt = Date.now() + (stillOpen ? 30 * 60_000 : 12 * 60 * 60_000);
     changed = true;
-    if (speak) notifyNames("到期该卖", due);
+    if (speak) {
+      notifyNames("到期该卖", due);
+      if (due.length > 0) void sendPushPlus("赤轨预警", [`到期该卖：${due.join("、")}`, `时间：${time}`].join("\n"));
+    }
     if (stuck.length > 0) {
       console.log(`${time} 有 ${stuck.length} 笔结算不出来，会一直挂着：${stuck.slice(0, 5).join("；")}`);
     }
