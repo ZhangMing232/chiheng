@@ -13,7 +13,8 @@
 // 交易时段里，现价打到这只股票的买入价才记入。买入价写下后不再改。
 // 之后碰到卖出价或止损价就结算；同一天两边都碰到按止损。否则等第 8 个交易日收盘。
 import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import { execFile } from "node:child_process";
+import { openSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
@@ -679,6 +680,38 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     }
   } catch (error) {
     console.error(`${time} AI 自动进化失败（不影响记账）:`, error);
+  }
+}
+
+// ── 闭环最后一步：待验因子的判决回测 ─────────────────────────────
+// AI 层只负责「提议进队列」，6 关判决要靠 BT_FACTOR=1 回测——以前这步只能人手跑，
+// 自动进化断在半截：AI 每晚提的因子没人验。这里收盘封印后检查：队列里有活着的
+// 因子且今天还没跑过判决，就异步起一轮回测（detached，不阻塞下一分钟记账；
+// 回测只碰 data/backtest 和队列文件，和账本互不干扰）。
+if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+  try {
+    const { readQueue } = await import("../src/lib/market/factor-queue.ts");
+    const { entries: queueEntries } = await readQueue();
+    if (queueEntries.some((e) => e.status !== "tombstone")) {
+      const stampDir = join(process.cwd(), "data", "backtest");
+      const stamp = join(stampDir, `.auto-verdict-${phase.date}.stamp`);
+      try {
+        await access(stamp);
+      } catch {
+        await mkdir(stampDir, { recursive: true });
+        await writeFile(stamp, String(Date.now()));
+        const logFd = openSync(join(stampDir, "auto-verdict.log"), "a");
+        const child = spawn(
+          process.execPath,
+          ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/backtest.ts"],
+          { env: { ...process.env, BT_FACTOR: "1" }, cwd: process.cwd(), detached: true, stdio: ["ignore", logFd, logFd] },
+        );
+        child.unref();
+        console.log(`${time} 待验因子判决回测已异步启动（${phase.date}）`);
+      }
+    }
+  } catch (error) {
+    console.error(`${time} 判决回测触发失败（不影响记账）:`, error);
   }
 }
 
