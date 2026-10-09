@@ -120,6 +120,12 @@ BT_OFFSET=1 node ...                  # 换一批互不重叠的股票再跑一�
   「策略变体 → 挑战者 → 纸面 30 笔」的漏斗，不许跳级。
 - 方向预登记进队列后不许改——要改按真实形状换新 id 重新登记，旧记录留档。
 
+**每晚自动闭环**（2026-10-09 接通，开关在 /ai 页）：收盘封印后记账进程自动跑一轮
+完整进化（因子层 → 策略层，ai-log 按天去重），队列里有活着的因子就自动起一轮
+BT_FACTOR 判决回测（stamp 按交易日去重，日志在 data/backtest/auto-verdict.log）；
+过关/淘汰经 PushPlus 推微信（token 在选股页设置里填，没填会跳过往日志里写原因）。
+白天的手动入口仍然有效：evolve-once.ts 跑一轮进化，auto-verdict.ts 跑一轮判决。
+
 **注册一个挑战者**：编辑 `data/challengers.json`，往 list 里加一条 running 状态的记录：
 
 ```json
