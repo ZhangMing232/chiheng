@@ -457,6 +457,44 @@ export type SellAlert = {
   exit: number | null;
 };
 
+export type NavPoint = {
+  date: string;
+  /** 等权逐笔净值：1 + 所有笔平均收益（record-journal.ts 里定义，两边别各说各话）。 */
+  nav: number;
+  /** 沪深300 对首个记录交易日归一。index 缺失的旧点为 null，图上断开。 */
+  benchmark: number | null;
+};
+
+/** 净值曲线。读不到文件/没登录都算空数组，页面显示空态而不是报错。 */
+export const getNavHistory = createServerFn({ method: "GET" }).handler(async () => {
+  const empty = { points: [] as NavPoint[] };
+  try {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const userId = await requireUserId();
+    const text = await readFile(join(process.cwd(), "data", "nav-history.json"), "utf8");
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const mine = parsed[userId];
+    if (!Array.isArray(mine)) return empty;
+    const raw = mine as { date?: unknown; nav?: unknown; index?: unknown }[];
+    // benchmark 在读取方对首个有 index 的点归一，写入方只记原始点位。
+    const first = raw.find((p) => typeof p.index === "number" && p.index > 0);
+    const firstIndex = first && typeof first.index === "number" ? first.index : null;
+    const points = raw
+      .filter((p) => typeof p.date === "string" && typeof p.nav === "number")
+      .map((p) => {
+        const index = typeof p.index === "number" && p.index > 0 ? p.index : null;
+        return {
+          date: p.date as string,
+          nav: p.nav as number,
+          benchmark: firstIndex != null && index != null ? index / firstIndex : null,
+        };
+      });
+    return { points };
+  } catch {
+    return empty;
+  }
+});
+
 /**
  * 读当前登录用户的交易日记。
  *

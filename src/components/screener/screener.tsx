@@ -19,11 +19,11 @@ import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
-import { watchList, type Listed } from "@/lib/market/strategies";
+import { watchList, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { AccountStatus, DataStatusBadge } from "@/components/screener/data-status";
-import { Tape } from "@/components/terminal";
+import { Panel, Tape } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, SessionInfo, Universe } from "@/lib/market/types";
@@ -137,9 +137,26 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
 
   const indexTime = indices.find((item) => item.time)?.time;
   const labReport = useMemo(() => buildLabReport(journal, rules), [journal, rules]);
+  // 左侧面板要标每个策略今天建仓了几只（和 Picks 里页签数字同一口径）。
+  const styleCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const trade of journal.filter((day) => day.date === phase.date).flatMap((day) => day.trades)) {
+      const style = styleOf(trade);
+      if (style) counts[style] = (counts[style] ?? 0) + 1;
+    }
+    return counts;
+  }, [journal, phase.date]);
+
+  // 左侧策略列表和 Picks 内部（窄屏兜底页签）共用同一个切换逻辑：改本地状态并落盘。
+  const pickStyle = (style: Prefs["style"]) => {
+    const next = { ...prefs, style };
+    setPrefs(next);
+    void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
+  };
 
   return (
     <Frame
+      wide
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">{phase.label}</span>
@@ -187,49 +204,82 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             action={{ label: "重新拉一次", onClick: () => void refresh(true) }}
           />
         ) : null}
-        <PrefsBar
-          prefs={prefs}
-          onChange={(next) => {
-            setPrefs(next);
-            void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
-          }}
-        />
-        <Picks
-          date={phase.date}
-          quotes={quotes}
-          picks={ranked.map((row) => ({
-            quote: row.quote,
-            reasons: row.reasons,
-            buy: row.buy,
-            sell: row.sell,
-            stop: row.stop,
-            hit: row.hit,
-            block: row.block,
-          }))}
-          serverDays={journal}
-          personal={initial.personal}
-          rules={rules}
-          style={prefs.style}
-          marketOpen={phase.open}
-          tailHalf={phase.tailHalf}
-          pause={phase.label}
-          benchmark={null}
-          onStyle={(style) => {
-            const next = { ...prefs, style };
-            setPrefs(next);
-            void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
-          }}
-          onOpen={(id) => {
-            // 抽屉改成全局的了（见 symbol-store）：这里不再持有 selectedId，
-            // 只负责把「模型得分 + 入选理由」一并带过去——别的页面打开时没有这两个数，
-            // 抽屉会显示「未参加当前模型」，不编分数。
-            const row = ranked.find((item) => item.quote.id === id);
-            openSymbol(id, "screener", {
-              score: row?.score ?? null,
-              reasons: row?.reasons ?? [],
-            });
-          }}
-        />
+        {/* PPT 03 版面：左侧 280px 放策略和筛选，右侧是精选结果。窄屏自动收成上下两截。 */}
+        <div className="grid items-start gap-2 lg:grid-cols-[280px_1fr]">
+          <Panel title="筛选条件" bodyClassName="flex flex-col gap-3">
+            <div>
+              <div className="text-[10px] tracking-widest text-muted">策略</div>
+              <div className="mt-1 flex flex-col gap-0.5">
+                {STYLES.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => pickStyle(item.id)}
+                    aria-pressed={item.id === prefs.style}
+                    className={
+                      "flex items-center justify-between rounded px-2 py-1.5 text-sm text-left " +
+                      (item.id === prefs.style
+                        ? "bg-brand-soft font-medium text-brand-text"
+                        : "text-muted hover:bg-surface-2 hover:text-fg")
+                    }
+                  >
+                    <span>{item.name}</span>
+                    <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted">{STYLES.find((item) => item.id === prefs.style)?.hint}</p>
+            </div>
+            <PrefsBar
+              prefs={prefs}
+              onChange={(next) => {
+                setPrefs(next);
+                void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
+              }}
+            />
+            {/* 设计稿里的主按钮：品牌色实底，点击等价于 F5（复用缓存重跑本页） */}
+            <button
+              type="button"
+              onClick={() => void refresh(false)}
+              className="mt-auto w-full rounded bg-brand px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              ▶ 运行选股（F5）
+            </button>
+          </Panel>
+          <Picks
+            date={phase.date}
+            quotes={quotes}
+            picks={ranked.map((row) => ({
+              quote: row.quote,
+              reasons: row.reasons,
+              buy: row.buy,
+              sell: row.sell,
+              stop: row.stop,
+              hit: row.hit,
+              block: row.block,
+            }))}
+            serverDays={journal}
+            personal={initial.personal}
+            rules={rules}
+            style={prefs.style}
+            marketOpen={phase.open}
+            tailHalf={phase.tailHalf}
+            pause={phase.label}
+            benchmark={null}
+            hideTabs
+            onStyle={pickStyle}
+            onOpen={(id) => {
+              // 抽屉改成全局的了（见 symbol-store）：这里不再持有 selectedId，
+              // 只负责把「模型得分 + 入选理由」一并带过去——别的页面打开时没有这两个数，
+              // 抽屉会显示「未参加当前模型」，不编分数。
+              const row = ranked.find((item) => item.quote.id === id);
+              openSymbol(id, "screener", {
+                score: row?.score ?? null,
+                reasons: row?.reasons ?? [],
+              });
+            }}
+          />
+        </div>
     </Frame>
   );
 }

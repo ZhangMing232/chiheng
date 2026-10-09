@@ -65,7 +65,31 @@ type Book = StoredBook<Day>;
 
 const pulsePath = join(process.cwd(), "data", "recorder.json");
 const alertPath = join(process.cwd(), "data", "sell-alerts.json");
+const navPath = join(process.cwd(), "data", "nav-history.json");
 const backupDir = join(homedir(), "chiheng-backup");
+
+/**
+ * 净值定义：等权逐笔平均。已平仓按 (exit-entry)/entry，持仓按 (现价-entry)/entry，
+ * nav = 1 + 所有笔收益的平均。index 记当天沪深300原始点位，benchmark 由读取方
+ * 对首个有记录交易日归一。按日去重（同一天重跑覆盖旧点），最多留 500 个交易日。
+ */
+type NavPoint = { date: string; nav: number; index: number | null };
+
+async function appendNav(userId: string, point: NavPoint) {
+  let all: Record<string, NavPoint[]> = {};
+  try {
+    const parsed = JSON.parse(await readFile(navPath, "utf8"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) all = parsed;
+  } catch {
+    all = {};
+  }
+  const mine = Array.isArray(all[userId]) ? all[userId] : [];
+  all[userId] = [...mine.filter((item) => item.date !== point.date), point]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-500);
+  await mkdir(join(process.cwd(), "data"), { recursive: true });
+  await writeFile(navPath, JSON.stringify(all));
+}
 
 function notify(body: string) {
   if (process.platform !== "darwin") return;
@@ -394,6 +418,25 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     if (speak) notifyNames("到期该卖", due);
     if (stuck.length > 0) {
       console.log(`${time} 有 ${stuck.length} 笔结算不出来，会一直挂着：${stuck.slice(0, 5).join("；")}`);
+    }
+  }
+
+  // ── 净值沉淀：每个收盘记一个点 ────────────────────────────
+  // 设计稿主控台/策略追踪页的净值曲线从这里来。收盘后（sealed）记一次，
+  // 同一天重跑覆盖旧点，不会重复。持仓用本轮拿到的现价；没拿到价的笔不进平均，
+  // 宁可少算不编数。
+  if (phase.sealed && phase.date && isTradingDay(phase.date) && indexPrice != null) {
+    const rets: number[] = [];
+    for (const trade of days.flatMap((day) => day.trades)) {
+      if (trade.exit != null) rets.push((trade.exit - trade.entry) / trade.entry);
+      else {
+        const quote = universe?.quotes.find((item) => item.id === trade.id);
+        if (quote && quote.price > 0) rets.push((quote.price - trade.entry) / trade.entry);
+      }
+    }
+    if (rets.length > 0) {
+      const nav = 1 + rets.reduce((sum, ret) => sum + ret, 0) / rets.length;
+      await appendNav(userId, { date: phase.date, nav, index: indexPrice });
     }
   }
 

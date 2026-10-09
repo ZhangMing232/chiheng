@@ -12,6 +12,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
 import { DataStatusBadge, AccountStatus } from "@/components/screener/data-status";
@@ -25,17 +26,19 @@ import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgenc
 import { STYLES, styleOf } from "@/lib/market/strategies";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
+import { getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
 import { usePaper, type PaperDay } from "@/lib/paper";
 import type { Universe } from "@/lib/market/types";
 
 export const Route = createFileRoute("/positions")({
   loader: async () => {
-    const [universe, journal] = await Promise.all([
+    const [universe, journal, nav] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getServerJournal(),
+      // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
+      getNavHistory().catch(() => ({ points: [] as NavPoint[] })),
     ]);
-    return { universe, journal, rules: DEFAULT_RULES, date: shanghaiDate() };
+    return { universe, journal, nav: nav.points, rules: DEFAULT_RULES, date: shanghaiDate() };
   },
   component: Positions,
 });
@@ -152,7 +155,7 @@ function TradeTable({
 }
 
 function Positions() {
-  const { universe, journal, rules, date } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -189,9 +192,34 @@ function Positions() {
     indexRows.length === 0 ? null : indexRows.reduce((sum, row) => sum + (row.indexRet ?? 0), 0);
   const recent = recentMean(scored.map((row) => row.ret).filter((v): v is number => v != null), 20);
   const gate = liveGate(groups.length, scored, scored.filter((r) => r.ret != null).map((r) => ({ date: r.exitDate ?? r.day, ret: r.ret! })), rules);
+  // 收益归因：按策略拆已平仓且计入统计的那几笔（和「历史战绩」同一口径，不各说各话）。
+  const attribution = useMemo(() => {
+    const buckets = new Map<string, { name: string; rets: number[] }>();
+    for (const row of scored) {
+      if (row.ret == null) continue;
+      const style = styleOf(row as never);
+      if (!style) continue;
+      const name = STYLES.find((item) => item.id === style)?.name ?? style;
+      const bucket = buckets.get(style) ?? { name, rets: [] };
+      bucket.rets.push(row.ret);
+      buckets.set(style, bucket);
+    }
+    return [...buckets.values()].map(({ name, rets }) => {
+      const wins = rets.filter((ret) => ret > 0).length;
+      return {
+        name,
+        count: rets.length,
+        winRate: wins / rets.length,
+        avg: rets.reduce((sum, ret) => sum + ret, 0) / rets.length,
+        best: Math.max(...rets),
+        worst: Math.min(...rets),
+      };
+    });
+  }, [scored]);
 
   return (
     <Frame
+      wide
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">持仓</span>
@@ -238,6 +266,65 @@ function Positions() {
             className="bg-surface"
           />
         </Panel>
+
+        {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
+            不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}
+        {nav.length >= 2 ? (
+          <Panel
+            title="净值曲线"
+            note={
+              <span className="flex items-center gap-3">
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-fg" aria-hidden /> 策略净值</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-muted" aria-hidden /> 沪深300</span>
+              </span>
+            }
+            bodyClassName="px-3 py-3"
+          >
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={nav} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={48}
+                    tickFormatter={(d: string) => d.slice(5)}
+                  />
+                  <YAxis
+                    domain={["dataMin", "dataMax"]}
+                    tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    tickFormatter={(v: number) => `${((v - 1) * 100).toFixed(1)}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: 6, fontSize: 12 }}
+                    labelStyle={{ color: "var(--color-muted)" }}
+                    formatter={(value, name) => [
+                      typeof value === "number" ? `${((value - 1) * 100).toFixed(2)}%` : "—",
+                      name,
+                    ]}
+                  />
+                  <Line type="monotone" dataKey="nav" name="策略净值" stroke="var(--color-fg)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="benchmark" name="沪深300" stroke="var(--color-muted)" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="border-t border-line pt-2 text-xs leading-relaxed text-muted">
+              策略净值 = 1 + 全部逐笔收益的平均（已平仓按卖出价、持仓按收盘现价）；沪深300 对首个记录交易日归一。每个收盘记一个点，由记账进程写入。
+            </p>
+          </Panel>
+        ) : (
+          <Panel title="净值曲线">
+            <StateBlock
+              kind="empty"
+              title="净值曲线从今天开始沉淀"
+              hint="每个收盘记一个点：策略净值是全部逐笔收益的平均，对照沪深300。攒够两个交易日自动出图，数据由记账进程写入，这里不估算。"
+            />
+          </Panel>
+        )}
 
         {urgent.length > 0 ? (
           <Panel
@@ -364,6 +451,40 @@ function Positions() {
             不满 {TRACK_NEED} 个交易日时，上涨占比还只是样本。
           </p>
         </Panel>
+
+        {/* 收益归因：同一批 scored 按策略拆开，看钱是在哪套赚的、哪套在亏。
+            样本太少的策略不单独成行——一两笔撑不起「归因」两个字，混在合计里更诚实。 */}
+        {attribution.length > 0 ? (
+          <Panel title="收益归因 · 按策略" note={<span>已平仓且计入统计的 {scored.length} 笔</span>}>
+            <Table className="data-table" caption="按策略分组的已平仓收益归因">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>策略</th>
+                  <th className={thClass()}>笔数</th>
+                  <th className={thClass()}>胜率</th>
+                  <th className={thClass()}>平均盈亏</th>
+                  <th className={thClass()}>最佳</th>
+                  <th className={thClass()}>最差</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attribution.map((row) => (
+                  <tr key={row.name} className="border-b border-line last:border-0 hover:bg-surface-2">
+                    <td data-l="策略" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left font-medium">{row.name}</td>
+                    <td data-l="笔数" className={tdClass("tabular-nums")}>{row.count}</td>
+                    <td data-l="胜率" className={tdClass()}>{(row.winRate * 100).toFixed(1)}%</td>
+                    <td data-l="平均盈亏" className={tdClass(pctClass(row.avg * 100))}>{signedPct(row.avg * 100)}</td>
+                    <td data-l="最佳" className={tdClass(pctClass(row.best * 100))}>{signedPct(row.best * 100)}</td>
+                    <td data-l="最差" className={tdClass(pctClass(row.worst * 100))}>{signedPct(row.worst * 100)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            <p className="border-t border-line px-3 py-2 text-xs leading-relaxed text-muted">
+              和「历史战绩」同一口径：收盘后补记的信号日不进统计。每笔收益率已扣费，是简单平均、不按金额加权。
+            </p>
+          </Panel>
+        ) : null}
 
         <p className="px-1 text-xs leading-relaxed text-muted">
           金额是名义金额：这套模拟盘不记仓位大小、每笔按满仓记，所以这里按每笔一手（100 股）折算，不是投入的钱。

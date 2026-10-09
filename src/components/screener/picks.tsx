@@ -57,6 +57,7 @@ export function Picks({
   marketOpen,
   tailHalf,
   pause,
+  hideTabs = false,
   onStyle,
   onOpen,
 }: {
@@ -71,6 +72,8 @@ export function Picks({
   marketOpen: boolean;
   tailHalf: boolean;
   pause: string;
+  /** 选股页左侧已带策略列表时传 true，跳过内置的横排页签（PPT 03 版面） */
+  hideTabs?: boolean;
   onStyle: (style: "early" | "trend" | "breakout" | "value" | "relay" | "rebound") => void;
   onOpen: (id: string) => void;
 }) {
@@ -130,24 +133,27 @@ export function Picks({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 策略切换。和顶栏页签同一套：选中项 surface-2 垫底，不再用红线红字 */}
-      <div className="flex gap-0.5 overflow-x-auto scroll-slim">
-        {books.map((book) => (
-          <button
-            key={book.id}
-            type="button"
-            onClick={() => onStyle(book.id)}
-            aria-pressed={book.id === style}
-            className={
-              "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
-              (book.id === style ? "bg-surface-2 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")
-            }
-          >
-            {book.name}
-            <span className="ml-1 tabular-nums">{book.n}</span>
-          </button>
-        ))}
-      </div>
+      {/* 策略切换。和顶栏页签同一套：选中项 surface-2 垫底，不再用红线红字。
+          选股页左侧有策略面板时 hideTabs 跳过这段 */}
+      {!hideTabs ? (
+        <div className="flex gap-0.5 overflow-x-auto scroll-slim">
+          {books.map((book) => (
+            <button
+              key={book.id}
+              type="button"
+              onClick={() => onStyle(book.id)}
+              aria-pressed={book.id === style}
+              className={
+                "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
+                (book.id === style ? "bg-surface-2 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")
+              }
+            >
+              {book.name}
+              <span className="ml-1 tabular-nums">{book.n}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       <p className="text-sm text-pretty">
         <span className="font-medium">{now.title}</span>
         <span className="text-muted"> {now.body}</span>
