@@ -19,6 +19,15 @@ import { join } from "node:path";
 import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
 import { exitFill, hardGate, nthClose, softGate, dayReliable, netReturn } from "../src/lib/market/journal-book.ts";
 import { evaluateGate, readStrategyGates, writeStrategyGates } from "../src/lib/market/strategy-gate.ts";
+import {
+  appendChampionLog,
+  judgeChallenger,
+  readChallengers,
+  readChampions,
+  writeChallengers,
+  writeChampions,
+  type Challenger,
+} from "../src/lib/market/challenger.ts";
 import { appendGateLog } from "../src/lib/market/gate-log.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
@@ -50,6 +59,8 @@ type Trade = {
    * 旧账的卖出价一律是计划价、账面系统性偏乐观（见 data/books/PRE-FIX-NOTE.md）。
    */
   exitKind?: "intraday" | "daily";
+  /** 挑战者 id。缺省 = 冠军参数。归因和判决按这个字段把两边分开。 */
+  variant?: string;
 };
 
 type Day = {
@@ -167,10 +178,26 @@ const gateParoled = new Set(
     .filter(([, record]) => record.state === "paroled")
     .map(([style]) => style),
 );
+
+// ── 冠军-挑战者：在跑的挑战者、各策略当前冠军参数 ─────────────
+// 挑战者只改出场参数（持有天数/止损/目标价），选股名单和冠军完全一致——
+// 这是「收益差异来自参数」这个归因能成立的前提。
+const chalFile = await readChallengers();
+const champions = await readChampions();
+/** 每套策略已转正的挑战者参数（没有 = 用代码默认）。 */
+const championParams = new Map<string, Challenger>();
+for (const [style, id] of Object.entries(champions)) {
+  const promoted = chalFile.list.find((item) => item.id === id);
+  if (promoted) championParams.set(style, promoted);
+}
+let runningChallengers = chalFile.list.filter((item) => item.status === "running");
+
 if (phase.date) {
   const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
   if (ownerBook) {
     const retsByStyle = new Map<string, number[]>();
+    // 按 style:variant 分桶：冠军和挑战者的判决必须各算各的，混在一起两边都判不准。
+    const retsByBucket = new Map<string, number[]>();
     for (const day of ownerBook.days) {
       if (!dayReliable(day)) continue;
       for (const trade of day.trades) {
@@ -179,6 +206,12 @@ if (phase.date) {
         if (!style) continue;
         const ret = netReturn(trade.entry, trade.exit);
         if (ret == null) continue;
+        const bucket = `${style}:${trade.variant && trade.variant !== "champion" ? trade.variant : "champion"}`;
+        const bucketList = retsByBucket.get(bucket) ?? [];
+        bucketList.push(ret);
+        retsByBucket.set(bucket, bucketList);
+        // 策略闸判的是冠军参数（挑战者样本不算冠军的成绩，反之亦然）。
+        if (trade.variant && trade.variant !== "champion") continue;
         const list = retsByStyle.get(style) ?? [];
         list.push(ret);
         retsByStyle.set(style, list);
@@ -198,6 +231,19 @@ if (phase.date) {
       if (decision.action === "disable") {
         gateDisabled.add(style);
         gateParoled.delete(style);
+        // 冠军参数被策略闸停用时，自动回滚到默认参数——留档在 champion-log.jsonl。
+        if (champions[style] && champions[style] !== "champion") {
+          const from = champions[style];
+          champions[style] = "champion";
+          championParams.delete(style);
+          await writeChampions(champions);
+          const name = STYLES.find((item) => item.id === style)?.name ?? style;
+          const reason = `策略闸停用，参数自动回滚（${from} → champion）`;
+          await appendChampionLog({ at: Date.now(), style, from, to: "champion", reason });
+          console.log(`champion-rollback ${style}: ${reason}`);
+          notify(`${name} ${reason}`);
+          void sendPushPlus("赤轨参数回滚", `${name}\n${reason}\n时间：${time}`);
+        }
       } else if (decision.action === "parole") {
         gateDisabled.delete(style);
         gateParoled.add(style);
@@ -213,6 +259,40 @@ if (phase.date) {
       void sendPushPlus("赤轨策略闸门", `${name} ${label}\n${decision.reason}\n时间：${time}`);
     }
     if (gatesChanged) await writeStrategyGates(strategyGates);
+
+    // ── 挑战者判决：攒够样本自动转正/淘汰/停跑 ──────────────
+    let chalChanged = false;
+    for (const chal of chalFile.list) {
+      if (chal.status !== "running") continue;
+      const decision = judgeChallenger(
+        retsByBucket.get(`${chal.style}:champion`) ?? [],
+        retsByBucket.get(`${chal.style}:${chal.id}`) ?? [],
+      );
+      if (decision.action === "none") continue;
+      chalChanged = true;
+      chal.status = decision.action;
+      const name = STYLES.find((item) => item.id === chal.style)?.name ?? chal.style;
+      if (decision.action === "promote") {
+        const from = champions[chal.style] ?? "champion";
+        champions[chal.style] = chal.id;
+        championParams.set(chal.style, chal);
+        await writeChampions(champions);
+        await appendChampionLog({ at: Date.now(), style: chal.style, from, to: chal.id, reason: decision.reason });
+      }
+      const label =
+        decision.action === "promote"
+          ? `参数转正：${chal.name} 成为 ${name} 的新冠军`
+          : decision.action === "reject"
+            ? `挑战者淘汰：${chal.name}`
+            : `挑战者停跑：${chal.name}`;
+      console.log(`challenger ${chal.id} ${decision.action}: ${decision.reason}`);
+      notify(`${label}：${decision.reason}`);
+      void sendPushPlus("赤轨挑战者", `${label}\n${decision.reason}\n时间：${time}`);
+    }
+    if (chalChanged) {
+      await writeChallengers(chalFile);
+      runningChallengers = chalFile.list.filter((item) => item.status === "running");
+    }
   }
 }
 
@@ -332,18 +412,56 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
       }
 
       for (const row of buys) {
+        const promoted = championParams.get(style);
         const trade: Trade = {
           id: row.quote.id,
           code: row.quote.code,
           name: row.quote.name,
           entry: row.buy,
-          stop: row.stop,
-          target: row.sell,
+          // 已转正的挑战者参数在这里生效；没有就沿用名单给出的出场位。
+          stop:
+            promoted?.stopPct != null
+              ? Math.round(row.buy * (1 - promoted.stopPct / 100) * 100) / 100
+              : row.stop,
+          target:
+            promoted?.targetPct != null
+              ? Math.round(row.buy * (1 + promoted.targetPct / 100) * 100) / 100
+              : row.sell,
           style,
           // 持股天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写三元字面量
-          hold: holdOf(style),
+          hold: promoted?.holdDays ?? holdOf(style),
           exit: null,
           exitDate: null,
+        };
+        additions.push(trade);
+        held.push(trade);
+        todayTrades.push(trade);
+      }
+
+      // 挑战者：同一份名单、不同的出场参数，每天限 1 只和冠军并行。
+      // takeBuys 会避开冠军刚买的票（held/todayTrades 已更新），不会同票双押。
+      for (const chal of runningChallengers) {
+        if (chal.style !== style) continue;
+        const row = takeBuys(list, held, style, todayTrades)[0];
+        if (!row) continue;
+        const trade: Trade = {
+          id: row.quote.id,
+          code: row.quote.code,
+          name: row.quote.name,
+          entry: row.buy,
+          stop:
+            chal.stopPct != null
+              ? Math.round(row.buy * (1 - chal.stopPct / 100) * 100) / 100
+              : row.stop,
+          target:
+            chal.targetPct != null
+              ? Math.round(row.buy * (1 + chal.targetPct / 100) * 100) / 100
+              : row.sell,
+          style,
+          hold: chal.holdDays ?? holdOf(style),
+          exit: null,
+          exitDate: null,
+          variant: chal.id,
         };
         additions.push(trade);
         held.push(trade);
@@ -368,7 +486,7 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
       if (speak) {
         const shown = additions.slice(0, 3).map((trade) => {
           const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
-          return `${style} ${trade.name}`.trim();
+          return `${style}${trade.variant ? "·挑战" : ""} ${trade.name}`.trim();
         });
         const more = additions.length > shown.length ? `等 ${additions.length} 只` : "";
         notify(`${shown.join("、")}${more} 已到买入价`);
