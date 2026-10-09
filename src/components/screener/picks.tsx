@@ -307,6 +307,28 @@ export function Picks({
           持有 {open.length} 只
           {onServer ? "" : "（本机浏览器的账）"}
         </p>
+        {/* 今天建的仓逐条列出——只说「3/10」不说是哪 3 只，用户还得跳去持仓页找。 */}
+        {todayTrades.length > 0 ? (
+          <ul className="mt-2 space-y-1">
+            {todayTrades.map((trade) => {
+              const live = byId.get(trade.id);
+              const ret = live && trade.entry > 0 ? (live.price / trade.entry - 1) * 100 : null;
+              const book = STYLES.find((item) => item.id === styleOf(trade))?.name ?? styleOf(trade);
+              return (
+                <li key={`${trade.id}-${trade.entry}`} className="flex items-baseline gap-2 text-xs">
+                  <button type="button" onClick={() => onOpen(trade.id)} className="min-w-0 truncate font-medium hover:underline">
+                    {trade.name}
+                  </button>
+                  <span className="shrink-0 rounded bg-surface-2 px-1 text-[10px] text-muted">{book}</span>
+                  <span className="shrink-0 tabular-nums text-muted">{fmtPrice(trade.entry)}</span>
+                  {ret != null ? <span className={pctClass(ret)}>{signedPct(ret)}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-muted">今天还没有建仓——上面精选表里「已到买入价」的票，盘中打到买入价会自动记进来。</p>
+        )}
         <div className="mt-2 h-1 w-full overflow-hidden rounded bg-surface-2" role="img" aria-label={`今日建仓 ${todayTaken} / ${MAX_POSITIONS}`}>
           {/* 中性色的进度条：名额用没用完不是涨跌也不是警告，不需要颜色说话 */}
           <div
