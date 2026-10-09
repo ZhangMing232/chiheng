@@ -121,6 +121,18 @@ test("类别不在词表、方向不是 ±1、表达式不过白名单，都拒�
   assert.match(rejected[3].reason, /太短/);
 });
 
+test("弱模型自造的组合类别（量能/反转）取主类别后照常接受，纯乱造仍拒", () => {
+  const raw = JSON.stringify([
+    { id: "q_mix", name: "甲", category: "量能/反转", direction: -1, expr: "std20 / amp20", rationale: "足够长的经济逻辑说明" },
+    { id: "q_bad", name: "乙", category: "玄学/动量", direction: 1, expr: "d60", rationale: "足够长的经济逻辑说明" },
+  ]);
+  const { accepted, rejected } = parseAIProposals(raw, empty());
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].category, "量能");
+  assert.equal(rejected.length, 1);
+  assert.match(rejected[0].reason, /词表/);
+});
+
 test("一个被拒不中断整批：后面合格的照常接受", () => {
   const raw = JSON.stringify([
     { id: "bad!", name: "甲", category: "动量", direction: 1, expr: "d60", rationale: "足够长的经济逻辑说明" },

@@ -155,7 +155,10 @@ export function parseAIProposals(
     if (ids.has(p.id)) { fail(`id「${p.id}」已存在`); continue; }
     if (typeof p.name !== "string" || !p.name.trim()) { fail("name 缺失"); continue; }
     if (names.has(p.name.trim())) { fail(`名字「${p.name.trim()}」已存在`); continue; }
-    if (!CATEGORIES.includes(p.category as Factor["category"])) { fail(`类别「${String(p.category)}」不在词表`); continue; }
+    // 弱模型爱自造组合类别（如「量能/反转」）：先取 "/" 前一段再看词表。
+    // 类别只是元数据，取主类别不影响预登记的方向和经济逻辑。
+    const category = typeof p.category === "string" ? p.category.split("/")[0].trim() : "";
+    if (!CATEGORIES.includes(category as Factor["category"])) { fail(`类别「${String(p.category)}」不在词表（动量/反转/波动率/量能/形态/规模）`); continue; }
     if (p.direction !== 1 && p.direction !== -1) { fail("direction 必须是 1 或 -1"); continue; }
     if (typeof p.expr !== "string") { fail("expr 缺失"); continue; }
     const compiled = validateFactorExpr(p.expr);
@@ -166,7 +169,7 @@ export function parseAIProposals(
     accepted.push({
       id: p.id,
       name: p.name.trim(),
-      category: p.category as Factor["category"],
+      category: category as Factor["category"],
       direction: p.direction,
       expr: p.expr,
       rationale: p.rationale.trim(),
@@ -198,7 +201,7 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[]): string {
     "2. 因子只允许用给定指标字段做四则运算，函数只能用 abs/log/sqrt。不要发明新指标。",
     "3. 优先针对败因提假设：时段翻号的要想「什么条件下它才成立」；形状和方向不符的按真实形状重新立方向；全灭的维度别再试微调。",
     "4. 不许提议和现有因子逻辑等价的换皮（比如换个窗口再测一遍 d60）。",
-    "5. 提 1~3 个你最看好的，宁缺毋滥。每个给：id（小写字母开头 slug）、name（中文名）、category（动量/反转/波动率/量能/形态/规模）、direction（1 或 -1）、expr（表达式）、rationale（经济逻辑，一两句）。",
+    "5. 提 1~3 个你最看好的，宁缺毋滥。每个给：id（小写字母开头 slug）、name（中文名）、category（只能填一个词，从这六个里选：动量 / 反转 / 波动率 / 量能 / 形态 / 规模。不要自造组合类别，「量能/反转」这种会被拒）、direction（1 或 -1）、expr（表达式）、rationale（经济逻辑，一两句）。",
     "",
     "最近一轮判决：",
     ...lines,
