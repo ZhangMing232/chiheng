@@ -14,12 +14,20 @@
  *    Panel 的 note 在右上角，这一页每块都要交代口径，塞右边读不顺（资金页同一个取舍）。
  */
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Stat, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { signedPct } from "@/lib/market/format";
-import { getFactorBaseline, getFactorDiag, getFactorRuns } from "@/lib/market/quotes.functions";
+import {
+  getAIStatus,
+  getFactorBaseline,
+  getFactorDiag,
+  getFactorQueue,
+  getFactorRuns,
+  runFactorAI,
+  saveAIConfig,
+} from "@/lib/market/quotes.functions";
 import { batchSummary, factorRows, flowStress } from "@/lib/market/factors-view";
 import { FactorGateTable, BucketShape } from "@/components/screener/factor-gate-table";
 import { FlowProbePanel, ShrinkFlipPanel } from "@/components/screener/factor-diag-panels";
@@ -28,6 +36,7 @@ import type {
   FactorDiagPayload,
   FactorRunsPayload,
 } from "@/lib/market/factor-runs-file";
+import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
 
 /** loader 里 catch 用的兜底。不 import factor-runs-file 里的 empty* —— 那个模块有 node:fs，
  *  被前端打进来会炸。类型可以 import（编译期擦除），值不行。 */
@@ -35,6 +44,8 @@ type Loader = {
   runs: FactorRunsPayload;
   diag: FactorDiagPayload;
   baseline: FactorBaselinePayload;
+  queue: QueuePayload;
+  ai: { allowed: boolean; configured: boolean; baseUrl: string | null; model: string | null; keyTail: string | null };
 };
 
 function messageOf(error: unknown): string {
@@ -47,7 +58,7 @@ const RERUN_HINT =
 export const Route = createFileRoute("/factors")({
   loader: async (): Promise<Loader> => {
     // 三份各自独立失败：某一块读不到就那一块空着，其余照常渲染。
-    const [runs, diag, baseline] = await Promise.all([
+    const [runs, diag, baseline, queue, ai] = await Promise.all([
       getFactorRuns().catch(
         (e: unknown): FactorRunsPayload => ({
           batch: null,
@@ -68,8 +79,14 @@ export const Route = createFileRoute("/factors")({
       getFactorBaseline().catch(
         (e: unknown): FactorBaselinePayload => ({ name: null, text: null, bytes: 0, missing: messageOf(e) }),
       ),
+      getFactorQueue().catch(
+        (e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) }),
+      ),
+      getAIStatus().catch(
+        (): Loader["ai"] => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null }),
+      ),
     ]);
-    return { runs, diag, baseline };
+    return { runs, diag, baseline, queue, ai };
   },
   component: FactorsPage,
 });
@@ -81,7 +98,174 @@ const TABS = [
   { id: "factor-attrib", label: "缩量归因" },
   { id: "factor-flow", label: "资金流探路" },
   { id: "factor-baseline", label: "基线原文" },
+  { id: "factor-ai", label: "AI 管理" },
 ] as const;
+
+const QUEUE_STATUS: Record<QueueEntry["status"], { label: string; className: string }> = {
+  pending: { label: "待验", className: "text-fg" },
+  tested: { label: "在验·未过", className: "text-warn" },
+  passed: { label: "已过 6 关", className: "text-up" },
+  tombstone: { label: "已淘汰", className: "text-muted line-through" },
+};
+
+/**
+ * AI 因子管理区块：接口配置（主人可见，key 只回尾号）、跑一轮闭环、待验队列表。
+ * AI 的产出进队列前要经过白名单编译 + 撞名校验——它提议，闸门说了算。
+ */
+function AIFactorSection({ queue, ai }: { queue: QueuePayload; ai: Loader["ai"] }) {
+  const router = useRouter();
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+
+  const save = async () => {
+    try {
+      const res = await saveAIConfig({ data: { baseUrl, apiKey, model } });
+      setMessage(
+        res.configured ? `已保存 ${res.baseUrl} · ${res.model} · key 尾号 ${res.keyTail ?? ""}`.trim() : "已清除 AI 配置",
+      );
+      setBaseUrl("");
+      setApiKey("");
+      setModel("");
+      await router.invalidate();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "保存失败");
+    }
+  };
+
+  const run = async () => {
+    setRunning(true);
+    setMessage(null);
+    try {
+      const res = await runFactorAI();
+      setMessage(
+        res.ok
+          ? `本轮提议 ${res.proposed} 个进队列` +
+              (res.rejected > 0 ? `，拒了 ${res.rejected} 个（${res.rejectReasons.slice(0, 2).join("；")}${res.rejectReasons.length > 2 ? "…" : ""}）` : "") +
+              "。跑一次 BT_FACTOR=1 回测就会进 6 关检验。"
+          : `没跑成：${res.error ?? "未知原因"}`,
+      );
+      await router.invalidate();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "运行失败");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Section
+      id="factor-ai"
+      title="AI 因子管理"
+      hint="AI 读最近一轮 6 关判决，针对败因提 1~3 个新假设进待验队列；表达式只能组合现有指标（abs/log/sqrt），过不了白名单编译的直接拒。连续 2 次没过 6 关自动淘汰。AI 不碰判决逻辑、不碰持仓下单。"
+    >
+      {ai.allowed ? (
+        <div className="border-b border-line px-3.5 py-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="shrink-0 text-xs font-medium text-muted">AI 接口（OpenAI 兼容，Ollama / LM Studio 也行）</span>
+            <span className="truncate text-xs text-muted">
+              {ai.configured ? `已配置 · ${ai.baseUrl} · ${ai.model} · key 尾号 ${ai.keyTail}` : "未配置"}
+            </span>
+          </div>
+          <div className="mt-1.5 grid gap-1.5 sm:grid-cols-[1fr_1fr_1fr_auto]">
+            <input
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder={ai.configured ? ai.baseUrl ?? "baseUrl" : "https://api.example.com/v1"}
+              className="min-w-0 rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+            <input
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              type="password"
+              placeholder={ai.configured ? "填新 key 替换，留空保存可清除" : "API key"}
+              className="min-w-0 rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+            <input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={ai.configured ? ai.model ?? "model" : "模型名，如 qwen2.5:14b"}
+              className="min-w-0 rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+            <button
+              type="button"
+              onClick={() => void save()}
+              className="shrink-0 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90"
+            >
+              保存
+            </button>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={running || !ai.configured}
+              onClick={() => void run()}
+              className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {running ? "AI 思考中…" : "让 AI 提议一轮新因子"}
+            </button>
+            {message ? <span className="min-w-0 text-xs text-muted">{message}</span> : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="px-3.5 py-3">
+        {queue.entries.length > 0 ? (
+          <Table className="data-table" caption="待验队列：AI 或人工预登记的因子，跑 BT_FACTOR=1 时附加进 6 关检验">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={thClass()}>状态</th>
+                <th className={thClass("text-left")}>因子</th>
+                <th className={thClass()}>方向</th>
+                <th className={thClass("text-left")}>表达式</th>
+                <th className={thClass("text-left")}>经济逻辑</th>
+                <th className={thClass()}>跑过/失败</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...queue.entries].reverse().map((e) => {
+                const st = QUEUE_STATUS[e.status];
+                return (
+                  <tr key={e.id} className={`border-b border-line last:border-b-0 ${e.status === "tombstone" ? "opacity-50" : ""}`}>
+                    <td data-l="状态" className={`px-2.5 py-1.5 ${st.className}`}>
+                      {st.label}
+                    </td>
+                    <td data-l="因子" className="px-2.5 py-1.5 text-left">
+                      <span className="font-medium">{e.name}</span>
+                      <span className="ml-1.5 text-[11px] text-muted">{e.id}</span>
+                      {e.note ? <span className="ml-1.5 text-[11px] text-muted">（{e.note}）</span> : null}
+                    </td>
+                    <td data-l="方向" className="px-2.5 py-1.5">
+                      {e.direction > 0 ? "正向" : "反向"}
+                    </td>
+                    <td data-l="表达式" className="px-2.5 py-1.5 font-mono text-[11px] text-muted">
+                      {e.expr}
+                    </td>
+                    <td data-l="经济逻辑" className="max-w-[36ch] px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">
+                      {e.rationale}
+                    </td>
+                    <td data-l="跑过/失败" className="px-2.5 py-1.5 text-[11px] text-muted">
+                      {e.runs} 次{e.failCount > 0 ? ` · 连续失败 ${e.failCount}` : ""}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        ) : (
+          <StateBlock
+            kind="empty"
+            title="待验队列是空的"
+            hint={ai.allowed ? "在上面配好接口，点「让 AI 提议一轮新因子」；提议进队列后跑一次 BT_FACTOR=1 回测。" : "主人账号配置 AI 接口后可以自动补充新因子。"}
+          />
+        )}
+        {queue.missing ? <p className="mt-2 text-[11px] text-muted">{queue.missing}（还没跑过，正常）</p> : null}
+      </div>
+    </Section>
+  );
+}
 
 /** 区块外壳。口径说明在标题正下方，不用 Panel（它的 note 在右侧）。 */
 function Section({
@@ -222,6 +406,17 @@ function FactorsPage() {
               六关判什么：G1 单调且方向符合预注册（Spearman ≥0.8）· G2 |t|≥2 · G3 前后两段同号且各 |t|≥1 ·
               G4 换一批不重叠的股票仍同号且 |t|≥2 · G5 Bonferroni 按已测总数 N 收紧临界 · G6 顶档被可交易闸挡掉 ≤50%。
             </p>
+            <div className="border-t border-line px-3 py-2">
+              <p className="text-[11px] font-medium text-muted">败在一关 = 得了一种病，对症下药才值得再试：</p>
+              <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted">
+                <li>· G1 形状不符——五档形状和当初登记的方向对不上；要改就按真实形状换个新 id 重新预登记，旧记录留档。</li>
+                <li>· G2 t 不够——|t|&lt;2 等于没测出来，大概率是噪声，别当回事。</li>
+                <li>· G3 时段翻号——前半段后半段结论相反，换个行情环境就亏钱，最致命，别抱幻想。</li>
+                <li>· G4 换样本死——换批股票就不成立，只是这批票的巧合。</li>
+                <li>· G5 校正后不显著——测的因子多了，运气成分被 Bonferroni 挤掉，降回候选。</li>
+                <li>· G6 顶档被挡——最好的那档实际买不进去，纸上富贵；闸门对应真实下单约束，不许调低。</li>
+              </ul>
+            </div>
           </div>
         ) : (
           <div className="px-3.5 py-4">
@@ -336,6 +531,9 @@ function FactorsPage() {
           </div>
         )}
       </Section>
+
+      {/* 7 AI 管理 */}
+      <AIFactorSection queue={data.queue} ai={data.ai} />
 
       <p className="px-1 text-[11px] leading-relaxed text-warn">
         超额 ≠ 收益；|t| &lt; 2 等于没测出来；两段翻号 = 不能用；禁调参过关。

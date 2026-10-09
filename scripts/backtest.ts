@@ -49,6 +49,7 @@ import {
 } from "@/lib/market/factors";
 import type { FactorRun, DailyRow } from "@/lib/market/factors";
 import { detectWyckoffSpring } from "@/lib/market/wyckoff-spring";
+import { loadQueueFactors, applyVerdictsToQueue } from "@/lib/market/factor-queue";
 
 /** 回测多长。250 个交易日约等于一年。 */
 const LOOKBACK = 250;
@@ -1097,7 +1098,14 @@ async function main() {
   if (process.env.BT_FACTOR === "1") {
     const N = Number(process.env.BT_N ?? 3);
     const buckets = Number(process.env.BT_BUCKETS ?? 5);
-    const factorCount = FACTORS.length;
+    // 待验队列因子（AI/人工预登记、还没淘汰的）附加在注册表后面一起跑。
+    // 追加在尾部而不是插中间：后面 BT_DIAG 分支用 FACTORS.findIndex 定位下标，
+    // 追加能保持下标不变。淘汰（tombstone）的由 loadQueueFactors 内部跳过。
+    const queueFactors = await loadQueueFactors();
+    const factors = [...FACTORS, ...queueFactors];
+    const factorCount = factors.length;
+    /** 队列因子在本轮的判决，跑完一起回写队列（failCount/淘汰）。 */
+    const queueVerdicts: { id: string; passed: boolean; at: string }[] = [];
     const offsetVal = Number(process.env.BT_OFFSET ?? 0);
 
     // 生成某段区间的 daily 数据（每因子取值 + 未来 N 天超额 + 可交易近似）
@@ -1125,7 +1133,7 @@ async function main() {
           // 回测侧可交易近似：股价 >= 4、流通市值（快照）>= 40 亿。
           // ST 标记和真实涨跌停回测里拿不到，这里只做能确定的。
           const tradable = m.c >= 4 && (m.floatCap == null || m.floatCap >= 40);
-          today.push({ vals: FACTORS.map((f) => f.get(m)), ex: outPrice / inPrice - 1 - bo(t + 1, t + N), tradable });
+          today.push({ vals: factors.map((f) => f.get(m)), ex: outPrice / inPrice - 1 - bo(t + 1, t + N), tradable });
         }
         daily.push(today);
       }
@@ -1159,7 +1167,7 @@ async function main() {
 
     const logLines: string[] = [];
     for (let f = 0; f < factorCount; f += 1) {
-      const factor = FACTORS[f];
+      const factor = factors[f];
       const run = full[f];
       const g1 = gateMonotonic(run.bucketMeans, factor.direction);
       const g2 = gateT(run.t);
@@ -1174,9 +1182,10 @@ async function main() {
           `${(run.meanSpread >= 0 ? "+" : "") + (run.meanSpread * 100).toFixed(2)}%`.padStart(9) +
           run.t.toFixed(2).padStart(7),
       );
+      const at = new Date().toISOString();
       logLines.push(
         JSON.stringify({
-          at: new Date().toISOString(),
+          at,
           factor: factor.id,
           name: factor.name,
           direction: factor.direction,
@@ -1210,6 +1219,10 @@ async function main() {
           nTested,
         }),
       );
+      // 队列因子（f 排在注册表后面）记下判决，整轮跑完一起回写队列状态。
+      if (f >= FACTORS.length) {
+        queueVerdicts.push({ id: factor.id, passed: [g1, g2, g3, g4, g5, g6].every((g) => g.pass), at });
+      }
     }
     console.log("-".repeat(92));
 
@@ -1217,7 +1230,7 @@ async function main() {
     console.log("\n分档均值（全区间，从最低档到最高档）：");
     for (let f = 0; f < factorCount; f += 1) {
       const cells = full[f].bucketMeans.map((v) => `${(v >= 0 ? "+" : "") + (v * 100).toFixed(2)}%`.padStart(8)).join(" ");
-      console.log(`  ${FACTORS[f].name.padEnd(10)} ${cells}`);
+      console.log(`  ${factors[f].name.padEnd(10)} ${cells}`);
     }
 
     // —— 缩量天数归因（BT_DIAG=shrinkDays，研究性，不进 6 关）——
@@ -1388,6 +1401,12 @@ async function main() {
     if (process.env.BT_NO_LOG !== "1") {
       await appendFile(logPath, logLines.join("\n") + "\n");
       console.log(`\n因子日志已追加 → ${logPath}（${logLines.length} 条）`);
+    }
+    // 队列状态回写：跑了就算数（BT_NO_LOG 只是不记日志，检验本身发生了）。
+    if (queueVerdicts.length > 0) {
+      await applyVerdictsToQueue(queueVerdicts);
+      const passed = queueVerdicts.filter((v) => v.passed).length;
+      console.log(`待验队列已更新：${queueVerdicts.length} 个跑了，${passed} 个过 6 关（连续 2 次不过自动淘汰）`);
     }
     console.log("判据：|t|<2=没测出；两段翻号=不能用；Bonferroni 后不显著=降级；顶档被挡过半=不可交易。");
     return;

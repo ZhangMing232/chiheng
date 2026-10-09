@@ -15,6 +15,7 @@ import { parseRules } from "@/lib/market/rules";
 import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/factor-runs-file";
+import { aiStatus, readAIConfig, readQueue, runFactorAILoop, writeAIConfig } from "@/lib/market/factor-queue";
 import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
@@ -590,6 +591,59 @@ export const getPushStatus = createServerFn({ method: "GET" }).handler(async () 
     await writeFile(pushConfigPath(), JSON.stringify({ token: data.token }, null, 2));
     return { ok: true as const, configured: data.token !== "", tail: data.token ? data.token.slice(-4) : null };
   });
+
+// ── AI 因子管理（/factors 页的「AI 因子管理」区块）────────────────
+// AI 只许提议因子进待验队列：表达式进 factor-expr 白名单编译器，不碰判决逻辑、
+// 不碰持仓下单。apiKey 是密钥：服务端只回尾四位，完整值不出服务端。
+// factor-queue 有 node:fs——和 factor-runs-file 一样只活在这条 server fn 里，别打进组件。
+
+/** 待验队列（AI/人工预登记的因子 + 淘汰状态）。 */
+export const getFactorQueue = createServerFn({ method: "GET" }).handler(async () => readQueue());
+
+/** AI 接口配置状态。谁都能调，非主人只回 allowed: false。 */
+export const getAIStatus = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) return { allowed: false as const, ...(await aiStatus(null)) };
+  return { allowed: true as const, ...(await aiStatus(await readAIConfig())) };
+});
+
+/** 保存/清除 AI 接口配置。apiKey 传空 = 清除。 */
+export const saveAIConfig = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { baseUrl?: unknown; apiKey?: unknown; model?: unknown };
+    if (typeof d?.baseUrl !== "string" || typeof d?.apiKey !== "string" || typeof d?.model !== "string") {
+      throw new Error("配置没填对（baseUrl / apiKey / model 都要是字符串）");
+    }
+    return { baseUrl: d.baseUrl.trim(), apiKey: d.apiKey.trim(), model: d.model.trim() };
+  })
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 配置");
+    if (data.apiKey === "") {
+      await writeAIConfig(null);
+      return { ok: true as const, configured: false, baseUrl: null as string | null, model: null as string | null, keyTail: null as string | null };
+    }
+    if (data.baseUrl === "" || data.model === "") throw new Error("baseUrl 和 model 不能空");
+    await writeAIConfig(data);
+    return { ok: true as const, configured: true, baseUrl: data.baseUrl, model: data.model, keyTail: data.apiKey.slice(-4) };
+  });
+
+/** 让 AI 跑一轮闭环：读最近判决 → 提议新因子 → 校验后进队列。 */
+export const runFactorAI = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 闭环");
+  const { FACTORS } = await import("@/lib/market/factors");
+  return runFactorAILoop({
+    readRows: readFactorRuns,
+    existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })),
+  });
+});
 
 // ── 因子研究页（/factors）的三个数据源 ──────────────────────────
 // 这三条读的都是 data/backtest/ 下的本地产物。data/ 在 .gitignore 里，

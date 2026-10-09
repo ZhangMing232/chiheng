@@ -109,6 +109,17 @@ BT_OFFSET=1 node ...                  # 换一批互不重叠的股票再跑一�
    转正和淘汰都有 Mac 通知 + 微信推送。冠军参数被策略闸停用时自动回滚默认参数。
 3. 参数切换留档在 `data/champion-log.jsonl`，每次回滚都知道上一任是谁。
 
+**因子层还有第四条腿——AI 待验队列**（factor-queue.ts + factor-expr.ts，/factors 页「AI 管理」区块）：
+
+- AI（OpenAI 兼容接口，Ollama / LM Studio 填 baseUrl 也能用）读最近一轮 6 关判决，
+  针对败因提 1~3 个新假设，进 `data/factor-queue.json` 排队。
+- AI 的产出**只许是表达式**（现有指标 + abs/log/sqrt，factor-expr 白名单编译，无 eval），
+  过不了编译或撞名的直接拒。它碰不到判决逻辑、持仓、下单。
+- `BT_FACTOR=1` 回测自动把队列里没淘汰的因子附加进检验（算进 Bonferroni 的 N）。
+  连续 2 次没过 6 关自动 tombstone 灰显；过了 6 关的因子按老规矩走
+  「策略变体 → 挑战者 → 纸面 30 笔」的漏斗，不许跳级。
+- 方向预登记进队列后不许改——要改按真实形状换新 id 重新登记，旧记录留档。
+
 **注册一个挑战者**：编辑 `data/challengers.json`，往 list 里加一条 running 状态的记录：
 
 ```json
