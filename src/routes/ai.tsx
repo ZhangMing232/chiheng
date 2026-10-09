@@ -35,6 +35,7 @@ import {
 } from "@/lib/market/quotes.functions";
 import { evolveStats, type AILogEntry } from "@/lib/market/ai-log";
 import { usageStats, type AIUsageEntry, type UsageStats } from "@/lib/market/ai-usage";
+import { PROVIDER_PRESETS } from "@/lib/market/ai-presets";
 import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
 import type { Challenger } from "@/lib/market/challenger";
 import { STYLES } from "@/lib/market/strategies";
@@ -109,9 +110,10 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-/** 接口档案编辑弹窗：新增 / 改档都走这里。key 留空 = 不换。 */
+/** 接口档案编辑弹窗：新增 / 改档都走这里。选服务商预设后只填 API key 即可。 */
 function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onClose: () => void }) {
   const router = useRouter();
+  const [presetId, setPresetId] = useState("custom");
   const [name, setName] = useState(editing?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(editing?.baseUrl ?? "");
   const [apiKey, setApiKey] = useState("");
@@ -121,6 +123,21 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
   const [models, setModels] = useState<string[]>([]);
   const [busy, setBusy] = useState<"fetch" | "test" | "save" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const preset = PROVIDER_PRESETS.find((p) => p.id === presetId);
+
+  /** 选服务商：baseUrl / 模型 / 候选清单自动带出来，用户只贴 key。 */
+  const applyPreset = (id: string) => {
+    setPresetId(id);
+    const p = PROVIDER_PRESETS.find((item) => item.id === id);
+    if (!p) return;
+    if (p.baseUrl) setBaseUrl(p.baseUrl);
+    if (p.models.length > 0) {
+      setModel(p.models[0]);
+      setModels(p.models);
+    }
+    if (!editing && p.id !== "custom") setName(p.name);
+  };
 
   const fetchModels = async () => {
     setBusy("fetch");
@@ -174,6 +191,20 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
         </header>
         <div className="space-y-2 px-3.5 py-3">
           <label className="block text-xs text-muted">
+            服务商（选了只填 API key 就行）
+            <select
+              value={presetId}
+              onChange={(e) => applyPreset(e.target.value)}
+              className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none focus:border-brand"
+            >
+              {PROVIDER_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs text-muted">
             名称
             <input
               value={name}
@@ -224,7 +255,7 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
                 value={pricePrompt}
                 onChange={(e) => setPricePrompt(e.target.value)}
                 inputMode="decimal"
-                placeholder="如 2"
+                placeholder={preset?.priceHint?.prompt ?? "如 2"}
                 className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
               />
             </label>
@@ -234,12 +265,14 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
                 value={priceCompletion}
                 onChange={(e) => setPriceCompletion(e.target.value)}
                 inputMode="decimal"
-                placeholder="如 8"
+                placeholder={preset?.priceHint?.completion ?? "如 8"}
                 className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
               />
             </label>
           </div>
-          <p className="text-[11px] text-muted">单价按各家官网填，填了监控台才算费用；调用发生时快照当时的价，以后改价不影响历史账。</p>
+          <p className="text-[11px] text-muted">
+            单价按各家官网核对后填（占位提示只是参考价）；调用发生时快照当时的价，以后改价不影响历史账。
+          </p>
           {message ? <p className="text-xs text-muted">{message}</p> : null}
         </div>
         <footer className="flex flex-wrap items-center gap-2 border-t border-line px-3.5 py-2.5">
