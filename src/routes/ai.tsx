@@ -39,7 +39,7 @@ import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
 import type { Challenger } from "@/lib/market/challenger";
 import { STYLES } from "@/lib/market/strategies";
 
-type ProfileStatus = { id: string; name: string; baseUrl: string; model: string; keyTail: string };
+type ProfileStatus = { id: string; name: string; baseUrl: string; model: string; keyTail: string; pricePromptPerM: number | null; priceCompletionPerM: number | null };
 
 type AIStatusPayload = {
   allowed: boolean;
@@ -116,6 +116,8 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
   const [baseUrl, setBaseUrl] = useState(editing?.baseUrl ?? "");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(editing?.model ?? "");
+  const [pricePrompt, setPricePrompt] = useState(editing?.pricePromptPerM != null ? String(editing.pricePromptPerM) : "");
+  const [priceCompletion, setPriceCompletion] = useState(editing?.priceCompletionPerM != null ? String(editing.priceCompletionPerM) : "");
   const [models, setModels] = useState<string[]>([]);
   const [busy, setBusy] = useState<"fetch" | "test" | "save" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -138,7 +140,7 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
     setBusy("test");
     setMessage(null);
     try {
-      const res = await testAIProfile({ data: { baseUrl, apiKey, model } });
+      const res = await testAIProfile({ data: { baseUrl, apiKey, model, pricePromptPerM: pricePrompt, priceCompletionPerM: priceCompletion } });
       setMessage(res.ok ? `通了，${res.ms}ms` : `没通：${res.error ?? "未知原因"}（${res.ms}ms）`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "测试失败");
@@ -151,7 +153,7 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
     setBusy("save");
     setMessage(null);
     try {
-      await saveAIProfile({ data: { id: editing?.id, name, baseUrl, apiKey, model } });
+      await saveAIProfile({ data: { id: editing?.id, name, baseUrl, apiKey, model, pricePromptPerM: pricePrompt, priceCompletionPerM: priceCompletion } });
       await router.invalidate();
       onClose();
     } catch (err) {
@@ -215,6 +217,29 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
               ))}
             </datalist>
           </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs text-muted">
+              Prompt 单价（元/百万 tokens，可空）
+              <input
+                value={pricePrompt}
+                onChange={(e) => setPricePrompt(e.target.value)}
+                inputMode="decimal"
+                placeholder="如 2"
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+              />
+            </label>
+            <label className="block text-xs text-muted">
+              Completion 单价（元/百万 tokens，可空）
+              <input
+                value={priceCompletion}
+                onChange={(e) => setPriceCompletion(e.target.value)}
+                inputMode="decimal"
+                placeholder="如 8"
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+              />
+            </label>
+          </div>
+          <p className="text-[11px] text-muted">单价按各家官网填，填了监控台才算费用；调用发生时快照当时的价，以后改价不影响历史账。</p>
           {message ? <p className="text-xs text-muted">{message}</p> : null}
         </div>
         <footer className="flex flex-wrap items-center gap-2 border-t border-line px-3.5 py-2.5">
@@ -336,6 +361,7 @@ function ConfigBlock({ ai }: { ai: AIStatusPayload }) {
 /** Token 用量监控：统计卡 + 7 天趋势 + 按模型分桶 + 最近流水。 */
 function UsageSection({ usage }: { usage: Loader["usage"] }) {
   const fmt = (n: number): string => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}k` : String(n));
+  const fmtCost = (n: number): string => `¥${n >= 1 ? n.toFixed(2) : n.toFixed(4)}`;
   if (!usage.allowed) {
     return <p className="px-3.5 py-3 text-xs text-muted">只有主人账号能看用量监控。</p>;
   }
@@ -351,13 +377,18 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
   const models = Object.entries(s.byModel).sort((a, b) => b[1].tokens - a[1].tokens);
   return (
     <div>
-      <div className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-3 lg:grid-cols-6">
         {[
           { label: "总调用 / 成功", value: `${s.totalCalls} / ${s.okCalls}`, sub: s.failCalls > 0 ? `失败 ${s.failCalls}` : "无失败" },
           { label: "Prompt tokens", value: fmt(s.promptTokens), sub: "输入" },
           { label: "Completion tokens", value: fmt(s.completionTokens), sub: "输出" },
           { label: "总 tokens", value: fmt(s.totalTokens), sub: "按接口报数" },
           { label: "平均耗时", value: `${Math.round(s.totalMs / Math.max(s.totalCalls, 1))}ms`, sub: "单次调用" },
+          {
+            label: "费用合计",
+            value: s.pricedCalls > 0 ? fmtCost(s.totalCost) : "未计价",
+            sub: s.pricedCalls > 0 ? `${s.pricedCalls} 次有单价快照` : "在档案弹窗填单价才算",
+          },
         ].map((c) => (
           <div key={c.label} className="bg-surface px-3.5 py-2.5">
             <div className="text-[10px] tracking-widest text-muted">{c.label}</div>
@@ -369,7 +400,7 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
       <div className="flex flex-wrap gap-x-6 gap-y-2 border-b border-line px-3.5 py-2.5">
         <span className="text-[10px] tracking-widest text-muted">近 7 天</span>
         {s.last7Days.map((d) => (
-          <div key={d.date} className="flex items-end gap-1" title={`${d.date}：${d.tokens} tokens / ${d.calls} 次`}>
+          <div key={d.date} className="flex items-end gap-1" title={`${d.date}：${d.tokens} tokens / ${d.calls} 次${d.cost > 0 ? ` / ${fmtCost(d.cost)}` : ""}`}>
             <div className="flex h-8 w-4 items-end rounded-sm bg-surface-2">
               <div className="w-full rounded-sm bg-brand" style={{ height: `${Math.max((d.tokens / maxDayTokens) * 100, d.tokens > 0 ? 8 : 0)}%` }} />
             </div>
@@ -385,7 +416,7 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
               <li key={model} className="flex flex-wrap gap-x-3">
                 <span className="font-mono">{model}</span>
                 <span className="text-muted">
-                  {m.calls} 次 · {fmt(m.tokens)} tokens · 平均 {Math.round(m.ms / Math.max(m.calls, 1))}ms
+                  {m.calls} 次 · {fmt(m.tokens)} tokens{m.cost > 0 ? ` · ${fmtCost(m.cost)}` : ""} · 平均 {Math.round(m.ms / Math.max(m.calls, 1))}ms
                 </span>
               </li>
             ))}
@@ -393,7 +424,7 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
         </div>
       ) : null}
       <div className="px-3.5 py-3">
-        <Table className="data-table" caption="最近调用流水：token 数来自接口响应的 usage 字段，接口不报就记 0">
+        <Table className="data-table" caption="最近调用流水：token 数来自接口响应的 usage 字段，接口不报就记 0；费用按调用时档案里的单价快照算">
           <thead>
             <tr className="border-b border-line">
               <th className={thClass()}>时间</th>
@@ -401,6 +432,7 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
               <th className={thClass()}>模型</th>
               <th className={thClass()}>Prompt</th>
               <th className={thClass()}>Completion</th>
+              <th className={thClass()}>费用</th>
               <th className={thClass()}>耗时</th>
               <th className={thClass()}>结果</th>
             </tr>
@@ -424,6 +456,9 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
                 <td data-l="Completion" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums">
                   {e.completionTokens.toLocaleString()}
                 </td>
+                <td data-l="费用" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums">
+                  {e.cost > 0 ? fmtCost(e.cost) : "—"}
+                </td>
                 <td data-l="耗时" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums text-muted">
                   {e.ms}ms
                 </td>
@@ -434,7 +469,7 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
             ))}
           </tbody>
         </Table>
-        <p className="mt-1.5 text-[11px] text-muted">只展示接口真实报数，不估算不折算；各家计价不同，费用 = tokens ÷ 1M × 单价，自己乘。</p>
+        <p className="mt-1.5 text-[11px] text-muted">费用 = 调用时档案里的单价快照 × 实际 tokens；改价只影响之后的新账，历史账不改口径。没填价的调用只统计 tokens 不算钱。</p>
       </div>
     </div>
   );

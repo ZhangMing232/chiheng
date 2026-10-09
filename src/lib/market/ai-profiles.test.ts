@@ -144,3 +144,27 @@ test("读写往返；旧格式（顶层三件套）读时迁移成单档案并�
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("计价：单价可选、校验非负、编辑时预填留空会清除", () => {
+  // 建档带价
+  const created = upsertProfile(EMPTY, { ...input({ name: "priced" }), pricePromptPerM: "2", priceCompletionPerM: "8" }, NOW);
+  assert.ok(created.ok);
+  if (!created.ok) return;
+  assert.equal(created.profile.pricePromptPerM, 2);
+  assert.equal(created.profile.priceCompletionPerM, 8);
+  assert.deepEqual(profileStatus(created.profile).pricePromptPerM, 2);
+  // 不填价 → null
+  const free = upsertProfile(EMPTY, input({ name: "free" }), NOW);
+  assert.ok(free.ok);
+  if (!free.ok) return;
+  assert.equal(free.profile.pricePromptPerM ?? null, null);
+  // 负价 / 非数 → 拒
+  assert.equal(upsertProfile(EMPTY, { ...input({ name: "neg" }), pricePromptPerM: "-1" }, NOW).ok, false);
+  assert.equal(upsertProfile(EMPTY, { ...input({ name: "nan" }), priceCompletionPerM: "abc" }, NOW).ok, false);
+  // 编辑：预填后再留空 = 清除计价
+  const cleared = upsertProfile(created.file, { id: "priced", name: "priced", baseUrl: "u", apiKey: "", model: "m", pricePromptPerM: "", priceCompletionPerM: "" }, NOW);
+  assert.ok(cleared.ok);
+  if (!cleared.ok) return;
+  assert.equal(cleared.profile.pricePromptPerM, null);
+  assert.equal(cleared.profile.priceCompletionPerM, null);
+});

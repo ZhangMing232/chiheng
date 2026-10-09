@@ -623,11 +623,32 @@ export const getAIStatus = createServerFn({ method: "GET" }).handler(async () =>
 /** 新建/更新接口档案。id 空 = 新建；apiKey 留空 = 保留旧 key。 */
 export const saveAIProfile = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
-    const d = data as { id?: unknown; name?: unknown; baseUrl?: unknown; apiKey?: unknown; model?: unknown };
+    const d = data as {
+      id?: unknown;
+      name?: unknown;
+      baseUrl?: unknown;
+      apiKey?: unknown;
+      model?: unknown;
+      pricePromptPerM?: unknown;
+      priceCompletionPerM?: unknown;
+    };
     if (typeof d?.name !== "string" || typeof d?.baseUrl !== "string" || typeof d?.apiKey !== "string" || typeof d?.model !== "string") {
       throw new Error("档案没填对（name / baseUrl / apiKey / model 都要是字符串）");
     }
-    return { id: typeof d.id === "string" && d.id ? d.id : undefined, name: d.name, baseUrl: d.baseUrl, apiKey: d.apiKey, model: d.model };
+    const optPrice = (v: unknown): string | undefined => {
+      if (v === undefined || v === null) return undefined;
+      if (typeof v !== "string") throw new Error("单价要是字符串（元/百万 tokens），不填就不算费用");
+      return v;
+    };
+    return {
+      id: typeof d.id === "string" && d.id ? d.id : undefined,
+      name: d.name,
+      baseUrl: d.baseUrl,
+      apiKey: d.apiKey,
+      model: d.model,
+      pricePromptPerM: optPrice(d.pricePromptPerM),
+      priceCompletionPerM: optPrice(d.priceCompletionPerM),
+    };
   })
   .handler(async ({ data }) => {
     const { requireUserId } = await import("@/lib/auth/verify.server");
@@ -705,14 +726,26 @@ export const listAIModels = createServerFn({ method: "POST" })
     }
   });
 
-/** 测一个接口通不通：最小一轮对话 + 计时。不入 ai-log（不算进化轮）。 */
+/** 测一个接口通不通：最小一轮对话 + 计时 + 按填的单价算本次费用。不入 ai-log（不算进化轮）。 */
 export const testAIProfile = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
-    const d = data as { baseUrl?: unknown; apiKey?: unknown; model?: unknown };
+    const d = data as { baseUrl?: unknown; apiKey?: unknown; model?: unknown; pricePromptPerM?: unknown; priceCompletionPerM?: unknown };
     if (typeof d?.baseUrl !== "string" || typeof d?.apiKey !== "string" || typeof d?.model !== "string") {
       throw new Error("baseUrl / apiKey / model 没填对");
     }
-    return { baseUrl: d.baseUrl.trim(), apiKey: d.apiKey.trim(), model: d.model.trim() };
+    const optPrice = (v: unknown): number | null => {
+      if (v === undefined || v === null || v === "") return null;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0) throw new Error("单价要是非负数");
+      return n;
+    };
+    return {
+      baseUrl: d.baseUrl.trim(),
+      apiKey: d.apiKey.trim(),
+      model: d.model.trim(),
+      pricePromptPerM: optPrice(d.pricePromptPerM),
+      priceCompletionPerM: optPrice(d.priceCompletionPerM),
+    };
   })
   .handler(async ({ data }) => {
     const { requireUserId } = await import("@/lib/auth/verify.server");
@@ -722,7 +755,11 @@ export const testAIProfile = createServerFn({ method: "POST" })
     const { callAI } = await import("@/lib/market/factor-queue");
     const started = Date.now();
     try {
-      await callAI({ baseUrl: data.baseUrl.replace(/\/+$/, ""), apiKey: data.apiKey, model: data.model }, "连通性测试：只回复 ok 两个字母。", { layer: "test", trigger: "test" });
+      await callAI(
+        { baseUrl: data.baseUrl.replace(/\/+$/, ""), apiKey: data.apiKey, model: data.model },
+        "连通性测试：只回复 ok 两个字母。",
+        { layer: "test", trigger: "test", pricePromptPerM: data.pricePromptPerM, priceCompletionPerM: data.priceCompletionPerM },
+      );
       return { ok: true as const, ms: Date.now() - started };
     } catch (error) {
       return { ok: false as const, ms: Date.now() - started, error: error instanceof Error ? error.message : String(error) };

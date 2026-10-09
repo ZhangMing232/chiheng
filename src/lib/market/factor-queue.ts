@@ -269,12 +269,19 @@ export async function readAIConfig(): Promise<AIConfig | null> {
 
 // ── AI 调用（OpenAI 兼容 /chat/completions）────────────────────
 
-/** 调用方信息：记进 token 用量账（ai-usage.json），让监控台知道是哪条链路烧的。 */
-export type AIMeta = { layer?: string; trigger?: "manual" | "auto" | "test" };
+/** 调用方信息：记进 token 用量账（ai-usage.json），让监控台知道是哪条链路烧的、按什么价算钱。 */
+export type AIMeta = {
+  layer?: string;
+  trigger?: "manual" | "auto" | "test";
+  profileId?: string | null;
+  pricePromptPerM?: number | null;
+  priceCompletionPerM?: number | null;
+};
 
 /** OpenAI 兼容 /chat/completions 调用。factor 层和 strategy 层共用。
- *  每次调用的 token 用量（响应 usage 字段）自动记进 ai-usage.json，调用方不用管。 */
+ *  每次调用的 token 用量 + 计价钱包快照自动记进 ai-usage.json，调用方不用管。 */
 export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}): Promise<string> {
+  const { costOfTokens } = await import("./ai-usage.ts");
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 90_000);
   const started = Date.now();
@@ -301,15 +308,22 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) throw new Error("AI 返回里没有内容");
     // token 用量记账：字段缺失记 0 不瞎编；写失败不炸调用。
+    const usage = {
+      promptTokens: data.usage?.prompt_tokens ?? 0,
+      completionTokens: data.usage?.completion_tokens ?? 0,
+      totalTokens: data.usage?.total_tokens ?? 0,
+    };
     const { appendAIUsage } = await import("./ai-usage.ts");
     await appendAIUsage({
       at: new Date().toISOString(),
       layer: meta.layer ?? "unknown",
       trigger: meta.trigger ?? "manual",
       model: config.model,
-      promptTokens: data.usage?.prompt_tokens ?? 0,
-      completionTokens: data.usage?.completion_tokens ?? 0,
-      totalTokens: data.usage?.total_tokens ?? 0,
+      profileId: meta.profileId ?? null,
+      pricePromptPerM: meta.pricePromptPerM ?? null,
+      priceCompletionPerM: meta.priceCompletionPerM ?? null,
+      ...usage,
+      cost: costOfTokens(usage.promptTokens, usage.completionTokens, meta.pricePromptPerM ?? null, meta.priceCompletionPerM ?? null),
       ms: Date.now() - started,
       ok: true,
     });
@@ -324,9 +338,13 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
         layer: meta.layer ?? "unknown",
         trigger: meta.trigger ?? "manual",
         model: config.model,
+        profileId: meta.profileId ?? null,
+        pricePromptPerM: meta.pricePromptPerM ?? null,
+        priceCompletionPerM: meta.priceCompletionPerM ?? null,
         promptTokens: 0,
         completionTokens: 0,
         totalTokens: 0,
+        cost: 0,
         ms: Date.now() - started,
         ok: false,
       });
@@ -367,7 +385,8 @@ export async function runFactorAILoop(
   const history = factorSelfHistory(await readAILog(), entries);
   let raw: string;
   try {
-    raw = await callAI(config, buildPrompt(runs.batch.rows, history), { layer: "factor", trigger });
+    const { readActiveMeta } = await import("./ai-profiles.ts");
+    raw = await callAI(config, buildPrompt(runs.batch.rows, history), { layer: "factor", trigger, ...(await readActiveMeta()) });
   } catch (error) {
     const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });

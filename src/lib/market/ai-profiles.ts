@@ -31,6 +31,9 @@ export type AIProfile = {
   apiKey: string;
   model: string;
   updatedAt: string;
+  /** 计价（可选，元/百万 tokens）：填了用量监控台才算费用，空 = 只统计 tokens 不算钱。 */
+  pricePromptPerM?: number | null;
+  priceCompletionPerM?: number | null;
 };
 
 export type AIProfilesFile = {
@@ -51,15 +54,33 @@ function slugify(name: string): string {
   return ID_RE.test(base) ? base : "profile";
 }
 
-export type ProfileInput = { id?: string; name: string; baseUrl: string; apiKey: string; model: string };
+export type ProfileInput = {
+  id?: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  /** 元/百万 tokens；空字符串/undefined = 清除计价（不算费用）。 */
+  pricePromptPerM?: string;
+  priceCompletionPerM?: string;
+};
 
 export type ProfileResult = { ok: true; file: AIProfilesFile; profile: AIProfile } | { ok: false; error: string };
+
+function parsePrice(raw: string | undefined): number | null | "error" {
+  if (raw === undefined || raw.trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return "error";
+  return n;
+}
 
 function validateInput(input: ProfileInput, existing: AIProfile[]): string | null {
   if (!input.name.trim()) return "名字不能空";
   if (!input.baseUrl.trim()) return "baseUrl 不能空";
   if (!input.model.trim()) return "model 不能空";
   if (existing.some((p) => p.name.trim() === input.name.trim() && p.id !== input.id)) return `名字「${input.name.trim()}」已存在`;
+  if (parsePrice(input.pricePromptPerM) === "error") return "Prompt 单价要是非负数（元/百万 tokens），不填就不算费用";
+  if (parsePrice(input.priceCompletionPerM) === "error") return "Completion 单价要是非负数（元/百万 tokens），不填就不算费用";
   return null;
 }
 
@@ -84,6 +105,8 @@ export function upsertProfile(file: AIProfilesFile, input: ProfileInput, now: st
       baseUrl,
       model,
       apiKey: input.apiKey.trim() || existing.apiKey,
+      pricePromptPerM: parsePrice(input.pricePromptPerM) as number | null,
+      priceCompletionPerM: parsePrice(input.priceCompletionPerM) as number | null,
       updatedAt: now,
     };
     return {
@@ -95,7 +118,16 @@ export function upsertProfile(file: AIProfilesFile, input: ProfileInput, now: st
 
   let id = slugify(name);
   for (let i = 2; file.profiles.some((p) => p.id === id); i++) id = `${slugify(name)}-${i}`;
-  const profile: AIProfile = { id, name, baseUrl, apiKey: input.apiKey.trim(), model, updatedAt: now };
+  const profile: AIProfile = {
+    id,
+    name,
+    baseUrl,
+    apiKey: input.apiKey.trim(),
+    model,
+    pricePromptPerM: parsePrice(input.pricePromptPerM) as number | null,
+    priceCompletionPerM: parsePrice(input.priceCompletionPerM) as number | null,
+    updatedAt: now,
+  };
   return {
     ok: true,
     file: { activeId: file.activeId ?? id, profiles: [...file.profiles, profile] },
@@ -122,9 +154,33 @@ export function getActiveConfig(file: AIProfilesFile): AIConfig | null {
   return { baseUrl: active.baseUrl, apiKey: active.apiKey, model: active.model };
 }
 
-/** 给 UI 的状态：key 只回尾号。 */
-export function profileStatus(p: AIProfile): { id: string; name: string; baseUrl: string; model: string; keyTail: string } {
-  return { id: p.id, name: p.name, baseUrl: p.baseUrl, model: p.model, keyTail: p.apiKey.slice(-4) };
+/** 给 UI 的状态：key 只回尾号；计价一并回（不是秘密，弹窗预填用）。 */
+export function profileStatus(p: AIProfile): {
+  id: string;
+  name: string;
+  baseUrl: string;
+  model: string;
+  keyTail: string;
+  pricePromptPerM: number | null;
+  priceCompletionPerM: number | null;
+} {
+  return {
+    id: p.id,
+    name: p.name,
+    baseUrl: p.baseUrl,
+    model: p.model,
+    keyTail: p.apiKey.slice(-4),
+    pricePromptPerM: p.pricePromptPerM ?? null,
+    priceCompletionPerM: p.priceCompletionPerM ?? null,
+  };
+}
+
+/** 当前启用档案的计价钱包（调用时做快照记进用量账）；没启用或没填价 → 相应字段 null。 */
+export async function readActiveMeta(): Promise<{ profileId: string; pricePromptPerM: number | null; priceCompletionPerM: number | null } | null> {
+  const { profiles, activeId } = await readProfiles();
+  const active = profiles.find((p) => p.id === activeId);
+  if (!active) return null;
+  return { profileId: active.id, pricePromptPerM: active.pricePromptPerM ?? null, priceCompletionPerM: active.priceCompletionPerM ?? null };
 }
 
 // ── 文件 IO（node:fs，server-only）─────────────────────────────

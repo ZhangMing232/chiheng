@@ -24,9 +24,16 @@ export type AIUsageEntry = {
   layer: string;
   trigger: "manual" | "auto" | "test";
   model: string;
+  /** 调用时启用的档案（计价钱包的来源）。 */
+  profileId: string | null;
+  /** 调用时的单价快照（元/百万 tokens）：null = 当时没填价，费用记 0 不瞎编。 */
+  pricePromptPerM: number | null;
+  priceCompletionPerM: number | null;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  /** 本次调用的费用（元），调用时按快照算好；没有价 = 0。 */
+  cost: number;
   ms: number;
   ok: boolean;
 };
@@ -65,6 +72,18 @@ export async function appendAIUsage(entry: AIUsageEntry): Promise<void> {
   }
 }
 
+/** 按价算钱（元）：prompt/completion 分开计价（元/百万 tokens），任一缺价就记 0 不瞎编。 */
+export function costOfTokens(
+  promptTokens: number,
+  completionTokens: number,
+  pricePromptPerM: number | null,
+  priceCompletionPerM: number | null,
+): number {
+  const prompt = pricePromptPerM != null ? (promptTokens / 1_000_000) * pricePromptPerM : 0;
+  const completion = priceCompletionPerM != null ? (completionTokens / 1_000_000) * priceCompletionPerM : 0;
+  return Math.round((prompt + completion) * 1e6) / 1e6;
+}
+
 // ── 纯函数：统计聚合 ────────────────────────────────────────────
 
 export type UsageStats = {
@@ -75,10 +94,14 @@ export type UsageStats = {
   completionTokens: number;
   totalTokens: number;
   totalMs: number;
-  /** 按模型分桶：调用数 + token 数。 */
-  byModel: Record<string, { calls: number; ok: number; tokens: number; ms: number }>;
-  /** 最近 7 天（含今天）每天的 token 汇总，给趋势用。 */
-  last7Days: { date: string; tokens: number; calls: number }[];
+  /** 总费用（元）：各条目调用时按当时价快照算好的求和。 */
+  totalCost: number;
+  /** 有费用记录的条目数（没填价的调用不进均价）。 */
+  pricedCalls: number;
+  /** 按模型分桶：调用数 + token 数 + 费用。 */
+  byModel: Record<string, { calls: number; ok: number; tokens: number; ms: number; cost: number }>;
+  /** 最近 7 天（含今天）每天的 token + 费用汇总，给趋势用。 */
+  last7Days: { date: string; tokens: number; calls: number; cost: number }[];
 };
 
 /** 从用量账算统计。数字全是直接求和，不加工；不过滤失败调用（失败的调用也烧了 prompt token）。 */
@@ -91,6 +114,8 @@ export function usageStats(entries: AIUsageEntry[], today: string): UsageStats {
     completionTokens: 0,
     totalTokens: 0,
     totalMs: 0,
+    totalCost: 0,
+    pricedCalls: 0,
     byModel: {},
     last7Days: [],
   };
@@ -99,15 +124,18 @@ export function usageStats(entries: AIUsageEntry[], today: string): UsageStats {
     stats.completionTokens += e.completionTokens;
     stats.totalTokens += e.totalTokens;
     stats.totalMs += e.ms;
-    const bucket = (stats.byModel[e.model] ??= { calls: 0, ok: 0, tokens: 0, ms: 0 });
+    stats.totalCost += e.cost;
+    if (e.pricePromptPerM != null || e.priceCompletionPerM != null) stats.pricedCalls += 1;
+    const bucket = (stats.byModel[e.model] ??= { calls: 0, ok: 0, tokens: 0, ms: 0, cost: 0 });
     bucket.calls += 1;
     if (e.ok) bucket.ok += 1;
     bucket.tokens += e.totalTokens;
     bucket.ms += e.ms;
+    bucket.cost += e.cost;
   }
-  const days: { date: string; tokens: number; calls: number }[] = [];
+  const days: { date: string; tokens: number; calls: number; cost: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    days.push({ date: shiftDate(today, -i), tokens: 0, calls: 0 });
+    days.push({ date: shiftDate(today, -i), tokens: 0, calls: 0, cost: 0 });
   }
   const byDate = new Map(days.map((d) => [d.date, d]));
   for (const e of entries) {
@@ -115,6 +143,7 @@ export function usageStats(entries: AIUsageEntry[], today: string): UsageStats {
     if (!day) continue;
     day.tokens += e.totalTokens;
     day.calls += 1;
+    day.cost += e.cost;
   }
   stats.last7Days = days;
   return stats;

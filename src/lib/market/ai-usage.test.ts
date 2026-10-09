@@ -21,9 +21,13 @@ function entry(partial: Partial<AIUsageEntry> = {}): AIUsageEntry {
     layer: "factor",
     trigger: "manual",
     model: "deepseek-chat",
+    profileId: "default",
+    pricePromptPerM: 2,
+    priceCompletionPerM: 8,
     promptTokens: 1000,
     completionTokens: 200,
     totalTokens: 1200,
+    cost: 0.0036,
     ms: 800,
     ok: true,
     ...partial,
@@ -49,11 +53,11 @@ test("用量账读写往返；不存在返回空数组；写爆封顶丢最旧�
   }
 });
 
-test("usageStats：总量直接求和，失败调用也计入，按模型分桶", () => {
+test("usageStats：总量直接求和，失败调用也计入，按模型分桶，费用按条目快照求和", () => {
   const entries = [
-    entry({ model: "deepseek-chat", promptTokens: 1000, completionTokens: 200, totalTokens: 1200, ms: 800, ok: true }),
-    entry({ model: "deepseek-chat", promptTokens: 500, completionTokens: 0, totalTokens: 500, ms: 1200, ok: false, layer: "strategy" }),
-    entry({ model: "qwen3", promptTokens: 300, completionTokens: 100, totalTokens: 400, ms: 2000, ok: true, layer: "test", trigger: "test" }),
+    entry({ model: "deepseek-chat", promptTokens: 1000, completionTokens: 200, totalTokens: 1200, ms: 800, ok: true, cost: 0.0036 }),
+    entry({ model: "deepseek-chat", promptTokens: 500, completionTokens: 0, totalTokens: 500, ms: 1200, ok: false, layer: "strategy", cost: 0.001 }),
+    entry({ model: "qwen3", promptTokens: 300, completionTokens: 100, totalTokens: 400, ms: 2000, ok: true, layer: "test", trigger: "test", pricePromptPerM: null, priceCompletionPerM: null, cost: 0 }),
   ];
   const s = usageStats(entries, "2026-10-09");
   assert.equal(s.totalCalls, 3);
@@ -63,9 +67,12 @@ test("usageStats：总量直接求和，失败调用也计入，按模型分桶"
   assert.equal(s.completionTokens, 300);
   assert.equal(s.totalTokens, 2100);
   assert.equal(s.totalMs, 4000);
+  assert.equal(s.totalCost, 0.0046);
+  assert.equal(s.pricedCalls, 2);
   assert.equal(s.byModel["deepseek-chat"].calls, 2);
   assert.equal(s.byModel["deepseek-chat"].tokens, 1700);
-  assert.equal(s.byModel["deepseek-chat"].ok, 1);
+  assert.equal(s.byModel["deepseek-chat"].cost, 0.0046);
+  assert.equal(s.byModel["qwen3"].cost, 0);
   assert.equal(s.byModel["qwen3"].ms, 2000);
 });
 
@@ -83,4 +90,16 @@ test("usageStats：近 7 天含今天，窗口外的记录不进趋势", () => {
   assert.equal(s.last7Days[6].date, "2026-10-09");
   assert.equal(s.last7Days[6].tokens, 100);
   assert.ok(s.last7Days.every((d) => d.date !== "2026-10-02"));
+});
+
+test("costOfTokens：分开计价、缺一记 0、 rounding 到分后 6 位", async () => {
+  const { costOfTokens } = await import("@/lib/market/ai-usage");
+  // 1M prompt @2元 + 500k completion @8元 = 2 + 4 = 6
+  assert.equal(costOfTokens(1_000_000, 500_000, 2, 8), 6);
+  // 缺 completion 价 → 只算 prompt
+  assert.equal(costOfTokens(1_000_000, 500_000, 2, null), 2);
+  // 都缺 → 0 不瞎编
+  assert.equal(costOfTokens(1_000_000, 500_000, null, null), 0);
+  // 小数千分位：1000 prompt @2元 = 0.002
+  assert.equal(costOfTokens(1000, 0, 2, 8), 0.002);
 });
