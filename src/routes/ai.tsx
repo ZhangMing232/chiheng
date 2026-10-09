@@ -18,13 +18,17 @@ import { Frame } from "@/components/screener/nav";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import {
+  getAILog,
   getAIStatus,
   getChallengers,
   getFactorQueue,
+  runEvolve,
   runFactorAI,
   runStrategyAI,
+  saveAIPrefs,
   saveAIConfig,
 } from "@/lib/market/quotes.functions";
+import { evolveStats, type AILogEntry } from "@/lib/market/ai-log";
 import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
 import type { Challenger } from "@/lib/market/challenger";
 import { STYLES } from "@/lib/market/strategies";
@@ -35,12 +39,15 @@ type AIStatusPayload = {
   baseUrl: string | null;
   model: string | null;
   keyTail: string | null;
+  autoEvolve: boolean;
 };
 
 type Loader = {
   queue: QueuePayload;
   ai: AIStatusPayload;
   chal: Challenger[];
+  log: AILogEntry[];
+  stats: ReturnType<typeof evolveStats>;
 };
 
 function messageOf(error: unknown): string {
@@ -49,14 +56,16 @@ function messageOf(error: unknown): string {
 
 export const Route = createFileRoute("/ai")({
   loader: async (): Promise<Loader> => {
-    const [queue, ai, chal] = await Promise.all([
+    const [queue, ai, chal, logRes] = await Promise.all([
       getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
-      getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null })),
+      getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false })),
       getChallengers()
         .then((res) => res.list)
         .catch((): Challenger[] => []),
+      getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
     ]);
-    return { queue, ai, chal };
+    const log = logRes.entries;
+    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal) };
   },
   component: AIPage,
 });
@@ -152,11 +161,12 @@ function ConfigBlock({ ai }: { ai: AIStatusPayload }) {
 }
 
 function AIPage() {
-  const { queue, ai, chal } = Route.useLoaderData();
+  const { queue, ai, chal, log, stats } = Route.useLoaderData();
   const router = useRouter();
   const [factorMsg, setFactorMsg] = useState<string | null>(null);
   const [stratMsg, setStratMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"factor" | "strategy" | null>(null);
+  const [evolveMsg, setEvolveMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"factor" | "strategy" | "evolve" | null>(null);
 
   const runFactor = async () => {
     setBusy("factor");
@@ -198,6 +208,33 @@ function AIPage() {
     }
   };
 
+  /** 一键完整进化：因子层 → 策略层，两层各自记账，结果拼一句汇报。 */
+  const runEvolveOnce = async () => {
+    setBusy("evolve");
+    setEvolveMsg(null);
+    try {
+      const res = await runEvolve();
+      const part = (label: string, r: { ok: boolean; proposed: number; error?: string }): string =>
+        `${label} ${r.ok ? `进 ${r.proposed} 个` : `没跑成（${r.error ?? "?"}）`}`;
+      setEvolveMsg(`${part("因子层", res.factor)} · ${part("策略层", res.strategy)}。下一轮 prompt 会读到这两轮的下场，据此自我纠错。`);
+      await router.invalidate();
+    } catch (err) {
+      setEvolveMsg(err instanceof Error ? err.message : "运行失败");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** 自动进化开关：收盘后记账进程每天自动跑一轮（ai-log 去重，每天最多一轮）。 */
+  const toggleAuto = async (next: boolean) => {
+    try {
+      await saveAIPrefs({ data: { autoEvolve: next } });
+      await router.invalidate();
+    } catch (err) {
+      setEvolveMsg(err instanceof Error ? err.message : "保存开关失败");
+    }
+  };
+
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
   const runningCount = chal.filter((c) => c.status === "running").length;
 
@@ -208,6 +245,94 @@ function AIPage() {
         hint="因子层和策略层共用一份配置。AI 的产出只许是白名单表达式（因子）或出场参数旋钮（策略），过不了校验的直接拒；判决永远由预先登记的函数说了算。"
       >
         <ConfigBlock ai={ai} />
+      </Section>
+
+      <Section
+        title="进化控制台"
+        hint="自我迭代的闭环：AI 每轮提议都进账本，下一轮 prompt 会读到这些提议的下场（过没过 6 关、转正还是淘汰），据此纠错。开自动进化后，收盘后每天自己跑一轮。"
+      >
+        <div className="border-b border-line px-3.5 py-2">
+          {ai.allowed ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button
+                type="button"
+                disabled={busy !== null || !ai.configured}
+                onClick={() => void runEvolveOnce()}
+                className="shrink-0 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busy === "evolve" ? "AI 进化中…" : "跑一轮完整进化"}
+              </button>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={ai.autoEvolve}
+                  onChange={(e) => void toggleAuto(e.target.checked)}
+                  className="accent-brand"
+                />
+                收盘后每天自动进化一轮
+              </label>
+              {evolveMsg ? <span className="min-w-0 basis-full text-xs text-muted">{evolveMsg}</span> : null}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">主人账号登录后可运行进化和开关自动模式。</p>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-4">
+          {[
+            { label: "因子层轮数", value: stats.factorRounds, sub: `AI 提议 ${stats.factorProposed} 个` },
+            { label: "因子过关 / 淘汰", value: `${stats.factorPassed} / ${stats.factorTombstoned}`, sub: "过 6 关 / 连续 2 次未过" },
+            { label: "策略层轮数", value: stats.strategyRounds, sub: `AI 提名 ${stats.chalNominated} 个` },
+            { label: "挑战者转正 / 淘汰", value: `${stats.chalPromoted} / ${stats.chalRejected}`, sub: "Welch 判决产物" },
+          ].map((s) => (
+            <div key={s.label} className="bg-surface px-3.5 py-2.5">
+              <div className="text-[10px] tracking-widest text-muted">{s.label}</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums">{s.value}</div>
+              <div className="text-[11px] text-muted">{s.sub}</div>
+            </div>
+          ))}
+        </div>
+        <div className="px-3.5 py-3">
+          {log.length > 0 ? (
+            <Table className="data-table" caption="AI 运行账本：每轮提议、被拒原因都记着，下一轮 prompt 会读到">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className={thClass()}>时间</th>
+                  <th className={thClass()}>层</th>
+                  <th className={thClass()}>触发</th>
+                  <th className={thClass()}>结果</th>
+                  <th className={thClass("text-left")}>提议</th>
+                  <th className={thClass("text-left")}>被拒 / 报错</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...log].reverse().slice(0, 20).map((e, i) => (
+                  <tr key={`${e.at}-${i}`} className="border-b border-line last:border-b-0">
+                    <td data-l="时间" className="px-2.5 py-1.5 whitespace-nowrap text-[11px] text-muted">
+                      {e.at.slice(0, 16).replace("T", " ")}
+                    </td>
+                    <td data-l="层" className="px-2.5 py-1.5 text-[11px]">
+                      {e.layer === "factor" ? "因子" : "策略"}
+                    </td>
+                    <td data-l="触发" className="px-2.5 py-1.5 text-[11px] text-muted">
+                      {e.trigger === "auto" ? "自动" : "手动"}
+                    </td>
+                    <td data-l="结果" className={`px-2.5 py-1.5 text-[11px] ${e.ok ? "text-up" : "text-down"}`}>
+                      {e.ok ? `进 ${e.proposed.length}` : "失败"}
+                    </td>
+                    <td data-l="提议" className="max-w-[28ch] px-2.5 py-1.5 text-[11px] text-muted">
+                      {e.proposed.length > 0 ? e.proposed.map((p) => p.name).join("、") : "—"}
+                    </td>
+                    <td data-l="被拒" className="max-w-[32ch] px-2.5 py-1.5 text-[11px] text-muted">
+                      {e.error ?? (e.rejected.length > 0 ? e.rejected.slice(0, 2).join("；") : "—")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <StateBlock kind="empty" title="还没有运行记录" hint="点上面的「跑一轮完整进化」，或开自动进化让记账进程收盘后自己跑。" />
+          )}
+        </div>
       </Section>
 
       <Section

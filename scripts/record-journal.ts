@@ -39,6 +39,12 @@ import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 import { intradayFill } from "../src/lib/market/intraday-fill.ts";
 import { sendPushPlus } from "../src/lib/market/push.ts";
+import { readAIPrefs } from "../src/lib/market/ai-prefs.ts";
+import { readAILog } from "../src/lib/market/ai-log.ts";
+import { readFactorRuns } from "../src/lib/market/factor-runs-file.ts";
+import { readAIConfig, runFactorAILoop } from "../src/lib/market/factor-queue.ts";
+import { runStrategyAILoop } from "../src/lib/market/strategy-ai.ts";
+import { FACTORS } from "../src/lib/market/factors.ts";
 
 type Trade = {
   id: string;
@@ -655,6 +661,26 @@ for (const userId of ids) {
 }
 if (!any) console.log(`${time} ${phase.label} no change`);
 if (alertsChanged) await writeAlerts(alerts);
+
+// ── AI 自动进化：收盘后每天最多一轮（开关在 /ai 页，去重看 ai-log 里今天的 auto 记录）──
+if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+  try {
+    const [prefs, config, aiLog] = await Promise.all([readAIPrefs(), readAIConfig(), readAILog()]);
+    if (prefs.autoEvolve && config && !aiLog.some((e) => e.trigger === "auto" && e.at.slice(0, 10) === phase.date)) {
+      console.log(`${time} AI 自动进化开始`);
+      const factor = await runFactorAILoop(
+        { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
+        "auto",
+      );
+      const strategy = await runStrategyAILoop("auto");
+      console.log(
+        `${time} AI 自动进化：因子层 ${factor.ok ? `提议 ${factor.proposed}` : `没跑成（${factor.error ?? "?"}）`} · 策略层 ${strategy.ok ? `提名 ${strategy.proposed}` : `没跑成（${strategy.error ?? "?"}）`}`,
+      );
+    }
+  } catch (error) {
+    console.error(`${time} AI 自动进化失败（不影响记账）:`, error);
+  }
+}
 
 await mark(true);
 const backupDate = phase.date || new Date().toISOString().slice(0, 10);

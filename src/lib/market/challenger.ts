@@ -42,6 +42,8 @@ export type Challenger = {
   status: "running" | "promoted" | "rejected" | "inconclusive";
   /** 开跑的交易日。 */
   since: string;
+  /** 谁提的。AI 提名的带 "ai"（自我进化统计用）；人工注册的不写。 */
+  source?: "ai" | "manual";
 };
 
 export type ChallengersFile = { list: Challenger[] };

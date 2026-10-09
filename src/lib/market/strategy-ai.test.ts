@@ -152,3 +152,17 @@ test("buildStrategyPrompt：判决产物原样进 prompt，含旋钮范围和名
   assert.match(prompt, /最多 2 个在跑挑战者/);
   assert.match(prompt, /只输出 JSON 数组/);
 });
+
+test("buildStrategyPrompt：给了自我历史就追加反馈段，没给不追加", () => {
+  const base = {
+    challengers: [],
+    gates: {},
+    logTail: [],
+    passedFactors: [],
+  };
+  const withHistory = buildStrategyPrompt({ ...base, selfHistory: ["- 10-08：你提名「快止盈」（c_a）——已淘汰（Welch 判决质量不过关）"] });
+  assert.match(withHistory, /你自己之前几轮提名的下场/);
+  assert.match(withHistory, /c_a.*已淘汰/);
+  const bare = buildStrategyPrompt(base);
+  assert.doesNotMatch(bare, /你自己之前几轮提名的下场/);
+});

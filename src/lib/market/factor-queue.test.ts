@@ -167,3 +167,13 @@ test("prompt 带上每个因子的败关和五档数字，不加工", () => {
   assert.match(prompt, /-0\.52% → -0\.22%/);
   assert.match(prompt, /只输出 JSON 数组/);
 });
+
+test("buildPrompt：给了自我历史就追加反馈段，没给不追加", () => {
+  const rows: FactorRunRow[] = [];
+  const withHistory = buildPrompt(rows, ["- 10-08：你提议「甲」（q_a）——已淘汰", "- 10-09：你提议「乙」（q_b）——已过 6 关"]);
+  assert.match(withHistory, /你自己之前几轮提议的下场/);
+  assert.match(withHistory, /q_a.*已淘汰/);
+  assert.match(withHistory, /q_b.*已过 6 关/);
+  const bare = buildPrompt(rows);
+  assert.doesNotMatch(bare, /你自己之前几轮提议的下场/);
+});

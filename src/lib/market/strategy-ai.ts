@@ -21,6 +21,7 @@
 
 import { readFile } from "node:fs/promises";
 import { callAI, readAIConfig, readQueue } from "./factor-queue.ts";
+import { appendAILog, readAILog, strategySelfHistory } from "./ai-log.ts";
 import { readChallengers, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, STYLE_IDS } from "./strategies.ts";
@@ -144,6 +145,8 @@ export type StrategyAIContext = {
   logTail: string[];
   /** 因子层刚过了 6 关的队列因子。 */
   passedFactors: { id: string; name: string; direction: 1 | -1; expr: string }[];
+  /** AI 自己之前提名挑战者的下场（strategySelfHistory 产物），自我纠错用。 */
+  selfHistory?: string[];
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -185,6 +188,9 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     "",
     "因子层刚过 6 关的信号（可以据此提策略线）：",
     factorLines,
+    ...(ctx.selfHistory && ctx.selfHistory.length > 0
+      ? ["", "你自己之前几轮提名的下场（据此纠错：被 Welch 淘汰的参数方向别急着再试；转正了的想想它做对了什么）：", ...ctx.selfHistory]
+      : []),
     "",
     "只输出 JSON 数组，不要输出任何别的文字。",
   ].join("\n");
@@ -222,13 +228,17 @@ async function readLogTail(n: number): Promise<string[]> {
 }
 
 /**
- * 跑一轮策略 AI 闭环：读配置 → 组装判决产物上下文 → 调 AI → 逐条校验 →
- * 通过的以 running 写进 challengers.json（记账进程当天开始并行攒样本）。
- * 任何一步失败返回 ok:false，不写文件。
+ * 跑一轮策略 AI 闭环：读配置 → 组装判决产物上下文（含自我历史）→ 调 AI →
+ * 逐条校验 → 通过的以 running 写进 challengers.json（记账进程当天开始并行攒样本）。
+ * 任何一步失败返回 ok:false，不写名单；每轮都写 ai-log 账本（含失败）。
  */
-export async function runStrategyAILoop(): Promise<StrategyAILoopResult> {
+export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): Promise<StrategyAILoopResult> {
   const config = await readAIConfig();
-  if (!config) return { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: "AI 接口还没配置（/factors 页 AI 管理区块填 baseUrl / apiKey / model）" };
+  if (!config) {
+    const result: StrategyAILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: "AI 接口还没配置（/ai 页填 baseUrl / apiKey / model）" };
+    await appendAILog({ at: new Date().toISOString(), layer: "strategy", trigger, ...result, proposed: [], rejected: [] });
+    return result;
+  }
   const chalFile = await readChallengers();
   const { entries } = await readQueue();
   const ctx: StrategyAIContext = {
@@ -236,8 +246,16 @@ export async function runStrategyAILoop(): Promise<StrategyAILoopResult> {
     gates: await readStrategyGates(),
     logTail: await readLogTail(8),
     passedFactors: entries.filter((e) => e.status === "passed").map((e) => ({ id: e.id, name: e.name, direction: e.direction, expr: e.expr })),
+    selfHistory: strategySelfHistory(await readAILog(), chalFile.list),
   };
-  const raw = await callAI(config, buildStrategyPrompt(ctx));
+  let raw: string;
+  try {
+    raw = await callAI(config, buildStrategyPrompt(ctx));
+  } catch (error) {
+    const result: StrategyAILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
+    await appendAILog({ at: new Date().toISOString(), layer: "strategy", trigger, ...result, proposed: [], rejected: [] });
+    return result;
+  }
   const { accepted, rejected } = parseAIChallengerProposals(raw, chalFile.list);
   if (accepted.length > 0) {
     const today = new Date().toISOString().slice(0, 10);
@@ -254,9 +272,19 @@ export async function runStrategyAILoop(): Promise<StrategyAILoopResult> {
           targetPct: a.targetPct,
           status: "running" as const,
           since: today,
+          source: "ai" as const,
         })),
       ],
     });
   }
-  return { ok: true, proposed: accepted.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
+  const result: StrategyAILoopResult = { ok: true, proposed: accepted.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
+  await appendAILog({
+    at: new Date().toISOString(),
+    layer: "strategy",
+    trigger,
+    ...result,
+    proposed: accepted.map((a) => ({ id: a.id, name: a.name })),
+    rejected: result.rejectReasons,
+  });
+  return result;
 }

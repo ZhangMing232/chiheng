@@ -16,6 +16,7 @@ import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/factor-runs-file";
 import { aiStatus, readAIConfig, readQueue, runFactorAILoop, writeAIConfig } from "@/lib/market/factor-queue";
+import { readAILog } from "@/lib/market/ai-log";
 import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
@@ -604,9 +605,11 @@ export const getFactorQueue = createServerFn({ method: "GET" }).handler(async ()
 export const getAIStatus = createServerFn({ method: "GET" }).handler(async () => {
   const { requireUserId } = await import("@/lib/auth/verify.server");
   const { OWNER_ID } = await import("@/lib/market/book-file");
+  const { readAIPrefs } = await import("@/lib/market/ai-prefs");
   const userId = await requireUserId();
-  if (userId !== OWNER_ID) return { allowed: false as const, ...(await aiStatus(null)) };
-  return { allowed: true as const, ...(await aiStatus(await readAIConfig())) };
+  const prefs = await readAIPrefs();
+  if (userId !== OWNER_ID) return { allowed: false as const, autoEvolve: prefs.autoEvolve, ...(await aiStatus(null)) };
+  return { allowed: true as const, autoEvolve: prefs.autoEvolve, ...(await aiStatus(await readAIConfig())) };
 });
 
 /** 保存/清除 AI 接口配置。apiKey 传空 = 清除。 */
@@ -665,6 +668,46 @@ export const runStrategyAI = createServerFn({ method: "POST" }).handler(async ()
   const { runStrategyAILoop } = await import("@/lib/market/strategy-ai");
   return runStrategyAILoop();
 });
+
+/** 一键完整进化：因子层 → 策略层各跑一轮，两层各自记账（ai-log）。 */
+export const runEvolve = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 进化");
+  const { runEvolveLoop } = await import("@/lib/market/evolve");
+  const { FACTORS } = await import("@/lib/market/factors");
+  return runEvolveLoop({
+    readRows: readFactorRuns,
+    existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })),
+  });
+});
+
+/** AI 运行账本（自我进化历史）。非主人只回 allowed: false。 */
+export const getAILog = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) return { allowed: false as const, entries: [] as Awaited<ReturnType<typeof readAILog>> };
+  return { allowed: true as const, entries: await readAILog() };
+});
+
+/** 保存 AI 偏好开关（目前只有 autoEvolve：收盘后每天自动跑一轮进化）。 */
+export const saveAIPrefs = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { autoEvolve?: unknown };
+    if (typeof d?.autoEvolve !== "boolean") throw new Error("autoEvolve 必须是布尔");
+    return { autoEvolve: d.autoEvolve };
+  })
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { writeAIPrefs } = await import("@/lib/market/ai-prefs");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 开关");
+    await writeAIPrefs(data);
+    return { ok: true as const, autoEvolve: data.autoEvolve };
+  });
 
 // ── 因子研究页（/factors）的三个数据源 ──────────────────────────
 // 这三条读的都是 data/backtest/ 下的本地产物。data/ 在 .gitignore 里，

@@ -27,6 +27,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { validateFactorExpr } from "./factor-expr.ts";
+import { appendAILog, factorSelfHistory, readAILog } from "./ai-log.ts";
 import type { Factor, MetricRow } from "./factors.ts";
 import type { FactorRunRow } from "./factor-runs-file.ts";
 import { GATE_KEYS } from "./factors-view.ts";
@@ -177,8 +178,10 @@ export function parseAIProposals(
 
 // ── 纯函数：组 Prompt ───────────────────────────────────────────
 
-/** 把最新一批判决压成给 AI 的败因摘要。数字原样来自日志，不加工。 */
-export function buildPrompt(rows: FactorRunRow[]): string {
+/** 把最新一批判决压成给 AI 的败因摘要。数字原样来自日志，不加工。
+ *  history = AI 自己之前提议的下场（factorSelfHistory 产物），给了就加一段
+ *  自我反馈——自我进化的核心：让它读到自己的历史成败再提下一轮。 */
+export function buildPrompt(rows: FactorRunRow[], history?: string[]): string {
   const lines = rows.map((r) => {
     const failed = GATE_KEYS.filter((k) => r.gates[k] === false).map((k) => k.toUpperCase());
     const buckets = r.bucketMeans.map((v) => `${(v * 100).toFixed(2)}%`).join(" → ");
@@ -199,6 +202,9 @@ export function buildPrompt(rows: FactorRunRow[]): string {
     "",
     "最近一轮判决：",
     ...lines,
+    ...(history && history.length > 0
+      ? ["", "你自己之前几轮提议的下场（据此纠错：别再提已淘汰方向的微调变体；已过关的想想下一个相邻假设；总被拒的先检查表达式合规）：", ...history]
+      : []),
     "",
     "只输出 JSON 数组，不要输出任何别的文字。",
   ].join("\n");
@@ -314,18 +320,36 @@ export type AILoopResult = {
 };
 
 /**
- * 闭环跑一轮：读配置 → 读最近判决 → 组 prompt → 调 AI → 校验 → 进队列。
- * 任何一步失败返回 ok:false + 原因，**不写队列**（半吊子结果不入账）。
+ * 闭环跑一轮：读配置 → 读最近判决 + 自我历史 → 组 prompt → 调 AI → 校验 → 进队列。
+ * 任何一步失败返回 ok:false + 原因，**不写队列**（半吊子结果不入账）；
+ * 但每轮都写 ai-log 账本（含失败），这是自我进化的记忆。
  */
 export async function runFactorAILoop(
   deps: { readRows: () => Promise<{ batch: { rows: FactorRunRow[] } | null }>; existingFactors: { id: string; name: string }[] },
+  trigger: "manual" | "auto" = "manual",
 ): Promise<AILoopResult> {
   const config = await readAIConfig();
-  if (!config) return { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: "AI 接口还没配置（填 baseUrl / apiKey / model）" };
+  if (!config) {
+    const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: "AI 接口还没配置（填 baseUrl / apiKey / model）" };
+    await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });
+    return result;
+  }
   const runs = await deps.readRows();
-  if (!runs.batch || runs.batch.rows.length === 0) return { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: "没有因子判决数据，先跑一轮 BT_FACTOR=1 回测" };
-  const raw = await callAI(config, buildPrompt(runs.batch.rows));
+  if (!runs.batch || runs.batch.rows.length === 0) {
+    const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: "没有因子判决数据，先跑一轮 BT_FACTOR=1 回测" };
+    await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });
+    return result;
+  }
   const { entries } = await readQueue();
+  const history = factorSelfHistory(await readAILog(), entries);
+  let raw: string;
+  try {
+    raw = await callAI(config, buildPrompt(runs.batch.rows, history));
+  } catch (error) {
+    const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
+    await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });
+    return result;
+  }
   const ids = new Set([...deps.existingFactors.map((f) => f.id), ...entries.map((e) => e.id)]);
   const names = new Set([...deps.existingFactors.map((f) => f.name), ...entries.map((e) => e.name)]);
   const { accepted, rejected } = parseAIProposals(raw, { ids, names });
@@ -336,7 +360,16 @@ export async function runFactorAILoop(
       ...accepted.map((a) => ({ ...a, status: "pending" as const, failCount: 0, runs: 0, lastRunAt: null, createdAt: now })),
     ]);
   }
-  return { ok: true, proposed: accepted.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
+  const result: AILoopResult = { ok: true, proposed: accepted.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
+  await appendAILog({
+    at: new Date().toISOString(),
+    layer: "factor",
+    trigger,
+    ...result,
+    proposed: accepted.map((a) => ({ id: a.id, name: a.name })),
+    rejected: result.rejectReasons,
+  });
+  return result;
 }
 
 /** 给 UI 的状态配置：校验 aiKey 不出口，只回尾号。 */
