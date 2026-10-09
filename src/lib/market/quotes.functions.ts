@@ -549,6 +549,49 @@ export const savePrefs = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => writePrefs(data));
 
+// ── 预警微信推送（PushPlus）配置 ─────────────────────────────
+// 推送只在记账进程为主人账号发声时触发，所以配置也只许主人动。
+// token 是密钥：服务端只回「是否已配置 + 末四位」，完整值永远不出服务端。
+
+const pushConfigPath = () => join(process.cwd(), "data", "push-config.json");
+
+async function readPushToken(): Promise<string | null> {
+  try {
+    const parsed = JSON.parse(await readFile(pushConfigPath(), "utf8"));
+    return typeof parsed.token === "string" && parsed.token.trim() ? parsed.token.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 推送配置状态。谁都能调（铃铛人人可见），非主人只回 allowed: false。 */
+export const getPushStatus = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) return { allowed: false as const, configured: false, tail: null as string | null };
+  const token = await readPushToken();
+  return { allowed: true as const, configured: token != null, tail: token ? token.slice(-4) : null };
+});
+
+/** 保存/清除 PushPlus token。传空字符串 = 清除，回到只发 Mac 通知。 */
+export const savePushConfig = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    if (typeof data !== "object" || data == null || typeof (data as { token?: unknown }).token !== "string") {
+      throw new Error("token 没填对");
+    }
+    return { token: (data as { token: string }).token.trim() };
+  })
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能改推送配置");
+    await mkdir(join(process.cwd(), "data"), { recursive: true });
+    await writeFile(pushConfigPath(), JSON.stringify({ token: data.token }, null, 2));
+    return { ok: true as const, configured: data.token !== "", tail: data.token ? data.token.slice(-4) : null };
+  });
+
 // ── 因子研究页（/factors）的三个数据源 ──────────────────────────
 // 这三条读的都是 data/backtest/ 下的本地产物。data/ 在 .gitignore 里，
 // 线上和新机器必然读不到——所以读不到要带回 why，让页面说「还没跑」并给重跑命令，

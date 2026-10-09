@@ -129,7 +129,9 @@ token 放在 `data/push-config.json`（已被 git 忽略，不会进代码库）
 { "token": "你的 PushPlus token" }
 ```
 
-在 [PushPlus 官网](http://www.pushplus.plus) 扫码登录就能拿到 token。不填或留空就静默跳过，
+在 [PushPlus 官网](http://www.pushplus.plus) 扫码登录就能拿到 token。
+界面入口：顶栏铃铛下拉里直接粘贴保存（只有主人账号看得到这块）；留空点保存是关闭推送。
+也可以直接编辑 `data/push-config.json`，效果一样。不填就静默跳过，
 只发 Mac 通知——推送失败永远不会影响记账本身。页面上的铃铛红点 / Toast 不受影响。
 
 ## 部署到 Mac mini
