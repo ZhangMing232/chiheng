@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, RefreshCw, Search } from "lucide-react";
-import { getQuickSearch } from "@/lib/market/quotes.functions";
+import { getQuickSearch, getSellAlerts } from "@/lib/market/quotes.functions";
 
 /** 桌面端左侧分组导航（PPT 新信息架构）。窄屏隐藏，改用顶栏下的页签。 */
 const SIDEBAR: { label: string; items: { to: "/" | "/screener" | "/factors" | "/positions" | "/news" | "/flow" | "/symbol"; label: string }[] }[] = [
@@ -278,6 +278,136 @@ export function TypeSize() {
   );
 }
 
+/**
+ * 顶栏铃铛 + 右下角 Toast（PPT 交互规范 05 预警推送的落地版）。
+ *
+ * 数据源是记账进程的去重账本 sell-alerts.json（同一笔只提醒一次）。
+ * "已读水位"是浏览器里存的最后一条 key：铃铛红点数 = 水位之后的新条目；
+ * 页面打开时如果没有水位，就把当前最新一条当水位——旧账不补报，不弹 Toast 风暴。
+ */
+function AlertBell() {
+  const navigate = useNavigate();
+  const { data } = useQuery({
+    queryKey: ["sell-alerts"],
+    queryFn: () => getSellAlerts(),
+    refetchInterval: 60_000,
+  });
+  const alerts = data?.alerts ?? [];
+  // 已读水位存在浏览器里。SSR 阶段没有 localStorage，初始给 null，挂载后再读。
+  const [seenKey, setSeenKey] = useState<string | null>(null);
+  const [toast, setToast] = useState<(typeof alerts)[number] | null>(null);
+  const toastedKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setSeenKey(localStorage.getItem("chiheng-alerts-seen"));
+  }, []);
+
+  // 第一次拿到数据时定水位：没见过任何水位 → 当前最新一条即全部已读。
+  useEffect(() => {
+    if (alerts.length === 0 || seenKey != null) return;
+    const newest = alerts[0];
+    if (newest) {
+      localStorage.setItem("chiheng-alerts-seen", newest.key);
+      setSeenKey(newest.key);
+    }
+  }, [alerts, seenKey]);
+
+  // 新预警 → Toast。只在会话内弹一次（按 key 去重），静默期间不打扰。
+  useEffect(() => {
+    const newest = alerts[0];
+    if (!newest || seenKey == null) return;
+    if (newest.key === seenKey || newest.key === toastedKeyRef.current) return;
+    toastedKeyRef.current = newest.key;
+    setToast(newest);
+  }, [alerts, seenKey]);
+
+  // 一条 Toast 8 秒后自己消失（可静默的落地版：不堆叠、不强制）。
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 8_000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const seenIndex = seenKey ? alerts.findIndex((alert) => alert.key === seenKey) : 0;
+  const unread = seenIndex === -1 ? 0 : seenIndex;
+
+  function markAllRead() {
+    const newest = alerts[0];
+    if (!newest) return;
+    localStorage.setItem("chiheng-alerts-seen", newest.key);
+    setSeenKey(newest.key);
+  }
+
+  return (
+    <>
+      <details className="group relative shrink-0">
+        <summary
+          aria-label={`卖出提醒，${unread} 条未读`}
+          className="relative inline-flex h-8 cursor-pointer list-none items-center rounded border border-line bg-surface px-2.5 text-muted hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden"
+        >
+          <Bell className="size-3.5" />
+          {unread > 0 ? (
+            <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[10px] font-medium text-white tabular-nums">
+              {unread}
+            </span>
+          ) : null}
+        </summary>
+        <div className="absolute right-0 z-40 mt-2 w-80 rounded border border-line bg-surface shadow-pop">
+          <div className="flex items-baseline justify-between border-b border-line px-3 py-2">
+            <span className="text-sm font-medium">卖出提醒</span>
+            <button type="button" onClick={markAllRead} className="text-xs text-accent hover:underline">
+              全部已读
+            </button>
+          </div>
+          <div className="max-h-72 overflow-y-auto scroll-slim">
+            {alerts.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted">还没有触发过卖出提醒</div>
+            ) : (
+              alerts.map((alert, index) => (
+                <div key={alert.key} className={"border-b border-line px-3 py-2 text-sm last:border-b-0 " + (index < unread ? "bg-up-soft/50" : "")}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {alert.name ?? alert.id}
+                      <span className="ml-2 text-xs text-muted">{alert.reason}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-muted">{alert.date.slice(5)}</span>
+                  </div>
+                  {alert.exit != null ? (
+                    <div className="mt-0.5 text-xs tabular-nums text-muted">卖出价 {alert.exit.toFixed(2)}</div>
+                  ) : null}
+                </div>
+              )))}
+          </div>
+          <Link
+            to="/positions"
+            className="block border-t border-line px-3 py-2 text-center text-xs text-accent hover:bg-surface-2"
+          >
+            去策略追踪看持仓 →
+          </Link>
+        </div>
+      </details>
+      {toast ? (
+        <button
+          type="button"
+          onClick={() => {
+            markAllRead();
+            setToast(null);
+            void navigate({ to: "/positions" });
+          }}
+          className="fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-0.5 rounded border border-warn/60 bg-surface px-3 py-2.5 text-left shadow-pop"
+        >
+          <span className="text-xs text-warn">卖出提醒</span>
+          <span className="text-sm text-fg">
+            {toast.name ?? toast.id} 触发{toast.reason}
+            {toast.exit != null ? `，卖出价 ${toast.exit.toFixed(2)}` : ""}
+          </span>
+          <span className="text-xs text-muted">点击去策略追踪 · 8 秒后自动消失</span>
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 /** 窄屏用的页签条。桌面端主导航在左侧边栏，这个只在 768px 以下出现。 */
 export function TopNav() {
   const path = useRouterState({ select: (state) => state.location.pathname });
@@ -347,13 +477,7 @@ export function Frame({
             </Link>
             <QuickSearch />
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              <Link
-                to="/news"
-                aria-label="消息追踪"
-                className="inline-flex h-8 items-center rounded border border-line bg-surface px-2.5 text-muted hover:bg-surface-2 hover:text-fg"
-              >
-                <Bell className="size-3.5" />
-              </Link>
+              <AlertBell />
               <button
                 type="button"
                 onClick={() => void refresh()}

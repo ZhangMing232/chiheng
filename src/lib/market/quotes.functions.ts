@@ -408,6 +408,56 @@ export const getRecorder = createServerFn({ method: "GET" }).handler(async () =>
 });
 
 /**
+ * 读当前用户的卖出提醒（顶栏铃铛 + Toast 的数据源）。
+ *
+ * data/sell-alerts.json 是记账进程的去重账本：每行 `用户id:日期:股票id:原因`，
+ * 保证同一笔只提醒一次。这里没有"时间戳"，顺序就是记账顺序，新的在队尾。
+ * 页面拿回去后按"已读水位"（最后一条的 key）切未读，水位存在浏览器里。
+ * 原因：stop 止损 / target 目标价 / time 到期。
+ */
+export const getSellAlerts = createServerFn({ method: "GET" }).handler(async () => {
+  const empty = { alerts: [] as SellAlert[] };
+  try {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const userId = await requireUserId();
+    const text = await readFile(join(process.cwd(), "data", "sell-alerts.json"), "utf8");
+    const parsed = JSON.parse(text) as { sells?: unknown };
+    if (!Array.isArray(parsed.sells)) return empty;
+    const mine = parsed.sells.filter(
+      (key): key is string => typeof key === "string" && key.startsWith(`${userId}:`),
+    );
+    if (mine.length === 0) return empty;
+    // 带上股票名和卖出价：去账本里按 日期+id 找这笔成交。
+    const book = await readUserBook<PaperDay>(userId).catch(() => null);
+    const alerts = mine.slice(-20).reverse().map((key) => {
+      const [, date = "", id = "", reason = ""] = key.split(":");
+      const trade = book?.days.find((day) => day.date === date)?.trades.find((item) => item.id === id);
+      return {
+        key,
+        date,
+        id,
+        reason: reason === "stop" ? "止损" : reason === "target" ? "目标价" : reason === "time" ? "到期" : reason,
+        name: trade?.name ?? null,
+        exit: trade?.exit ?? null,
+      };
+    });
+    return { alerts };
+  } catch {
+    return empty;
+  }
+});
+
+export type SellAlert = {
+  /** 去重账本里的原值，当"已读水位"用：存最后一条的 key。 */
+  key: string;
+  date: string;
+  id: string;
+  reason: string;
+  name: string | null;
+  exit: number | null;
+};
+
+/**
  * 读当前登录用户的交易日记。
  *
  * personal 表示是不是本人账本。why 是拿不到的原因——**必须带回去**：
