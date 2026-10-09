@@ -11,7 +11,7 @@
  * 折算名义金额**，不是投入的钱。收益率一律扣费。已实现和浮动分开显示。
  */
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
@@ -27,7 +27,7 @@ import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgenc
 import { STYLES, styleOf } from "@/lib/market/strategies";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getAIStatus, getChallengers, getNavHistory, getServerJournal, getUniverse, runStrategyAI, type NavPoint } from "@/lib/market/quotes.functions";
+import { getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
 import type { Challenger } from "@/lib/market/challenger";
 import { CollapsibleSection } from "@/components/collapsible";
 import { usePaper, type PaperDay } from "@/lib/paper";
@@ -51,7 +51,6 @@ export const Route = createFileRoute("/positions")({
       date: shanghaiDate(),
       chal: chal.list,
       champions: chal.champions,
-      ai: await getAIStatus().catch(() => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null })),
     };
   },
   component: Positions,
@@ -198,35 +197,11 @@ const CHAL_STATUS: Record<Challenger["status"], { label: string; className: stri
 function ChallengerPanel({
   list,
   champions,
-  ai,
 }: {
   list: Challenger[];
   champions: Record<string, string>;
-  ai: { allowed: boolean; configured: boolean };
 }) {
-  const router = useRouter();
-  const [message, setMessage] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
-  const run = async () => {
-    setRunning(true);
-    setMessage(null);
-    try {
-      const res = await runStrategyAI();
-      setMessage(
-        res.ok
-          ? `本轮提名 ${res.proposed} 个挑战者` +
-              (res.rejected > 0 ? `，拒了 ${res.rejected} 个（${res.rejectReasons.slice(0, 2).join("；")}${res.rejectReasons.length > 2 ? "…" : ""}）` : "") +
-              "。记账进程当天开始并行攒样本（每策略每天限 1 只）。"
-          : `没跑成：${res.error ?? "未知原因"}`,
-      );
-      await router.invalidate();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "运行失败");
-    } finally {
-      setRunning(false);
-    }
-  };
   const runningCount = list.filter((c) => c.status === "running").length;
   return (
     <Panel
@@ -258,25 +233,17 @@ function ChallengerPanel({
       ) : (
         <p className="text-xs text-muted">还没有挑战者。AI 可以读策略闸和判决记录后提名，也可以手工编辑 data/challengers.json。</p>
       )}
-      {ai.allowed ? (
-        <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
-          <button
-            type="button"
-            disabled={running || !ai.configured}
-            onClick={() => void run()}
-            className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {running ? "AI 思考中…" : "让 AI 提名挑战者"}
-          </button>
-          {message ? <span className="min-w-0 text-xs text-muted">{message}</span> : null}
-        </div>
-      ) : null}
+      <p className="mt-2 border-t border-line pt-2 text-xs">
+        <Link to="/ai" className="text-brand hover:underline">
+          AI 提名挑战者、配接口 → AI 管理页
+        </Link>
+      </p>
     </Panel>
   );
 }
 
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions, ai } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -388,7 +355,7 @@ function Positions() {
           />
         </Panel>
 
-        <ChallengerPanel list={chal} champions={champions} ai={ai} />
+        <ChallengerPanel list={chal} champions={champions} />
 
         {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
             不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}

@@ -15,7 +15,7 @@ import { Bell, RefreshCw, Search } from "lucide-react";
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
 
 /** 桌面端左侧分组导航（PPT 新信息架构）。窄屏隐藏，改用顶栏下的页签。 */
-const SIDEBAR: { label: string; items: { to: "/" | "/screener" | "/factors" | "/positions" | "/news" | "/flow" | "/symbol"; label: string }[] }[] = [
+const SIDEBAR: { label: string; items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol"; label: string }[] }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台" }] },
   {
     label: "策略研究",
@@ -23,6 +23,7 @@ const SIDEBAR: { label: string; items: { to: "/" | "/screener" | "/factors" | "/
       { to: "/screener", label: "策略选股" },
       { to: "/factors", label: "因子发掘" },
       { to: "/positions", label: "策略追踪" },
+      { to: "/ai", label: "AI 管理" },
     ],
   },
   {
