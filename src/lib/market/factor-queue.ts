@@ -286,7 +286,9 @@ export type AIMeta = {
 export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}): Promise<string> {
   const { costOfTokens } = await import("./ai-usage.ts");
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 90_000);
+  // 90s 不够：deepseek-flash 多数 17~37s，但长 prompt + 自我历史偶尔超 90s 被掐，
+  // 自动进化在收盘后跑，多等一分钟换不白跑一趟。
+  const timer = setTimeout(() => ctrl.abort(), 150_000);
   const started = Date.now();
   try {
     const res = await fetch(`${config.baseUrl}/chat/completions`, {
