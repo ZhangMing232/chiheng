@@ -204,6 +204,9 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
               ))}
             </select>
           </label>
+          {preset?.hint ? (
+            <p className="rounded border border-line bg-surface-2 px-2 py-1.5 text-[11px] leading-relaxed text-muted">{preset.hint}</p>
+          ) : null}
           <label className="block text-xs text-muted">
             名称
             <input
@@ -496,7 +499,7 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
                   {e.ms}ms
                 </td>
                 <td data-l="结果" className={`px-2.5 py-1.5 text-[11px] ${e.ok ? "text-up" : "text-down"}`}>
-                  {e.ok ? "成功" : "失败"}
+                  {e.ok ? "成功" : e.error ? `失败：${e.error.length > 48 ? `${e.error.slice(0, 48)}…` : e.error}` : "失败"}
                 </td>
               </tr>
             ))}

@@ -36,6 +36,8 @@ export type AIUsageEntry = {
   cost: number;
   ms: number;
   ok: boolean;
+  /** 失败原因（HTTP 状态 + 接口返回的前 200 字），成功的调用不记。 */
+  error?: string;
 };
 
 /** 账本上限，满了丢最旧的。比 ai-log 大：用量是流水账，轮次账是事件账。 */
@@ -49,15 +51,32 @@ function dataDir(): string {
 
 const aiUsagePath = () => join(dataDir(), "ai-usage.json");
 
-/** 读用量账。文件不存在或坏了 → 空数组，绝不抛错。 */
+/** 读用量账。文件不存在或坏了 → 空数组，绝不抛错。
+ *  老条目缺后加的字段（profileId/价快照/cost/error）时按缺省补齐——账本是
+ *  追加式的，新字段不能让旧账读崩或页面算出 NaN。 */
 export async function readAIUsage(): Promise<AIUsageEntry[]> {
   try {
     const parsed = JSON.parse(await readFile(aiUsagePath(), "utf8")) as { entries?: unknown };
-    if (Array.isArray(parsed.entries)) return parsed.entries as AIUsageEntry[];
+    if (!Array.isArray(parsed.entries)) return [];
+    return (parsed.entries as Partial<AIUsageEntry>[]).map((e) => ({
+      at: typeof e.at === "string" ? e.at : "",
+      layer: typeof e.layer === "string" ? e.layer : "unknown",
+      trigger: e.trigger === "auto" || e.trigger === "test" ? e.trigger : "manual",
+      model: typeof e.model === "string" ? e.model : "unknown",
+      profileId: typeof e.profileId === "string" ? e.profileId : null,
+      pricePromptPerM: typeof e.pricePromptPerM === "number" ? e.pricePromptPerM : null,
+      priceCompletionPerM: typeof e.priceCompletionPerM === "number" ? e.priceCompletionPerM : null,
+      promptTokens: typeof e.promptTokens === "number" ? e.promptTokens : 0,
+      completionTokens: typeof e.completionTokens === "number" ? e.completionTokens : 0,
+      totalTokens: typeof e.totalTokens === "number" ? e.totalTokens : 0,
+      cost: typeof e.cost === "number" ? e.cost : 0,
+      ms: typeof e.ms === "number" ? e.ms : 0,
+      ok: e.ok === true,
+      error: typeof e.error === "string" ? e.error : undefined,
+    }));
   } catch {
-    // 还没有用量记录，正常。
+    return [];
   }
-  return [];
 }
 
 /** 追加一条。写失败不抛错——记账失败不该把调用本身炸掉。 */

@@ -21,6 +21,8 @@ export type AIPreset = {
   models: string[];
   /** 计价参考（元/百万 tokens），只作输入框占位提示，不自动填。 */
   priceHint?: { prompt?: string; completion?: string };
+  /** 申请 key 的注意事项（key 在哪申请、常见翻车点），弹窗里显示给户看。 */
+  hint?: string;
 };
 
 export const PROVIDER_PRESETS: AIPreset[] = [
@@ -30,30 +32,38 @@ export const PROVIDER_PRESETS: AIPreset[] = [
     baseUrl: "https://api.deepseek.com/v1",
     models: ["deepseek-chat", "deepseek-reasoner"],
     priceHint: { prompt: "deepseek-chat 约 2，reasoner 约 4", completion: "deepseek-chat 约 8，reasoner 约 16" },
+    hint: "API key 在 platform.deepseek.com 控制台申请（sk- 开头）；需要账户有余额（充值后按量扣费），Chat 会员的 key 不能调 API。",
   },
   {
     id: "moonshot",
     name: "Moonshot Kimi",
     baseUrl: "https://api.moonshot.cn/v1",
-    models: ["kimi-k2-0905-preview", "kimi-k2-turbo-preview", "moonshot-v1-8k"],
+    // 官方模型列表（platform.moonshot.cn/docs）：kimi-k2 全系与 moonshot-v1 系列已下线，
+    // 调旧名会快速返回「模型不存在」。这是「新建了感觉没用」最常见的第二个原因。
+    models: ["kimi-k3", "kimi-k2.7-code-highspeed", "kimi-k2.7-code", "kimi-k2.6"],
+    priceHint: { prompt: "k2.6 输入约 6.5，k2.7-code 约 6.5（k3 约 20）", completion: "k2.6/k2.7-code 输出约 27（k3 约 100，高速版约 54）" },
+    hint: "API key 在 platform.moonshot.cn 控制台申请（sk- 开头）；Kimi 会员 / Kimi Code 的 key 不能调 API。kimi-k3 需先充值解锁；kimi-k2.7-code 思考模式关不掉（不需要思考就选 kimi-k2.6）。",
   },
   {
     id: "openai",
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
     models: ["gpt-5", "gpt-5-mini", "gpt-4.1-mini"],
+    hint: "API key 在 platform.openai.com 申请；国内网络直接访问不通，需要代理或中转。",
   },
   {
     id: "zhipu",
     name: "智谱 GLM",
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     models: ["glm-4.6", "glm-4.5-air"],
+    hint: "API key 在 open.bigmodel.cn 控制台申请。",
   },
   {
     id: "siliconflow",
     name: "硅基流动 SiliconFlow",
     baseUrl: "https://api.siliconflow.cn/v1",
     models: ["deepseek-ai/DeepSeek-V3.2-Exp", "Qwen/Qwen3-32B"],
+    hint: "API key 在 cloud.siliconflow.cn 申请；新用户通常送小额体验金。",
   },
   {
     id: "ollama",
@@ -61,6 +71,7 @@ export const PROVIDER_PRESETS: AIPreset[] = [
     baseUrl: "http://localhost:11434/v1",
     models: [],
     priceHint: { prompt: "本地部署 = 0", completion: "本地部署 = 0" },
+    hint: "先 ollama pull 一个模型（如 qwen2.5:14b）再 ollama serve；本地跑 0 费用但受机器性能限制。",
   },
   { id: "custom", name: "自定义（手填 baseUrl）", baseUrl: "", models: [] },
 ];

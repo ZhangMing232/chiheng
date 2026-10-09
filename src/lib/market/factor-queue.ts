@@ -285,7 +285,6 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 90_000);
   const started = Date.now();
-  let ok = false;
   try {
     const res = await fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
@@ -327,28 +326,31 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
       ms: Date.now() - started,
       ok: true,
     });
-    ok = true;
     return content;
+  } catch (error) {
+    // 失败也记账：HTTP 状态 / 超时 / 空返回都落进流水（error 字段），
+    // 监控台能直接看到「401 → 去换 key / 充值」而不是一个干巴巴的「失败」。
+    const reason = error instanceof Error ? error.message : String(error);
+    const { appendAIUsage } = await import("./ai-usage.ts");
+    await appendAIUsage({
+      at: new Date().toISOString(),
+      layer: meta.layer ?? "unknown",
+      trigger: meta.trigger ?? "manual",
+      model: config.model,
+      profileId: meta.profileId ?? null,
+      pricePromptPerM: meta.pricePromptPerM ?? null,
+      priceCompletionPerM: meta.priceCompletionPerM ?? null,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cost: 0,
+      ms: Date.now() - started,
+      ok: false,
+      error: reason,
+    });
+    throw error;
   } finally {
     clearTimeout(timer);
-    if (!ok) {
-      const { appendAIUsage } = await import("./ai-usage.ts");
-      await appendAIUsage({
-        at: new Date().toISOString(),
-        layer: meta.layer ?? "unknown",
-        trigger: meta.trigger ?? "manual",
-        model: config.model,
-        profileId: meta.profileId ?? null,
-        pricePromptPerM: meta.pricePromptPerM ?? null,
-        priceCompletionPerM: meta.priceCompletionPerM ?? null,
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-        cost: 0,
-        ms: Date.now() - started,
-        ok: false,
-      });
-    }
   }
 }
 

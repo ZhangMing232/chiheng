@@ -92,6 +92,48 @@ test("usageStats：近 7 天含今天，窗口外的记录不进趋势", () => {
   assert.ok(s.last7Days.every((d) => d.date !== "2026-10-02"));
 });
 
+test("readAIUsage：费用功能之前的老条目缺新字段，读出来按缺省补齐不算 NaN", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "ai-usage-legacy-"));
+  const prev = process.env.CHIHENG_DATA_DIR;
+  process.env.CHIHENG_DATA_DIR = dir;
+  try {
+    // 费用/档案快照功能上线前的原始条目形状：只有早期字段，没有
+    // profileId / 价快照 / cost / error。直接写进账文件模拟旧账。
+    const legacy = {
+      at: "2026-10-09T01:15:00.000Z",
+      layer: "factor",
+      trigger: "manual",
+      model: "deepseek-flash",
+      promptTokens: 1234,
+      completionTokens: 567,
+      totalTokens: 1801,
+      ms: 36588,
+      ok: true,
+    };
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "ai-usage.json"), JSON.stringify({ entries: [legacy] }));
+    const entries = await readAIUsage();
+    assert.equal(entries.length, 1);
+    const e = entries[0];
+    assert.equal(e.profileId, null);
+    assert.equal(e.pricePromptPerM, null);
+    assert.equal(e.priceCompletionPerM, null);
+    assert.equal(e.cost, 0);
+    assert.equal(e.error, undefined);
+    assert.equal(e.ok, true);
+    // 补齐后走统计聚合不能出 NaN。
+    const s = usageStats(entries, "2026-10-09");
+    assert.equal(s.totalCost, 0);
+    assert.equal(Number.isNaN(s.totalCost), false);
+    assert.equal(s.pricedCalls, 0);
+  } finally {
+    if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
+    else process.env.CHIHENG_DATA_DIR = prev;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("costOfTokens：分开计价、缺一记 0、 rounding 到分后 6 位", async () => {
   const { costOfTokens } = await import("@/lib/market/ai-usage");
   // 1M prompt @2元 + 500k completion @8元 = 2 + 4 = 6
