@@ -217,7 +217,6 @@ function dataDir(): string {
 }
 
 const queuePath = () => join(dataDir(), "factor-queue.json");
-const aiConfigPath = () => join(dataDir(), "ai-config.json");
 
 /** 读队列。文件不存在或坏了 → 空队列 + missing 原因，绝不抛错（prefs-file 同一取舍）。 */
 export async function readQueue(): Promise<QueuePayload> {
@@ -259,26 +258,13 @@ export async function applyVerdictsToQueue(verdicts: QueueVerdict[]): Promise<vo
 
 export type AIConfig = { baseUrl: string; apiKey: string; model: string };
 
-/** 读 AI 配置。三个字段缺一视为没配置。 */
+/**
+ * 读当前启用的 AI 配置（多套档案里启用那一套的三件套）。
+ * 档案的增删改切在 ai-profiles.ts；这里只取闭环要用的生效配置。
+ */
 export async function readAIConfig(): Promise<AIConfig | null> {
-  try {
-    const parsed = JSON.parse(await readFile(aiConfigPath(), "utf8")) as Partial<AIConfig>;
-    if (typeof parsed.baseUrl !== "string" || !parsed.baseUrl.trim()) return null;
-    if (typeof parsed.apiKey !== "string" || !parsed.apiKey.trim()) return null;
-    if (typeof parsed.model !== "string" || !parsed.model.trim()) return null;
-    return { baseUrl: parsed.baseUrl.trim().replace(/\/+$/, ""), apiKey: parsed.apiKey.trim(), model: parsed.model.trim() };
-  } catch {
-    return null;
-  }
-}
-
-export async function writeAIConfig(cfg: AIConfig | null): Promise<void> {
-  await mkdir(dataDir(), { recursive: true });
-  if (cfg === null) {
-    await writeFile(aiConfigPath(), JSON.stringify({}, null, 2));
-    return;
-  }
-  await writeFile(aiConfigPath(), JSON.stringify(cfg, null, 2));
+  const { getActiveConfig, readProfiles } = await import("./ai-profiles.ts");
+  return getActiveConfig(await readProfiles());
 }
 
 // ── AI 调用（OpenAI 兼容 /chat/completions）────────────────────

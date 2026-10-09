@@ -15,8 +15,9 @@ import { parseRules } from "@/lib/market/rules";
 import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/factor-runs-file";
-import { aiStatus, readAIConfig, readQueue, runFactorAILoop, writeAIConfig } from "@/lib/market/factor-queue";
+import { aiStatus, readQueue, runFactorAILoop } from "@/lib/market/factor-queue";
 import { readAILog } from "@/lib/market/ai-log";
+import { profileStatus, readProfiles } from "@/lib/market/ai-profiles";
 import type { PaperDay } from "@/lib/paper";
 import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
@@ -601,23 +602,115 @@ export const getPushStatus = createServerFn({ method: "GET" }).handler(async () 
 /** 待验队列（AI/人工预登记的因子 + 淘汰状态）。 */
 export const getFactorQueue = createServerFn({ method: "GET" }).handler(async () => readQueue());
 
-/** AI 接口配置状态。谁都能调，非主人只回 allowed: false。 */
+/** AI 接口配置状态：档案列表（key 只回尾号）+ 启用中那套 + 自动进化开关。谁都能调，非主人只回 allowed: false。 */
 export const getAIStatus = createServerFn({ method: "GET" }).handler(async () => {
   const { requireUserId } = await import("@/lib/auth/verify.server");
   const { OWNER_ID } = await import("@/lib/market/book-file");
   const { readAIPrefs } = await import("@/lib/market/ai-prefs");
+  const { getActiveConfig } = await import("@/lib/market/ai-profiles");
   const userId = await requireUserId();
-  const prefs = await readAIPrefs();
-  if (userId !== OWNER_ID) return { allowed: false as const, autoEvolve: prefs.autoEvolve, ...(await aiStatus(null)) };
-  return { allowed: true as const, autoEvolve: prefs.autoEvolve, ...(await aiStatus(await readAIConfig())) };
+  const [prefs, profiles] = await Promise.all([readAIPrefs(), readProfiles()]);
+  const base = {
+    autoEvolve: prefs.autoEvolve,
+    activeId: profiles.activeId,
+    profiles: profiles.profiles.map(profileStatus),
+    ...(await aiStatus(await getActiveConfig(profiles))),
+  };
+  if (userId !== OWNER_ID) return { allowed: false as const, ...base };
+  return { allowed: true as const, ...base };
 });
 
-/** 保存/清除 AI 接口配置。apiKey 传空 = 清除。 */
-export const saveAIConfig = createServerFn({ method: "POST" })
+/** 新建/更新接口档案。id 空 = 新建；apiKey 留空 = 保留旧 key。 */
+export const saveAIProfile = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { id?: unknown; name?: unknown; baseUrl?: unknown; apiKey?: unknown; model?: unknown };
+    if (typeof d?.name !== "string" || typeof d?.baseUrl !== "string" || typeof d?.apiKey !== "string" || typeof d?.model !== "string") {
+      throw new Error("档案没填对（name / baseUrl / apiKey / model 都要是字符串）");
+    }
+    return { id: typeof d.id === "string" && d.id ? d.id : undefined, name: d.name, baseUrl: d.baseUrl, apiKey: d.apiKey, model: d.model };
+  })
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { upsertProfile, writeProfiles } = await import("@/lib/market/ai-profiles");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 接口档案");
+    const result = upsertProfile(await readProfiles(), data, new Date().toISOString());
+    if (!result.ok) throw new Error(result.error);
+    await writeProfiles(result.file);
+    return { ok: true as const, profile: profileStatus(result.profile), activeId: result.file.activeId };
+  });
+
+/** 删除接口档案。删掉启用中的那套后 activeId 清空（闭环停在未配置）。 */
+export const deleteAIProfile = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { id?: unknown };
+    if (typeof d?.id !== "string" || !d.id) throw new Error("id 缺失");
+    return { id: d.id };
+  })
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { removeProfile, writeProfiles } = await import("@/lib/market/ai-profiles");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 接口档案");
+    const file = removeProfile(await readProfiles(), data.id);
+    await writeProfiles(file);
+    return { ok: true as const, activeId: file.activeId };
+  });
+
+/** 启用某套档案（闭环立刻切到它）；传 null 停用全部。 */
+export const setActiveAIProfile = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { id?: unknown };
+    if (d?.id !== null && typeof d?.id !== "string") throw new Error("id 必须是字符串或 null");
+    return { id: d.id };
+  })
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { setActiveProfile, writeProfiles } = await import("@/lib/market/ai-profiles");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 接口档案");
+    const file = setActiveProfile(await readProfiles(), data.id);
+    await writeProfiles(file);
+    return { ok: true as const, activeId: file.activeId };
+  });
+
+/** 从 OpenAI 兼容接口拉模型清单（/models），给弹窗里的模型下拉用。Ollama 的 {models:[{name}]} 和 OpenAI 的 {data:[{id}]} 都认。 */
+export const listAIModels = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { baseUrl?: unknown; apiKey?: unknown };
+    if (typeof d?.baseUrl !== "string" || typeof d?.apiKey !== "string") throw new Error("baseUrl / apiKey 没填对");
+    return { baseUrl: d.baseUrl.trim().replace(/\/+$/, ""), apiKey: d.apiKey.trim() };
+  })
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能拉模型清单");
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15_000);
+    try {
+      const res = await fetch(`${data.baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${data.apiKey}` },
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`接口 HTTP ${res.status}`);
+      const body = (await res.json()) as { data?: { id?: string }[]; models?: { name?: string }[] };
+      const ids = [...(body.data ?? []).map((m) => m.id), ...(body.models ?? []).map((m) => m.name)].filter((v): v is string => typeof v === "string" && v.length > 0);
+      return { ok: true as const, models: [...new Set(ids)].slice(0, 200) };
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
+/** 测一个接口通不通：最小一轮对话 + 计时。不入 ai-log（不算进化轮）。 */
+export const testAIProfile = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const d = data as { baseUrl?: unknown; apiKey?: unknown; model?: unknown };
     if (typeof d?.baseUrl !== "string" || typeof d?.apiKey !== "string" || typeof d?.model !== "string") {
-      throw new Error("配置没填对（baseUrl / apiKey / model 都要是字符串）");
+      throw new Error("baseUrl / apiKey / model 没填对");
     }
     return { baseUrl: d.baseUrl.trim(), apiKey: d.apiKey.trim(), model: d.model.trim() };
   })
@@ -625,14 +718,15 @@ export const saveAIConfig = createServerFn({ method: "POST" })
     const { requireUserId } = await import("@/lib/auth/verify.server");
     const { OWNER_ID } = await import("@/lib/market/book-file");
     const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 配置");
-    if (data.apiKey === "") {
-      await writeAIConfig(null);
-      return { ok: true as const, configured: false, baseUrl: null as string | null, model: null as string | null, keyTail: null as string | null };
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能测接口");
+    const { callAI } = await import("@/lib/market/factor-queue");
+    const started = Date.now();
+    try {
+      await callAI({ baseUrl: data.baseUrl.replace(/\/+$/, ""), apiKey: data.apiKey, model: data.model }, "连通性测试：只回复 ok 两个字母。");
+      return { ok: true as const, ms: Date.now() - started };
+    } catch (error) {
+      return { ok: false as const, ms: Date.now() - started, error: error instanceof Error ? error.message : String(error) };
     }
-    if (data.baseUrl === "" || data.model === "") throw new Error("baseUrl 和 model 不能空");
-    await writeAIConfig(data);
-    return { ok: true as const, configured: true, baseUrl: data.baseUrl, model: data.model, keyTail: data.apiKey.slice(-4) };
   });
 
 /** 让 AI 跑一轮闭环：读最近判决 → 提议新因子 → 校验后进队列。 */

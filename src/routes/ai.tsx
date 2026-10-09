@@ -18,20 +18,26 @@ import { Frame } from "@/components/screener/nav";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import {
+  deleteAIProfile,
   getAILog,
   getAIStatus,
   getChallengers,
   getFactorQueue,
+  listAIModels,
   runEvolve,
   runFactorAI,
   runStrategyAI,
   saveAIPrefs,
-  saveAIConfig,
+  saveAIProfile,
+  setActiveAIProfile,
+  testAIProfile,
 } from "@/lib/market/quotes.functions";
 import { evolveStats, type AILogEntry } from "@/lib/market/ai-log";
 import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
 import type { Challenger } from "@/lib/market/challenger";
 import { STYLES } from "@/lib/market/strategies";
+
+type ProfileStatus = { id: string; name: string; baseUrl: string; model: string; keyTail: string };
 
 type AIStatusPayload = {
   allowed: boolean;
@@ -40,6 +46,8 @@ type AIStatusPayload = {
   model: string | null;
   keyTail: string | null;
   autoEvolve: boolean;
+  activeId: string | null;
+  profiles: ProfileStatus[];
 };
 
 type Loader = {
@@ -58,7 +66,7 @@ export const Route = createFileRoute("/ai")({
   loader: async (): Promise<Loader> => {
     const [queue, ai, chal, logRes] = await Promise.all([
       getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
-      getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false })),
+      getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [] })),
       getChallengers()
         .then((res) => res.list)
         .catch((): Challenger[] => []),
@@ -97,65 +105,226 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-/** 接口配置表单。只有主人看得到；key 只回尾号。 */
+/** 接口档案编辑弹窗：新增 / 改档都走这里。key 留空 = 不换。 */
+function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onClose: () => void }) {
+  const router = useRouter();
+  const [name, setName] = useState(editing?.name ?? "");
+  const [baseUrl, setBaseUrl] = useState(editing?.baseUrl ?? "");
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState(editing?.model ?? "");
+  const [models, setModels] = useState<string[]>([]);
+  const [busy, setBusy] = useState<"fetch" | "test" | "save" | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const fetchModels = async () => {
+    setBusy("fetch");
+    setMessage(null);
+    try {
+      const res = await listAIModels({ data: { baseUrl, apiKey } });
+      setModels(res.models);
+      setMessage(res.models.length > 0 ? `拉到 ${res.models.length} 个模型，点输入框选` : "接口通了但没有模型清单，手填模型名");
+    } catch (err) {
+      setMessage(`拉模型失败：${err instanceof Error ? err.message : "未知原因"}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const test = async () => {
+    setBusy("test");
+    setMessage(null);
+    try {
+      const res = await testAIProfile({ data: { baseUrl, apiKey, model } });
+      setMessage(res.ok ? `通了，${res.ms}ms` : `没通：${res.error ?? "未知原因"}（${res.ms}ms）`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "测试失败");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const save = async () => {
+    setBusy("save");
+    setMessage(null);
+    try {
+      await saveAIProfile({ data: { id: editing?.id, name, baseUrl, apiKey, model } });
+      await router.invalidate();
+      onClose();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "保存失败");
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <button type="button" aria-label="关闭" onClick={onClose} className="absolute inset-0 bg-fg/40" />
+      <div className="relative w-full max-w-md rounded border border-line bg-surface shadow-lg">
+        <header className="flex items-center justify-between border-b border-line px-3.5 py-2.5">
+          <h3 className="text-sm font-medium">{editing ? `编辑档案「${editing.name}」` : "新增接口档案"}</h3>
+          <button type="button" onClick={onClose} className="text-xs text-muted hover:text-fg">
+            关闭
+          </button>
+        </header>
+        <div className="space-y-2 px-3.5 py-3">
+          <label className="block text-xs text-muted">
+            名称
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="如：DeepSeek 官方 / 本机 Ollama"
+              className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+          </label>
+          <label className="block text-xs text-muted">
+            baseUrl（OpenAI 兼容，/v1 结尾）
+            <input
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://api.deepseek.com/v1"
+              className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+          </label>
+          <label className="block text-xs text-muted">
+            API key{editing ? "（留空 = 不换）" : ""}
+            <input
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              type="password"
+              autoComplete="new-password"
+              placeholder={editing ? `尾号 ${editing.keyTail}` : "sk-..."}
+              className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+          </label>
+          <label className="block text-xs text-muted">
+            模型
+            <input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              list="ai-model-list"
+              placeholder="deepseek-chat / qwen2.5:14b"
+              className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 font-mono text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+            <datalist id="ai-model-list">
+              {models.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </label>
+          {message ? <p className="text-xs text-muted">{message}</p> : null}
+        </div>
+        <footer className="flex flex-wrap items-center gap-2 border-t border-line px-3.5 py-2.5">
+          <button
+            type="button"
+            disabled={busy !== null || !baseUrl.trim()}
+            onClick={() => void fetchModels()}
+            className="rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy === "fetch" ? "拉取中…" : "从接口拉模型清单"}
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null || !baseUrl.trim() || !apiKey.trim() || !model.trim()}
+            onClick={() => void test()}
+            className="rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy === "test" ? "测试中…" : "测试连通"}
+          </button>
+          <span className="flex-1" />
+          <button
+            type="button"
+            disabled={busy !== null || !name.trim() || !baseUrl.trim() || !model.trim() || (!editing && !apiKey.trim())}
+            onClick={() => void save()}
+            className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy === "save" ? "保存中…" : editing ? "保存修改" : "建档"}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+/** 接口档案管理：多套并存、启用一套、弹窗编辑。只有主人看得到；key 只回尾号。 */
 function ConfigBlock({ ai }: { ai: AIStatusPayload }) {
   const router = useRouter();
-  const [baseUrl, setBaseUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
+  const [modal, setModal] = useState<ProfileStatus | "new" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   if (!ai.allowed) {
     return <p className="px-3.5 py-3 text-xs text-muted">只有主人账号能配置 AI 接口。</p>;
   }
-  const save = async () => {
+
+  const activate = async (id: string) => {
+    setMessage(null);
     try {
-      const res = await saveAIConfig({ data: { baseUrl, apiKey, model } });
-      setMessage(res.configured ? `已保存 ${res.baseUrl} · ${res.model} · key 尾号 ${res.keyTail ?? ""}`.trim() : "已清除 AI 配置");
-      setBaseUrl("");
-      setApiKey("");
-      setModel("");
+      await setActiveAIProfile({ data: { id } });
       await router.invalidate();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "保存失败");
+      setMessage(err instanceof Error ? err.message : "切换失败");
     }
   };
+
+  const remove = async (p: ProfileStatus) => {
+    if (!window.confirm(`删掉档案「${p.name}」？${ai.activeId === p.id ? "它正在启用，删后闭环停在未配置。" : ""}`)) return;
+    setMessage(null);
+    try {
+      await deleteAIProfile({ data: { id: p.id } });
+      await router.invalidate();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "删除失败");
+    }
+  };
+
   return (
     <div className="px-3.5 py-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="shrink-0 text-xs font-medium text-muted">OpenAI 兼容接口（Ollama / LM Studio / DeepSeek 都行）</span>
-        <span className="truncate text-xs text-muted">
-          {ai.configured ? `已配置 · ${ai.baseUrl} · ${ai.model} · key 尾号 ${ai.keyTail}` : "未配置"}
-        </span>
-      </div>
-      <div className="mt-1.5 grid gap-1.5 sm:grid-cols-[1fr_1fr_1fr_auto]">
-        <input
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder={ai.configured ? ai.baseUrl ?? "baseUrl" : "https://api.example.com/v1"}
-          className="min-w-0 rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
-        />
-        <input
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          type="password"
-          placeholder={ai.configured ? "填新 key 替换，留空保存可清除" : "API key"}
-          className="min-w-0 rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
-        />
-        <input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder={ai.configured ? ai.model ?? "model" : "模型名，如 qwen2.5:14b"}
-          className="min-w-0 rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
-        />
+      <div className="flex items-center justify-between gap-2">
+        <span className="shrink-0 text-xs font-medium text-muted">OpenAI 兼容接口（DeepSeek / Ollama / LM Studio 都行），多套档案启用一套</span>
         <button
           type="button"
-          onClick={() => void save()}
+          onClick={() => setModal("new")}
           className="shrink-0 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90"
         >
-          保存
+          新增接口
         </button>
       </div>
+      {ai.profiles.length > 0 ? (
+        <ul className="mt-2 divide-y divide-line rounded border border-line">
+          {ai.profiles.map((p) => {
+            const active = ai.activeId === p.id;
+            return (
+              <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
+                <span className={`font-medium ${active ? "text-brand-text" : ""}`}>
+                  {p.name}
+                  {active ? <span className="ml-1.5 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] text-brand-text">启用中</span> : null}
+                </span>
+                <span className="min-w-0 truncate font-mono text-[11px] text-muted">
+                  {p.baseUrl} · {p.model} · key 尾号 {p.keyTail}
+                </span>
+                <span className="ml-auto flex shrink-0 gap-2">
+                  {active ? null : (
+                    <button type="button" onClick={() => void activate(p.id)} className="text-brand hover:underline">
+                      启用
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setModal(p)} className="text-muted hover:text-fg hover:underline">
+                    编辑
+                  </button>
+                  <button type="button" onClick={() => void remove(p)} className="text-muted hover:text-down hover:underline">
+                    删除
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="mt-2 rounded border border-dashed border-line px-3 py-2.5 text-xs text-muted">
+          还没有档案。点「新增接口」填一套 DeepSeek / Ollama / LM Studio 的地址和 key，填过的东西都会留住，随时切换。
+        </p>
+      )}
+      {ai.configured ? null : <p className="mt-1.5 text-[11px] text-warn">当前没有启用中的档案——闭环和自动进化都不会跑，先启用一套。</p>}
       {message ? <p className="mt-1.5 text-xs text-muted">{message}</p> : null}
+      {modal ? <ProfileModal editing={modal === "new" ? null : modal} onClose={() => setModal(null)} /> : null}
     </div>
   );
 }
@@ -242,7 +411,7 @@ function AIPage() {
     <Frame aside="AI 管理">
       <Section
         title="AI 接口配置"
-        hint="因子层和策略层共用一份配置。AI 的产出只许是白名单表达式（因子）或出场参数旋钮（策略），过不了校验的直接拒；判决永远由预先登记的函数说了算。"
+        hint="多套接口档案并存、启用一套跑所有闭环（因子层 / 策略层 / 自动进化共用）。AI 的产出只许是白名单表达式（因子）或出场参数旋钮（策略），过不了校验的直接拒；判决永远由预先登记的函数说了算。"
       >
         <ConfigBlock ai={ai} />
       </Section>
