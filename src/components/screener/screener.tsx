@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { Journal } from "@/components/screener/paper";
 import { LabPanel } from "@/components/screener/lab-panel";
@@ -21,7 +22,7 @@ import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
 import { watchList, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
-import { getIndices, getRecorder, getRelay, getServerJournal, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
+import { getIndices, getRecorder, getRelay, getServerJournal, getStrategyGates, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { AccountStatus, DataStatusBadge } from "@/components/screener/data-status";
 import { Panel, Tape } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -137,6 +138,14 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
 
   const indexTime = indices.find((item) => item.time)?.time;
   const labReport = useMemo(() => buildLabReport(journal, rules), [journal, rules]);
+  // 策略闸状态（记账进程判决、落盘）：左侧面板给停用/假释的策略挂标记，
+  // 不然那套只是「永远没有票」，看起来像坏了。
+  const { data: gateData } = useQuery({
+    queryKey: ["strategy-gates"],
+    queryFn: () => getStrategyGates(),
+    refetchInterval: 60_000,
+  });
+  const gates = gateData?.gates ?? {};
   // 左侧面板要标每个策略今天建仓了几只（和 Picks 里页签数字同一口径）。
   const styleCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -223,7 +232,22 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
                         : "text-muted hover:bg-surface-2 hover:text-fg")
                     }
                   >
-                    <span>{item.name}</span>
+                    <span className="flex min-w-0 items-center gap-1">
+                      <span className="truncate">{item.name}</span>
+                      {gates[item.id] ? (
+                        <span
+                          title={gates[item.id].reason}
+                          className={
+                            "shrink-0 rounded px-1 text-[10px] " +
+                            (gates[item.id].state === "disabled"
+                              ? "bg-warn-soft text-warn"
+                              : "bg-accent-soft text-accent")
+                          }
+                        >
+                          {gates[item.id].state === "disabled" ? "已停用" : "假释中"}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
                   </button>
                 ))}

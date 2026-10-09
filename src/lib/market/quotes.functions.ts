@@ -574,8 +574,7 @@ export const getPushStatus = createServerFn({ method: "GET" }).handler(async () 
   return { allowed: true as const, configured: token != null, tail: token ? token.slice(-4) : null };
 });
 
-/** 保存/清除 PushPlus token。传空字符串 = 清除，回到只发 Mac 通知。 */
-export const savePushConfig = createServerFn({ method: "POST" })
+/** 保存/清除 PushPlus token。传空字符串 = 清除，回到只发 Mac 通知。 */export const savePushConfig = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     if (typeof data !== "object" || data == null || typeof (data as { token?: unknown }).token !== "string") {
       throw new Error("token 没填对");
@@ -605,3 +604,30 @@ export const getFactorDiag = createServerFn({ method: "GET" }).handler(async () 
 
 /** 回测基线原文（纯文本，不做任何解析）。 */
 export const getFactorBaseline = createServerFn({ method: "GET" }).handler(async () => readBaseline());
+
+// ── 策略级自动闸门状态（data/strategy-gates.json）────────────────
+// 记账进程按 STRATEGY_GATE（strategy-gate.ts，预先登记的标准）判决后落盘，
+// 这里只读不改。选股页左侧面板用它给被停用的策略挂「已停用 / 假释中」标记——
+// 不然那套策略只是「永远没有票」，看起来像坏了。
+
+/** 一套策略的闸门状态。reason 是判决那天的依据原文。 */
+export type StrategyGate = {
+  state: "disabled" | "paroled";
+  since: string;
+  cooldownDays: number;
+  strikes: number;
+  reason: string;
+};
+
+export const getStrategyGates = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const text = await readFile(join(process.cwd(), "data", "strategy-gates.json"), "utf8");
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { gates: parsed as Record<string, StrategyGate> };
+    }
+  } catch {
+    // 没有文件 = 没有策略被停用，正常。
+  }
+  return { gates: {} as Record<string, StrategyGate> };
+});

@@ -17,7 +17,8 @@ import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
-import { exitFill, hardGate, nthClose, softGate } from "../src/lib/market/journal-book.ts";
+import { exitFill, hardGate, nthClose, softGate, dayReliable, netReturn } from "../src/lib/market/journal-book.ts";
+import { evaluateGate, readStrategyGates, writeStrategyGates } from "../src/lib/market/strategy-gate.ts";
 import { appendGateLog } from "../src/lib/market/gate-log.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
@@ -150,6 +151,71 @@ const time = formatClock(Date.now());
 const alerts = await readAlerts();
 let alertsChanged = false;
 
+// ── 策略级自动闸门（冠军-挑战者的第一步：自动判决 + 自动停用/假释/恢复）────
+// 判决标准预先登记在 strategy-gate.ts 的 STRATEGY_GATE（20 笔窗口、t≤−2 停用、
+// 冷却 10 个交易日起步、再犯翻倍封顶 40）。数据来自主人账本的已平仓样本
+// （扣费、只数信号日可信的天），每套 ACTIVE 策略独立判决。
+// 状态落盘 data/strategy-gates.json：记账进程每分钟新起一个，进程内状态不算数。
+const strategyGates = await readStrategyGates();
+const gateDisabled = new Set(
+  Object.entries(strategyGates)
+    .filter(([, record]) => record.state === "disabled")
+    .map(([style]) => style),
+);
+const gateParoled = new Set(
+  Object.entries(strategyGates)
+    .filter(([, record]) => record.state === "paroled")
+    .map(([style]) => style),
+);
+if (phase.date) {
+  const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
+  if (ownerBook) {
+    const retsByStyle = new Map<string, number[]>();
+    for (const day of ownerBook.days) {
+      if (!dayReliable(day)) continue;
+      for (const trade of day.trades) {
+        if (trade.exit == null) continue;
+        const style = styleOf(trade);
+        if (!style) continue;
+        const ret = netReturn(trade.entry, trade.exit);
+        if (ret == null) continue;
+        const list = retsByStyle.get(style) ?? [];
+        list.push(ret);
+        retsByStyle.set(style, list);
+      }
+    }
+    let gatesChanged = false;
+    for (const style of ACTIVE_STYLES) {
+      const decision = evaluateGate({
+        rets: retsByStyle.get(style) ?? [],
+        record: strategyGates[style] ?? null,
+        today: phase.date,
+      });
+      if (decision.action === "none") continue;
+      gatesChanged = true;
+      if (decision.next) strategyGates[style] = decision.next;
+      else delete strategyGates[style];
+      if (decision.action === "disable") {
+        gateDisabled.add(style);
+        gateParoled.delete(style);
+      } else if (decision.action === "parole") {
+        gateDisabled.delete(style);
+        gateParoled.add(style);
+      } else {
+        gateDisabled.delete(style);
+        gateParoled.delete(style);
+      }
+      const name = STYLES.find((item) => item.id === style)?.name ?? style;
+      const label =
+        decision.action === "disable" ? "已自动停用" : decision.action === "parole" ? "假释观察（每天限 1 只）" : "恢复满仓";
+      console.log(`strategy-gate ${style} ${decision.action}: ${decision.reason}`);
+      notify(`${name} ${label}：${decision.reason}`);
+      void sendPushPlus("赤轨策略闸门", `${name} ${label}\n${decision.reason}\n时间：${time}`);
+    }
+    if (gatesChanged) await writeStrategyGates(strategyGates);
+  }
+}
+
 let universe: Awaited<ReturnType<typeof loadUniverse>> | null = null;
 let indexPrice: number | null = null;
 let relay: Awaited<ReturnType<typeof loadRelay>> = [];
@@ -231,12 +297,16 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     }
 
     // 只跑还在用的那几套。停掉的两套仍留在页面上查看，但不再自动建仓。
+    // 策略闸停用的也跳过（evaluateGate 在上面判过）——只停新仓，下面的结算照跑。
     for (const style of ACTIVE_STYLES) {
+      if (gateDisabled.has(style)) continue;
       const list =
         style === "relay"
           ? relay.filter((row) => matchPrefs(row.quote, prefs))
           : watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs));
-      const buys = takeBuys(list, held, style, todayTrades);
+      // 假释中的策略限 1 只/天：它是带罪观察，不是无罪释放。
+      const allBuys = takeBuys(list, held, style, todayTrades);
+      const buys = gateParoled.has(style) ? allBuys.slice(0, 1) : allBuys;
 
       if (!hard.ok) {
         // 拦下之前先把「本来想买什么」记下来。不记的话事后只知道「今天没开仓」，
