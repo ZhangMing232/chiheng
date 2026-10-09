@@ -703,8 +703,8 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
         const logFd = openSync(join(stampDir, "auto-verdict.log"), "a");
         const child = spawn(
           process.execPath,
-          ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/backtest.ts"],
-          { env: { ...process.env, BT_FACTOR: "1" }, cwd: process.cwd(), detached: true, stdio: ["ignore", logFd, logFd] },
+          ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/auto-verdict.ts"],
+          { cwd: process.cwd(), detached: true, stdio: ["ignore", logFd, logFd] },
         );
         child.unref();
         console.log(`${time} 待验因子判决回测已异步启动（${phase.date}）`);
