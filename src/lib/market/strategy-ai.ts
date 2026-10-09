@@ -250,7 +250,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   };
   let raw: string;
   try {
-    raw = await callAI(config, buildStrategyPrompt(ctx));
+    raw = await callAI(config, buildStrategyPrompt(ctx), { layer: "strategy", trigger });
   } catch (error) {
     const result: StrategyAILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "strategy", trigger, ...result, proposed: [], rejected: [] });

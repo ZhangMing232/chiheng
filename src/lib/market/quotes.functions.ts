@@ -722,7 +722,7 @@ export const testAIProfile = createServerFn({ method: "POST" })
     const { callAI } = await import("@/lib/market/factor-queue");
     const started = Date.now();
     try {
-      await callAI({ baseUrl: data.baseUrl.replace(/\/+$/, ""), apiKey: data.apiKey, model: data.model }, "连通性测试：只回复 ok 两个字母。");
+      await callAI({ baseUrl: data.baseUrl.replace(/\/+$/, ""), apiKey: data.apiKey, model: data.model }, "连通性测试：只回复 ok 两个字母。", { layer: "test", trigger: "test" });
       return { ok: true as const, ms: Date.now() - started };
     } catch (error) {
       return { ok: false as const, ms: Date.now() - started, error: error instanceof Error ? error.message : String(error) };
@@ -784,6 +784,17 @@ export const getAILog = createServerFn({ method: "GET" }).handler(async () => {
   const userId = await requireUserId();
   if (userId !== OWNER_ID) return { allowed: false as const, entries: [] as Awaited<ReturnType<typeof readAILog>> };
   return { allowed: true as const, entries: await readAILog() };
+});
+
+/** token 用量账（监控控制台）。非主人只回 allowed: false。 */
+export const getAIUsage = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const { readAIUsage, usageStats } = await import("@/lib/market/ai-usage");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) return { allowed: false as const, entries: [], stats: null };
+  const entries = await readAIUsage();
+  return { allowed: true as const, entries, stats: usageStats(entries, new Date().toISOString().slice(0, 10)) };
 });
 
 /** 保存 AI 偏好开关（目前只有 autoEvolve：收盘后每天自动跑一轮进化）。 */

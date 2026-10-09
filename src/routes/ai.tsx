@@ -21,6 +21,7 @@ import {
   deleteAIProfile,
   getAILog,
   getAIStatus,
+  getAIUsage,
   getChallengers,
   getFactorQueue,
   listAIModels,
@@ -33,6 +34,7 @@ import {
   testAIProfile,
 } from "@/lib/market/quotes.functions";
 import { evolveStats, type AILogEntry } from "@/lib/market/ai-log";
+import { usageStats, type AIUsageEntry, type UsageStats } from "@/lib/market/ai-usage";
 import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
 import type { Challenger } from "@/lib/market/challenger";
 import { STYLES } from "@/lib/market/strategies";
@@ -56,6 +58,7 @@ type Loader = {
   chal: Challenger[];
   log: AILogEntry[];
   stats: ReturnType<typeof evolveStats>;
+  usage: { allowed: boolean; entries: AIUsageEntry[]; stats: UsageStats | null };
 };
 
 function messageOf(error: unknown): string {
@@ -64,16 +67,17 @@ function messageOf(error: unknown): string {
 
 export const Route = createFileRoute("/ai")({
   loader: async (): Promise<Loader> => {
-    const [queue, ai, chal, logRes] = await Promise.all([
+    const [queue, ai, chal, logRes, usage] = await Promise.all([
       getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [] })),
       getChallengers()
         .then((res) => res.list)
         .catch((): Challenger[] => []),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
+      getAIUsage().catch((): Loader["usage"] => ({ allowed: false, entries: [], stats: null })),
     ]);
     const log = logRes.entries;
-    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal) };
+    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal), usage };
   },
   component: AIPage,
 });
@@ -329,8 +333,115 @@ function ConfigBlock({ ai }: { ai: AIStatusPayload }) {
   );
 }
 
+/** Token 用量监控：统计卡 + 7 天趋势 + 按模型分桶 + 最近流水。 */
+function UsageSection({ usage }: { usage: Loader["usage"] }) {
+  const fmt = (n: number): string => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}k` : String(n));
+  if (!usage.allowed) {
+    return <p className="px-3.5 py-3 text-xs text-muted">只有主人账号能看用量监控。</p>;
+  }
+  const s = usage.stats;
+  if (!s || s.totalCalls === 0) {
+    return (
+      <div className="px-3.5 py-3">
+        <StateBlock kind="empty" title="还没有用量记录" hint="每次调 AI（跑进化、测连通）都会自动记账；跑一轮完整进化后再来看。" />
+      </div>
+    );
+  }
+  const maxDayTokens = Math.max(...s.last7Days.map((d) => d.tokens), 1);
+  const models = Object.entries(s.byModel).sort((a, b) => b[1].tokens - a[1].tokens);
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-5">
+        {[
+          { label: "总调用 / 成功", value: `${s.totalCalls} / ${s.okCalls}`, sub: s.failCalls > 0 ? `失败 ${s.failCalls}` : "无失败" },
+          { label: "Prompt tokens", value: fmt(s.promptTokens), sub: "输入" },
+          { label: "Completion tokens", value: fmt(s.completionTokens), sub: "输出" },
+          { label: "总 tokens", value: fmt(s.totalTokens), sub: "按接口报数" },
+          { label: "平均耗时", value: `${Math.round(s.totalMs / Math.max(s.totalCalls, 1))}ms`, sub: "单次调用" },
+        ].map((c) => (
+          <div key={c.label} className="bg-surface px-3.5 py-2.5">
+            <div className="text-[10px] tracking-widest text-muted">{c.label}</div>
+            <div className="mt-0.5 text-lg font-semibold tabular-nums">{c.value}</div>
+            <div className="text-[11px] text-muted">{c.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-2 border-b border-line px-3.5 py-2.5">
+        <span className="text-[10px] tracking-widest text-muted">近 7 天</span>
+        {s.last7Days.map((d) => (
+          <div key={d.date} className="flex items-end gap-1" title={`${d.date}：${d.tokens} tokens / ${d.calls} 次`}>
+            <div className="flex h-8 w-4 items-end rounded-sm bg-surface-2">
+              <div className="w-full rounded-sm bg-brand" style={{ height: `${Math.max((d.tokens / maxDayTokens) * 100, d.tokens > 0 ? 8 : 0)}%` }} />
+            </div>
+            <span className="text-[10px] text-muted">{d.date.slice(5)}</span>
+          </div>
+        ))}
+      </div>
+      {models.length > 1 ? (
+        <div className="border-b border-line px-3.5 py-2.5">
+          <div className="text-[10px] tracking-widest text-muted">按模型</div>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {models.map(([model, m]) => (
+              <li key={model} className="flex flex-wrap gap-x-3">
+                <span className="font-mono">{model}</span>
+                <span className="text-muted">
+                  {m.calls} 次 · {fmt(m.tokens)} tokens · 平均 {Math.round(m.ms / Math.max(m.calls, 1))}ms
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div className="px-3.5 py-3">
+        <Table className="data-table" caption="最近调用流水：token 数来自接口响应的 usage 字段，接口不报就记 0">
+          <thead>
+            <tr className="border-b border-line">
+              <th className={thClass()}>时间</th>
+              <th className={thClass()}>链路</th>
+              <th className={thClass()}>模型</th>
+              <th className={thClass()}>Prompt</th>
+              <th className={thClass()}>Completion</th>
+              <th className={thClass()}>耗时</th>
+              <th className={thClass()}>结果</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...usage.entries].reverse().slice(0, 20).map((e, i) => (
+              <tr key={`${e.at}-${i}`} className="border-b border-line last:border-b-0">
+                <td data-l="时间" className="px-2.5 py-1.5 whitespace-nowrap text-[11px] text-muted">
+                  {e.at.slice(5, 16).replace("T", " ")}
+                </td>
+                <td data-l="链路" className="px-2.5 py-1.5 text-[11px] text-muted">
+                  {e.layer === "factor" ? "因子" : e.layer === "strategy" ? "策略" : e.layer === "test" ? "测试" : e.layer}
+                  {e.trigger === "auto" ? "·自动" : ""}
+                </td>
+                <td data-l="模型" className="max-w-[16ch] truncate px-2.5 py-1.5 font-mono text-[11px] text-muted">
+                  {e.model}
+                </td>
+                <td data-l="Prompt" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums">
+                  {e.promptTokens.toLocaleString()}
+                </td>
+                <td data-l="Completion" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums">
+                  {e.completionTokens.toLocaleString()}
+                </td>
+                <td data-l="耗时" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums text-muted">
+                  {e.ms}ms
+                </td>
+                <td data-l="结果" className={`px-2.5 py-1.5 text-[11px] ${e.ok ? "text-up" : "text-down"}`}>
+                  {e.ok ? "成功" : "失败"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+        <p className="mt-1.5 text-[11px] text-muted">只展示接口真实报数，不估算不折算；各家计价不同，费用 = tokens ÷ 1M × 单价，自己乘。</p>
+      </div>
+    </div>
+  );
+}
+
 function AIPage() {
-  const { queue, ai, chal, log, stats } = Route.useLoaderData();
+  const { queue, ai, chal, log, stats, usage } = Route.useLoaderData();
   const router = useRouter();
   const [factorMsg, setFactorMsg] = useState<string | null>(null);
   const [stratMsg, setStratMsg] = useState<string | null>(null);
@@ -502,6 +613,13 @@ function AIPage() {
             <StateBlock kind="empty" title="还没有运行记录" hint="点上面的「跑一轮完整进化」，或开自动进化让记账进程收盘后自己跑。" />
           )}
         </div>
+      </Section>
+
+      <Section
+        title="Token 用量监控"
+        hint="每次调 AI 自动记账：输入/输出/总 tokens、耗时、成败、哪条链路（因子/策略/测试）烧的。接口不返回 usage 就记 0，不瞎编。"
+      >
+        <UsageSection usage={usage} />
       </Section>
 
       <Section

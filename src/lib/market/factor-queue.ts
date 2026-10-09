@@ -269,10 +269,16 @@ export async function readAIConfig(): Promise<AIConfig | null> {
 
 // ── AI 调用（OpenAI 兼容 /chat/completions）────────────────────
 
-/** OpenAI 兼容 /chat/completions 调用。factor 层和 strategy 层共用。 */
-export async function callAI(config: AIConfig, prompt: string): Promise<string> {
+/** 调用方信息：记进 token 用量账（ai-usage.json），让监控台知道是哪条链路烧的。 */
+export type AIMeta = { layer?: string; trigger?: "manual" | "auto" | "test" };
+
+/** OpenAI 兼容 /chat/completions 调用。factor 层和 strategy 层共用。
+ *  每次调用的 token 用量（响应 usage 字段）自动记进 ai-usage.json，调用方不用管。 */
+export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}): Promise<string> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 90_000);
+  const started = Date.now();
+  let ok = false;
   try {
     const res = await fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
@@ -288,12 +294,43 @@ export async function callAI(config: AIConfig, prompt: string): Promise<string> 
       }),
     });
     if (!res.ok) throw new Error(`AI 接口 HTTP ${res.status}：${(await res.text()).slice(0, 200)}`);
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    };
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) throw new Error("AI 返回里没有内容");
+    // token 用量记账：字段缺失记 0 不瞎编；写失败不炸调用。
+    const { appendAIUsage } = await import("./ai-usage.ts");
+    await appendAIUsage({
+      at: new Date().toISOString(),
+      layer: meta.layer ?? "unknown",
+      trigger: meta.trigger ?? "manual",
+      model: config.model,
+      promptTokens: data.usage?.prompt_tokens ?? 0,
+      completionTokens: data.usage?.completion_tokens ?? 0,
+      totalTokens: data.usage?.total_tokens ?? 0,
+      ms: Date.now() - started,
+      ok: true,
+    });
+    ok = true;
     return content;
   } finally {
     clearTimeout(timer);
+    if (!ok) {
+      const { appendAIUsage } = await import("./ai-usage.ts");
+      await appendAIUsage({
+        at: new Date().toISOString(),
+        layer: meta.layer ?? "unknown",
+        trigger: meta.trigger ?? "manual",
+        model: config.model,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        ms: Date.now() - started,
+        ok: false,
+      });
+    }
   }
 }
 
@@ -330,7 +367,7 @@ export async function runFactorAILoop(
   const history = factorSelfHistory(await readAILog(), entries);
   let raw: string;
   try {
-    raw = await callAI(config, buildPrompt(runs.batch.rows, history));
+    raw = await callAI(config, buildPrompt(runs.batch.rows, history), { layer: "factor", trigger });
   } catch (error) {
     const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });
