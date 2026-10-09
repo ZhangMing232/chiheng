@@ -645,6 +645,27 @@ export const runFactorAI = createServerFn({ method: "POST" }).handler(async () =
   });
 });
 
+// ── 策略层 AI 管理（/positions 策略追踪页的「AI 挑战者」面板）────
+// AI 只许提名挑战者（出场参数旋钮），转正/淘汰由 record-journal 里预先登记的
+// Welch 判决说了算。配置和因子层共用同一份 data/ai-config.json。
+
+/** 挑战者名单 + 各策略当前冠军参数。 */
+export const getChallengers = createServerFn({ method: "GET" }).handler(async () => {
+  const { readChallengers, readChampions } = await import("@/lib/market/challenger");
+  const [chal, champions] = await Promise.all([readChallengers(), readChampions()]);
+  return { list: chal.list, champions };
+});
+
+/** 让 AI 提名一轮挑战者：校验通过的直接 running，记账进程当天开始并行攒样本。 */
+export const runStrategyAI = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 闭环");
+  const { runStrategyAILoop } = await import("@/lib/market/strategy-ai");
+  return runStrategyAILoop();
+});
+
 // ── 因子研究页（/factors）的三个数据源 ──────────────────────────
 // 这三条读的都是 data/backtest/ 下的本地产物。data/ 在 .gitignore 里，
 // 线上和新机器必然读不到——所以读不到要带回 why，让页面说「还没跑」并给重跑命令，

@@ -11,7 +11,7 @@
  * 折算名义金额**，不是投入的钱。收益率一律扣费。已实现和浮动分开显示。
  */
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
@@ -27,20 +27,32 @@ import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgenc
 import { STYLES, styleOf } from "@/lib/market/strategies";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
+import { getAIStatus, getChallengers, getNavHistory, getServerJournal, getUniverse, runStrategyAI, type NavPoint } from "@/lib/market/quotes.functions";
+import type { Challenger } from "@/lib/market/challenger";
+import { CollapsibleSection } from "@/components/collapsible";
 import { usePaper, type PaperDay } from "@/lib/paper";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import type { Universe } from "@/lib/market/types";
 
 export const Route = createFileRoute("/positions")({
   loader: async () => {
-    const [universe, journal, nav] = await Promise.all([
+    const [universe, journal, nav, chal] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getServerJournal(),
       // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
       getNavHistory().catch(() => ({ points: [] as NavPoint[] })),
+      getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string> })),
     ]);
-    return { universe, journal, nav: nav.points, rules: DEFAULT_RULES, date: shanghaiDate() };
+    return {
+      universe,
+      journal,
+      nav: nav.points,
+      rules: DEFAULT_RULES,
+      date: shanghaiDate(),
+      chal: chal.list,
+      champions: chal.champions,
+      ai: await getAIStatus().catch(() => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null })),
+    };
   },
   component: Positions,
 });
@@ -171,8 +183,100 @@ function TradeTable({
     </>
   );
 }
+const CHAL_STATUS: Record<Challenger["status"], { label: string; className: string }> = {
+  running: { label: "在跑", className: "text-fg" },
+  promoted: { label: "已转正", className: "text-up" },
+  rejected: { label: "已淘汰", className: "text-down" },
+  inconclusive: { label: "停跑·未分胜负", className: "text-muted" },
+};
+
+/**
+ * 冠军-挑战者 + AI 提名面板。挑战者和冠军同一套选股名单、只改出场参数，
+ * 攒满 30 笔已平仓后 Welch t ≥ 1.5 转正 / t ≤ −2 淘汰——判决是记账进程里
+ * 预先登记的函数算的，AI 只许提名，不许任命。
+ */
+function ChallengerPanel({
+  list,
+  champions,
+  ai,
+}: {
+  list: Challenger[];
+  champions: Record<string, string>;
+  ai: { allowed: boolean; configured: boolean };
+}) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
+  const run = async () => {
+    setRunning(true);
+    setMessage(null);
+    try {
+      const res = await runStrategyAI();
+      setMessage(
+        res.ok
+          ? `本轮提名 ${res.proposed} 个挑战者` +
+              (res.rejected > 0 ? `，拒了 ${res.rejected} 个（${res.rejectReasons.slice(0, 2).join("；")}${res.rejectReasons.length > 2 ? "…" : ""}）` : "") +
+              "。记账进程当天开始并行攒样本（每策略每天限 1 只）。"
+          : `没跑成：${res.error ?? "未知原因"}`,
+      );
+      await router.invalidate();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "运行失败");
+    } finally {
+      setRunning(false);
+    }
+  };
+  const runningCount = list.filter((c) => c.status === "running").length;
+  return (
+    <Panel
+      title="冠军-挑战者"
+      note={`${runningCount} 个在跑 · 转正要 Welch t ≥ 1.5（30 笔）`}
+      bodyClassName="px-3 py-2"
+    >
+      {list.length > 0 ? (
+        <ul className="space-y-1">
+          {list.map((c) => {
+            const st = CHAL_STATUS[c.status];
+            const isChampion = champions[c.style] === c.id;
+            return (
+              <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                <span className={`shrink-0 ${st.className}`}>{st.label}</span>
+                <span className="font-medium">
+                  {c.name}
+                  {isChampion ? <span className="ml-1 text-[10px] text-brand-text">现任冠军</span> : null}
+                </span>
+                <span className="text-muted">
+                  {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
+                  {c.targetPct ?? "沿用冠军"}%
+                </span>
+                {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-xs text-muted">还没有挑战者。AI 可以读策略闸和判决记录后提名，也可以手工编辑 data/challengers.json。</p>
+      )}
+      {ai.allowed ? (
+        <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
+          <button
+            type="button"
+            disabled={running || !ai.configured}
+            onClick={() => void run()}
+            className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {running ? "AI 思考中…" : "让 AI 提名挑战者"}
+          </button>
+          {message ? <span className="min-w-0 text-xs text-muted">{message}</span> : null}
+        </div>
+      ) : null}
+    </Panel>
+  );
+}
+
 function Positions() {
-  const { universe, journal, nav, rules, date } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, ai } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -284,6 +388,8 @@ function Positions() {
           />
         </Panel>
 
+        <ChallengerPanel list={chal} champions={champions} ai={ai} />
+
         {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
             不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}
         {nav.length >= 2 ? (
@@ -380,18 +486,27 @@ function Positions() {
           sortedGroups.map((group) => (
             // 一天一块。日期条用 surface-2 垫底：往下滚的时候，靠这一条深色就能分出
             // 「换了一天」，不用回去找标题。这是持仓页唯一需要扫读的边界。
-            <section key={group.date} className="overflow-hidden rounded border border-line bg-surface">
-              <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 bg-surface-2 px-3.5 py-2">
-                <h2 className="text-sm font-medium">{dayHeading(group.date, weekdayOf(group.date))}</h2>
-                <p className="text-xs text-muted">
-                  {group.count} 笔 · {group.shares} 股 · 金额 {fmtMoney(group.amount)} ·{" "}
-                  {group.total == null ? (
-                    "盈亏 —"
-                  ) : (
-                    <span className={pctClass(group.total * 100)}>盈亏 {signedPct(group.total * 100)}</span>
-                  )}
-                </p>
-              </header>
+            // 过去的天默认折起来（要看哪天的盈亏点开就是），今天的默认展开；
+            // 用户点过的状态记在 localStorage，刷新保持。
+            <CollapsibleSection
+              key={group.date}
+              storageKey={`ch-collapse-pos-${group.date}`}
+              defaultOpen={group.date === date}
+              headerClassName="flex-wrap justify-between gap-x-3 gap-y-1 bg-surface-2"
+              header={
+                <>
+                  <h2 className="text-sm font-medium">{dayHeading(group.date, weekdayOf(group.date))}</h2>
+                  <p className="text-xs text-muted">
+                    {group.count} 笔 · {group.shares} 股 · 金额 {fmtMoney(group.amount)} ·{" "}
+                    {group.total == null ? (
+                      "盈亏 —"
+                    ) : (
+                      <span className={pctClass(group.total * 100)}>盈亏 {signedPct(group.total * 100)}</span>
+                    )}
+                  </p>
+                </>
+              }
+            >
               <div className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-4">
                 <Stat
                   label="开仓笔数"
@@ -424,7 +539,7 @@ function Positions() {
                 rules={rules}
                 caption={`${dayHeading(group.date, weekdayOf(group.date))} 开仓的 ${group.count} 笔`}
               />
-            </section>
+            </CollapsibleSection>
           ))
         )}
 

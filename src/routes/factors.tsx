@@ -13,7 +13,7 @@
  * 4. 长口径说明放在区块标题**正下方**（Section 的 hint），不用 Panel——
  *    Panel 的 note 在右上角，这一页每块都要交代口径，塞右边读不顺（资金页同一个取舍）。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Stat, Table, tdClass, thClass, pctClass } from "@/components/terminal";
@@ -290,34 +290,19 @@ function Section({
   );
 }
 
-/** 页内子页签：点一下滚过去，滚动时高亮当前块。和资金页同一套。 */
-function FactorTabs() {
-  const [active, setActive] = useState<string>(TABS[0].id);
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) setActive(entry.target.id);
-        }
-      },
-      { rootMargin: "-10% 0px -75% 0px" },
-    );
-    for (const tab of TABS) {
-      const el = document.getElementById(tab.id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
-  }, []);
+/**
+ * 页内子页签：点一下切到对应子页面，**只渲染当前那一个**——
+ * 以前七个区块全挂在 DOM 里靠滚动侦测高亮，找「基线原文」要从头滚到底。
+ * 现在是真三级导航：左侧栏（1 级）→ 因子页（2 级）→ 页签（3 级）。
+ */
+function FactorTabs({ active, onChange }: { active: string; onChange: (id: string) => void }) {
   return (
     <div className="flex gap-0.5 overflow-x-auto scroll-slim">
       {TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
-          onClick={() => {
-            setActive(tab.id);
-            document.getElementById(tab.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
+          onClick={() => onChange(tab.id)}
           aria-pressed={active === tab.id}
           className={
             "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
@@ -343,12 +328,16 @@ function FactorsPage() {
 
   const runAt = runs.batch?.at ? new Date(runs.batch.at).toLocaleString("zh-CN", { hour12: false }) : null;
 
+  /** 当前子页签。只渲染选中的那一个区块——七个全挂 DOM 的老做法废掉了。 */
+  const [activeTab, setActiveTab] = useState<string>(TABS[0].id);
+
   return (
     <Frame aside={runAt ? `因子批次 ${runAt}` : undefined}>
-      <FactorTabs />
+      <FactorTabs active={activeTab} onChange={setActiveTab} />
 
       {/* 1 结论 */}
-      <Section
+      {activeTab === "factor-verdict" ? (
+        <Section
         id="factor-verdict"
         title="现在能下结论吗"
         hint="数字全部从 data/backtest/ 的产物算出，重跑回测会自动更新。结论只针对「单因子」这一层，不含组合。"
@@ -392,8 +381,10 @@ function FactorsPage() {
           </div>
         )}
       </Section>
+      ) : null}
 
       {/* 2 六关判决 */}
+      {activeTab === "factor-gates" ? (
       <Section
         id="factor-gates"
         title="6 关判决总表"
@@ -424,8 +415,10 @@ function FactorsPage() {
           </div>
         )}
       </Section>
+      ) : null}
 
       {/* 3 分档明细 */}
+      {activeTab === "factor-buckets" ? (
       <Section
         id="factor-buckets"
         title="分档均值明细"
@@ -465,8 +458,10 @@ function FactorsPage() {
           </div>
         )}
       </Section>
+      ) : null}
 
       {/* 4 缩量归因 */}
+      {activeTab === "factor-attrib" ? (
       <Section
         id="factor-attrib"
         title="缩量天数归因"
@@ -487,8 +482,10 @@ function FactorsPage() {
           </div>
         )}
       </Section>
+      ) : null}
 
       {/* 5 资金流探路 */}
+      {activeTab === "factor-flow" ? (
       <Section
         id="factor-flow"
         title="资金流探路"
@@ -509,8 +506,10 @@ function FactorsPage() {
           </div>
         )}
       </Section>
+      ) : null}
 
       {/* 6 基线原文 */}
+      {activeTab === "factor-baseline" ? (
       <Section
         id="factor-baseline"
         title="回测基线原文"
@@ -531,9 +530,12 @@ function FactorsPage() {
           </div>
         )}
       </Section>
+      ) : null}
 
       {/* 7 AI 管理 */}
-      <AIFactorSection queue={data.queue} ai={data.ai} />
+      {activeTab === "factor-ai" ? (
+        <AIFactorSection queue={data.queue} ai={data.ai} />
+      ) : null}
 
       <p className="px-1 text-[11px] leading-relaxed text-warn">
         超额 ≠ 收益；|t| &lt; 2 等于没测出来；两段翻号 = 不能用；禁调参过关。

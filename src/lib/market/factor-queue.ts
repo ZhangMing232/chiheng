@@ -277,7 +277,8 @@ export async function writeAIConfig(cfg: AIConfig | null): Promise<void> {
 
 // ── AI 调用（OpenAI 兼容 /chat/completions）────────────────────
 
-async function callAI(config: AIConfig, prompt: string): Promise<string> {
+/** OpenAI 兼容 /chat/completions 调用。factor 层和 strategy 层共用。 */
+export async function callAI(config: AIConfig, prompt: string): Promise<string> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 90_000);
   try {

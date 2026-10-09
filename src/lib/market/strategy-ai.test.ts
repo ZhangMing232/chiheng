@@ -1,0 +1,154 @@
+/**
+ * 这个文件是干什么的：
+ * 钉住策略层 AI 管理的两块纯逻辑——挑战者提案校验、prompt 组装。
+ *
+ * 为什么值得钉（这一层离真钱近，校验要比因子层更死）：
+ * 1. 旋钮越界（holdDays=2 或 stopPct=50）必须拒——范围就是给 AI 上的笼头。
+ * 2. 三个参数全缺 = 冠军的复制品，没意义，必须拒。
+ * 3. 和同策略在跑挑战者参数雷同必须拒；每策略在跑超 2 个必须拒——不然 AI
+ *    一口气提名二十个，纸面名额稀释成噪声。
+ * 4. 选股条件（style 以外的任何东西）AI 提不出来——schema 里根本没有那个字段。
+ * 5. 一个被拒 continue 不中断整批（和 factor 层同款坑，这里再钉一次）。
+ */
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  KNOBS,
+  MAX_RUNNING_PER_STYLE,
+  paramsKey,
+  parseAIChallengerProposals,
+  buildStrategyPrompt,
+  type ChallengerProposal,
+} from "@/lib/market/strategy-ai";
+import type { Challenger } from "@/lib/market/challenger";
+
+function chal(partial: Partial<Challenger>): Challenger {
+  return {
+    id: "c_existing",
+    style: "breakout",
+    name: "现有挑战者",
+    holdDays: 12,
+    status: "running",
+    since: "2026-10-01",
+    ...partial,
+  };
+}
+
+function proposal(partial: Partial<ChallengerProposal>): ChallengerProposal {
+  return {
+    id: "q_hold8",
+    style: "breakout",
+    name: "突破·拿8天",
+    rationale: "冠军拿10天止损偏宽，缩量环境下短持可能落袋更稳",
+    holdDays: 8,
+    ...partial,
+  };
+}
+
+test("合格的提案被接受，```json 围栏也能解", () => {
+  const raw = '```json\n[{"id":"q_hold8","style":"breakout","name":"突破·拿8天","rationale":"冠军拿10天止损偏宽，缩量环境下短持可能落袋更稳","holdDays":8}]\n```';
+  const { accepted, rejected } = parseAIChallengerProposals(raw, []);
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].holdDays, 8);
+  assert.equal(rejected.length, 0);
+});
+
+test("参数越界、非整数、全缺，都拒且写明原因", () => {
+  const raw = JSON.stringify([
+    proposal({ id: "q_a", holdDays: (KNOBS.holdDays.min - 1) as number }),
+    proposal({ id: "q_b", stopPct: 10.5 }),
+    proposal({ id: "q_c", holdDays: undefined }),
+    proposal({ id: "q_d", targetPct: (KNOBS.targetPct.max + 1) as number }),
+  ]);
+  const { accepted, rejected } = parseAIChallengerProposals(raw, []);
+  assert.equal(accepted.length, 0);
+  assert.equal(rejected.length, 4);
+  assert.match(rejected[0].reason, /越界/);
+  assert.match(rejected[1].reason, /整数/);
+  assert.match(rejected[2].reason, /复制品/);
+  assert.match(rejected[3].reason, /越界/);
+});
+
+test("style 不在词表、id 撞名、理由太短，都拒", () => {
+  const raw = JSON.stringify([
+    proposal({ id: "q_a", style: "magic" }),
+    proposal({ id: "c_existing" }),
+    proposal({ id: "q_c", rationale: "短" }),
+  ]);
+  const { accepted, rejected } = parseAIChallengerProposals(raw, [chal({})]);
+  assert.equal(accepted.length, 0);
+  assert.equal(rejected.length, 3);
+  assert.match(rejected[0].reason, /词表/);
+  assert.match(rejected[1].reason, /已存在/);
+  assert.match(rejected[2].reason, /太短/);
+});
+
+test("和同策略在跑挑战者参数雷同被拒，别的策略可以同名参数", () => {
+  const existing = [chal({ id: "c1", style: "breakout", holdDays: 8 })];
+  const raw = JSON.stringify([
+    proposal({ id: "q_a", style: "breakout", holdDays: 8 }), // 雷同
+    proposal({ id: "q_b", style: "rebound", holdDays: 8 }), // 别策略，OK
+  ]);
+  const { accepted, rejected } = parseAIChallengerProposals(raw, existing);
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].style, "rebound");
+  assert.equal(rejected.length, 1);
+  assert.match(rejected[0].reason, /雷同/);
+});
+
+test(`每策略在跑超过 ${MAX_RUNNING_PER_STYLE} 个挑战者时拒新提案`, () => {
+  const existing = [
+    chal({ id: "c1", holdDays: 8 }),
+    chal({ id: "c2", holdDays: 15 }),
+  ];
+  const { accepted, rejected } = parseAIChallengerProposals(JSON.stringify([proposal({ id: "q_a" })]), existing);
+  assert.equal(accepted.length, 0);
+  assert.match(rejected[0].reason, /在跑挑战者/);
+});
+
+test("已结束（promoted/rejected）的挑战者不占在跑名额", () => {
+  const existing = [
+    chal({ id: "c1", holdDays: 8 }),
+    chal({ id: "c2", holdDays: 15, status: "rejected" }),
+  ];
+  const { accepted } = parseAIChallengerProposals(JSON.stringify([proposal({ id: "q_a", holdDays: 9 })]), existing);
+  assert.equal(accepted.length, 1);
+});
+
+test("一个被拒不中断整批", () => {
+  const raw = JSON.stringify([
+    proposal({ id: "bad!" }),
+    proposal({ id: "q_ok" }),
+  ]);
+  const { accepted, rejected } = parseAIChallengerProposals(raw, []);
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].id, "q_ok");
+  assert.equal(rejected.length, 1);
+});
+
+test("返回里没有 JSON 数组：整批拒绝，不抛", () => {
+  const { accepted, rejected } = parseAIChallengerProposals("今天天气不错", []);
+  assert.equal(accepted.length, 0);
+  assert.equal(rejected.length, 1);
+});
+
+test("paramsKey：缺省和显式值是不同指纹，全同才是雷同", () => {
+  assert.notEqual(paramsKey({ holdDays: 8 }), paramsKey({}));
+  assert.equal(paramsKey({ holdDays: 8, stopPct: 10 }), paramsKey({ stopPct: 10, holdDays: 8 }));
+});
+
+test("buildStrategyPrompt：判决产物原样进 prompt，含旋钮范围和名额上限", () => {
+  const prompt = buildStrategyPrompt({
+    challengers: [chal({}), chal({ id: "c_done", status: "promoted", holdDays: 20 })],
+    gates: { breakout: { state: "disabled", since: "2026-10-01", cooldownDays: 10, strikes: 1, reason: "最近 20 笔 t=-2.3" } },
+    logTail: ["breakout: c1 → champion（策略闸停用，参数自动回滚）"],
+    passedFactors: [{ id: "q_lcap", name: "大市值溢价", direction: 1, expr: "log(floatCap)" }],
+  });
+  assert.match(prompt, /突破·拿12天|现有挑战者/);
+  assert.match(prompt, /停用中（第 1 次/);
+  assert.match(prompt, /参数自动回滚/);
+  assert.match(prompt, /大市值溢价/);
+  assert.match(prompt, /holdDays（3~30/);
+  assert.match(prompt, /最多 2 个在跑挑战者/);
+  assert.match(prompt, /只输出 JSON 数组/);
+});
