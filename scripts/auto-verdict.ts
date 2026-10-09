@@ -12,7 +12,7 @@
 
 import { spawn } from "node:child_process";
 import { readQueue } from "@/lib/market/factor-queue";
-import { sendPushPlus } from "@/lib/market/push";
+import { readPushToken, sendPushPlus } from "@/lib/market/push";
 
 const before = new Map((await readQueue()).entries.map((e) => [e.id, e.status]));
 console.log(`[auto-verdict] 回测开始，队列 ${before.size} 条`);
@@ -41,6 +41,10 @@ const passed = changedTo("passed");
 const tombstoned = changedTo("tombstone");
 
 if (passed.length > 0 || tombstoned.length > 0) {
+  if (!(await readPushToken())) {
+    // token 空着时 sendPushPlus 会静默跳过——这里大声说一次，不然主人以为推了其实没推。
+    console.log("[auto-verdict] 有过关/淘汰，但 push-config.json 没填 token，推送跳过（去 /选股页 设置里填）");
+  }
   const lines = [
     ...passed.map((e) => `✅ 过 6 关：${e.name}（${e.id}）——进入实盘候选`),
     ...tombstoned.map((e) => `❌ 淘汰：${e.name}（${e.id}）`),

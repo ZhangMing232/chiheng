@@ -11,7 +11,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-async function readToken(): Promise<string | null> {
+/** 读 PushPlus token；没配返回 null。导出给调用方用——它们想区分「推了」和「没 token 静默跳过」。 */
+export async function readPushToken(): Promise<string | null> {
   try {
     const parsed = JSON.parse(await readFile(join(process.cwd(), "data", "push-config.json"), "utf8"));
     return typeof parsed.token === "string" && parsed.token.trim() ? parsed.token.trim() : null;
@@ -22,7 +23,7 @@ async function readToken(): Promise<string | null> {
 
 /** 发一条 PushPlus 消息。title 是微信里看到的标题，content 支持换行。 */
 export async function sendPushPlus(title: string, content: string) {
-  const token = await readToken();
+  const token = await readPushToken();
   if (!token) return;
   try {
     const res = await fetch("http://www.pushplus.plus/send", {
