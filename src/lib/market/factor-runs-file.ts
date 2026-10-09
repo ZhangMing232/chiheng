@@ -52,6 +52,8 @@ export type FactorRunRow = {
   gates: Partial<Record<GateKey, boolean>>;
   /** Bonferroni 用的「已测因子总数」 */
   nTested: number;
+  /** 回测抽样的股票池规模（如 296/500）。**旧批次没有**——读不到显示「没记」，不能编。 */
+  universe?: number;
 };
 
 export type GateKey = "g1" | "g2" | "g3" | "g4" | "g5" | "g6";

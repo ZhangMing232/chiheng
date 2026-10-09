@@ -189,3 +189,29 @@ test("buildPrompt：给了自我历史就追加反馈段，没给不追加", () 
   const bare = buildPrompt(rows);
   assert.doesNotMatch(bare, /你自己之前几轮提议的下场/);
 });
+
+test("buildPrompt：判决行带样本量，老批次没记显示 ?——AI 能分辨证据强度", () => {
+  const row = (universe?: number): FactorRunRow => ({
+    at: "2026-10-09T13:00:00.000Z",
+    factor: "q_amp",
+    name: "大市值高振幅放量",
+    direction: 1,
+    n: 3,
+    buckets: 5,
+    offset: 0,
+    nDays: 247,
+    meanSpread: 0.0041,
+    t: 2.66,
+    topBlockedRatio: 0.1,
+    bucketMeans: [0, 0, 0, 0, 0.0041],
+    resampleSpread: 0.001,
+    resampleT: 1.2,
+    gates: { g1: true },
+    nTested: 28,
+    ...(universe !== undefined ? { universe } : {}),
+  });
+  const withUniverse = buildPrompt([row(500)]);
+  assert.match(withUniverse, /样本500只/);
+  const legacy = buildPrompt([row()]);
+  assert.match(legacy, /样本\?只/);
+});

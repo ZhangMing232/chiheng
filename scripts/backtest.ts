@@ -1192,6 +1192,8 @@ async function main() {
           n: N,
           buckets,
           offset: offsetVal,
+          /** 样本量：换 BT_SAMPLE / offset 跑的判决，AI 读账时能分辨证据强度。 */
+          universe: sample.length,
           nDays: run.nDays,
           meanSpread: run.meanSpread,
           t: run.t,

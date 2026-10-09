@@ -190,6 +190,7 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[]): string {
     const buckets = r.bucketMeans.map((v) => `${(v * 100).toFixed(2)}%`).join(" → ");
     return (
       `- ${r.name}（${r.factor}）：方向${r.direction > 0 ? "正向" : "反向"}，t=${r.t.toFixed(2)}，` +
+      `样本${r.universe ?? "?" }只，` +
       `${failed.length === 0 ? "6 关全过" : `败于 ${failed.join("/")}`}。五档超额（低到高）：${buckets}`
     );
   });
