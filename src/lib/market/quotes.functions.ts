@@ -834,6 +834,16 @@ export const getAIUsage = createServerFn({ method: "GET" }).handler(async () => 
   return { allowed: true as const, entries, stats: usageStats(entries, new Date().toISOString().slice(0, 10)) };
 });
 
+/** 决策者记分牌（decision-ledger.ts）：AI 提议 vs 人工登记的过关/淘汰对照。 */
+export const getDecisionLedger = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const { readDecisionLedger } = await import("@/lib/market/decision-ledger");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) return { allowed: false as const, ledger: null };
+  return { allowed: true as const, ledger: await readDecisionLedger() };
+});
+
 /** 保存 AI 偏好开关（目前只有 autoEvolve：收盘后每天自动跑一轮进化）。 */
 export const saveAIPrefs = createServerFn({ method: "POST" })
   .validator((data: unknown) => {

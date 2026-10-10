@@ -23,6 +23,7 @@ import {
   getAIStatus,
   getAIUsage,
   getChallengers,
+  getDecisionLedger,
   getFactorQueue,
   listAIModels,
   runEvolve,
@@ -34,6 +35,7 @@ import {
   testAIProfile,
 } from "@/lib/market/quotes.functions";
 import { evolveStats, type AILogEntry } from "@/lib/market/ai-log";
+import type { DecisionLedger } from "@/lib/market/decision-ledger";
 import { usageStats, type AIUsageEntry, type UsageStats } from "@/lib/market/ai-usage";
 import { PROVIDER_PRESETS } from "@/lib/market/ai-presets";
 import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
@@ -60,6 +62,7 @@ type Loader = {
   log: AILogEntry[];
   stats: ReturnType<typeof evolveStats>;
   usage: { allowed: boolean; entries: AIUsageEntry[]; stats: UsageStats | null };
+  ledger: { allowed: boolean; ledger: DecisionLedger | null };
 };
 
 function messageOf(error: unknown): string {
@@ -68,7 +71,7 @@ function messageOf(error: unknown): string {
 
 export const Route = createFileRoute("/ai")({
   loader: async (): Promise<Loader> => {
-    const [queue, ai, chal, logRes, usage] = await Promise.all([
+    const [queue, ai, chal, logRes, usage, ledger] = await Promise.all([
       getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [] })),
       getChallengers()
@@ -76,9 +79,10 @@ export const Route = createFileRoute("/ai")({
         .catch((): Challenger[] => []),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
       getAIUsage().catch((): Loader["usage"] => ({ allowed: false, entries: [], stats: null })),
+      getDecisionLedger().catch((): Loader["ledger"] => ({ allowed: false, ledger: null })),
     ]);
     const log = logRes.entries;
-    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal), usage };
+    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal), usage, ledger };
   },
   component: AIPage,
 });
@@ -397,6 +401,41 @@ function ConfigBlock({ ai }: { ai: AIStatusPayload }) {
   );
 }
 
+/** 决策者记分牌：AI 提议 vs 人工登记，因子过关率 + 挑战者转正率对照。 */
+function LedgerSection({ ledger }: { ledger: Loader["ledger"] }) {
+  if (!ledger.allowed) {
+    return <p className="px-3.5 py-3 text-xs text-muted">只有主人账号能看记分牌。</p>;
+  }
+  const L = ledger.ledger;
+  if (!L) {
+    return (
+      <div className="px-3.5 py-3">
+        <StateBlock kind="empty" title="记分牌还没数据" hint="第一次因子判决 / 挑战者判决跑完后自动有。判定产物在 data/ 下，不在 git 里。" />
+      </div>
+    );
+  }
+  const col = (title: string, f: DecisionLedger["factors"]["ai"], c: DecisionLedger["challengers"]["ai"], deaths: number) => (
+    <div className="bg-surface px-3.5 py-3">
+      <div className="text-xs font-medium text-fg">{title}</div>
+      <dl className="mt-2 space-y-1 text-xs text-muted">
+        <div className="flex justify-between"><dt>因子提议</dt><dd className="text-fg">{f.proposed}</dd></div>
+        <div className="flex justify-between"><dt>过 6 关</dt><dd className={f.passed > 0 ? "text-up" : "text-fg"}>{f.passed}{f.proposed > 0 ? `（${Math.round((f.passed / f.proposed) * 100)}%）` : ""}</dd></div>
+        <div className="flex justify-between"><dt>在验</dt><dd className="text-fg">{f.pending}</dd></div>
+        <div className="flex justify-between"><dt>淘汰/衰减</dt><dd className="text-down">{f.dead}{deaths > f.dead ? `（死因档案另记 ${deaths} 条）` : ""}</dd></div>
+        <div className="mt-2 border-t border-line pt-2 flex justify-between"><dt>挑战者提名</dt><dd className="text-fg">{c.proposed}</dd></div>
+        <div className="flex justify-between"><dt>已转正</dt><dd className={c.promoted > 0 ? "text-up" : "text-fg"}>{c.promoted}</dd></div>
+        <div className="flex justify-between"><dt>已淘汰 / 未决</dt><dd className="text-fg">{c.rejected} / {c.inconclusive}</dd></div>
+      </dl>
+    </div>
+  );
+  return (
+    <div className="grid gap-px bg-line sm:grid-cols-2">
+      {col("AI 提议", L.factors.ai, L.challengers.ai, L.tombstones.ai)}
+      {col("人工登记", L.factors.manual, L.challengers.manual, L.tombstones.manual)}
+    </div>
+  );
+}
+
 /** Token 用量监控：统计卡 + 7 天趋势 + 按模型分桶 + 最近流水。 */
 function UsageSection({ usage }: { usage: Loader["usage"] }) {
   const fmt = (n: number): string => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}k` : String(n));
@@ -515,7 +554,7 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
 }
 
 function AIPage() {
-  const { queue, ai, chal, log, stats, usage } = Route.useLoaderData();
+  const { queue, ai, chal, log, stats, usage, ledger } = Route.useLoaderData();
   const router = useRouter();
   const [factorMsg, setFactorMsg] = useState<string | null>(null);
   const [stratMsg, setStratMsg] = useState<string | null>(null);
@@ -694,6 +733,13 @@ function AIPage() {
         hint="每次调 AI 自动记账：输入/输出/总 tokens、耗时、成败、哪条链路（因子/策略/测试）烧的。接口不返回 usage 就记 0，不瞎编。"
       >
         <UsageSection usage={usage} />
+      </Section>
+
+      <Section
+        title="决策者记分牌"
+        hint="同一个问题用记账回答：AI 做的决策到底行不行。因子层看 6 关过关率，策略层看挑战者转正率，两列对照——AI 列长期难看就该怀疑闭环，不该怀疑判据。数据缺哪边就空哪边，不补 0 冒充。"
+      >
+        <LedgerSection ledger={ledger} />
       </Section>
 
       <Section
