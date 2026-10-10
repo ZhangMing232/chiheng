@@ -664,6 +664,16 @@ type Trade = {
 async function main() {
   console.log("无前视回测：只用在 t 日收盘时已知的信息，t+1 日按限价单成交\n");
 
+  // 披露段：口径不写在报告头，读者就会默认「完美口径」然后被骗。
+  // 全部从本文件常量取值，改参数时披露跟着变，不许和实现漂移。
+  // （学 deepseek-harness-quant 的 backtest-acceptance：数据边界必须披露。）
+  console.log("披露口径：");
+  console.log(`  执行：t 日收盘出信号，t+1 按限价单成交；窗口 = 最近 ${LOOKBACK} 个交易日`);
+  console.log(`  成本：一来一回手续费 ${(FEE * 100).toFixed(3)}%（和线上一致）；未计印花税/滑点`);
+  console.log(`  样本：全市场列表等距抽样 ${SAMPLE} 只（BT_SAMPLE 可改），BT_OFFSET 换互不重叠的一批`);
+  console.log(`  数据：日线来自腾讯 K 线接口落盘缓存（${CACHE}），qfq 前复权；市值过滤用今天的快照非历史`);
+  console.log("  局限：抽样 300 只的结论外推到全市场要谨慎；回测=限价单口径，与线上现价口径有差\n");
+
   const uniRes = await fetch("https://qt.gtimg.cn/q=sh000001", { headers: KLINE_HEADERS });
   if (!uniRes.ok) throw new Error("连不上行情");
   void uniRes;
