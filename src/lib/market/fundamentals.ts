@@ -11,9 +11,10 @@
  * 1. pitValue 是纯函数：给定一只票的披露序列和日期，返回那天市面上
  *    最新的一条。没披露过 → null，不是 0。
  * 2. 数据从哪来：scripts/fetch-fundamentals.ts 调 tushare 的 fina_indicator
- *    （按报告期全市场批量，8 个季度 ≈ 8 次调用），落 data/backtest/fundamentals.json。
- * 3. 字段口径：roe=净资产收益率(%)，dtYoy=扣非净利润同比(%)，debt=资产负债率(%)。
- *    tushare 没披露（上市前/字段缺失）是 null。
+ *    （需 2000 积分）；积分不够时用 scripts/fetch-fundamentals.py 调 akshare
+ *    东财业绩报表（免费）。两个脚本落同一个 data/backtest/fundamentals.json。
+ * 3. 字段口径：roe=净资产收益率(%)，dtYoy=净利润同比(%)，gm=销售毛利率(%)，
+ *    debt=资产负债率(%，akshare 版暂无此字段、恒 null)。
  */
 
 /** 一条已披露的基本面记录。ann = 披露日 YYYYMMDD。 */
@@ -21,6 +22,9 @@ export type FundamentalRecord = {
   ann: string;
   roe: number | null;
   dtYoy: number | null;
+  /** 销售毛利率(%)。akshare 东财业绩报表有；tushare fina_indicator 没有，走 tushare 时是 null。 */
+  gm: number | null;
+  /** 资产负债率(%)。akshare 版暂无此字段恒 null；tushare fina_indicator 有。 */
   debt: number | null;
 };
 

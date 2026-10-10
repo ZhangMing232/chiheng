@@ -50,6 +50,25 @@ import {
 import type { FactorRun, DailyRow } from "@/lib/market/factors";
 import { detectWyckoffSpring } from "@/lib/market/wyckoff-spring";
 import { loadQueueFactors, applyVerdictsToQueue } from "@/lib/market/factor-queue";
+import { pitValue, recordsOf } from "@/lib/market/fundamentals";
+import type { FundamentalFile } from "@/lib/market/fundamentals";
+
+/** 财报基本面落盘文件（scripts/fetch-fundamentals.py / .ts 生成）。读不到就当没有——
+ * 基本面因子全部取 null 自动退出分档，不影响量价因子检验。 */
+async function loadFundamentals(): Promise<FundamentalFile | null> {
+  try {
+    const raw = await readFile(new URL("../data/backtest/fundamentals.json", import.meta.url), "utf8");
+    const parsed = JSON.parse(raw) as FundamentalFile;
+    return parsed && typeof parsed === "object" && parsed.byCode ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** K 线日期 "2026-09-30" → "20260930"（fundamentals.json 的 ann 口径）。 */
+function ymd(date: string): string {
+  return date.replaceAll("-", "");
+}
 
 /** 回测多长。250 个交易日约等于一年。 */
 const LOOKBACK = 250;
@@ -1117,6 +1136,15 @@ async function main() {
     /** 队列因子在本轮的判决，跑完一起回写队列（failCount/淘汰）。 */
     const queueVerdicts: { id: string; passed: boolean; at: string }[] = [];
     const offsetVal = Number(process.env.BT_OFFSET ?? 0);
+    // 财报基本面：t 日只用 ann_date <= t 的已披露记录（PIT，无前视）。
+    // 文件没有（还没跑 fetch 脚本）就全是 null，基本面因子自动不参与分档。
+    const fundFile = await loadFundamentals();
+    if (fundFile) {
+      const n = Object.keys(fundFile.byCode ?? {}).length;
+      console.log(`财报基本面：data/backtest/fundamentals.json（${n} 只，按披露日 PIT 对齐）`);
+    } else {
+      console.log("财报基本面：fundamentals.json 不存在，f_roe/f_dtyoy/f_gm 本轮取 null 不参与分档");
+    }
 
     // 生成某段区间的 daily 数据（每因子取值 + 未来 N 天超额 + 可交易近似）
     const buildDaily = (
@@ -1143,7 +1171,16 @@ async function main() {
           // 回测侧可交易近似：股价 >= 4、流通市值（快照）>= 40 亿。
           // ST 标记和真实涨跌停回测里拿不到，这里只做能确定的。
           const tradable = m.c >= 4 && (m.floatCap == null || m.floatCap >= 40);
-          today.push({ vals: factors.map((f) => f.get(m)), ex: outPrice / inPrice - 1 - bo(t + 1, t + N), tradable });
+          // 基本面三因子注值：t 日只用 ann_date <= t 的已披露记录（PIT，无前视），
+          // 那天市面上没披露过财报就是 null，因子自动退出当天分档。
+          const fund = fundFile ? pitValue(recordsOf(fundFile, id), ymd(ds[t])) : null;
+          const mf = {
+            ...m,
+            fRoe: fund?.roe ?? null,
+            fDtYoy: fund?.dtYoy ?? null,
+            fGm: fund?.gm ?? null,
+          };
+          today.push({ vals: factors.map((f) => f.get(mf)), ex: outPrice / inPrice - 1 - bo(t + 1, t + N), tradable });
         }
         daily.push(today);
       }

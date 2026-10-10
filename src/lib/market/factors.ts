@@ -75,6 +75,15 @@ export interface MetricRow {
   springLow: number | null;
   /** Spring 所在区间的区间高点（算威科夫量幅目标用）。null = 没有 Spring。 */
   springRangeHigh: number | null;
+  /**
+   * 基本面三因子（2026-10-10 接入，数据源 akshare 东财业绩报表 / tushare fina_indicator，
+   * 按披露日 PIT 对齐，见 fundamentals.ts）。只在 BT_FACTOR 因子检验分支由回测脚本
+   * 用 pitValue 注值；策略信号分支不注，这些字段是 null/undefined。
+   * null = 那天市面上没有已披露的财报（上市前/还没出），不是 0。
+   */
+  fRoe?: number | null;
+  fDtYoy?: number | null;
+  fGm?: number | null;
 }
 
 /**
@@ -85,7 +94,7 @@ export interface MetricRow {
 export type Factor = {
   id: string;
   name: string;
-  category: "动量" | "反转" | "波动率" | "量能" | "形态" | "规模";
+  category: "动量" | "反转" | "波动率" | "量能" | "形态" | "规模" | "基本面";
   direction: 1 | -1;
   rationale: string;
   /**
@@ -150,6 +159,47 @@ export const FACTORS: Factor[] = [
       "会挡掉顶档相当一部分，G6 有真实挂点风险。若 G6 不过，解读是「超额集中在我们买不到的小票上」，" +
       "**不是「把闸门调低就能过」**——闸门对应真实下单约束。",
     get: (m) => m.springStrength,
+  },
+  {
+    id: "f_roe",
+    name: "净资产收益率",
+    category: "基本面",
+    direction: 1,
+    family: "基本面",
+    rationale:
+      "质量因子：ROE 高的公司资本回报好，A 股长线定价偏有效，盈利质量应兑现为超额。" +
+      "数据源 akshare 东财业绩报表（tushare 积分补齐后同源切换），**按披露日 PIT 对齐**——" +
+      "t 日只用 ann_date <= t 的财报，4 月发的年报不许用在 1 月选股上（前视）。" +
+      "⚠️ 预登记局限：ROE 静态偏慢，季度间跳变少，横截面区分度可能不够；" +
+      "且年报/一季报披露集中，大部分交易日取值不变，6 关检验见真章。",
+    get: (m) => m.fRoe ?? null,
+  },
+  {
+    id: "f_dtyoy",
+    name: "净利润同比",
+    category: "基本面",
+    direction: 1,
+    family: "基本面",
+    rationale:
+      "成长因子：净利润同比增速高 = 基本面在改善，动量的基本面版本。" +
+      "东财口径是净利润-同比增长(%)（tushare 版是扣非口径，两边切换时注意口径差，" +
+      "同一因子数据集换了口径要重新过 6 关）。PIT 对齐同 f_roe。" +
+      "⚠️ 预登记局限：同比基数效应大（扭亏股同比爆表但质量差），高增速档可能混进低质量票，" +
+      "正好和 f_roe 互为补充——但同属基本面家族，factor-family 会点名它们，别当两个独立证据。",
+    get: (m) => m.fDtYoy ?? null,
+  },
+  {
+    id: "f_gm",
+    name: "销售毛利率",
+    category: "基本面",
+    direction: 1,
+    family: "基本面",
+    rationale:
+      "盈利质量因子：毛利率高 = 有定价权/成本优势，是 ROE 的上游驱动。" +
+      "原计划的负债率因子（f_debt，方向 -1）因 akshare 东财业绩报表无资产负债率字段暂缓，" +
+      "改用同接口可得的毛利率顶上；tushare 积分够 2000 后 fetch-fundamentals.ts 补 debt 再议。" +
+      "PIT 对齐同 f_roe。毛利率季度间极稳，预登记判断：横截面区分度可能偏弱，6 关见真章。",
+    get: (m) => m.fGm ?? null,
   },
 ];
 

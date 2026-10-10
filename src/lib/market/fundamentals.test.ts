@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 
 import { pitValue, recentQuarters, type FundamentalRecord } from "./fundamentals.ts";
 
-const rec = (ann: string, roe: number | null = 10): FundamentalRecord => ({ ann, roe, dtYoy: null, debt: null });
+const rec = (ann: string, roe: number | null = 10): FundamentalRecord => ({ ann, roe, dtYoy: null, gm: null, debt: null });
 
 test("取 t 日最新一条已披露的；还没披露的不许看（前视）", () => {
   const records = [rec("20260428", 8), rec("20260830", 12)];
