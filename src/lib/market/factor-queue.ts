@@ -377,6 +377,17 @@ export type AIMeta = {
  *  每次调用的 token 用量 + 计价钱包快照自动记进 ai-usage.json，调用方不用管。 */
 export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}): Promise<string> {
   const { costOfTokens } = await import("./ai-usage.ts");
+  // 熔断：同一句话连着失败就别再发了。学 Vibe-Trading 的 Research Workflow，
+  // 它那边的原话是 "an identical call is refused from its SECOND failure onward"——
+  // 瞬时失败允许重试一次（限流、网络抖、工具超时），但一直重发只是重复烧钱。
+  // **拒绝时不记 ai-usage**：请求根本没发出去，记一笔失败会是假账。留痕交给
+  // 上层闭环的 ai-log（「半吊子结果不入账，但记忆要留」）。
+  const retry = await import("./ai-retry.ts");
+  const fp = retry.fingerprint(config.model, prompt);
+  const failureBook = await retry.readAIFailures();
+  const verdict = retry.canAttempt(failureBook, fp);
+  if (!verdict.ok) throw new Error(`[AI 熔断] ${verdict.reason}`);
+
   const ctrl = new AbortController();
   // 90s 不够：deepseek-flash 多数 17~37s，但长 prompt + 自我历史偶尔超 90s 被掐，
   // 自动进化在收盘后跑，多等一分钟换不白跑一趟。
@@ -423,11 +434,15 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
       ms: Date.now() - started,
       ok: true,
     });
+    // 成功即清零：这通话是通的，旧失败不该再影响它下一次。
+    await retry.writeAIFailures(retry.clearFailure(failureBook, fp));
     return content;
   } catch (error) {
     // 失败也记账：HTTP 状态 / 超时 / 空返回都落进流水（error 字段），
     // 监控台能直接看到「401 → 去换 key / 充值」而不是一个干巴巴的「失败」。
     const reason = error instanceof Error ? error.message : String(error);
+    // 熔断计数：连续失败到上限后，同一句话不再重发。写失败只打日志，不影响这次抛错。
+    await retry.writeAIFailures(retry.recordFailure(failureBook, fp, reason));
     const { appendAIUsage } = await import("./ai-usage.ts");
     await appendAIUsage({
       at: new Date().toISOString(),
