@@ -76,6 +76,41 @@ function probeWeb(port = 8787): Promise<{ up: boolean; ms: number; reason: strin
   });
 }
 
+/**
+ * 数据源连通性探测（canary）。
+ *
+ * 学 Vibe-Trading 的 `backtest/loader_health.py`：拿一个固定标的问一句，确认源还活着。
+ * **为什么需要它**：赤轨被腾讯 WAF 挡过 501（全市场批量拉久了会触发），
+ * 当时缓存是旧的、页面照常显示、没有任何预警——等到结算卡住才发现，已经晚了。
+ *
+ * 三条纪律照抄那边：
+ * 1. **连通性失败就是失败，不能跳过当通过**（"connectivity is never a passing skip"）。
+ * 2. **canary 用固定大盘股**，不随机——每股每天问一句就够了，别自己制造请求量。
+ * 3. **区分"源拒绝"和"没应答"**，给的修复建议不一样。
+ */
+const CANARY_ID = "sh601398"; // 工商银行：A 股大盘股，停牌概率极低，数据最稳
+
+async function probeSource(): Promise<{ ok: boolean; ms: number; reason: string }> {
+  const started = Date.now();
+  try {
+    const res = await fetch(`https://web.sqt.gtimg.cn/utf8/q=${CANARY_ID}`, {
+      headers: { referer: "https://gu.qq.com/" },
+      signal: AbortSignal.timeout(5_000),
+    });
+    const ms = Date.now() - started;
+    const body = await res.text();
+    if (!res.ok) return { ok: false, ms, reason: `HTTP ${res.status}` };
+    // 返回体应该是「v_sh601398="1~工商银行~601398~…"」这样的一串，
+    // 拿不到或太短说明被挡了 —— 只判状态码不够，WAF 会回 200 带一个空壳。
+    if (!body.includes("601398") || body.length < 20) {
+      return { ok: false, ms, reason: "返回内容为空（可能被 WAF 挡了）" };
+    }
+    return { ok: true, ms, reason: "" };
+  } catch (err) {
+    return { ok: false, ms: Date.now() - started, reason: (err as Error).message };
+  }
+}
+
 /** src 目录里最新一个文件的 mtime。用来和 .output 比。 */
 function newestUnder(dir: string): number {
   let newest = 0;
@@ -137,6 +172,19 @@ async function checkAll(): Promise<{ checks: Check[]; trading: boolean; level: L
     level: probe.up ? "ok" : "warn",
     value: probe.up ? `在跑（${probe.ms}ms）` : `连不上：${probe.reason}`,
     fix: probe.up ? undefined : "页面打不开，但记账不依赖页面——看下面「记账心跳」那一行判断要不要处理",
+  });
+
+  // 8.5 数据源连通（canary）—— 和「行情源」那一行互补：
+  // 行情源看的是**缓存里现在有什么**，这一行看的是**源还能不能答**。
+  // 缓存有货但源已挂（WAF、欠费、改版）是最难自查的一种：页面照常显示，结算却在卡。
+  const src = await probeSource();
+  checks.push({
+    name: "数据源连通",
+    level: src.ok ? "ok" : "warn",
+    value: src.ok ? `腾讯源应答正常（${src.ms}ms）` : `探不到：${src.reason}`,
+    fix: src.ok
+      ? undefined
+      : "记账要拉 K 线，源挂了会结算卡住。等一会儿重跑本命令；持续不通就别硬拉（每次重拉都可能加深 WAF 限制）",
   });
 
   // 8 记账心跳（阈值和页面 RecordLine 对齐：3 分钟）
