@@ -845,9 +845,13 @@ export const saveAIPrefs = createServerFn({ method: "POST" })
     const { requireUserId } = await import("@/lib/auth/verify.server");
     const { OWNER_ID } = await import("@/lib/market/book-file");
     const { writeAIPrefs } = await import("@/lib/market/ai-prefs");
+    const { resetBreaker } = await import("@/lib/market/evolve-breaker");
     const userId = await requireUserId();
     if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 开关");
     await writeAIPrefs(data);
+    // 重新打开自动进化 = 人来看过了。清零熔断计数、解除断电记录，
+    // 不然下一轮还在「已熔断」的旧账上计。
+    if (data.autoEvolve) await resetBreaker();
     return { ok: true as const, autoEvolve: data.autoEvolve };
   });
 

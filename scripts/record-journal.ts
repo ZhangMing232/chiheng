@@ -668,15 +668,36 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
   try {
     const [prefs, config, aiLog] = await Promise.all([readAIPrefs(), readAIConfig(), readAILog()]);
     if (prefs.autoEvolve && config && !aiLog.some((e) => e.trigger === "auto" && e.at.slice(0, 10) === phase.date)) {
-      console.log(`${time} AI 自动进化开始`);
-      const factor = await runFactorAILoop(
-        { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
-        "auto",
+      // 熔断器：已断电的状态直接跳过（开关应该已被关掉，这里是双保险 + 审计）。
+      const { readBreaker, nextBreakerState, writeBreaker, BREAKER_RULE } = await import(
+        "../src/lib/market/evolve-breaker.ts"
       );
-      const strategy = await runStrategyAILoop("auto");
-      console.log(
-        `${time} AI 自动进化：因子层 ${factor.ok ? `提议 ${factor.proposed}` : `没跑成（${factor.error ?? "?"}）`} · 策略层 ${strategy.ok ? `提名 ${strategy.proposed}` : `没跑成（${strategy.error ?? "?"}）`}`,
-      );
+      const breaker = await readBreaker();
+      if (breaker.trippedAt) {
+        console.log(`${time} AI 自动进化已熔断（${breaker.trippedAt}），跳过。去 /ai 页重新打开开关恢复`);
+      } else {
+        console.log(`${time} AI 自动进化开始`);
+        const factor = await runFactorAILoop(
+          { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
+          "auto",
+        );
+        const strategy = await runStrategyAILoop("auto");
+        console.log(
+          `${time} AI 自动进化：因子层 ${factor.ok ? `提议 ${factor.proposed}` : `没跑成（${factor.error ?? "?"}）`} · 策略层 ${strategy.ok ? `提名 ${strategy.proposed}` : `没跑成（${strategy.error ?? "?"}）`}`,
+        );
+        const next = nextBreakerState(breaker, factor, strategy, new Date().toISOString());
+        if (next !== breaker) await writeBreaker(next);
+        if (next.trippedAt && !breaker.trippedAt) {
+          // 断电动作：关开关（下次不再进这个分支）+ 推送叫人来看（静默断电等于没断）。
+          const { writeAIPrefs } = await import("../src/lib/market/ai-prefs.ts");
+          await writeAIPrefs({ autoEvolve: false });
+          void sendPushPlus(
+            "赤轨进化熔断",
+            [`自动进化连续 ${BREAKER_RULE.maxConsecutiveErrors} 轮两层都失败，已自动断电。`, next.trippedReason, `去 /ai 页重新打开「自动进化」恢复。时间：${time}`].join("\n"),
+          );
+          console.error(`${time} AI 自动进化熔断：${next.trippedReason}`);
+        }
+      }
     }
   } catch (error) {
     console.error(`${time} AI 自动进化失败（不影响记账）:`, error);
