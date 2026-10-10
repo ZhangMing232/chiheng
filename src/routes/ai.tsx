@@ -603,7 +603,7 @@ function AIPage() {
 
       <Section
         title="进化控制台"
-        hint="自我迭代的闭环：AI 每轮提议都进账本，下一轮 prompt 会读到这些提议的下场（过没过 6 关、转正还是淘汰），据此纠错。开自动进化后，收盘后每天自己跑一轮。"
+        hint="自我迭代的闭环：AI 每轮提议都进账本，下一轮 prompt 会读到这些提议的下场（过没过 6 关、转正还是淘汰），据此纠错。开自动进化后，收盘后每天自己跑一轮。AI 能做什么、不能碰什么，全文见 AI-BOUNDARY.md。"
       >
         <div className="border-b border-line px-3.5 py-2">
           {ai.allowed ? (
