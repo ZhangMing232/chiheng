@@ -106,6 +106,12 @@ def main() -> int:
         # 显式指定报告期（逗号分隔），覆盖默认的「最近 N 季」——一次命令跑不完
         # 8 个季度时（东财接口约 135s/季），可以一季一条命令分批跑。
         periods = [p.strip() for p in sys.argv[2].split(",") if p.strip()]
+    # 还没结束的报告期（期末日 > 今天）东财查不到，查了只会空转重试，直接跳过。
+    today = date.today().strftime("%Y%m%d")
+    periods = [p for p in periods if p <= today]
+    if not periods:
+        print("没有可抓的报告期（都还没到期末）")
+        return 0
 
     # 增量加载已有结果：断网重跑不用从零再来。
     state = {"fetchedAt": "", "periods": [], "byCode": {}}
