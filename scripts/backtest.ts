@@ -1223,7 +1223,13 @@ async function main() {
       );
       // 队列因子（f 排在注册表后面）记下判决，整轮跑完一起回写队列状态。
       if (f >= FACTORS.length) {
-        queueVerdicts.push({ id: factor.id, passed: [g1, g2, g3, g4, g5, g6].every((g) => g.pass), at });
+        queueVerdicts.push({
+          id: factor.id,
+          passed: [g1, g2, g3, g4, g5, g6].every((g) => g.pass),
+          at,
+          // 死因档案用：败在哪几关。过关的为空数组（不是没测，是 6 关全过）。
+          failedGates: [g1, g2, g3, g4, g5, g6].flatMap((g, i) => (g.pass ? [] : [`g${i + 1}`])),
+        });
       }
     }
     console.log("-".repeat(92));

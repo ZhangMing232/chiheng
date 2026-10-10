@@ -31,6 +31,7 @@ import { appendAILog, factorSelfHistory, readAILog } from "./ai-log.ts";
 import type { Factor, MetricRow } from "./factors.ts";
 import type { FactorRunRow } from "./factor-runs-file.ts";
 import { GATE_KEYS } from "./factors-view.ts";
+import { appendTombstones, buildRecord, diffTombstones } from "./factor-tombstones.ts";
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
@@ -92,6 +93,11 @@ export type QueueVerdict = {
   at: string;
   /** 这一轮的实际读数，只有过关的因子才用得上（拿它和基线比）。没有就跳过衰减判定。 */
   reading?: DecayReading;
+  /**
+   * 败在哪几关（如 ["g1","g3"]）。淘汰时进死因档案（factor-tombstones.ts）；
+   * 过关或衰减路径可以为空——空 = 不是 6 关打死的，别读成「全过」。
+   */
+  failedGates?: string[];
 };
 
 /** 连续几次没过 6 关就淘汰。2 = 给「换行情环境再确认一次」的机会，也是上限。 */
@@ -343,10 +349,16 @@ export async function loadQueueFactors(): Promise<Factor[]> {
   return out;
 }
 
-/** 跑完一轮回测后更新队列状态。 */
+/** 跑完一轮回测后更新队列状态。新淘汰的顺手进死因档案（只追加，不改历史）。 */
 export async function applyVerdictsToQueue(verdicts: QueueVerdict[]): Promise<void> {
   const { entries } = await readQueue();
-  await writeQueue(updateQueueAfterRun(entries, verdicts));
+  const after = updateQueueAfterRun(entries, verdicts);
+  await writeQueue(after);
+  const died = diffTombstones(entries, after);
+  if (died.length > 0) {
+    const byId = new Map(verdicts.map((v) => [v.id, v]));
+    await appendTombstones(died.map((e) => buildRecord(e, byId.get(e.id))));
+  }
 }
 
 // ── AI 配置 ─────────────────────────────────────────────────────
