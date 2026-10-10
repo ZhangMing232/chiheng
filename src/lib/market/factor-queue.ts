@@ -34,7 +34,13 @@ import { GATE_KEYS } from "./factors-view.ts";
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
-export type QueueStatus = "pending" | "tested" | "passed" | "tombstone";
+/**
+ * pending/tested 是「还没过关」，passed 之后是「过关了但要盯着」：
+ * monitoring = 出现衰减迹象仍在跑，decayed = 停下来不再占样本，
+ * tombstone = 彻底退役（连续不过关，或衰减到 CRITICAL）。
+ * decayed 和 tombstone 都不再进回测，区别只在原因——一个是失效，一个是没通过。
+ */
+export type QueueStatus = "pending" | "tested" | "passed" | "monitoring" | "decayed" | "tombstone";
 
 /** 队列里的一条预登记因子。 */
 export type QueueEntry = {
@@ -58,7 +64,21 @@ export type QueueEntry = {
   lastRunAt: string | null;
   /** tombstone 的原因等备注。 */
   note?: string;
+  /**
+   * 过关之后的衰减监控。**第一次过关那一轮建立**，之后每轮追加一次信号。
+   * 没有这个字段 = 还没过关过（pending/tested）或老条目，两种情况都跳过衰减判定。
+   */
+  decay?: {
+    /** 过关那一轮的数，之后每轮拿它当尺子。 */
+    baseline: DecayBaseline;
+    /** 最近若干轮的衰减信号，旧的在前。 */
+    signals: DecaySignal[];
+    status: DecayStatus;
+  };
 };
+
+/** 只保留最近这么多轮的信号。多了没用，连续判定只看尾部。 */
+const DECAY_SIGNAL_HISTORY = 20;
 
 export type QueuePayload = {
   entries: QueueEntry[];
@@ -66,10 +86,26 @@ export type QueuePayload = {
 };
 
 /** 回测跑完一轮后，单个队列因子的判决。 */
-export type QueueVerdict = { id: string; passed: boolean; at: string };
+export type QueueVerdict = {
+  id: string;
+  passed: boolean;
+  at: string;
+  /** 这一轮的实际读数，只有过关的因子才用得上（拿它和基线比）。没有就跳过衰减判定。 */
+  reading?: DecayReading;
+};
 
 /** 连续几次没过 6 关就淘汰。2 = 给「换行情环境再确认一次」的机会，也是上限。 */
 export const TOMBSTONE_AFTER = 2;
+
+import {
+  decaysIntoBacktest,
+  evaluateDecay,
+  nextDecayStatus,
+  type DecayBaseline,
+  type DecayReading,
+  type DecaySignal,
+  type DecayStatus,
+} from "./decay.ts";
 
 // ── 纯函数：状态机 ──────────────────────────────────────────────
 
@@ -79,13 +115,67 @@ export const TOMBSTONE_AFTER = 2;
  * 挂 → failCount+1，满 TOMBSTONE_AFTER → tombstone 并写淘汰原因。
  * 没出现在 verdicts 里的条目（比如这批没跑它）原样保留。
  */
+/**
+ * 过关之后的衰减记账。**第一次过关建立基线**，之后每轮追加一次信号并判转换。
+ *
+ * 为什么基线是「自己过关那一轮」而不是某个固定阈值：同一个因子在趋势市和震荡市里
+ * 绝对值差很多，相对自己变弱才是真的在衰减。
+ * 没有 reading 就原样返回——拿不到数的时候不判死。
+ */
+function applyDecay(entry: QueueEntry, verdict: QueueVerdict): Pick<QueueEntry, "decay" | "note"> {
+  const reading = verdict.reading;
+  if (!reading || reading.t == null || reading.meanSpread == null) return { decay: entry.decay, note: entry.note };
+
+  if (!entry.decay) {
+    return {
+      decay: {
+        baseline: { t: reading.t, meanSpread: reading.meanSpread, resampleT: reading.resampleT ?? null },
+        signals: [],
+        status: "passed",
+      },
+      note: entry.note,
+    };
+  }
+
+  const signal = evaluateDecay(reading, entry.decay.baseline);
+  const signals = [...entry.decay.signals, signal].slice(-DECAY_SIGNAL_HISTORY);
+  const next = nextDecayStatus(entry.decay.status, signals) ?? entry.decay.status;
+  return {
+    decay: { baseline: entry.decay.baseline, signals, status: next },
+    note:
+      next !== entry.decay.status
+        ? `衰减监控：${DECAY_NOTE[next] ?? next}`
+        : entry.note,
+  };
+}
+
+const DECAY_NOTE: Partial<Record<DecayStatus, string>> = {
+  monitoring: "连续出现衰减迹象，转入观察，仍在参与回测",
+  decayed: "衰减确认，停止参与回测，不再占用样本",
+  retired: "连续关键级衰减，退役（等同淘汰）",
+};
+
+/** 衰减状态 → 队列状态。retired 落到 tombstone——都不再跑，区别只在原因。 */
+function decayToQueue(status: DecayStatus): QueueStatus {
+  if (status === "monitoring") return "monitoring";
+  if (status === "decayed") return "decayed";
+  if (status === "retired") return "tombstone";
+  return "passed";
+}
+
+/** 这一轮跑完之后，这条因子该是什么队列状态。 */
+function queueStatusOf(entry: QueueEntry, verdict: QueueVerdict): QueueStatus {
+  const decayed = applyDecay(entry, verdict);
+  return decayed.decay ? decayToQueue(decayed.decay.status) : "passed";
+}
+
 export function updateQueueAfterRun(queue: QueueEntry[], verdicts: QueueVerdict[]): QueueEntry[] {
   const byId = new Map(verdicts.map((v) => [v.id, v]));
   return queue.map((e) => {
     const v = byId.get(e.id);
     if (!v) return e;
     if (v.passed) {
-      return { ...e, status: "passed", failCount: 0, runs: e.runs + 1, lastRunAt: v.at };
+      return { ...e, ...applyDecay(e, v), status: queueStatusOf(e, v), failCount: 0, runs: e.runs + 1, lastRunAt: v.at };
     }
     const failCount = e.failCount + 1;
     const tombstone = failCount >= TOMBSTONE_AFTER;
@@ -243,7 +333,8 @@ export async function loadQueueFactors(): Promise<Factor[]> {
   const { entries } = await readQueue();
   const out: Factor[] = [];
   for (const e of entries) {
-    if (e.status === "tombstone") continue;
+    // decayed 也不再跑：它已经确认失效，继续占样本只会挤掉别的假设
+    if (e.status === "tombstone" || e.status === "decayed") continue;
     const compiled = validateFactorExpr(e.expr);
     if (!compiled.ok) continue; // 登记后白名单没变过；万一变了，跳过而不是炸掉整轮回测
     const get = compiled.get as (m: MetricRow) => number | null;

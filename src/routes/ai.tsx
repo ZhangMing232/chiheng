@@ -87,6 +87,9 @@ const QUEUE_STATUS: Record<QueueEntry["status"], { label: string; className: str
   pending: { label: "待验", className: "text-fg" },
   tested: { label: "在验·未过", className: "text-warn" },
   passed: { label: "已过 6 关", className: "text-up" },
+  // 过关之后的两个衰减态：观察中还在跑，衰减确认就停了
+  monitoring: { label: "观察中·有衰减迹象", className: "text-warn" },
+  decayed: { label: "已衰减·停跑", className: "text-muted line-through" },
   tombstone: { label: "已淘汰", className: "text-muted line-through" },
 };
 
