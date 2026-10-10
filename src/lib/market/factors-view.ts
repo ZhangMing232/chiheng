@@ -17,6 +17,7 @@
 // 用 @/ 别名而不是 ./factors：scripts/alias.mjs 只认 @/ 前缀（会把后面拼成 .ts 路径），
 // Vite 侧靠 tsconfigPaths 认同一个别名。写相对路径在 node --test 下会解析不到。
 import { FACTORS } from "@/lib/market/factors";
+import { familyClashes, type FamilyClash } from "@/lib/market/factor-family";
 // 只 import 类型——factor-runs-file 里有 node:fs，前端不能真的把它打进来。
 import type { FactorRunRow, FlowProbeDiag, GateKey } from "@/lib/market/factor-runs-file";
 
@@ -106,6 +107,11 @@ export type BatchSummary = {
   strongest: FactorRowView | null;
   /** 只差一关的：不是过关，但是离得最近的几个 */
   nearMiss: FactorRowView[];
+  /**
+   * 同族同方向 ≥2 个的组（factor-family.ts）。「25 个因子」可能只有 8 个概念——
+   * 这个数字要和 total 放在一起看，不许只报因子个数不报概念个数。
+   */
+  familyClashes: FamilyClash[];
 };
 
 export function batchSummary(rows: FactorRunRow[]): BatchSummary {
@@ -115,7 +121,21 @@ export function batchSummary(rows: FactorRunRow[]): BatchSummary {
     passed: views.filter((v) => v.allPass).length,
     strongest: views[0] ?? null,
     nearMiss: views.filter((v) => !v.allPass && v.passed === v.total - 1),
+    familyClashes: clashesOf(views),
   };
+}
+
+/**
+ * 这一批因子的家族共线组。注册表里的有 family 标签；跑过但已不在注册表的
+ * （旧因子）用 id 自成一族，不点名——档案在 factor-tombstones.ts 里。
+ */
+function clashesOf(views: FactorRowView[]): FamilyClash[] {
+  return familyClashes(
+    views.map((v) => {
+      const meta = FACTORS.find((f) => f.id === v.id);
+      return { id: v.id, name: v.name, direction: v.direction, family: meta?.family };
+    }),
+  );
 }
 
 export type FlowStressRow = {

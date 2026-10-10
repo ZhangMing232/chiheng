@@ -190,6 +190,24 @@ function FactorsPage() {
                 />
               ))}
             </div>
+            {summary.familyClashes.length > 0 && (
+              <div className="mt-4 border border-line bg-surface px-3.5 py-3">
+                <div className="text-xs font-medium text-warn">
+                  同族同方向 {summary.familyClashes.length} 组——「{summary.total} 个因子」的概念数要打折看
+                </div>
+                <ul className="mt-2 space-y-1 text-xs leading-relaxed text-muted">
+                  {summary.familyClashes.map((c) => (
+                    <li key={`${c.family}|${c.direction}`}>
+                      「{c.family}」族：{c.members.map((m) => m.name).join("、")}（
+                      {c.direction > 0 ? "同向偏多" : "同向偏空"}，算的是同一个东西的不同窗口）
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                  这是注册表层的近似检查，不是收益序列相关；它回答「是不是一个概念」，真共线由 G1-G6 判。
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="px-3.5 py-4">

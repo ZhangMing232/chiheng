@@ -88,6 +88,13 @@ export type Factor = {
   category: "动量" | "反转" | "波动率" | "量能" | "形态" | "规模";
   direction: 1 | -1;
   rationale: string;
+  /**
+   * 因子家族（共线检查用）。同一族 = 算的是同一个东西的不同窗口/变体
+   * （std20 和 std60、成交额和流通市值）。家族 + 方向都相同的因子同时活着，
+   * 等于一个因子被计了好几次——factor-family.ts 会点名。
+   * 这是注册表层的近似警告；真共线要看收益序列相关，那需要数据。
+   */
+  family?: string;
   get: (m: MetricRow) => number | null;
 };
 
@@ -96,31 +103,31 @@ export type Factor = {
  * 保证重跑老 8 因子和 baseline 对得上；后面的是新扩充的，全都只用 OHLCV 可算的指标。
  */
 export const FACTORS: Factor[] = [
-  { id: "chg", name: "当日涨幅", category: "反转", direction: -1, rationale: "A 股日内反转：当天涨多了，次日倾向回落。", get: (m) => m.chg },
-  { id: "d5", name: "5日涨幅", category: "反转", direction: -1, rationale: "短期反转：5 日涨多的倾向回落（已知两段翻号，不可用）。", get: (m) => m.d5 },
-  { id: "d10", name: "10日涨幅", category: "动量", direction: 1, rationale: "10 日动量：刚进动量区间，强者可能延续。", get: (m) => m.d10 },
-  { id: "d20", name: "20日涨幅", category: "动量", direction: 1, rationale: "中期动量：20 日向上的趋势可能延续。", get: (m) => m.d20 },
-  { id: "d60", name: "60日涨幅", category: "反转", direction: -1, rationale: "中期反转：跌得多的后面弹得快（唯一站得住的老信号）。", get: (m) => m.d60 },
-  { id: "momAccel", name: "动量加速", category: "动量", direction: 1, rationale: "d5-d20：短期相对中期在加速，动能增强。", get: (m) => m.momAccel },
-  { id: "rsi14", name: "RSI14", category: "反转", direction: -1, rationale: "超买回落：RSI 过高是超买，倾向均值回归。", get: (m) => m.rsi14 },
-  { id: "bias20", name: "乖离率", category: "反转", direction: -1, rationale: "偏离 20 日均线过远会回归。", get: (m) => m.bias20 },
-  { id: "std20", name: "20日波动率", category: "波动率", direction: -1, rationale: "低波动异象：低波动的票未来超额更高。", get: (m) => m.std20 },
-  { id: "std60", name: "60日波动率", category: "波动率", direction: -1, rationale: "低波动异象（更长窗）。", get: (m) => m.std60 },
-  { id: "amp20", name: "20日振幅", category: "波动率", direction: -1, rationale: "低振幅≈低波动，同一套异象逻辑。", get: (m) => m.amp20 },
-  { id: "corrVRet", name: "量价相关", category: "量能", direction: 1, rationale: "量价配合：放量上涨比放量下跌更健康。", get: (m) => m.corrVRet },
-  { id: "volRatio", name: "量比", category: "量能", direction: 1, rationale: "放量进攻：量比放大是资金进场的信号。", get: (m) => m.volRatio },
-  { id: "volShrink", name: "量能萎缩", category: "量能", direction: -1, rationale: "缩量=抛压衰竭，超跌后缩量容易反弹。", get: (m) => m.volShrink },
-  { id: "shrinkDays", name: "缩量天数", category: "量能", direction: -1, rationale: "缩量越久，抛压衰竭越充分。", get: (m) => m.shrinkDays },
-  { id: "distHigh20", name: "距20日高点", category: "形态", direction: -1, rationale: "离 20 日高点越远越超跌，越该反弹。", get: (m) => m.distHigh20 },
-  { id: "distLow60", name: "距60日低点", category: "形态", direction: -1, rationale: "越贴近 60 日低点越超跌。", get: (m) => m.distLow60 },
-  { id: "bollB", name: "布林%B", category: "形态", direction: -1, rationale: "接近下轨是超卖，倾向反弹。", get: (m) => m.bollB },
-  { id: "rangePos20", name: "区间位置", category: "形态", direction: -1, rationale: "20 日区间低位→超跌反弹。", get: (m) => m.rangePos20 },
-  { id: "amountWan", name: "成交额", category: "规模", direction: -1, rationale: "冷门小成交额的票被忽视，可能有溢价。", get: (m) => m.amountWan },
-  { id: "floatCap", name: "流通市值", category: "规模", direction: -1, rationale: "小市值效应（注意是今天快照，非历史）。", get: (m) => m.floatCap },
-  { id: "c", name: "股价", category: "规模", direction: -1, rationale: "低价股效应。", get: (m) => m.c },
-  { id: "lowerWick", name: "下影线占比", category: "形态", direction: -1, rationale: "长下影线=当日下方有承接，超跌后倾向反弹。", get: (m) => m.lowerWick },
-  { id: "volCompress", name: "波动压缩", category: "波动率", direction: -1, rationale: "短期波动相对长期收缩=蓄势，延续低波动异象。", get: (m) => m.volCompress },
-  { id: "downStreak", name: "连跌天数", category: "反转", direction: -1, rationale: "连续下跌越久越超跌，均值回归倾向越强。", get: (m) => m.downStreak },
+  { id: "chg", name: "当日涨幅", category: "反转", direction: -1, family: "涨幅", rationale: "A 股日内反转：当天涨多了，次日倾向回落。", get: (m) => m.chg },
+  { id: "d5", name: "5日涨幅", category: "反转", direction: -1, family: "涨幅", rationale: "短期反转：5 日涨多的倾向回落（已知两段翻号，不可用）。", get: (m) => m.d5 },
+  { id: "d10", name: "10日涨幅", category: "动量", direction: 1, family: "涨幅", rationale: "10 日动量：刚进动量区间，强者可能延续。", get: (m) => m.d10 },
+  { id: "d20", name: "20日涨幅", category: "动量", direction: 1, family: "涨幅", rationale: "中期动量：20 日向上的趋势可能延续。", get: (m) => m.d20 },
+  { id: "d60", name: "60日涨幅", category: "反转", direction: -1, family: "涨幅", rationale: "中期反转：跌得多的后面弹得快（唯一站得住的老信号）。", get: (m) => m.d60 },
+  { id: "momAccel", name: "动量加速", category: "动量", direction: 1, family: "涨幅", rationale: "d5-d20：短期相对中期在加速，动能增强。", get: (m) => m.momAccel },
+  { id: "rsi14", name: "RSI14", category: "反转", direction: -1, family: "RSI", rationale: "超买回落：RSI 过高是超买，倾向均值回归。", get: (m) => m.rsi14 },
+  { id: "bias20", name: "乖离率", category: "反转", direction: -1, family: "乖离", rationale: "偏离 20 日均线过远会回归。", get: (m) => m.bias20 },
+  { id: "std20", name: "20日波动率", category: "波动率", direction: -1, family: "低波", rationale: "低波动异象：低波动的票未来超额更高。", get: (m) => m.std20 },
+  { id: "std60", name: "60日波动率", category: "波动率", direction: -1, family: "低波", rationale: "低波动异象（更长窗）。", get: (m) => m.std60 },
+  { id: "amp20", name: "20日振幅", category: "波动率", direction: -1, family: "低波", rationale: "低振幅≈低波动，同一套异象逻辑。", get: (m) => m.amp20 },
+  { id: "corrVRet", name: "量价相关", category: "量能", direction: 1, family: "量价相关", rationale: "量价配合：放量上涨比放量下跌更健康。", get: (m) => m.corrVRet },
+  { id: "volRatio", name: "量比", category: "量能", direction: 1, family: "量比", rationale: "放量进攻：量比放大是资金进场的信号。", get: (m) => m.volRatio },
+  { id: "volShrink", name: "量能萎缩", category: "量能", direction: -1, family: "缩量", rationale: "缩量=抛压衰竭，超跌后缩量容易反弹。", get: (m) => m.volShrink },
+  { id: "shrinkDays", name: "缩量天数", category: "量能", direction: -1, family: "缩量", rationale: "缩量越久，抛压衰竭越充分。", get: (m) => m.shrinkDays },
+  { id: "distHigh20", name: "距20日高点", category: "形态", direction: -1, family: "距离", rationale: "离 20 日高点越远越超跌，越该反弹。", get: (m) => m.distHigh20 },
+  { id: "distLow60", name: "距60日低点", category: "形态", direction: -1, family: "距离", rationale: "越贴近 60 日低点越超跌。", get: (m) => m.distLow60 },
+  { id: "bollB", name: "布林%B", category: "形态", direction: -1, family: "区间位置", rationale: "接近下轨是超卖，倾向反弹。", get: (m) => m.bollB },
+  { id: "rangePos20", name: "区间位置", category: "形态", direction: -1, family: "区间位置", rationale: "20 日区间低位→超跌反弹。", get: (m) => m.rangePos20 },
+  { id: "amountWan", name: "成交额", category: "规模", direction: -1, family: "规模", rationale: "冷门小成交额的票被忽视，可能有溢价。", get: (m) => m.amountWan },
+  { id: "floatCap", name: "流通市值", category: "规模", direction: -1, family: "规模", rationale: "小市值效应（注意是今天快照，非历史）。", get: (m) => m.floatCap },
+  { id: "c", name: "股价", category: "规模", direction: -1, family: "规模", rationale: "低价股效应。", get: (m) => m.c },
+  { id: "lowerWick", name: "下影线占比", category: "形态", direction: -1, family: "下影线", rationale: "长下影线=当日下方有承接，超跌后倾向反弹。", get: (m) => m.lowerWick },
+  { id: "volCompress", name: "波动压缩", category: "波动率", direction: -1, family: "低波", rationale: "短期波动相对长期收缩=蓄势，延续低波动异象。", get: (m) => m.volCompress },
+  { id: "downStreak", name: "连跌天数", category: "反转", direction: -1, family: "连跌", rationale: "连续下跌越久越超跌，均值回归倾向越强。", get: (m) => m.downStreak },
   {
     id: "springStrength",
     name: "威科夫Spring",
