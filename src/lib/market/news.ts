@@ -7,6 +7,7 @@
  */
 
 import https from "node:https";
+import { loadCninfoAnnouncements } from "@/lib/market/cninfo";
 
 /** 快讯点到的一个板块。code 是板块代码（BKxxxx），name 是板块名。 */
 export type NewsBoard = {
@@ -269,7 +270,8 @@ async function loadHeadlines(code: string): Promise<StockArticle[]> {
   });
 }
 
-async function loadAnnouncements(code: string): Promise<StockArticle[]> {
+/** 东财公告。它一直在用、也稳，但只是**二次加工**——巨潮打得着时不用它。 */
+async function loadEastmoneyAnnouncements(code: string): Promise<StockArticle[]> {
   if (!/^\d{6}$/.test(code)) return [];
   const raw = await getText(
     `https://np-anotice-stock.eastmoney.com/api/security/ann?page_size=8&page_index=1&ann_type=A&stock_list=${code}&client_source=web`,
@@ -291,4 +293,28 @@ async function loadAnnouncements(code: string): Promise<StockArticle[]> {
       },
     ];
   });
+}
+
+/**
+ * 公告：**巨潮优先，东财兜底**。
+ *
+ * 巨潮是证监会指定的法定披露平台，给的是公告**原文 PDF**；东财那份是二次加工的
+ * HTML 详情页。所以巨潮拿得到就用巨潮，拿不到（防爬、超时、orgId 查不到）再回东财——
+ * 两个源都挂了才是真空，不能让一个源的问题把整块消息带崩。
+ */
+async function loadAnnouncements(code: string): Promise<StockArticle[]> {
+  if (!/^\d{6}$/.test(code)) return [];
+  const rows = await loadCninfoAnnouncements(code, 8);
+  if (rows.length > 0) {
+    return rows.map((item) => ({
+      id: `cninfo-${item.id}`,
+      time: item.time,
+      title: item.title,
+      tone: toneOf(item.title),
+      // adjunctUrl 缺失时给披露页，不给半个链接
+      url: item.url || `https://www.cninfo.com.cn/new/disclosure/stock?stockCode=${code}`,
+      kind: "ann" as const,
+    }));
+  }
+  return loadEastmoneyAnnouncements(code);
 }
