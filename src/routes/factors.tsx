@@ -14,7 +14,7 @@
  *    Panel 的 note 在右上角，这一页每块都要交代口径，塞右边读不顺（资金页同一个取舍）。
  */
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Stat, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -45,13 +45,19 @@ const RERUN_HINT =
   "在项目根目录跑：BT_FACTOR=1 BT_N=10 node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts";
 
 export const Route = createFileRoute("/factors")({
-  loader: async (): Promise<Loader> => {
+  validateSearch: (search: Record<string, unknown>) => ({
+    /** 看哪一批判决：0=最旧，不传=最新。地址栏可直达、可刷新保持。 */
+    batch: typeof search.batch === "string" && /^\d+$/.test(search.batch) ? Number(search.batch) : -1,
+  }),
+  loaderDeps: ({ search }) => ({ batch: search.batch }),
+  loader: async ({ deps }): Promise<Loader> => {
     // 三份各自独立失败：某一块读不到就那一块空着，其余照常渲染。
     const [runs, diag, baseline] = await Promise.all([
-      getFactorRuns().catch(
+      getFactorRuns({ data: { batch: deps.batch } }).catch(
         (e: unknown): FactorRunsPayload => ({
           batch: null,
           batches: [],
+          batchIndex: -1,
           badLines: 0,
           missing: messageOf(e),
         }),
@@ -136,6 +142,41 @@ function FactorTabs({ active, onChange }: { active: string; onChange: (id: strin
   );
 }
 
+/**
+ * 批次选择器：同一个因子在「持有 3 天」和「持有 20 天」下可能是两个结论，
+ * 只看最新一批就把这个差别吞了。这里把每一批的参数（持有天数/换样本/因子数）
+ * 标在选择器上，随便切换对比。批次列表来自 factor-runs.jsonl 的聚类，不是手填。
+ */
+function BatchPicker({ runs, current }: { runs: FactorRunsPayload; current: number }) {
+  const navigate = useNavigate({ from: "/factors" });
+  if (runs.batches.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-2 px-0.5 py-1.5 text-xs text-muted">
+      <span>判决批次</span>
+      <select
+        value={current}
+        onChange={(e) => void navigate({ search: { batch: Number(e.target.value) }, replace: false })}
+        className="rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none focus:border-brand"
+      >
+        {runs.batches.map((b, i) => (
+          <option key={b.at} value={i}>
+            {new Date(b.at).toLocaleString("zh-CN", {
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
+            · 持有{b.n}天{b.offset ? ` · 换样本${b.offset}` : ""} · {b.count}因子
+            {i === runs.batches.length - 1 ? "（最新）" : ""}
+          </option>
+        ))}
+      </select>
+      <span className="text-[11px]">同一因子换持有期可能是两个结论，来回切着看</span>
+    </div>
+  );
+}
+
 function FactorsPage() {
   const data = Route.useLoaderData();
   const runs = data.runs;
@@ -154,6 +195,7 @@ function FactorsPage() {
   return (
     <Frame aside={runAt ? `因子批次 ${runAt}` : undefined}>
       <FactorTabs active={activeTab} onChange={setActiveTab} />
+      <BatchPicker runs={runs} current={runs.batchIndex} />
 
       {/* 1 结论 */}
       {activeTab === "factor-verdict" ? (
@@ -226,7 +268,7 @@ function FactorsPage() {
       <Section
         id="factor-gates"
         title="6 关判决总表"
-        hint="点因子名就地展开：五档形状 + 每关判据原话 + 跑之前写下的方向理由。t 日收盘排序，次日开盘等权买入、持有 10 天后按收盘卖出，收益减同期全池。「—」表示这一关这次没做或没记，不是没通过。"
+        hint={`点因子名就地展开：五档形状 + 每关判据原话 + 跑之前写下的方向理由。t 日收盘排序，次日开盘等权买入、持有 ${runs.batch?.n ?? "?"} 天后按收盘卖出，收益减同期全池。「—」表示这一关这次没做或没记，不是没通过。`}
       >
         {rows.length > 0 ? (
           <div>
@@ -260,7 +302,7 @@ function FactorsPage() {
       <Section
         id="factor-buckets"
         title="分档均值明细"
-        hint="每一档是这一档所有票未来 10 天收益减去同期全池等权的平均——是超额，不是收益。看形状比看单个数字重要：单调才算数。"
+        hint={`每一档是这一档所有票未来 ${runs.batch?.n ?? "?"} 天收益减去同期全池等权的平均——是超额，不是收益。看形状比看单个数字重要：单调才算数。`}
       >
         {rows.length > 0 ? (
           <Table className="data-table" caption="各因子五档平均超额，从因子值最低档到最高档">

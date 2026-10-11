@@ -121,6 +121,32 @@ test("两批日志取最新的一批", async () => {
   });
 });
 
+test("按索引回看任意一批：0=最旧，越界回退最新，批次列表带参数标签", async () => {
+  await withTempDataDir(async (dir) => {
+    const old = Array.from({ length: 22 }, (_, i) =>
+      run({ at: "2026-10-06T15:41:30.000Z", factor: `old${i}`, n: 3, nTested: 22 }),
+    );
+    const fresh = Array.from({ length: 25 }, (_, i) =>
+      run({ at: "2026-10-07T04:29:53.000Z", factor: `new${i}`, n: 20, offset: 1 }),
+    );
+    writeRuns(dir, [...old, ...fresh]);
+
+    const first = await readFactorRuns(0);
+    assert.equal(first.batchIndex, 0);
+    assert.equal(first.batch?.rows[0].factor, "old0", "索引 0 回放到最旧一批");
+    assert.equal(first.batch?.n, 3);
+    assert.equal(first.batches[0].n, 3, "批次列表带持有天数");
+    assert.equal(first.batches[1].offset, 1, "批次列表带换样本标记");
+
+    const latest = await readFactorRuns(99);
+    assert.equal(latest.batchIndex, 1, "越界回退到最新一批");
+    assert.equal(latest.batch?.rows[0].factor, "new0");
+
+    const def = await readFactorRuns();
+    assert.equal(def.batchIndex, 1, "缺省 = 最新");
+  });
+});
+
 test("坏行跳过并计数，不让一行坏数据废掉整份日志", async () => {
   await withTempDataDir(async (dir) => {
     const good = run();

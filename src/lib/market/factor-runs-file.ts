@@ -132,8 +132,11 @@ export type FactorRunsPayload = {
     nTested: number;
     rows: FactorRunRow[];
   } | null;
-  /** 日志里有几批、各多少条——页面要说清「现在看的是哪一批」 */
-  batches: { at: string; count: number }[];
+  /** 日志里有几批、各多少条——页面要说清「现在看的是哪一批」。
+   *  带 n（持有天数）/offset（换样本）/buckets，让选择器能标出「这批是什么参数跑的」。 */
+  batches: { at: string; count: number; n: number; offset: number; buckets: number }[];
+  /** 当前返回的是第几批（0 起 = 最旧）。默认取最新一批。 */
+  batchIndex: number;
   badLines: number;
   /** 读不到的原因（能当恢复指引用）。null 表示读到了。 */
   missing: string | null;
@@ -198,7 +201,7 @@ export function clusterByBatch<T extends { at: string }>(rows: T[], toleranceMs 
 }
 
 export function emptyRuns(missing: string | null): FactorRunsPayload {
-  return { batch: null, batches: [], badLines: 0, missing };
+  return { batch: null, batches: [], batchIndex: -1, badLines: 0, missing };
 }
 
 export function emptyDiag(missing: string | null): FactorDiagPayload {
@@ -209,13 +212,21 @@ export function emptyBaseline(missing: string | null): FactorBaselinePayload {
   return { name: null, text: null, bytes: 0, missing };
 }
 
-/** 读因子 6 关判决日志，返回**最新一批**。 */
-export async function readFactorRuns(): Promise<FactorRunsPayload> {
+/**
+ * 读因子 6 关判决日志。
+ *
+ * batchIndex 选批次：0 = 最旧，负数或缺省 = 最新（-1 即默认）。为什么按索引不按
+ * 时间戳：同一次跑的各行 at 相差几毫秒，页面选择器拿不准该传哪一行的时间；索引
+ * 由 batches 列表的位置决定，传错了也只是越界回退到最新一批。
+ */
+export async function readFactorRuns(batchIndex?: number): Promise<FactorRunsPayload> {
   const path = join(backtestDir(), "factor-runs.jsonl");
   try {
     const { rows, badLines } = parseLines<FactorRunRow>(await readFile(path, "utf8"));
     const batchesRaw = clusterByBatch(rows);
-    const picked = batchesRaw.at(-1) ?? [];
+    const fallback = batchesRaw.length - 1;
+    const wanted = batchIndex == null || batchIndex < 0 ? fallback : Math.min(batchIndex, fallback);
+    const picked = batchesRaw[wanted] ?? [];
     const head = picked[0];
     return {
       batch: head
@@ -228,7 +239,14 @@ export async function readFactorRuns(): Promise<FactorRunsPayload> {
             rows: picked,
           }
         : null,
-      batches: batchesRaw.map((b) => ({ at: b[0].at, count: b.length })),
+      batches: batchesRaw.map((b) => ({
+        at: b[0].at,
+        count: b.length,
+        n: b[0].n,
+        offset: b[0].offset ?? 0,
+        buckets: b[0].buckets,
+      })),
+      batchIndex: batchesRaw.length === 0 ? -1 : wanted,
       badLines,
       missing: null,
     };

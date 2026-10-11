@@ -871,7 +871,14 @@ export const saveAIPrefs = createServerFn({ method: "POST" })
 // 绝不能返回空集合冒充「0 个因子」。
 
 /** 最近一次因子 6 关判决。 */
-export const getFactorRuns = createServerFn({ method: "GET" }).handler(async () => readFactorRuns());
+/** 6 关判决。可传 batch（批次索引，0=最旧，缺省/负数=最新）回看任意一批。 */
+export const getFactorRuns = createServerFn({ method: "GET" })
+  .validator((data: unknown) => {
+    const b = typeof data === "object" && data !== null && "batch" in data ? (data as { batch?: unknown }).batch : undefined;
+    return { batch: typeof b === "number" && Number.isInteger(b) ? b : -1 };
+  })
+  .handler(async ({ data }) => readFactorRuns(data.batch));
+
 
 /** 缩量天数归因 + 资金流探路。 */
 export const getFactorDiag = createServerFn({ method: "GET" }).handler(async () => readFactorDiag());
