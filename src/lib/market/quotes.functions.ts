@@ -15,6 +15,7 @@ import { parseRules } from "@/lib/market/rules";
 import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/factor-runs-file";
+import { systemRules } from "@/lib/market/system-rules";
 import { aiStatus, readQueue, runFactorAILoop } from "@/lib/market/factor-queue";
 import { readAILog } from "@/lib/market/ai-log";
 import { profileStatus, readProfiles } from "@/lib/market/ai-profiles";
@@ -843,6 +844,11 @@ export const getDecisionLedger = createServerFn({ method: "GET" }).handler(async
   if (userId !== OWNER_ID) return { allowed: false as const, ledger: null };
   return { allowed: true as const, ledger: await readDecisionLedger() };
 });
+
+/** 闸门面板（system-rules.ts）：五组判据常量的当前值。只读，改阈值去改各自 RULE。 */
+export const getSystemRules = createServerFn({ method: "GET" }).handler(async () => ({
+  groups: systemRules(),
+}));
 
 /** 保存 AI 偏好开关（目前只有 autoEvolve：收盘后每天自动跑一轮进化）。 */
 export const saveAIPrefs = createServerFn({ method: "POST" })

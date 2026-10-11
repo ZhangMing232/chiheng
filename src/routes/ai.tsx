@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { CollapsibleSection } from "@/components/collapsible";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import {
@@ -25,6 +26,7 @@ import {
   getChallengers,
   getDecisionLedger,
   getFactorQueue,
+  getSystemRules,
   listAIModels,
   runEvolve,
   runFactorAI,
@@ -36,6 +38,7 @@ import {
 } from "@/lib/market/quotes.functions";
 import { evolveStats, type AILogEntry } from "@/lib/market/ai-log";
 import type { DecisionLedger } from "@/lib/market/decision-ledger";
+import type { RuleGroup } from "@/lib/market/system-rules";
 import { usageStats, type AIUsageEntry, type UsageStats } from "@/lib/market/ai-usage";
 import { PROVIDER_PRESETS } from "@/lib/market/ai-presets";
 import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
@@ -63,6 +66,7 @@ type Loader = {
   stats: ReturnType<typeof evolveStats>;
   usage: { allowed: boolean; entries: AIUsageEntry[]; stats: UsageStats | null };
   ledger: { allowed: boolean; ledger: DecisionLedger | null };
+  rules: { groups: RuleGroup[] } | null;
 };
 
 function messageOf(error: unknown): string {
@@ -71,7 +75,7 @@ function messageOf(error: unknown): string {
 
 export const Route = createFileRoute("/ai")({
   loader: async (): Promise<Loader> => {
-    const [queue, ai, chal, logRes, usage, ledger] = await Promise.all([
+    const [queue, ai, chal, logRes, usage, ledger, rules] = await Promise.all([
       getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [] })),
       getChallengers()
@@ -80,9 +84,10 @@ export const Route = createFileRoute("/ai")({
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
       getAIUsage().catch((): Loader["usage"] => ({ allowed: false, entries: [], stats: null })),
       getDecisionLedger().catch((): Loader["ledger"] => ({ allowed: false, ledger: null })),
+      getSystemRules().catch((): Loader["rules"] => null),
     ]);
     const log = logRes.entries;
-    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal), usage, ledger };
+    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal), usage, ledger, rules };
   },
   component: AIPage,
 });
@@ -553,8 +558,59 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
   );
 }
 
+/**
+ * 闸门与判据面板：五组预登记阈值（数据审计/熔断/衰减/挑战者/策略闸门）的当前值。
+ * 低频参考内容，按 UI 标准默认收起；summary 行给每组的「最要害一个数」，
+ * 展开后是「判据 · 当前值 · 超了会怎样」三列。数值运行时才从常量拼（system-rules.ts），
+ * 这里不写字面量——防止面板数字和代码常量脱钩。
+ */
+function RulesSection({ groups }: { groups: RuleGroup[] }) {
+  if (groups.length === 0) return null;
+  return (
+    <CollapsibleSection
+      storageKey="ai-rules-panel-2026-10-11"
+      defaultOpen={false}
+      header={
+        <span>
+          <span className="text-sm font-medium">闸门与判据</span>
+          <span className="ml-2 text-xs text-muted">
+            熔断连续 {groups.find((g) => g.id === "breaker")?.entries[0]?.value ?? "—"} · 共 {groups.length} 组
+          </span>
+        </span>
+      }
+      className="overflow-hidden rounded border border-line bg-surface"
+      headerClassName="border-b border-line px-3.5 py-2"
+    >
+      <div className="space-y-3 px-3.5 py-3">
+        {groups.map((g) => (
+          <div key={g.id}>
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <h3 className="text-xs font-medium">{g.title}</h3>
+              <span className="text-[11px] text-muted">{g.source}</span>
+            </div>
+            <Table className="data-table mt-1">
+              <tbody>
+                {g.entries.map((e) => (
+                  <tr key={e.id} className="border-b border-line last:border-b-0">
+                    <td className={`${tdClass("text-left")} w-40 shrink-0 whitespace-normal`}>{e.label}</td>
+                    <td className={`${tdClass()} whitespace-normal font-medium`}>{e.value}</td>
+                    <td className={`${tdClass("text-left")} text-muted`}>{e.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        ))}
+        <p className="text-[11px] leading-relaxed text-muted">
+          只读：数值是运行时从代码常量拼的，改阈值要到对应文件改常量提交（改规则要带理由）。「block 级」= 不过就熔断当晚判决；「warn 级」= 记账不挡跑。
+        </p>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 function AIPage() {
-  const { queue, ai, chal, log, stats, usage, ledger } = Route.useLoaderData();
+  const { queue, ai, chal, log, stats, usage, ledger, rules } = Route.useLoaderData();
   const router = useRouter();
   const [factorMsg, setFactorMsg] = useState<string | null>(null);
   const [stratMsg, setStratMsg] = useState<string | null>(null);
@@ -864,6 +920,8 @@ function AIPage() {
           </p>
         </div>
       </Section>
+
+      {rules ? <RulesSection groups={rules.groups} /> : null}
 
       <p className="px-1 text-[11px] leading-relaxed text-warn">
         AI 提议 ≠ 生效：因子要过 6 关，挑战者要过 30 笔 Welch 判决；两个判决函数都预先登记在代码里，AI 无权修改。
