@@ -14,12 +14,13 @@
  *    Panel 的 note 在右上角，这一页每块都要交代口径，塞右边读不顺（资金页同一个取舍）。
  */
 import { useMemo, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Stat, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { signedPct } from "@/lib/market/format";
-import { getFactorBaseline, getFactorDiag, getFactorRuns } from "@/lib/market/quotes.functions";
+import { getFactorBaseline, getFactorDiag, getFactorRuns, runFactorTest } from "@/lib/market/quotes.functions";
+import { PARAM_BOUNDS } from "@/lib/market/factor-test-runner";
 import { batchSummary, factorRows, flowStress } from "@/lib/market/factors-view";
 import { FactorGateTable, BucketShape } from "@/components/screener/factor-gate-table";
 import { FlowProbePanel, ShrinkFlipPanel } from "@/components/screener/factor-diag-panels";
@@ -143,6 +144,88 @@ function FactorTabs({ active, onChange }: { active: string; onChange: (id: strin
 }
 
 /**
+ * 检验参数控件：持有天数 / 分档数 / 样本只数 / 换样本起点，四个采样参数
+ * 选完一键重跑。可调范围在 PARAM_BOUNDS（factor-test-runner.ts）一处登记，
+ * 控件选项和校验边界同源——界面上造不出范围外的参数。
+ * 注意：能调的只有采样参数；因子注册表和 6 关判据在代码里预登记，这里碰不到。
+ */
+function TestControls({ defaults }: { defaults: { n: number; buckets: number } }) {
+  const router = useRouter();
+  const [n, setN] = useState(defaults.n);
+  const [buckets, setBuckets] = useState(defaults.buckets);
+  const [sample, setSample] = useState(300);
+  const [offset, setOffset] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const selectCls = "rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none focus:border-brand";
+
+  const run = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await runFactorTest({ data: { n, buckets, sample, offset } });
+      setMsg(res.ok ? `跑完了（${Math.round(res.ms / 1000)}s），最新批次已更新` : `回测退出码非 0：\n${res.tail}`);
+      if (res.ok) await router.invalidate();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded border border-line bg-surface px-3 py-2 text-xs">
+      <span className="font-medium">检验参数</span>
+      <label className="flex items-center gap-1 text-muted">
+        持有
+        <select value={n} onChange={(e) => setN(Number(e.target.value))} className={selectCls}>
+          {PARAM_BOUNDS.n.options.map((o) => (
+            <option key={o} value={o}>{o} 天</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1 text-muted">
+        分
+        <select value={buckets} onChange={(e) => setBuckets(Number(e.target.value))} className={selectCls}>
+          {PARAM_BOUNDS.buckets.options.map((o) => (
+            <option key={o} value={o}>{o} 档</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1 text-muted">
+        样本
+        <select value={sample} onChange={(e) => setSample(Number(e.target.value))} className={selectCls}>
+          {PARAM_BOUNDS.sample.options.map((o) => (
+            <option key={o} value={o}>{o} 只</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1 text-muted">
+        换样本
+        <select value={offset} onChange={(e) => setOffset(Number(e.target.value))} className={selectCls}>
+          {PARAM_BOUNDS.offset.options.map((o) => (
+            <option key={o} value={o}>{o === 0 ? "原样本" : `第 ${o} 批`}</option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void run()}
+        className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {busy ? "检验运行中…（约 2-5 分钟）" : "按此参数重跑检验"}
+      </button>
+      {msg ? <span className="w-full whitespace-pre-wrap text-[11px] text-muted">{msg}</span> : null}
+      <span className="w-full text-[11px] leading-relaxed text-muted">
+        只调采样参数；6 关判据和因子注册表预登记在代码里，这里碰不到。跑完自动追加为最新一批，批次选择器里能和老批次对比。
+      </span>
+    </div>
+  );
+}
+
+/**
  * 批次选择器：同一个因子在「持有 3 天」和「持有 20 天」下可能是两个结论，
  * 只看最新一批就把这个差别吞了。这里把每一批的参数（持有天数/换样本/因子数）
  * 标在选择器上，随便切换对比。批次列表来自 factor-runs.jsonl 的聚类，不是手填。
@@ -195,6 +278,7 @@ function FactorsPage() {
   return (
     <Frame aside={runAt ? `因子批次 ${runAt}` : undefined}>
       <FactorTabs active={activeTab} onChange={setActiveTab} />
+      {runs.batch ? <TestControls defaults={{ n: runs.batch.n, buckets: runs.batch.buckets }} /> : null}
       <BatchPicker runs={runs} current={runs.batchIndex} />
 
       {/* 1 结论 */}

@@ -16,6 +16,7 @@ import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/factor-runs-file";
 import { systemRules } from "@/lib/market/system-rules";
+import { sanitizeParams } from "@/lib/market/factor-test-runner";
 import { aiStatus, readQueue, runFactorAILoop } from "@/lib/market/factor-queue";
 import { readAILog } from "@/lib/market/ai-log";
 import { profileStatus, readProfiles } from "@/lib/market/ai-profiles";
@@ -849,6 +850,22 @@ export const getDecisionLedger = createServerFn({ method: "GET" }).handler(async
 export const getSystemRules = createServerFn({ method: "GET" }).handler(async () => ({
   groups: systemRules(),
 }));
+
+/**
+ * 按页面选的参数跑一轮因子检验（BT_FACTOR 分支）。owner 专属——它会写
+ * factor-runs.jsonl 和待验队列，不是看看就完的事。可调的只有四个采样参数，
+ * 判据和注册表碰不到（factor-test-runner.ts 文件头写了纪律）。
+ */
+export const runFactorTest = createServerFn({ method: "POST" })
+  .validator((data: unknown) => sanitizeParams(data))
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const userId = await requireUserId();
+    if (userId !== OWNER_ID) throw new Error("只有主人账号能发起因子检验");
+    const { runFactorTest: run } = await import("@/lib/market/factor-test-runner");
+    return run(data);
+  });
 
 /** 保存 AI 偏好开关（目前只有 autoEvolve：收盘后每天自动跑一轮进化）。 */
 export const saveAIPrefs = createServerFn({ method: "POST" })
