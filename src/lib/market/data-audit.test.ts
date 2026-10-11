@@ -13,6 +13,7 @@ const good: AuditFacts = {
   klineCount: 300,
   capAgeDays: 1,
   verdictAgeDays: 0,
+  fundAgeDays: 1,
 };
 
 test("全绿 → 放行，blocks/warns 都空", () => {
@@ -20,7 +21,7 @@ test("全绿 → 放行，blocks/warns 都空", () => {
   assert.equal(v.pass, true);
   assert.equal(v.blocks.length, 0);
   assert.equal(v.warns.length, 0);
-  assert.equal(v.checks.length, 4);
+  assert.equal(v.checks.length, 5);
 });
 
 test("快照不存在 = block：行情根本没进来，当晚判决不许跑", () => {
@@ -47,6 +48,15 @@ test("判决日志缺失只是 warn——不挡当晚跑，但 AI 没账可读�
   const v = auditFromFacts({ ...good, verdictAgeDays: null });
   assert.equal(v.pass, true);
   assert.deepEqual(v.warns.map((c) => c.id), ["A4"]);
+});
+
+test("财报库缺失/超龄是 warn：基本面已证伪不挡跑，但数据腐烂要记账", () => {
+  const missing = auditFromFacts({ ...good, fundAgeDays: null });
+  assert.equal(missing.pass, true);
+  assert.deepEqual(missing.warns.map((c) => c.id), ["A5"]);
+  const stale = auditFromFacts({ ...good, fundAgeDays: AUDIT_RULE.fundMaxAgeDays + 1 });
+  assert.equal(stale.pass, true);
+  assert.deepEqual(stale.warns.map((c) => c.id), ["A5"]);
 });
 
 test("runDataAudit：留档只追加，两次运行两条", async () => {

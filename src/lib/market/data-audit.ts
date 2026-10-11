@@ -29,6 +29,10 @@ export const AUDIT_RULE = {
   capMaxAgeDays: 7,
   /** 因子判决日志（factor-runs.jsonl）最长多少天没更新算判决过期。 */
   verdictMaxAgeDays: 3,
+  /** 财报基本面库（fundamentals.json）最长多少天没重抓。财报按季披露，45 天 ≈ 一个半
+   *  月，覆盖季度内的增量更新；超龄只 warn——基本面因子已证伪不挡出数，但数据腐烂
+   *  要叫人知道，否则哪天翻案重测时拿的是半年前的旧账。 */
+  fundMaxAgeDays: 45,
 } as const;
 
 /** 一条检查的事实输入。拿不到的事实是 null——判「拿不到」，不猜。 */
@@ -43,6 +47,8 @@ export type AuditFacts = {
   capAgeDays: number | null;
   /** 最近一批因子判决的年龄（天）。没有批次 = null。 */
   verdictAgeDays: number | null;
+  /** 财报基本面库年龄（天）。没跑过抓取脚本 = null。 */
+  fundAgeDays: number | null;
 };
 
 export type AuditSeverity = "block" | "warn";
@@ -115,6 +121,18 @@ const CHECKS: { id: string; label: string; severity: AuditSeverity; run: (f: Aud
       };
     },
   },
+  {
+    id: "A5",
+    label: "财报基本面库新鲜度",
+    severity: "warn",
+    run: (f) => {
+      if (f.fundAgeDays == null) return { pass: false, detail: "fundamentals.json 不存在——基本面因子全部取 null（已证伪所以不挡跑，但重测前要先抓数）" };
+      return {
+        pass: f.fundAgeDays <= AUDIT_RULE.fundMaxAgeDays,
+        detail: `财报库 ${Math.round(f.fundAgeDays)} 天前重抓，上限 ${AUDIT_RULE.fundMaxAgeDays} 天（scripts/fetch-fundamentals.py 增量补）`,
+      };
+    },
+  },
 ];
 
 /** 纯函数：事实 → 判定。 */
@@ -170,11 +188,18 @@ export async function collectFacts(now = Date.now()): Promise<AuditFacts> {
   } catch {
     // null
   }
+  let fundAgeDays: number | null = null;
+  try {
+    const s = await stat(join(dataDir(), "backtest", "fundamentals.json"));
+    fundAgeDays = (now - s.mtimeMs) / DAY_MS;
+  } catch {
+    // null = 没跑过抓取脚本
+  }
   // 盘前 = 本地时间 15:00 之后或 09:30 之前（粗略但够用：这个判据只为放宽 A1）。
   const d = new Date(now);
   const mins = d.getHours() * 60 + d.getMinutes();
   const premarket = mins >= 15 * 60 || mins < 9 * 60 + 30;
-  return { universeAgeMin, premarket, klineCount, capAgeDays, verdictAgeDays };
+  return { universeAgeMin, premarket, klineCount, capAgeDays, verdictAgeDays, fundAgeDays };
 }
 
 /** 跑一轮审计并留档。返回判定；写 data/backtest/data-audit.jsonl（只追加）。 */
