@@ -234,12 +234,21 @@ function Dashboard() {
 
       {/* AI 控制台（UI-STANDARD v1.1 U5，学 Vibe-Research 的示例卡入口）：
           每张卡对应 /ai 上一个真实动作，带锚点跳过去。不做假对话输入——
-          赤轨的 AI 是它提议、闸门说了算的闭环，入口只指真实能力。 */}
-      <Panel
-        title="AI 控制台"
-        note={<Link to="/ai" className="text-accent hover:underline">全部 AI 管理 →</Link>}
-      >
-        <div className="grid gap-2 p-2 sm:grid-cols-2 xl:grid-cols-4">
+          赤轨的 AI 是它提议、闸门说了算的闭环，入口只指真实能力。
+          视觉学 Vibe-Research 首页那张「今天想研究什么」大卡：全站唯一一处
+          大面积品牌垫底，白卡浮在上面；正文其余区域仍是中性灰。 */}
+      <section className="rounded border border-line bg-brand-soft px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="h-4 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
+          <h2 className="text-base font-medium">今天，想让 AI 做什么？</h2>
+          <Link to="/ai" className="ml-auto shrink-0 text-xs text-accent hover:underline">
+            全部 AI 管理 →
+          </Link>
+        </div>
+        <p className="mt-1 text-xs text-muted">
+          AI 只提议，6 关检验和挑战者判决说了算；进化闭环每晚自动跑，早上看下场。
+        </p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {AI_CARDS.map((card) => (
             <Link
               key={card.hash}
@@ -252,7 +261,7 @@ function Dashboard() {
             </Link>
           ))}
         </div>
-      </Panel>
+      </section>
     </Frame>
   );
 }

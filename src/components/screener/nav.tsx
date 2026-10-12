@@ -11,33 +11,78 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, RefreshCw, Search } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  Coins,
+  FlaskConical,
+  LayoutDashboard,
+  ListFilter,
+  Newspaper,
+  RefreshCw,
+  Search,
+  Sparkles,
+  TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
 
-/** 桌面端左侧分组导航（PPT 新信息架构）。窄屏隐藏，改用顶栏下的页签。 */
-const SIDEBAR: { label: string; items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol"; label: string }[] }[] = [
-  { label: "工作台", items: [{ to: "/", label: "主控台" }] },
+/** 桌面端左侧分组导航（PPT 新信息架构）。窄屏隐藏，改用顶栏下的页签。
+ *  图标和可折叠分组学 Vibe-Research 的侧边栏：图标让八页扫一眼就能认，
+ *  折叠让「市场情报」这类低频组可以收起来给高频组让地方。 */
+const SIDEBAR: {
+  label: string;
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol"; label: string; icon: LucideIcon }[];
+}[] = [
+  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
     label: "策略研究",
     items: [
-      { to: "/screener", label: "策略选股" },
-      { to: "/factors", label: "因子发掘" },
-      { to: "/positions", label: "策略追踪" },
-      { to: "/ai", label: "AI 管理" },
+      { to: "/screener", label: "策略选股", icon: ListFilter },
+      { to: "/factors", label: "因子发掘", icon: FlaskConical },
+      { to: "/positions", label: "策略追踪", icon: TrendingUp },
+      { to: "/ai", label: "AI 管理", icon: Sparkles },
     ],
   },
   {
     label: "市场情报",
     items: [
-      { to: "/news", label: "消息追踪" },
-      { to: "/flow", label: "资金流向" },
-      { to: "/symbol", label: "个股查询" },
+      { to: "/news", label: "消息追踪", icon: Newspaper },
+      { to: "/flow", label: "资金流向", icon: Coins },
+      { to: "/symbol", label: "个股查询", icon: Search },
     ],
   },
 ];
 
+/** 所有分组项摊平，按路径查「当前在哪儿」。顶栏页面名和边栏激活态共用这一张表。 */
+function navHit(path: string) {
+  for (const group of SIDEBAR) {
+    const item = group.items.find((entry) => entry.to === path);
+    if (item) return { group: group.label, ...item };
+  }
+  return null;
+}
+
 function SideNav() {
   const path = useRouterState({ select: (state) => state.location.pathname });
+  // 折叠状态记在浏览器里，默认全开——第一次来的人应该看见全部入口。
+  // localStorage 只能在 effect 里碰：服务端渲染阶段没有它（和 AlertBell 的已读水位同一个坑）。
+  const [closed, setClosed] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("chiheng-nav-closed") ?? "[]");
+      if (Array.isArray(saved)) setClosed(saved.filter((item) => typeof item === "string"));
+    } catch {
+      /* 存坏了就当没存过，全开 */
+    }
+  }, []);
+  function toggle(label: string) {
+    setClosed((prev) => {
+      const next = prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label];
+      localStorage.setItem("chiheng-nav-closed", JSON.stringify(next));
+      return next;
+    });
+  }
   return (
     <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col border-r border-line md:flex">
       <Link to="/" className="flex items-center gap-2 px-4 pt-4 pb-2">
@@ -46,29 +91,71 @@ function SideNav() {
         <span className="text-xs text-muted">策略实验台</span>
       </Link>
       <nav className="flex-1 overflow-y-auto scroll-slim px-2 pb-4" aria-label="主导航">
-        {SIDEBAR.map((group) => (
-          <div key={group.label}>
-            <div className="px-3 pt-4 pb-1 text-[10px] tracking-widest text-muted">{group.label}</div>
-            {group.items.map((item) => {
-              const active = path === item.to;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  aria-current={active ? "page" : undefined}
-                  className={
-                    "block rounded px-3 py-2 text-sm " +
-                    (active ? "bg-brand-soft font-medium text-brand-text" : "text-muted hover:bg-surface-2 hover:text-fg")
-                  }
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {SIDEBAR.map((group) => {
+          const open = !closed.includes(group.label);
+          return (
+            <div key={group.label}>
+              <button
+                type="button"
+                onClick={() => toggle(group.label)}
+                aria-expanded={open}
+                className="flex w-full items-center justify-between rounded px-3 pt-4 pb-1 text-[10px] tracking-widest text-muted hover:text-fg"
+              >
+                {group.label}
+                <ChevronDown className={"size-3 transition-transform " + (open ? "" : "-rotate-90")} aria-hidden />
+              </button>
+              {open &&
+                group.items.map((item) => {
+                  const active = path === item.to;
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      aria-current={active ? "page" : undefined}
+                      className={
+                        "flex items-center gap-2 rounded px-3 py-2 text-sm " +
+                        (active ? "bg-brand-soft font-medium text-brand-text" : "text-muted hover:bg-surface-2 hover:text-fg")
+                      }
+                    >
+                      <Icon className="size-3.5 shrink-0" aria-hidden />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+            </div>
+          );
+        })}
       </nav>
+      {/* 边栏底部常驻 AI 入口（学 Vibe-Research 的「接入 AI」）。
+          这里的 brand-soft 垫底和激活项同语汇：全站正文其余区域仍是中性灰。 */}
+      <div className="border-t border-line p-2">
+        <Link
+          to="/ai"
+          className="flex items-center gap-2 rounded bg-brand-soft px-3 py-2 text-sm font-medium text-brand-text transition hover:opacity-80"
+        >
+          <Sparkles className="size-3.5 shrink-0" aria-hidden />
+          接入 AI
+          <span className="ml-auto text-[10px] font-normal text-muted">提议 · 闸门判决</span>
+        </Link>
+      </div>
     </aside>
+  );
+}
+
+/** 顶栏左侧的当前页面名（学 Vibe-Research 的「工作空间 / 首页」面包屑）：
+ *  分组名 / 页面名。数据直接复用边栏那张表，两处永远不会对不上。
+ *  窄屏不显示——窄屏顶栏已经有赤轨 logo，塞不下两样。 */
+function PageTitle() {
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  const hit = navHit(path);
+  if (!hit) return null;
+  return (
+    <div className="hidden shrink-0 items-baseline gap-1.5 text-sm md:flex" aria-hidden>
+      <span className="text-muted">{hit.group}</span>
+      <span className="text-muted">/</span>
+      <span className="font-medium">{hit.label}</span>
+    </div>
   );
 }
 
@@ -524,6 +611,7 @@ export function Frame({
               <span className="h-4 w-[3px] rounded-full bg-brand" aria-hidden />
               <span className="text-[15px] font-medium tracking-widest">赤轨</span>
             </Link>
+            <PageTitle />
             <QuickSearch />
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <AlertBell />
