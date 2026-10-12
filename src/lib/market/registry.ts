@@ -330,7 +330,7 @@ export const ENDPOINTS: Endpoint[] = [
     critical: false,
     unit: "元",
     traps: [
-      "T+1 发布：盘中跑 fetch-margin.ts 拿到的也是昨天的账，页面已注明日期",
+      "T+1 发布：2026-10-12（周一）跑 fetch-margin.ts 拿到的最新交易日是 2026-10-09——周末不算，盘中跑也是昨天",
       "RZYEZB（占流通市值比）部分记录为 null——缺的样子就是缺，页面显示「—」不拿 0 凑",
       "单源无备份：RPTA_WEB_RZRQ_GGMX 一个端点，挂了 getMargin 带 why 降级",
     ],
