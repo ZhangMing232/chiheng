@@ -135,7 +135,8 @@ export function readEarnings(rows: readonly EarningsPoint[]): EarningsRead {
 
 /** 给 AI prompt 的财报口径段。 */
 export const EARNINGS_SOP = [
-  "## 财报口径（照 docs/EARNINGS.md）",
+  "## 财报口径（照 docs/EARNINGS.md）——注意这是**裁剪版**：原口径的单季拆解/TTM/三表交叉都需要",
+  "绝对值科目和三表明细，赤轨都没有。你只能做累计口径的转向判断，做不了拆解。缺的那块是能力缺口。",
   "1. 赤轨只有三个**累计口径的比率**：净利润同比、毛利率、ROE。没有营收/净利润绝对值，",
   "   所以**不许提单季、环比、TTM、PE 分子那些赤轨算不出的东西**。",
   "2. 序列按**公告日期**排（不是报告期）——补披露会修正前面的记录。",

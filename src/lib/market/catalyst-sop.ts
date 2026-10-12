@@ -114,7 +114,8 @@ export function decisionPointsFrom(stages: readonly StageResult[]): DecisionPoin
 
 /** 给 AI prompt 的反证与裁决点口径段。 */
 export const CATALYST_SOP = [
-  "## 催化剂与风险（照 docs/CATALYST-RISK.md）",
+  "## 催化剂与风险（照 docs/CATALYST-RISK.md）——注意这是**裁剪版**：预期型催化剂需要的",
+  "一致预期修正方向和研报覆盖数、风险分类需要的融资融券/股东户数/解禁表，赤轨都没有。缺的那块是能力缺口。",
   "1. **强结论必须先找反证**：任何「充足 / 不是问题 / 确定」的说法，必须同时给出什么数据会推翻它。",
   "2. 催化剂必须带「类型 + 观察数据 + 下一次公开时点」；写不出来时点的不算催化剂，只算叙事，不要写。",
   "3. 风险按可观察的写：治理合规（公告）、周期顶（估值分位）、数据源冲突、数据缺口。",

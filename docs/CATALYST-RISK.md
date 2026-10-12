@@ -1,10 +1,13 @@
 # 催化剂与风险口径（CATALYST-RISK）
 
-> 学 Vibe-Research 的 `.agents/skills/catalyst-risk/SKILL.md`（141 行）。
+> ⚠️ **能力缺口（不是等价实现）**：Vibe-Research 的催化剂有「预期型」（依赖一致预期
+> 修正方向和研报覆盖数）、风险分类有十项（含融资融券/股东户数/解禁表）——赤轨这些
+> 数据全没接（GAP-REPORT D1/D3/D4，待用户拍板）。所以本手册只覆盖「兑现型/周期型/
+> 资金情绪型」催化剂和一半风险分类。**风险清单缺了一半，这点必须明说。**
+>
 > 它把「风险」从一段泛泛的文字变成**可核对的清单**，这条完全采纳。
-> 差异只在落地方式：它的裁决点靠提示词约束 AI 遵守，赤轨把推导做成了代码
-> （`src/lib/market/catalyst-sop.ts:decisionPointsFrom`），每份报告一定有不低于
-> 3 个裁决点，不靠模型记性。
+> 差异在落地：它的裁决点靠提示词约束 AI 遵守，赤轨把推导做成了代码
+> （`src/lib/market/catalyst-sop.ts:decisionPointsFrom`），每份报告一定有 ≥3 个裁决点。
 
 ## 0. 三条纪律
 

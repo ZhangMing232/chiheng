@@ -87,7 +87,8 @@ export function valuationJudgement(peRank: number | null, pbRank: number | null)
  * 否则 AI 会拿训练记忆里的行业 PE 中枢来填空——那是编。
  */
 export const VALUATION_SOP = [
-  "## 估值口径（照 docs/VALUATION.md）",
+  "## 估值口径（照 docs/VALUATION.md）——注意这是**裁剪版**：原口径要求的扣非单季/一致预期/前瞻CAGR 赤轨都没有，",
+  "所以你的估值结论到不了「贵不贵」，只能答「相对自己历史第几分位」。缺的那块是能力缺口，不是设计取舍。",
   "1. 只报证据里有的口径：TTM PE（带历史分位）、PB、PS、PCF。分位样本不足 60 个交易日就是「算不出」，不许给中庸值。",
   "2. **低分位不等于便宜**：A 股周期股密度高，周期见顶前 PE 最低（E 在峰值）。任何「便宜」的说法必须附反证条件。",
   "3. **不许输出价格锚**：目标价、合理价、买入价、止损价一律不提。",
