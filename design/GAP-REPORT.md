@@ -10,10 +10,10 @@
 
 | # | 它有什么 | 赤轨缺什么 | 解锁的能力 | 接的难度 | 状态 |
 |---|---|---|---|---|---|
-| D1 | 一致预期 EPS、机构数、前瞻 CAGR | 东财研报预测接口（免费，akshare `stock_research_report_em`） | 估值主干：前瞻 PE、PEG、预期型催化剂、一致预期下修风险 | 中（新端点+缓存+口径设计） | ⬜ |
-| D2 | 资产负债表 / 现金流量表（三表明细） | akshare `stock_balance_sheet_by_report_em` 等 | 财报拆解的单季/TTM/杜邦/毛利率归因 | 低（akshare 已装，接口现成） | ⬜ |
-| D3 | 融资融券、龙虎榜历史 | akshare `stock_margin_detail_sse` / `stock_lhb_detail_em` | 风险清单的另一半（杠杆/交易结构） | 低-中 | ⬜ |
-| D4 | 股东户数、解禁表 | akshare 均有 | 治理风险、流动性风险 | 低 | ⬜ |
+| D1 | 一致预期 EPS、机构数、前瞻 CAGR | 东财研报预测 HTTP 直连（不用 akshare，走赤轨现有 quotes 同套路，绕开 py-mini-racer） | 估值主干：前瞻 PE、PEG、预期型催化剂、一致预期下修风险 | 中（新端点+缓存+口径设计） | ⬜ |
+| D2 | 三表 + 杜邦（利润/资产/现金流 + dupont） | **baostock**（`query_profit_data`/`query_balance_data`/`query_cash_flow_data`/`query_dupont_data`，2026-10-12 实测通过，纯 wheel 无 py-mini-racer 依赖） | 财报拆解的单季/TTM/杜邦/毛利率归因；顺带补上 debt（liabilityToAsset）和利润质量（CFOToNP）两个之前东财给不了的字段 | 低（已实测） | ✅ 数据源已定，待写抓取脚本 |
+| D3 | 融资融券、龙虎榜历史 | 东财 HTTP 直连（push2his 同套路） | 风险清单的另一半（杠杆/交易结构） | 低-中 | ⬜ |
+| D4 | 股东户数、解禁表 | 东财 HTTP 直连 | 治理风险、流动性风险 | 低 | ⬜ |
 | D5 | 行业月度数据（价格/库存/capex） | 无现成免费源（部分行业 akshare 有） | 周期型催化剂的原料、产业链 SOP | 高（分行业找源） | ⬜ |
 | D6 | 申万行业分类 | 无（赤轨用腾讯/新浪板块） | 产业链 SOP 的行业划分标准 | 中 | ⬜ |
 | D7 | 宏观数据（CPI/PMI/社融等） | 无 | 宏观面（它的 registry 有 macro 层） | 中 | ⬜ |
@@ -51,6 +51,13 @@
 | E2 | Electron 桌面端 | 赤轨 Web+SSR，形态不同 | ⬜ 待用户定「不做」 |
 | E3 | baseline 重跑 | 成本口径变了，旧 baseline 数字已不适用 | ⬜ 待用户说「跑」 |
 | E4 | 热路径任务（settle 抽取、backup 加固） | 需休市日 + 测试保护 | ⬜ 待用户定时间 |
+
+## B 组数据源正路（2026-10-12 晚定）
+
+**不依赖 akshare**：py-mini-racer 的 macOS wheel 只有 x86_64（Intel），用户机器是 arm64，
+真装是死结。但 B 组其实不需要它——D2 走 baostock（三表+杜邦已实测），
+D1/D3/D4 走东财 HTTP 直连（和赤轨现有 quotes 同一套路）。akshare 只用来跑过一次
+fundamentals（业绩报表比率），那个数据已经落盘，不影响。
 
 ## 已做的诚实化（2026-10-12）
 

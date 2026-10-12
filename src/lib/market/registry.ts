@@ -270,6 +270,25 @@ export const ENDPOINTS: Endpoint[] = [
     fetcher: "scripts/fetch-pe-history.py → src/lib/market/pe-history.ts:loadValuationHistory",
   },
 
+  {
+    id: "baostock.financials",
+    title: "证券宝三表 + 杜邦（利润/资产/现金流 + dupont）",
+    source: "baostock",
+    market: "a",
+    compliance: "public-web",
+    kind: "fundamental",
+    critical: false,
+    unit: "元 / 比率（比率字段是小数，如 debt=0.1519 是 15.19%）",
+    traps: [
+      "**2026-10-12 实测通过**（600519，6 个报告期，PIT 守住）。选它替代 akshare 三表：akshare 依赖 py_mini_racer，其 macOS wheel 只有 x86_64、本机 arm64 装不上；baostock 纯 wheel 零鉴权。见 scripts/fetch-three-sheets.py",
+      "**代码格式带点**：baostock 要 `sh.600519` 不是 `sh600519`，传错报「股票代码应为9位」而不是返回空，见 scripts/fetch-three-sheets.py:bs_code",
+      "**补上东财给不了的两个字段**：`debt`（liabilityToAsset，东财业绩报表恒 null）和 `cfoToNp`（经营现金流/净利润，财报拆解「利润质量」检查的原料）",
+      "PIT 命脉：只收 pubDate 非空的行，没公告日期宁可丢，见 scripts/fetch-three-sheets.py:fetch",
+      "**不支持北交所**（同 valuation 端点，索要 bj 代码是报错不是返回空）；免费接口有速率限制，全市场批量每 50 只 sleep 0.5 秒，见 scripts/fetch-three-sheets.py:main",
+    ],
+    fetcher: "scripts/fetch-three-sheets.py → data/backtest/financials.json",
+  },
+
   // ── 其他 ────────────────────────────────────────────────────
   {
     id: "eastmoney.hotmoney",
