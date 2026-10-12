@@ -29,6 +29,7 @@ import { makeCalculation, formatChain } from "./evidence.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
 import { VALUATION_SOP } from "./valuation-sop.ts";
 import { CATALYST_SOP } from "./catalyst-sop.ts";
+import { EARNINGS_SOP } from "./earnings-sop.ts";
 
 /** 调 AI 的那个函数。由调用方提供（页面 loader 里接 callAI + 记账）。 */
 export type AiCaller = (prompt: string) => Promise<string>;
@@ -97,6 +98,8 @@ export function buildResearchPrompt(stages: readonly StageResult[], symbol: stri
     VALUATION_SOP,
     ``,
     CATALYST_SOP,
+    ``,
+    EARNINGS_SOP,
     ``,
     RED_LINE_PROMPT,
   ].join("\n");

@@ -27,6 +27,7 @@ import { makeCalculation, makeEvidence, formatChain, verifyChain } from "./evide
 import { screenNumbers } from "./number-gate.ts";
 import { valuationJudgement } from "./valuation-sop.ts";
 import { decisionPointsFrom } from "./catalyst-sop.ts";
+import { readEarnings, type EarningsPoint } from "./earnings-sop.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -90,6 +91,11 @@ export type ResearchInput = {
    * **不许用当日 PE 绝对值反推一个假分位**。
    */
   valuation?: ValuationPosition | null;
+  /**
+   * 财报比率序列（累计口径的 dtYoy/gm/roe + 公告日期）。
+   * 不给 = 没跑过抓取脚本或这只票没数据，催化剂阶段会写缺口。
+   */
+  earnings?: readonly EarningsPoint[] | null;
 };
 
 export type ResearchReport = {
@@ -213,10 +219,27 @@ function catalystStage(input: ResearchInput): StageResult {
   const { articles } = input;
   const gaps: string[] = [];
   const evidence: Evidence[] = [];
+  const findings: Finding[] = [];
+
+  // 财报转向判断放在最前面：它不依赖资讯拉没拉到。
+  // 放在 articles 分支之后会被「没拉到资讯」的提前返回挡住——2026-10-12 实测踩过，
+  // 结果一只有财报但没资讯的票，催化剂阶段什么都没说出来。
+  if (input.earnings && input.earnings.length > 0) {
+    const read = readEarnings(input.earnings);
+    for (const turn of read.turns) findings.push({ text: `${turn.label}：${turn.verdict}。${turn.caution}`, tier: INFERRED });
+    for (const gap of read.gaps) if (!gaps.includes(gap)) gaps.push(gap);
+  } else {
+    gaps.push("没有这只票的财报数据（跑 scripts/fetch-fundamentals.py 后重试）");
+  }
+
   if (articles.length === 0) {
     gaps.push("没有拉到这只票的资讯或公告，催化剂与风险这一段是空的");
-    return { id: "catalyst", title: "催化剂与风险", question: "最近发生了什么，哪些是已经证实的？", evidence, findings: [], gaps, derived: [] };
+    return { id: "catalyst", title: "催化剂与风险", question: "最近发生了什么，哪些是已经证实的？", evidence, findings, gaps, derived: [] };
   }
+  findings.push({
+    text: "利好利空按标题用词自动分档，机器读不出反讽和否认；这一档只是线索，不代表已核实。",
+    tier: UNVERIFIED,
+  });
   const good = articles.filter((a) => a.tone === "good").length;
   const bad = articles.filter((a) => a.tone === "bad").length;
   const anns = articles.filter((a) => a.kind === "ann").length;
@@ -226,12 +249,6 @@ function catalystStage(input: ResearchInput): StageResult {
   for (const item of articles.slice(0, 5)) {
     evidence.push({ label: item.time.slice(0, 10), value: item.title, source: SOURCE_NEWS, tier: CONFIRMED });
   }
-  const findings: Finding[] = [
-    {
-      text: "利好利空按标题用词自动分档，机器读不出反讽和否认；这一档只是线索，不代表已核实。",
-      tier: UNVERIFIED,
-    },
-  ];
   return {
     id: "catalyst",
     title: "催化剂与风险",

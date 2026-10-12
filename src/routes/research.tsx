@@ -17,6 +17,7 @@ import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { runResearch, type StageResult } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
+import { loadEarnings } from "@/lib/market/earnings-store";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { saveResearchReport } from "@/lib/market/reports.functions";
@@ -57,7 +58,10 @@ export const Route = createFileRoute("/research")({
     const history = quote ? await loadValuationHistory(quote.code).catch(() => null) : null;
     const valuation = valuationPosition(history);
 
-    const report = runResearch({ quote, articles: news.articles, valuation });
+    // 财报比率（akshare 落盘的 fundamentals.json）。没跑过脚本就是没有，催化剂阶段写缺口。
+    // 注意传 quote.id（sh600519 这种带市场前缀），fundamentals.json 的 byCode 键就是这个格式
+    const earnings = quote ? await loadEarnings(quote.id).catch(() => null) : null;
+    const report = runResearch({ quote, articles: news.articles, valuation, earnings });
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
     // AI 综合。caller 里读档案 + 调 callAI + 记账；任何异常都由 runAiSynthesis 接住
     const ai = await runAiSynthesis(report.stages, report.symbol, report.name, async (prompt) => {
