@@ -13,6 +13,7 @@
  *    不能当过关。这条必须写在块里，不能只在代码注释里。
  */
 import { Stat, Table, Tag, tdClass, thClass, pctClass } from "@/components/terminal";
+import { GapList } from "@/components/source-line";
 import { signedPct } from "@/lib/market/format";
 import type { FlowStressGroup } from "@/lib/market/factors-view";
 import type { ShrinkBullDiag, ShrinkFlipDiag } from "@/lib/market/factor-runs-file";
@@ -164,6 +165,16 @@ export function FlowProbePanel({ groups }: { groups: FlowStressGroup[] }) {
         <strong className="font-normal text-fg">这个 t 只能当方向，不能当过关</strong>；
         换样本（G4）这次没做，表里那一列是「—」不是 ✗。
       </p>
+      {/* U3 缺口块（UI-STANDARD v1.1）：缓存没拉全的票显式列出，不让「命中率」藏在数字里 */}
+      {groups.map((g) => g.cacheTotal - g.cacheHit).reduce((a, b) => Math.max(a, b), 0) > 0 ? (
+        <div className="px-3 pb-3">
+          <GapList
+            items={groups
+              .map((g) => `持有 ${g.n} 天这批：资金流缓存缺 ${g.cacheTotal - g.cacheHit} 只（池内共 ${g.cacheTotal} 只，没拉到的直接跳过）`)
+              .filter((g, i, arr) => arr.indexOf(g) === i)}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

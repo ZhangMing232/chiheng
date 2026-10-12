@@ -109,10 +109,10 @@ const CHAL_STATUS: Record<Challenger["status"], { label: string; className: stri
   inconclusive: { label: "停跑·未分胜负", className: "text-muted" },
 };
 
-/** 区块外壳，和因子页同一套。 */
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+/** 区块外壳，和因子页同一套。id 供首页 AI 控制台的示例卡跳转（UI-STANDARD U5）。 */
+function Section({ id, title, hint, children }: { id?: string; title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="scroll-mt-24 overflow-hidden rounded border border-line bg-surface">
+    <section id={id} className="scroll-mt-24 overflow-hidden rounded border border-line bg-surface">
       <header className="border-b border-line px-3.5 py-2">
         <h2 className="text-sm font-medium">{title}</h2>
         {hint ? <p className="mt-1 text-xs leading-relaxed text-muted">{hint}</p> : null}
@@ -690,6 +690,7 @@ function AIPage() {
   return (
     <Frame aside="AI 管理">
       <Section
+        id="ai-config"
         title="AI 接口配置"
         hint="多套接口档案并存、启用一套跑所有闭环（因子层 / 策略层 / 自动进化共用）。AI 的产出只许是白名单表达式（因子）或出场参数旋钮（策略），过不了校验的直接拒；判决永远由预先登记的函数说了算。"
       >
@@ -697,6 +698,7 @@ function AIPage() {
       </Section>
 
       <Section
+        id="ai-console"
         title="进化控制台"
         hint="自我迭代的闭环：AI 每轮提议都进账本，下一轮 prompt 会读到这些提议的下场（过没过 6 关、转正还是淘汰），据此纠错。开自动进化后，收盘后每天自己跑一轮。AI 能做什么、不能碰什么，全文见 AI-BOUNDARY.md。"
       >
@@ -785,6 +787,7 @@ function AIPage() {
       </Section>
 
       <Section
+        id="ai-usage"
         title="Token 用量监控"
         hint="每次调 AI 自动记账：输入/输出/总 tokens、耗时、成败、哪条链路（因子/策略/测试）烧的。接口不返回 usage 就记 0，不瞎编。"
       >
@@ -799,6 +802,7 @@ function AIPage() {
       </Section>
 
       <Section
+        id="ai-queue"
         title="因子层：待验队列"
         hint="AI 读最近一轮 6 关判决，针对败因提 1~3 个新假设；进队列后收盘自动进 6 关检验，连续 2 次没过自动淘汰，过关/淘汰推微信。"
       >

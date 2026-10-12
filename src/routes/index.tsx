@@ -231,9 +231,39 @@ function Dashboard() {
           {indices.length === 0 ? <div className="px-3 py-2 text-sm text-muted">指数暂时拉不下来</div> : null}
         </div>
       </Panel>
+
+      {/* AI 控制台（UI-STANDARD v1.1 U5，学 Vibe-Research 的示例卡入口）：
+          每张卡对应 /ai 上一个真实动作，带锚点跳过去。不做假对话输入——
+          赤轨的 AI 是它提议、闸门说了算的闭环，入口只指真实能力。 */}
+      <Panel
+        title="AI 控制台"
+        note={<Link to="/ai" className="text-accent hover:underline">全部 AI 管理 →</Link>}
+      >
+        <div className="grid gap-2 p-2 sm:grid-cols-2 xl:grid-cols-4">
+          {AI_CARDS.map((card) => (
+            <Link
+              key={card.hash}
+              to="/ai"
+              hash={card.hash}
+              className="rounded border border-line bg-surface px-3 py-2.5 transition hover:bg-surface-2"
+            >
+              <div className="text-sm font-medium">{card.title}</div>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{card.hint}</p>
+            </Link>
+          ))}
+        </div>
+      </Panel>
     </Frame>
   );
 }
+
+/** 首页 AI 控制台的示例卡。hash 必须对应 /ai 页 Section 的真实锚点，断了就是 bug。 */
+const AI_CARDS = [
+  { hash: "ai-console", title: "跑一轮进化", hint: "AI 提议新因子/新参数，6 关和挑战者判决说了算，下一轮自动读到这轮的下场" },
+  { hash: "ai-queue", title: "待验队列", hint: "AI 提的假设排队进 6 关检验，连续 2 次不过自动淘汰" },
+  { hash: "ai-usage", title: "Token 用量", hint: "每次调 AI 的 tokens、耗时、成败、哪条链路烧的，全记账" },
+  { hash: "ai-config", title: "接口配置", hint: "多套 API 档案并存，启用一套跑所有闭环；key 只回尾号" },
+] as const;
 
 /** KPI 卡。value 为 null 显示 ——（拉不到），hint 行放口径说明。 */
 function Kpi({

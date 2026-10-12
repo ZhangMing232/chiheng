@@ -18,6 +18,7 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { Frame } from "@/components/screener/nav";
 import { Stat, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
+import { SourceLine } from "@/components/source-line";
 import { signedPct } from "@/lib/market/format";
 import { getFactorBaseline, getFactorDiag, getFactorRuns, runFactorTest } from "@/lib/market/quotes.functions";
 import { PARAM_BOUNDS } from "@/lib/market/factor-test-runner";
@@ -291,6 +292,12 @@ function FactorsPage() {
         {runs.batch ? (
           <div className="px-3.5 py-4">
             <div className="text-xs tracking-wide text-muted">这一轮挖出来的因子里，有几个过了全部 6 关</div>
+            {/* U1 防误读声明（UI-STANDARD v1.1）：过关是「这套数据+这套判据下站得住」，
+                不等于未来能赚，更不是推荐。写死在界面上，不靠用户猜。 */}
+            <p className="mt-3 max-w-[56ch] text-xs leading-relaxed text-muted">
+              6 关是固定判据，回答「这个规律和噪声分不分得开」，不回答「买了赚不赚钱」——
+              过关因子也不构成推荐；没过也不等于这个概念死了，可能是这批数据/这段行情测不出来。
+            </p>
             <p
               className={`mt-3 font-medium leading-none tracking-tight ${summary.passed > 0 ? "text-fg" : "text-warn"}`}
               style={{ fontSize: "clamp(28px, 4vw, 42px)" }}
@@ -334,6 +341,13 @@ function FactorsPage() {
                 </p>
               </div>
             )}
+            <div className="mt-4 border-t border-line px-3.5 py-2">
+              <SourceLine
+                at={runAt ? `${runAt}（本机时区）` : null}
+                cached={false}
+                origin="data/backtest/factor-runs.jsonl（本地产物，重跑回测即更新）"
+              />
+            </div>
           </div>
         ) : (
           <div className="px-3.5 py-4">
