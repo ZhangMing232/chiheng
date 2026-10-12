@@ -241,7 +241,11 @@ export const ENDPOINTS: Endpoint[] = [
     critical: false,
     unit: "元 / %",
     traps: [
+      "**2026-10-12 首次实测跑通**：7 个报告期（20250331~20260930）11636 只票，产物 2.4MB，每条带公告日期 ann（PIT 守住了），最新一期公告日 2026-10-10。此前这个端点从没被验证过——本机 akshare 一直没装",
+      "`debt`（资产负债率）**恒为 null**：东财这个接口不给这个字段。要用它得切回 tushare 版（要 2000 积分）",
       "roe/dtYoy/gm/debt 口径见 fundamentals.ts:15-17，与 tushare 的净利润同比口径不同（factors.ts:185-186 有对照说明）",
+      "**必须用隔离环境的 python 跑**（系统 python3 没有 akshare，会 ModuleNotFoundError），路径 /Users/zhangweimin/.workbuddy/binaries/python/envs/default/bin/python，见 scripts/fetch-fundamentals.py 用法段",
+      "akshare 依赖 py_mini_racer 在本环境装不了（PyPI 只有源码包、沙箱拦 sdist 解压），现为占位模块——只影响基金/票房接口，业绩报表不受影响，见 scripts/fetch-fundamentals.py 头部",
     ],
     fetcher: "scripts/fetch-fundamentals.py（akshare）",
   },
