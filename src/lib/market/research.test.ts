@@ -19,6 +19,7 @@ import {
 import type { Quote } from "@/lib/market/types";
 import type { StockArticle } from "@/lib/market/news";
 import { screenAdvice } from "@/lib/market/red-line";
+import { valuationPosition } from "@/lib/market/pe-history";
 
 /** 一只正常票。要判断缺口就把对应字段置 null 覆盖。 */
 function quote(over: Partial<Quote> = {}): Quote {
@@ -117,10 +118,28 @@ test("没有 PE/PB 时写缺口，不用 0 倍冒充便宜", () => {
   assert.equal(val.evidence.length, 0);
 });
 
-test("缺历史 PE 分位这件事必须说出口（现在就是没有）", () => {
+test("缺历史 PE 分位这件事必须说出口（没跑过脚本时）", () => {
   const report = runResearch({ quote: quote(), articles: [] });
   const val = report.stages.find((s) => s.id === "valuation")!;
-  assert.ok(val.gaps.some((g) => g.includes("历史 PE 分位")), "没有的历史序列要写明，别让读者以为算过了");
+  assert.ok(val.gaps.some((g) => g.includes("历史 PE 分位")), "没跑过脚本就明说，别让读者以为算过了");
+});
+
+test("有 baostock 序列时给真分位，不再写那条缺口", () => {
+  // 60 个递增点：最新的最贵 → 高分位
+  const series = Array.from({ length: 60 }, (_, i) => ({
+    date: `d${i}`, close: 10 + i, peTTM: i + 1, pbMRQ: (i + 1) / 10, psTTM: 1, turn: 1, isST: false,
+  }));
+  const valuation = valuationPosition({
+    code: "600519", symbol: "sh.600519", source: "baostock", adjust: "none",
+    fetchedAt: "2026-10-12", window: { from: "2021-10-12", to: "2026-10-12" },
+    counts: { raw: 60, traded: 60, halted: 0 }, series,
+  });
+  const report = runResearch({ quote: quote(), articles: [], valuation });
+  const val = report.stages.find((s) => s.id === "valuation")!;
+  assert.ok(!val.gaps.some((g) => g.includes("历史 PE 分位")), "有数据了就不能还说缺");
+  assert.ok(val.evidence.some((e) => e.label.includes("PE_TTM 历史位置")), "要摆出历史位置");
+  assert.ok(val.evidence.some((e) => e.source.includes("baostock")), "来源要写到具体源");
+  assert.equal(report.blocked, 0, "新增的结论也不许越线");
 });
 
 test("没有资讯时催化剂阶段是空的，但不冒充「没有催化剂」", () => {

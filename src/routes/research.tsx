@@ -16,6 +16,7 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { runResearch, type StageResult } from "@/lib/market/research";
+import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import type { StockArticle } from "@/lib/market/news";
@@ -33,14 +34,18 @@ export const Route = createFileRoute("/research")({
   }),
   loaderDeps: ({ search }) => ({ q: search.q }),
   loader: async ({ deps }) => {
-    if (!deps.q) return { q: "", quote: null, articles: [] as StockArticle[], why: null as string | null };
+    if (!deps.q) return { q: "", quote: null, articles: [] as StockArticle[], valuation: null, why: null as string | null };
     const [news, uni] = await Promise.all([
       getSymbolNews({ data: { q: deps.q } }).catch(() => null),
       getUniverse({ data: { refresh: false } }).catch(() => null),
     ]);
-    if (!news) return { q: deps.q, quote: null, articles: [] as StockArticle[], why: "资讯接口暂时拉不下来" };
+    if (!news) return { q: deps.q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来" };
     const quote: Quote | null = uni?.quotes.find((row) => row.id === news.picked?.id) ?? null;
-    return { q: deps.q, quote, articles: news.articles, why: quote ? null : "找到资讯但没拿到这只票的行情快照" };
+    // 估值历史（PE/PB 分位）来自 baostock 离线脚本，没跑过就是没有——
+    // 页面会把它写成「缺口」，不用当日 PE 反推一个假的。
+    const history = quote ? await loadValuationHistory(quote.code).catch(() => null) : null;
+    const valuation = valuationPosition(history);
+    return { q: deps.q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照" };
   },
   component: ResearchPage,
 });
@@ -53,7 +58,7 @@ function ResearchPage() {
   useEffect(() => setValue(search.q), [search.q]);
 
   // 报告由 loader 的数据现算：research.ts 是纯函数，页面只负责画。
-  const report = runResearch({ quote: data.quote, articles: data.articles });
+  const report = runResearch({ quote: data.quote, articles: data.articles, valuation: data.valuation });
 
   return (
     <Frame wide>

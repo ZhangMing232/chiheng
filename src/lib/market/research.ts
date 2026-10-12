@@ -23,6 +23,7 @@
 import type { Quote } from "./types.ts";
 import type { StockArticle } from "./news.ts";
 import { screenAdvice } from "./red-line.ts";
+import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
 export const RESEARCH_TIERS = ["已披露证实", "有依据的推断", "未核实线索", "被反证"] as const;
@@ -59,6 +60,12 @@ export type ResearchInput = {
   /** null = 没拿到行情，此时所有阶段都只能出缺口 */
   quote: Quote | null;
   articles: StockArticle[];
+  /**
+   * 估值历史位置（PE/PB 分位）。来自 pe-history.ts + baostock。
+   * 不给 = 这只票还没跑过抓取脚本，估值阶段会照实写成缺口；
+   * **不许用当日 PE 绝对值反推一个假分位**。
+   */
+  valuation?: ValuationPosition | null;
 };
 
 export type ResearchReport = {
@@ -202,7 +209,7 @@ function catalystStage(input: ResearchInput): StageResult {
 }
 
 function valuationStage(input: ResearchInput): StageResult {
-  const { quote } = input;
+  const { quote, valuation } = input;
   const gaps: string[] = [];
   const evidence: Evidence[] = [];
   if (!quote) {
@@ -214,8 +221,38 @@ function valuationStage(input: ResearchInput): StageResult {
   else evidence.push({ label: "市盈率 TTM", value: `${q.pe.toFixed(2)} 倍`, source: SOURCE_QUOTE, tier: CONFIRMED });
   if (q.pb == null) gaps.push("没有市净率");
   else evidence.push({ label: "市净率", value: `${q.pb.toFixed(2)} 倍`, source: SOURCE_QUOTE, tier: CONFIRMED });
-  gaps.push("缺历史 PE 分位：赤轨目前没有 PE 历史序列，所以「贵不贵」只能给绝对值，不能给自己在历史区间里的位置");
-  return { id: "valuation", title: "估值锚", question: "贵不贵，相对于历史和自己？", evidence, findings: [], gaps };
+
+  // 历史分位来自 baostock 序列（学 Vibe-Research：分位在 calc 层算，不在取数层做）。
+  // 有序列就给位置；没有就明说没有，**不许拿当日 PE 绝对值反推一个假分位**。
+  const findings: Finding[] = [];
+  if (valuation?.peRank != null) {
+    evidence.push({
+      label: "PE_TTM 历史位置",
+      value: rankPhrase(valuation.peRank),
+      source: `baostock 序列 ${valuation.fetchedAt}（${valuation.points} 个交易日）`,
+      tier: CONFIRMED,
+    });
+  }
+  if (valuation?.pbRank != null) {
+    evidence.push({
+      label: "PB 历史位置",
+      value: rankPhrase(valuation.pbRank),
+      source: `baostock 序列 ${valuation.fetchedAt}（${valuation.points} 个交易日）`,
+      tier: CONFIRMED,
+    });
+  }
+  if (valuation?.peRank != null || valuation?.pbRank != null) {
+    findings.push({
+      text: "分位说的是它相对自己过去贵贱的位置：「贵」不等于会跌，「便宜」不等于会涨，这只是位置描述。",
+      tier: CONFIRMED,
+    });
+  } else {
+    gaps.push(
+      "缺历史 PE 分位：这只票还没跑过 baostock 抓取脚本（scripts/fetch-pe-history.py），" +
+        "只有当日 PE 的绝对值，看不出它在自己历史上排第几",
+    );
+  }
+  return { id: "valuation", title: "估值锚", question: "贵不贵，相对于历史和自己？", evidence, findings, gaps };
 }
 
 /**

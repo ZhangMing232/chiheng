@@ -27,7 +27,7 @@
 export type MarketId = "a" | "hk" | "us";
 
 /** 数据源。 */
-export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex";
+export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock";
 
 /**
  * 合规级别。
@@ -44,6 +44,7 @@ export type EndpointKind =
   | "flow"
   | "announcement"
   | "fundamental"
+  | "valuation"
   | "news"
   | "calendar";
 
@@ -79,6 +80,7 @@ export const SOURCE_NAMES: Record<SourceId, string> = {
   akshare: "AKShare",
   bse: "北交所",
   cffex: "中金所",
+  baostock: "证券宝 baostock",
 };
 
 export const ENDPOINTS: Endpoint[] = [
@@ -242,6 +244,27 @@ export const ENDPOINTS: Endpoint[] = [
       "roe/dtYoy/gm/debt 口径见 fundamentals.ts:15-17，与 tushare 的净利润同比口径不同（factors.ts:185-186 有对照说明）",
     ],
     fetcher: "scripts/fetch-fundamentals.py（akshare）",
+  },
+
+  // ── 估值历史（2026-10-12 新增，学 Vibe-Research 的 fetch_pe_history） ──
+  {
+    id: "baostock.valuation",
+    title: "证券宝估值历史（PE_TTM / PB / PS / PCF + 换手 + 停牌）",
+    source: "baostock",
+    market: "a",
+    compliance: "public-web",
+    kind: "valuation",
+    critical: false,
+    unit: "倍数 / %（turn 是百分比）",
+    traps: [
+      "**不支持北交所**，索要 bj 代码是直接报错而不是返回空——这两种表现的处理方式完全相反，见 scripts/fetch-pe-history.py:bs_code",
+      "`tradestatus` 是**字符串**：1 = 正常交易，0 = 停牌。算历史分位必须剔除停牌日，否则停牌期间沿用旧估值会被重复计入，把分位算歪，见 scripts/fetch-pe-history.py:write_out",
+      "SDK 翻页失败**不抛异常**，`rs.next()` 只返回 False——拿着半截序列当完整序列是最危险的静默错误。单页上限 2000 行，5 年日线约 1220 行安全，见脚本文件头第 3 条（移植自 Vibe `sources/baostock_src.py` 的 bs_paging_error 注记）",
+      "数据 **T+1 可见**：2026-10-12 实测拉取 600519 最新只到 10-09**（10-10/11 是周末），当天收盘当天拿不到——和只差分时精度的行情快照**不同**，端到端延迟在这里是一整个交易日，见 scripts/fetch-pe-history.py:main",
+      "**离线脚本不是在线接口**：产物落在 data/fundamentals/pe-<code>.json（data 不在 git 里），换机器或没跑过脚本就是**没有**而不是空——页面必须写成缺口，见 pe-history.ts:loadValuationHistory（读不到返回 null）",
+      "必须用装了 baostock 的隔离环境跑，**系统 python3（3.9.6）里没有这个包**，漏换解释器时报错是 ModuleNotFoundError 而不是数据异常，见 scripts/fetch-pe-history.py:main",
+    ],
+    fetcher: "scripts/fetch-pe-history.py → src/lib/market/pe-history.ts:loadValuationHistory",
   },
 
   // ── 其他 ────────────────────────────────────────────────────
