@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -19,6 +19,7 @@ import { runResearch, type StageResult } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
+import { saveResearchReport } from "@/lib/market/reports.functions";
 import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import type { StockArticle } from "@/lib/market/news";
@@ -75,18 +76,47 @@ function ResearchPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [value, setValue] = useState(search.q);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   useEffect(() => setValue(search.q), [search.q]);
 
   // 报告在 loader 里算好（那里还要顺手跑 AI 综合）。q 为空时没有报告。
   const report = data.report ?? runResearch({ quote: data.quote, articles: data.articles, valuation: data.valuation });
   const ai = data.ai;
 
+  async function save() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await saveResearchReport({ data: { report, ai } });
+      setSaved(res.id);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Frame wide>
-      <Panel
-        title="个股研判"
-        note={<span className="text-xs text-muted">六阶段 · 只给数据和裁决点，不给买卖建议</span>}
-      >
+      {data.q ? (
+        <Panel
+          title="个股研判"
+          note={
+            <span className="text-xs text-muted">六阶段 · 只给数据和裁决点，不给买卖建议</span>
+          }
+          action={
+            <button
+              type="button"
+              disabled={saving || saved != null}
+              onClick={() => void save()}
+              className="rounded bg-brand px-2.5 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+            >
+              {saved ? "已存" : saving ? "存…" : "存成报告"}
+            </button>
+          }
+        >
         <div className="p-3">
           <form
             className="flex gap-2"
@@ -111,6 +141,7 @@ function ResearchPage() {
           </form>
         </div>
       </Panel>
+      ) : null}
 
       {!data.q ? (
         <Panel title="还没选股票">
@@ -193,6 +224,13 @@ function ResearchPage() {
             </p>
           )}
         </section>
+      ) : null}
+
+      {saved ? (
+        <div className="rounded border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
+          已存成本机报告（id {saved}）。<Link to="/reports" className="text-accent hover:underline">去「我的报告」看</Link>
+          {saveError ? <span className="text-warn"> · {saveError}</span> : null}
+        </div>
       ) : null}
 
       {report.stages.map((stage, index) => (

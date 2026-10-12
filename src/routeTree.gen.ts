@@ -17,6 +17,7 @@ import { Route as NewsRouteImport } from './routes/news'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -54,6 +55,11 @@ const ResearchRoute = ResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScreenerRoute = ScreenerRouteImport.update({
   id: '/screener',
   path: '/screener',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
   '/research': typeof ResearchRoute
+  '/reports': typeof ReportsRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
   '/research': typeof ResearchRoute
+  '/reports': typeof ReportsRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
   '/research': typeof ResearchRoute
+  '/reports': typeof ReportsRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/news'
     | '/positions'
     | '/research'
+    | '/reports'
     | '/screener'
     | '/symbol'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/news'
     | '/positions'
     | '/research'
+    | '/reports'
     | '/screener'
     | '/symbol'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/news'
     | '/positions'
     | '/research'
+    | '/reports'
     | '/screener'
     | '/symbol'
   fileRoutesById: FileRoutesById
@@ -143,6 +155,7 @@ export interface RootRouteChildren {
   NewsRoute: typeof NewsRoute
   PositionsRoute: typeof PositionsRoute
   ResearchRoute: typeof ResearchRoute
+  ReportsRoute: typeof ReportsRoute
   ScreenerRoute: typeof ScreenerRoute
   SymbolRoute: typeof SymbolRoute
 }
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/screener': {
       id: '/screener'
       path: '/screener'
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   NewsRoute: NewsRoute,
   PositionsRoute: PositionsRoute,
   ResearchRoute: ResearchRoute,
+  ReportsRoute: ReportsRoute,
   ScreenerRoute: ScreenerRoute,
   SymbolRoute: SymbolRoute,
 }
