@@ -14,13 +14,8 @@
  * 它不转译 JSX，组件文件里的函数 import 不进来。
  */
 import { snapshotAge } from "@/lib/market/format";
+import { SOURCE_NAMES } from "@/lib/market/registry";
 import type { Universe } from "@/lib/market/types";
-
-const SOURCE_LABEL: Record<string, string> = {
-  tencent: "腾讯",
-  sina: "新浪财经",
-  eastmoney: "东方财富",
-};
 
 /** 一条要说清的事。三个问题缺一条就不算说完。 */
 export type Notice = {
@@ -38,7 +33,7 @@ export type Notice = {
 /** 数据源的名字，给「腾讯 · 3 分钟前」用。 */
 export function sourceLabel(source: Universe["source"]): string {
   const key = source ?? "";
-  return SOURCE_LABEL[key] ?? (key || "未知来源");
+  return SOURCE_NAMES[key as keyof typeof SOURCE_NAMES] ?? (key || "未知来源");
 }
 
 /**
