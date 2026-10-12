@@ -28,6 +28,7 @@ import { screenNumbers } from "./number-gate.ts";
 import { valuationJudgement } from "./valuation-sop.ts";
 import { decisionPointsFrom } from "./catalyst-sop.ts";
 import { readEarnings, type EarningsPoint } from "./earnings-sop.ts";
+import { readFinancials, type FinancialRow } from "./financials.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -96,6 +97,11 @@ export type ResearchInput = {
    * 不给 = 没跑过抓取脚本或这只票没数据，催化剂阶段会写缺口。
    */
   earnings?: readonly EarningsPoint[] | null;
+  /**
+   * baostock 三表（D2：净利润/营收/EPS/杜邦/现金流 + 公告日期）。
+   * 有它就能做单季/TTM/杜邦拆解；没有就退回只用比率转向判断。
+   */
+  financials?: readonly FinancialRow[] | null;
 };
 
 export type ResearchReport = {
@@ -228,8 +234,37 @@ function catalystStage(input: ResearchInput): StageResult {
     const read = readEarnings(input.earnings);
     for (const turn of read.turns) findings.push({ text: `${turn.label}：${turn.verdict}。${turn.caution}`, tier: INFERRED });
     for (const gap of read.gaps) if (!gaps.includes(gap)) gaps.push(gap);
-  } else {
+  } else if (!(input.financials && input.financials.length > 0)) {
+    // 三表也没有时才说「没有财报数据」——financials 本身就是财报数据，别重复报缺
     gaps.push("没有这只票的财报数据（跑 scripts/fetch-fundamentals.py 后重试）");
+  }
+
+  // 三表拆解（D2）：有 baostock 三表就做单季/TTM/杜邦/利润质量，这是比率转向判断
+  // 之上更完整的一层。没有三表就退回只用比率（不硬凑）。
+  // 关键：**数字先摆成 evidence 再下结论**——数字闸门要求每个出现在结论里的数
+  // 都能在证据里找到出处，直接写进 findings 会被当成「没出处的数」换掉（踩过）。
+  if (input.financials && input.financials.length > 0) {
+    const fr = readFinancials(input.financials);
+    const SRC = "baostock 三表（scripts/fetch-three-sheets.py）";
+    if (fr.ttmNetProfit != null) {
+      evidence.push({ label: "TTM 净利润", value: `${(fr.ttmNetProfit / 1e8).toFixed(0)} 亿`, source: SRC, tier: CONFIRMED });
+      findings.push({ text: `TTM 净利润是滚动四个单季之和，不是某单季或某半年。`, tier: CONFIRMED });
+    }
+    if (fr.latestYoy != null) {
+      evidence.push({ label: "最新单季净利润同比", value: `${(fr.latestYoy * 100).toFixed(1)}%`, source: SRC, tier: CONFIRMED });
+      findings.push({ text: "最新单季同比是对去年同期单季，不是累计口径。", tier: INFERRED });
+    }
+    if (fr.dupont) {
+      const d = fr.dupont;
+      const value = `ROE ${(d.roe! * 100).toFixed(1)}% = 净利率 ${(d.nitogr! * 100).toFixed(1)}% × 周转 ${d.assetTurn!.toFixed(2)} × 权益乘数 ${d.assetToEquity!.toFixed(2)}`;
+      evidence.push({ label: "杜邦拆解", value, source: SRC, tier: CONFIRMED });
+      findings.push({ text: "ROE 可拆成净利率 × 周转 × 权益乘数，三者分别对应赚钱能力、经营效率、杠杆。", tier: CONFIRMED });
+    }
+    if (fr.cfoToNp != null) {
+      evidence.push({ label: "经营现金流 / 净利润", value: fr.cfoToNp.toFixed(2), source: SRC, tier: CONFIRMED });
+      findings.push({ text: fr.cfoToNp < 1 ? "经营现金流没跟上净利润，利润质量待查。" : "经营现金流覆盖了净利润，利润有现金支撑。", tier: CONFIRMED });
+    }
+    for (const gap of fr.gaps) if (!gaps.includes(gap)) gaps.push(gap);
   }
 
   if (articles.length === 0) {
