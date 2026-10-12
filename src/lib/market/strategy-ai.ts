@@ -25,6 +25,7 @@ import { appendAILog, readAILog, strategySelfHistory } from "./ai-log.ts";
 import { readChallengers, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, STYLE_IDS } from "./strategies.ts";
+import { RED_LINE_PROMPT } from "./red-line.ts";
 
 // ── 旋钮白名单 ──────────────────────────────────────────────────
 
@@ -194,6 +195,9 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
       : []),
     "",
     "只输出 JSON 数组，不要输出任何别的文字。",
+    // 红线（Vibe 宪法 §0-3）：不给投资动作建议。挑战者提名只有参数旋钮，
+    // 但 rationale 是自由文本——说清边界，免得 AI 在理由里夹带目标价/止损位建议。
+    RED_LINE_PROMPT,
   ].join("\n");
 }
 

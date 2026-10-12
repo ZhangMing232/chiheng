@@ -32,6 +32,7 @@ import type { Factor, MetricRow } from "./factors.ts";
 import type { FactorRunRow } from "./factor-runs-file.ts";
 import { GATE_KEYS } from "./factors-view.ts";
 import { appendTombstones, buildRecord, diffTombstones } from "./factor-tombstones.ts";
+import { RED_LINE_PROMPT } from "./red-line.ts";
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
@@ -307,6 +308,9 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[]): string {
       : []),
     "",
     "只输出 JSON 数组，不要输出任何别的文字。",
+    // 红线（Vibe 宪法 §0-3）：不给投资动作建议。这两处产出虽是结构化提议，
+    // 但 rationale 是自由文本——AI 可能在"经济逻辑"里夹带"这个因子建议用来择时买入"。
+    RED_LINE_PROMPT,
   ].join("\n");
 }
 
