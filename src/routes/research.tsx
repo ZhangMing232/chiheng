@@ -16,7 +16,9 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { runResearch, type StageResult } from "@/lib/market/research";
+import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
+import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
 import type { Quote } from "@/lib/market/types";
 import type { StockArticle } from "@/lib/market/news";
@@ -27,6 +29,10 @@ import type { StockArticle } from "@/lib/market/news";
  * 报价要从全市场快照里捞：`getSymbolNews` 只给回资讯和一个带涨跌幅的命中项，
  * 研判要的 PE / PB / d60 那些只有 Quote 里有，所以两个接口一起拉。
  * 两个都拉失败时降级成「这只票现在查不到」，不让整页打不开。
+ *
+ * AI 综合在 loader 里跑（服务端）：注入的 caller 读 AI 档案 + 调 callAI。
+ * **AI 挂了不影响这一页**——runAiSynthesis 自己降级成 failed 并带上原因，
+ * 六阶段的规则结论照常显示。
  */
 export const Route = createFileRoute("/research")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -34,18 +40,32 @@ export const Route = createFileRoute("/research")({
   }),
   loaderDeps: ({ search }) => ({ q: search.q }),
   loader: async ({ deps }) => {
-    if (!deps.q) return { q: "", quote: null, articles: [] as StockArticle[], valuation: null, why: null as string | null };
+    if (!deps.q) {
+      return { q: "", quote: null, articles: [] as StockArticle[], valuation: null, why: null as string | null, ai: null };
+    }
     const [news, uni] = await Promise.all([
       getSymbolNews({ data: { q: deps.q } }).catch(() => null),
       getUniverse({ data: { refresh: false } }).catch(() => null),
     ]);
-    if (!news) return { q: deps.q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来" };
+    if (!news) {
+      return { q: deps.q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来", ai: null };
+    }
     const quote: Quote | null = uni?.quotes.find((row) => row.id === news.picked?.id) ?? null;
     // 估值历史（PE/PB 分位）来自 baostock 离线脚本，没跑过就是没有——
     // 页面会把它写成「缺口」，不用当日 PE 反推一个假的。
     const history = quote ? await loadValuationHistory(quote.code).catch(() => null) : null;
     const valuation = valuationPosition(history);
-    return { q: deps.q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照" };
+
+    const report = runResearch({ quote, articles: news.articles, valuation });
+    const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
+    // AI 综合。caller 里读档案 + 调 callAI + 记账；任何异常都由 runAiSynthesis 接住
+    const ai = await runAiSynthesis(report.stages, report.symbol, report.name, async (prompt) => {
+      const cfg = await readAIConfig();
+      if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
+      return callAI(cfg, prompt, { layer: "research", trigger: "manual" });
+    }, evidenceIds);
+
+    return { q: deps.q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照", report, ai };
   },
   component: ResearchPage,
 });
@@ -57,8 +77,9 @@ function ResearchPage() {
   const [value, setValue] = useState(search.q);
   useEffect(() => setValue(search.q), [search.q]);
 
-  // 报告由 loader 的数据现算：research.ts 是纯函数，页面只负责画。
-  const report = runResearch({ quote: data.quote, articles: data.articles, valuation: data.valuation });
+  // 报告在 loader 里算好（那里还要顺手跑 AI 综合）。q 为空时没有报告。
+  const report = data.report ?? runResearch({ quote: data.quote, articles: data.articles, valuation: data.valuation });
+  const ai = data.ai;
 
   return (
     <Frame wide>
@@ -132,6 +153,46 @@ function ResearchPage() {
             ? `引用链断裂 ${report.chain.dangling.length} 处：有数字声称基于账里没有的证据。这些数字不该被信。`
             : `引用链：${report.chain.evidence} 条证据 · ${report.chain.calculations} 条计算，无悬空引用。分位数下面的那行小字就是它的来路。`}
         </div>
+      ) : null}
+
+      {/* AI 综合。四种状态都明说，不许把模板结论说成 AI 说的——
+          那比没有 AI 更糟。 */}
+      {ai && ai.status !== "skipped" ? (
+        <section
+          className={
+            "rounded border px-3 py-2.5 " +
+            (ai.status === "ok"
+              ? "border-line bg-brand-soft"
+              : ai.status === "refused"
+                ? "border-warn/60 bg-warn-soft"
+                : "border-line bg-surface")
+          }
+        >
+          <div className="flex items-baseline gap-2">
+            <span className="h-4 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
+            <h2 className="text-sm font-medium">AI 综合</h2>
+            <span className="text-xs text-muted">
+              {ai.status === "ok" ? `基于上面的证据 · ${(ai.ms / 1000).toFixed(1)} 秒` : "本轮没有 AI 产出"}
+            </span>
+          </div>
+          {ai.status === "ok" ? (
+            <>
+              <p className="mt-1.5 text-sm leading-relaxed">{ai.text}</p>
+              <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] text-muted">
+                {ai.chain ? <code className="font-mono">{ai.chain}</code> : null}
+                {ai.numbersReplaced > 0 ? (
+                  <span className="text-warn">{ai.numbersReplaced} 个数字在证据里找不到出处，已换成（略※）</span>
+                ) : null}
+                {ai.refs.length > 0 ? <span>引用 {ai.refs.length} 条证据</span> : null}
+              </div>
+            </>
+          ) : (
+            <p className={"mt-1.5 text-xs leading-relaxed " + (ai.status === "refused" ? "text-warn" : "text-muted")}>
+              {ai.why}
+              {ai.status === "failed" ? "（上面六个阶段是规则推出来的，与 AI 无关）" : ""}
+            </p>
+          )}
+        </section>
       ) : null}
 
       {report.stages.map((stage, index) => (
