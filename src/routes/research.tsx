@@ -117,6 +117,23 @@ function ResearchPage() {
         </div>
       ) : null}
 
+      {/* 引用链自检（P0-3）：每个算出来的数字都能走回它的原始序列。
+          dangling 非空 = 有数字声称基于不存在的证据，那是伪装成有据可查，必须大声说。 */}
+      {report.chain.calculations > 0 || report.chain.dangling.length > 0 ? (
+        <div
+          className={
+            "rounded border px-3 py-2 text-xs leading-relaxed " +
+            (report.chain.dangling.length > 0
+              ? "border-warn/60 bg-warn-soft text-warn"
+              : "border-line bg-surface text-muted")
+          }
+        >
+          {report.chain.dangling.length > 0
+            ? `引用链断裂 ${report.chain.dangling.length} 处：有数字声称基于账里没有的证据。这些数字不该被信。`
+            : `引用链：${report.chain.evidence} 条证据 · ${report.chain.calculations} 条计算，无悬空引用。分位数下面的那行小字就是它的来路。`}
+        </div>
+      ) : null}
+
       {report.stages.map((stage, index) => (
         <StageCard key={stage.id} stage={stage} index={index} hidden={!data.quote && stage.evidence.length === 0} />
       ))}
@@ -176,6 +193,23 @@ function StageCard({ stage, index, hidden }: { stage: StageResult; index: number
             <div key={i} className="flex items-baseline gap-2 text-sm leading-relaxed">
               <Tag tone={finding.tier === "未核实线索" ? "warn" : "brand"}>{finding.tier}</Tag>
               <span className="min-w-0 flex-1">{finding.text}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* 算出来的数字（带引用链）。只有经过运算的才配拥有它——直接读来的数本身就是证据。 */}
+      {stage.derived.length > 0 ? (
+        <div className="flex flex-col gap-2 border-t border-line px-3 py-2">
+          {stage.derived.map((d) => (
+            <div key={d.calcId} className="flex flex-col gap-0.5">
+              <div className="flex items-baseline gap-2 text-sm">
+                <span className="h-3 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
+                <span className="shrink-0 text-muted">{d.label}</span>
+                <span className="font-medium tabular-nums">{d.value}</span>
+                <Tag tone="brand">{d.tier}</Tag>
+              </div>
+              <code className="pl-[11px] font-mono text-[10px] leading-relaxed text-muted">{d.chain}</code>
             </div>
           ))}
         </div>

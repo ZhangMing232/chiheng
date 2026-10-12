@@ -124,7 +124,7 @@ test("缺历史 PE 分位这件事必须说出口（没跑过脚本时）", () =
   assert.ok(val.gaps.some((g) => g.includes("历史 PE 分位")), "没跑过脚本就明说，别让读者以为算过了");
 });
 
-test("有 baostock 序列时给真分位，不再写那条缺口", () => {
+test("有 baostock 序列时给真分位，并带可复核的引用链", () => {
   // 60 个递增点：最新的最贵 → 高分位
   const series = Array.from({ length: 60 }, (_, i) => ({
     date: `d${i}`, close: 10 + i, peTTM: i + 1, pbMRQ: (i + 1) / 10, psTTM: 1, turn: 1, isST: false,
@@ -137,9 +137,26 @@ test("有 baostock 序列时给真分位，不再写那条缺口", () => {
   const report = runResearch({ quote: quote(), articles: [], valuation });
   const val = report.stages.find((s) => s.id === "valuation")!;
   assert.ok(!val.gaps.some((g) => g.includes("历史 PE 分位")), "有数据了就不能还说缺");
-  assert.ok(val.evidence.some((e) => e.label.includes("PE_TTM 历史位置")), "要摆出历史位置");
-  assert.ok(val.evidence.some((e) => e.source.includes("baostock")), "来源要写到具体源");
+
+  // 分位是算出来的数，所以它进 derived 带引用链，不是一条普通证据
+  const d = val.derived.find((x) => x.label.includes("PE_TTM 历史位置"));
+  assert.ok(d, "算出来的分位要出现在 derived 里");
+  assert.match(d!.evidenceId, /^ev-/, "证据 id");
+  assert.match(d!.calcId, /^calc-/, "计算 id");
+  assert.match(d!.chain, /percentileRank/, "引用链要能读出用的是哪个函数");
+
+  // 全报告自检：不许有数字声称基于不存在的证据
+  assert.deepEqual(report.chain.dangling, [], "悬空引用 = 伪装成有据可查");
+  assert.ok(report.chain.calculations >= 1, "至少有一条计算记录");
   assert.equal(report.blocked, 0, "新增的结论也不许越线");
+});
+
+test("没跑过脚本时 derived 是空的，chain 也没有悬空引用", () => {
+  const report = runResearch({ quote: quote(), articles: [] });
+  const val = report.stages.find((s) => s.id === "valuation")!;
+  assert.deepEqual(val.derived, [], "没有序列就没有算出来的数");
+  assert.deepEqual(report.chain.dangling, []);
+  assert.equal(report.chain.calculations, 0);
 });
 
 test("没有资讯时催化剂阶段是空的，但不冒充「没有催化剂」", () => {

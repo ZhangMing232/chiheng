@@ -23,6 +23,7 @@
 import type { Quote } from "./types.ts";
 import type { StockArticle } from "./news.ts";
 import { screenAdvice } from "./red-line.ts";
+import { makeCalculation, makeEvidence, formatChain, verifyChain } from "./evidence.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -42,6 +43,22 @@ export type Evidence = {
 
 export type Finding = { text: string; tier: ResearchTier };
 
+/**
+ * 经过运算得出的数字，带引用链（P0-3 证据层）。
+ *
+ * 只有「不是直接读来、而是算出来的」数字才配拥有它。直接读来的数（收盘价、市值）
+ * 本身就是证据，套一层计算记录没有意义。
+ */
+export type DerivedNumber = {
+  label: string;
+  value: string;
+  tier: ResearchTier;
+  evidenceId: string;
+  calcId: string;
+  /** 人话版引用路径，复核时照着它走回原始序列 */
+  chain: string;
+};
+
 export type StageId = (typeof STAGE_IDS)[number];
 
 export type StageResult = {
@@ -52,6 +69,8 @@ export type StageResult = {
   evidence: Evidence[];
   findings: Finding[];
   gaps: string[];
+  /** 算出来的数字。空数组 = 这个阶段没有运算产物。 */
+  derived: DerivedNumber[];
 };
 
 export const STAGE_IDS = ["identity", "price", "capital", "catalyst", "valuation", "verdict"] as const;
@@ -76,6 +95,12 @@ export type ResearchReport = {
   gaps: string[];
   /** 被红线拦下的条数。>0 说明写 prompt / 模板的人越线了。 */
   blocked: number;
+  /**
+   * 引用链健康度（P0-3）。
+   * dangling 非空 = 有数字声称基于某条证据，而那条证据不在账里——
+   * 比没有引用更糟，因为它伪装成有据可查。正常必须是空数组。
+   */
+  chain: { evidence: number; calculations: number; dangling: string[] };
 };
 
 const SOURCE_QUOTE = "行情快照（腾讯/新浪）";
@@ -109,6 +134,7 @@ function identityStage(input: ResearchInput): StageResult {
       ? [{ text: `${q.name}（${q.code}）在 ${q.board} 上市，流通市值 ${q.floatCap.toFixed(0)} 亿。`, tier: CONFIRMED }]
       : [],
     gaps,
+    derived: [],
   };
 }
 
@@ -118,7 +144,7 @@ function priceStage(input: ResearchInput): StageResult {
   const evidence: Evidence[] = [];
   if (!quote) {
     gaps.push("没有行情，价格位置无从判断");
-    return { id: "price", title: "价格位置", question: "现在站在什么位置上？", evidence, findings: [], gaps };
+    return { id: "price", title: "价格位置", question: "现在站在什么位置上？", evidence, findings: [], gaps, derived: [] };
   }
   const q = quote;
   const rows: [string, number | null][] = [
@@ -144,7 +170,7 @@ function priceStage(input: ResearchInput): StageResult {
       tier: CONFIRMED,
     });
   }
-  return { id: "price", title: "价格位置", question: "现在站在什么位置上，贵了还是便宜了多久？", evidence, findings, gaps };
+  return { id: "price", title: "价格位置", question: "现在站在什么位置上，贵了还是便宜了多久？", evidence, findings, gaps, derived: [] };
 }
 
 function capitalStage(input: ResearchInput): StageResult {
@@ -153,7 +179,7 @@ function capitalStage(input: ResearchInput): StageResult {
   const evidence: Evidence[] = [];
   if (!quote) {
     gaps.push("没有行情，当日资金无从判断");
-    return { id: "capital", title: "资金与成交", question: "今天谁在买？", evidence, findings: [], gaps };
+    return { id: "capital", title: "资金与成交", question: "今天谁在买？", evidence, findings: [], gaps, derived: [] };
   }
   const q = quote;
   const inflowYi = q.inflow / 10_000;
@@ -172,6 +198,7 @@ function capitalStage(input: ResearchInput): StageResult {
     evidence,
     findings: [],
     gaps,
+    derived: [],
   };
 }
 
@@ -181,7 +208,7 @@ function catalystStage(input: ResearchInput): StageResult {
   const evidence: Evidence[] = [];
   if (articles.length === 0) {
     gaps.push("没有拉到这只票的资讯或公告，催化剂与风险这一段是空的");
-    return { id: "catalyst", title: "催化剂与风险", question: "最近发生了什么，哪些是已经证实的？", evidence, findings: [], gaps };
+    return { id: "catalyst", title: "催化剂与风险", question: "最近发生了什么，哪些是已经证实的？", evidence, findings: [], gaps, derived: [] };
   }
   const good = articles.filter((a) => a.tone === "good").length;
   const bad = articles.filter((a) => a.tone === "bad").length;
@@ -205,6 +232,7 @@ function catalystStage(input: ResearchInput): StageResult {
     evidence,
     findings,
     gaps,
+    derived: [],
   };
 }
 
@@ -212,9 +240,10 @@ function valuationStage(input: ResearchInput): StageResult {
   const { quote, valuation } = input;
   const gaps: string[] = [];
   const evidence: Evidence[] = [];
+  const derived: DerivedNumber[] = [];
   if (!quote) {
     gaps.push("没有行情，估值锚算不出来");
-    return { id: "valuation", title: "估值锚", question: "贵不贵，相对于什么？", evidence, findings: [], gaps };
+    return { id: "valuation", title: "估值锚", question: "贵不贵，相对于什么？", evidence, findings: [], gaps, derived };
   }
   const q = quote;
   if (q.pe == null) gaps.push("没有市盈率（亏损或未给出）");
@@ -224,21 +253,35 @@ function valuationStage(input: ResearchInput): StageResult {
 
   // 历史分位来自 baostock 序列（学 Vibe-Research：分位在 calc 层算，不在取数层做）。
   // 有序列就给位置；没有就明说没有，**不许拿当日 PE 绝对值反推一个假分位**。
+  //
+  // P0-3：分位是「算出来的数」，所以它带引用链——一条证据（序列里最新那个点）
+  // + 一条计算（percentileRank）。页面上点得开，复核时能走回原始 bar。
   const findings: Finding[] = [];
-  if (valuation?.peRank != null) {
-    evidence.push({
+  const latest = valuation?.latest ?? null;
+  if (valuation?.peRank != null && latest?.peTTM != null) {
+    const ev = makeEvidence({
+      source: `baostock 序列 data/fundamentals/pe-${q.code}.json`,
+      symbol: q.code,
+      field: "peTTM",
+      period: `${valuation.window?.from ?? "?"}~${valuation.window?.to ?? "?"}`,
+      unit: "倍",
+      adjustment: "none",
+      asOf: latest.date,
+      value: latest.peTTM,
+    });
+    const calc = makeCalculation({
+      fn: "percentileRank",
+      inputs: { points: valuation.points, value: latest.peTTM },
+      inputsRefs: [ev.id],
+      output: { value: Math.round(valuation.peRank * 100) / 100, unit: "分位", status: "ok" },
+    });
+    derived.push({
       label: "PE_TTM 历史位置",
       value: rankPhrase(valuation.peRank),
-      source: `baostock 序列 ${valuation.fetchedAt}（${valuation.points} 个交易日）`,
       tier: CONFIRMED,
-    });
-  }
-  if (valuation?.pbRank != null) {
-    evidence.push({
-      label: "PB 历史位置",
-      value: rankPhrase(valuation.pbRank),
-      source: `baostock 序列 ${valuation.fetchedAt}（${valuation.points} 个交易日）`,
-      tier: CONFIRMED,
+      evidenceId: ev.id,
+      calcId: calc.id,
+      chain: formatChain(calc),
     });
   }
   if (valuation?.peRank != null || valuation?.pbRank != null) {
@@ -252,7 +295,7 @@ function valuationStage(input: ResearchInput): StageResult {
         "只有当日 PE 的绝对值，看不出它在自己历史上排第几",
     );
   }
-  return { id: "valuation", title: "估值锚", question: "贵不贵，相对于历史和自己？", evidence, findings, gaps };
+  return { id: "valuation", title: "估值锚", question: "贵不贵，相对于历史和自己？", evidence, findings, gaps, derived };
 }
 
 /**
@@ -267,7 +310,7 @@ function verdictStage(input: ResearchInput): StageResult {
   const evidence: Evidence[] = [];
   if (!quote) {
     gaps.push("没有行情，裁决点无从给出");
-    return { id: "verdict", title: "裁决点", question: "什么事实出现会让现在这套说法站不住？", evidence, findings: [], gaps };
+    return { id: "verdict", title: "裁决点", question: "什么事实出现会让现在这套说法站不住？", evidence, findings: [], gaps, derived: [] };
   }
   const watch: string[] = [];
   if (quote.d20 != null) watch.push("近 20 日涨幅的方向掉头");
@@ -286,6 +329,7 @@ function verdictStage(input: ResearchInput): StageResult {
     evidence,
     findings,
     gaps,
+    derived: [],
   };
 }
 
@@ -332,11 +376,26 @@ export function runResearch(input: ResearchInput): ResearchReport {
     return { ...stage, findings };
   });
 
+  // 引用链自检：把每个 derived 的证据和计算都摊平成一张 DAG，查悬空引用。
+  // 这一步是给报告自己做的——读者看到的每个分位数都能走回原始序列。
+  const chainItems = stages.flatMap((stage) =>
+    stage.derived.flatMap((d) => [
+      { id: d.evidenceId, inputsRefs: [] as string[] },
+      { id: d.calcId, inputsRefs: [d.evidenceId] },
+    ]),
+  );
+  const chainCheck = verifyChain(chainItems);
+
   return {
     symbol: input.quote?.code ?? "",
     name: input.quote?.name ?? "",
     stages,
     gaps,
     blocked,
+    chain: {
+      evidence: chainItems.filter((item) => item.inputsRefs.length === 0).length,
+      calculations: chainItems.filter((item) => item.inputsRefs.length > 0).length,
+      dangling: chainCheck.dangling,
+    },
   };
 }
