@@ -10,7 +10,7 @@
 
 | # | 它有什么 | 赤轨缺什么 | 解锁的能力 | 接的难度 | 状态 |
 |---|---|---|---|---|---|
-| D1 | 一致预期 EPS、机构数、前瞻 CAGR | 东财研报预测 HTTP 直连（不用 akshare，走赤轨现有 quotes 同套路，绕开 py-mini-racer） | 估值主干：前瞻 PE、PEG、预期型催化剂、一致预期下修风险 | 中（新端点+缓存+口径设计） | ⬜ |
+| D1 | 一致预期 EPS、机构数、前瞻 CAGR | 东财 reportapi 直连（consensus-store.ts），2026-10-12 实测 16 家机构 | 估值主干：前瞻 PE、PEG、预期型催化剂、一致预期下修风险 | 中 | ✅ 已落地并接进估值阶段 |
 | D2 | 三表 + 杜邦（利润/资产/现金流 + dupont） | **baostock**（`query_profit_data`/`query_balance_data`/`query_cash_flow_data`/`query_dupont_data`，2026-10-12 实测通过，纯 wheel 无 py-mini-racer 依赖） | 财报拆解的单季/TTM/杜邦/毛利率归因；顺带补上 debt（liabilityToAsset）和利润质量（CFOToNP）两个之前东财给不了的字段 | 低（已实测） | ✅ 数据源已定，待写抓取脚本 |
 | D3 | 融资融券、龙虎榜历史 | 东财 HTTP 直连（push2his 同套路） | 风险清单的另一半（杠杆/交易结构） | 低-中 | ⬜ |
 | D4 | 股东户数、解禁表 | 东财 HTTP 直连 | 治理风险、流动性风险 | 低 | ⬜ |

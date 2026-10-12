@@ -29,6 +29,7 @@ import { valuationJudgement } from "./valuation-sop.ts";
 import { decisionPointsFrom } from "./catalyst-sop.ts";
 import { readEarnings, type EarningsPoint } from "./earnings-sop.ts";
 import { readFinancials, type FinancialRow } from "./financials.ts";
+import type { ConsensusRead } from "./consensus.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -102,6 +103,8 @@ export type ResearchInput = {
    * 有它就能做单季/TTM/杜邦拆解；没有就退回只用比率转向判断。
    */
   financials?: readonly FinancialRow[] | null;
+  /** 一致预期（D1：机构数 / 一致预期 EPS / 前瞻 CAGR / 分歧）。估值阶段算前瞻 PE 和 PEG。 */
+  consensus?: ConsensusRead | null;
 };
 
 export type ResearchReport = {
@@ -385,6 +388,36 @@ function valuationStage(input: ResearchInput): StageResult {
         "只有当日 PE 的绝对值，看不出它在自己历史上排第几",
     );
   }
+  // 一致预期（D1）：有机构预测就能算前瞻 PE 和 PEG，把估值从「只答历史分位」
+  // 升级到「答贵不贵」。数字照例先摆 evidence 再下结论。
+  if (input.consensus && input.consensus.nInstitutions > 0) {
+    const c = input.consensus;
+    const SRC = "东财研报接口（consensus-store.ts）";
+    if (q.price != null && c.epsThisYear != null && c.epsThisYear > 0) {
+      const fwdPe = q.price / c.epsThisYear;
+      evidence.push({ label: "前瞻 PE（现价 ÷ 一致预期 EPS）", value: `${fwdPe.toFixed(1)} 倍`, source: SRC, tier: CONFIRMED });
+      if (c.forwardCagr != null && c.forwardCagr > 0) {
+        const peg = fwdPe / (c.forwardCagr * 100);
+        evidence.push({ label: "PEG（前瞻 PE ÷ 前瞻增速）", value: peg.toFixed(2), source: SRC, tier: CONFIRMED });
+        findings.push({
+          text:
+            peg < 1
+              ? "PEG 偏低，增长能消化估值；但这结论是预测给的——CAGR 一旦下修 PEG 就跳升。"
+              : peg > 2
+                ? "PEG 偏高，估值没被增长消化；除非有不可替代性被定价（产业链那层），否则要问为什么这么贵。"
+                : "PEG 中性，估值与增速大致匹配。",
+          tier: INFERRED,
+        });
+      }
+    }
+    evidence.push({ label: "一致预期 EPS", value: `今年 ${c.epsThisYear?.toFixed(2) ?? "—"} / 明年 ${c.epsNextYear?.toFixed(2) ?? "—"} 元`, source: SRC, tier: CONFIRMED });
+    evidence.push({ label: "预测机构数", value: String(c.nInstitutions), source: SRC, tier: CONFIRMED });
+    if (c.dispersion != null) evidence.push({ label: "预测分歧（max/min）", value: `${c.dispersion.toFixed(2)} 倍`, source: SRC, tier: CONFIRMED });
+    for (const gap of c.gaps) if (!gaps.includes(gap)) gaps.push(gap);
+  } else {
+    gaps.push("没有机构预测（一致预期），前瞻 PE 和 PEG 算不出——估值只能答历史分位，答不了「贵不贵」");
+  }
+
   return { id: "valuation", title: "估值锚", question: "贵不贵，相对于历史和自己？", evidence, findings, gaps, derived };
 }
 

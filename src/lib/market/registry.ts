@@ -271,6 +271,24 @@ export const ENDPOINTS: Endpoint[] = [
   },
 
   {
+    id: "eastmoney.consensus",
+    title: "东财机构预测（一致预期 EPS / 机构数 / 前瞻 CAGR / 分歧）",
+    source: "eastmoney",
+    market: "a",
+    compliance: "public-web",
+    kind: "fundamental",
+    critical: false,
+    unit: "元（EPS）/ 倍（PE）/ %（CAGR）",
+    traps: [
+      "**2026-10-12 实测通过**（600519，50 条研报 → 16 家机构，一致预期 EPS 68.59）。走 reportapi.eastmoney.com 直连，**不依赖 akshare**（akshare 的 py-mini-racer 在 arm64 装不上，见GAP-REPORT.md 数据源正路）",
+      "接口返回的是**研报列表**，不是现成的一致预期——要 consensus.ts:aggregateConsensus 聚合（同机构取最新、算均值、max/min 分歧）。单看一份研报的 EPS 会当成那家机构的预测，见 consensus.ts 头注释",
+      "EPS 字段是**字符串**（\"71.3200000000\"），要转 number，转不了留 null 而不是 0，见 consensus-store.ts:num",
+      "pageSize 上限 50，hits 可能更多（茅台 126 条）。50 条已覆盖 16 家机构足够聚合，但要留意大票可能截断，见 consensus-store.ts:fetchConsensusReports",
+    ],
+    fetcher: "src/lib/market/consensus-store.ts:fetchConsensusReports → consensus.ts:aggregateConsensus",
+  },
+
+  {
     id: "baostock.financials",
     title: "证券宝三表 + 杜邦（利润/资产/现金流 + dupont）",
     source: "baostock",

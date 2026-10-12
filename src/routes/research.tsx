@@ -19,6 +19,8 @@ import { runResearch, type StageResult } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
 import { loadEarnings } from "@/lib/market/earnings-store";
 import { loadFinancials } from "@/lib/market/financials-store";
+import { fetchConsensusReports } from "@/lib/market/consensus-store";
+import { aggregateConsensus } from "@/lib/market/consensus";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { saveResearchReport } from "@/lib/market/reports.functions";
@@ -63,7 +65,13 @@ export const Route = createFileRoute("/research")({
     // 注意传 quote.id（sh600519 这种带市场前缀），fundamentals.json 的 byCode 键就是这个格式
     const earnings = quote ? await loadEarnings(quote.id).catch(() => null) : null;
     const financials = quote ? await loadFinancials(quote.id).catch(() => null) : null;
-    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials });
+    // 一致预期（D1）：东财研报接口直连，失败/没有就降级成 null，估值阶段写缺口
+    const consensus = quote
+      ? await fetchConsensusReports(quote.code)
+          .then((rs) => (rs ? aggregateConsensus(rs) : null))
+          .catch(() => null)
+      : null;
+    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus });
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
     // AI 综合。caller 里读档案 + 调 callAI + 记账；任何异常都由 runAiSynthesis 接住
     const ai = await runAiSynthesis(report.stages, report.symbol, report.name, async (prompt) => {
