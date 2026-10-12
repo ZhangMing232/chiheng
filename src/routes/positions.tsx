@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
 import { DataStatusBadge, AccountStatus } from "@/components/screener/data-status";
@@ -242,6 +242,98 @@ function ChallengerPanel({
   );
 }
 
+/**
+ * 持仓体检（X-ray）：两个图把「钱在哪、哪天赚的」一眼铺开（学 Vibe-Research
+ * 的 portfolio X-ray 思路，图表用本页已有的 recharts）。
+ * ① 每日盈亏柱：按开仓日分组的总收益率，红赚绿亏。
+ * ② 未平仓按策略分布：只数笔数——这套模拟盘不记仓位大小，按金额分是假精确。
+ */
+function XrayPanel({ groups, openRows }: { groups: ReturnType<typeof groupByDay>; openRows: PositionRow[] }) {
+  const daily = groups
+    .filter((group) => group.total != null)
+    .map((group) => ({ date: group.date.slice(5), pct: (group.total ?? 0) * 100 }))
+    .reverse();
+  const buckets = new Map<string, { name: string; count: number; chgSum: number; chgN: number }>();
+  for (const row of openRows) {
+    const style = styleOf(row as never);
+    if (!style) continue;
+    const name = STYLES.find((item) => item.id === style)?.name ?? style;
+    const bucket = buckets.get(style) ?? { name, count: 0, chgSum: 0, chgN: 0 };
+    bucket.count += 1;
+    if (row.live?.chg != null) {
+      bucket.chgSum += row.live.chg;
+      bucket.chgN += 1;
+    }
+    buckets.set(style, bucket);
+  }
+  const styles = [...buckets.values()].sort((a, b) => b.count - a.count);
+  const maxCount = Math.max(1, ...styles.map((bucket) => bucket.count));
+
+  return (
+    <Panel
+      title="持仓体检"
+      note={<span>每天盈亏 + 未平仓结构 · 口径和上面分组一致</span>}
+      bodyClassName="px-3.5 py-3"
+    >
+      {daily.length >= 2 ? (
+        <div className="h-44">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={daily} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                tickLine={false}
+                axisLine={false}
+                minTickGap={32}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                tickLine={false}
+                axisLine={false}
+                width={44}
+                tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+              />
+              <Tooltip
+                cursor={{ fill: "var(--color-surface-2)" }}
+                contentStyle={{ background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: 6, fontSize: 12 }}
+                labelStyle={{ color: "var(--color-muted)" }}
+                formatter={(value) => [typeof value === "number" ? signedPct(value) : "—", "当天合计盈亏"]}
+              />
+              <Bar dataKey="pct" radius={[2, 2, 0, 0]}>
+                {daily.map((row) => (
+                  <Cell key={row.date} fill={row.pct >= 0 ? "var(--color-up)" : "var(--color-down)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="text-xs text-muted">攒够两个开仓日才画每日盈亏柱。</p>
+      )}
+
+      {styles.length > 0 ? (
+        <div className="mt-3 border-t border-line pt-3">
+          <h3 className="mb-2 text-xs text-muted">未平仓 {openRows.length} 只 · 按策略（按笔数，不按金额）</h3>
+          <ul className="flex flex-col gap-1.5">
+            {styles.map((bucket) => (
+              <li key={bucket.name} className="flex items-baseline gap-2 text-xs">
+                <span className="w-16 shrink-0 truncate">{bucket.name}</span>
+                <span className="h-2.5 shrink-0 rounded bg-brand/70" style={{ width: `${(bucket.count / maxCount) * 40 + 8}%` }} aria-hidden />
+                <span className="tabular-nums text-muted">{bucket.count} 只</span>
+                <span className={bucket.chgN > 0 ? pctClass(bucket.chgSum / bucket.chgN) : "text-muted"}>
+                  今日均值 {bucket.chgN > 0 ? signedPct(bucket.chgSum / bucket.chgN) : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-3 border-t border-line pt-3 text-xs text-muted">当前没有未平仓的票。</p>
+      )}
+    </Panel>
+  );
+}
+
 function Positions() {
   const { universe, journal, nav, rules, date, chal, champions } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);
@@ -416,8 +508,10 @@ function Positions() {
           </Panel>
         )}
 
-        {urgent.length > 0 ? (
-          <Panel
+        {/* 体检图放在净值曲线下面：先看见「跑得怎么样」，再展开看「为什么」。 */}
+        <XrayPanel groups={sortedGroups} openRows={rows.filter((row) => row.exit == null)} />
+
+        {urgent.length > 0 ? (          <Panel
             title={
               <span className="flex items-baseline gap-2">
                 需处理 <span className="num text-warn">{urgent.length}</span>
