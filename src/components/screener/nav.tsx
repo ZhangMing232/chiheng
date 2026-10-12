@@ -15,6 +15,7 @@ import {
   Bell,
   ChevronDown,
   Coins,
+  FileSearch,
   FlaskConical,
   LayoutDashboard,
   ListFilter,
@@ -32,7 +33,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  *  折叠让「市场情报」这类低频组可以收起来给高频组让地方。 */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -42,6 +43,7 @@ const SIDEBAR: {
       { to: "/factors", label: "因子发掘", icon: FlaskConical },
       { to: "/positions", label: "策略追踪", icon: TrendingUp },
       { to: "/ai", label: "AI 管理", icon: Sparkles },
+      { to: "/research", label: "个股研判", icon: FileSearch },
     ],
   },
   {
