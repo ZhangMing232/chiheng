@@ -24,6 +24,7 @@ import type { Quote } from "./types.ts";
 import type { StockArticle } from "./news.ts";
 import { screenAdvice } from "./red-line.ts";
 import { makeCalculation, makeEvidence, formatChain, verifyChain } from "./evidence.ts";
+import { screenNumbers } from "./number-gate.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -95,6 +96,8 @@ export type ResearchReport = {
   gaps: string[];
   /** 被红线拦下的条数。>0 说明写 prompt / 模板的人越线了。 */
   blocked: number;
+  /** 被数字闸门换掉的数字个数。>0 = 有数字在材料里找不到出处。 */
+  numbersReplaced: number;
   /**
    * 引用链健康度（P0-3）。
    * dangling 非空 = 有数字声称基于某条证据，而那条证据不在账里——
@@ -314,7 +317,7 @@ function verdictStage(input: ResearchInput): StageResult {
   }
   const watch: string[] = [];
   if (quote.d20 != null) watch.push("近 20 日涨幅的方向掉头");
-  watch.push("主力净流入连续 3 日同向");
+  watch.push("近 3 日主力净流入同向");
   watch.push("出现带否决性措辞的公告（退市、立案、业绩预告下修）");
   const findings: Finding[] = [
     {
@@ -362,16 +365,25 @@ export function runResearch(input: ResearchInput): ResearchReport {
   if (!input.quote && input.articles.length === 0) gaps.push("既没有行情也没有资讯，这只票目前什么都查不到");
 
   let blocked = 0;
+  let numbersReplaced = 0;
   const stages = STAGE_IDS.map((id) => {
     const stage = STAGES[id](input);
+    // 数字闸门的材料 = 这一阶段自己摆出来的证据和缺口。
+    // 结论里出现材料里没有的数字 → 换成（略※）。模板句现在都干净（测试钉着），
+    // 这道闸是给将来接进来的 AI 产出用的——护栏先装好再通车。
+    const sources = [...stage.evidence.map((e) => e.value), ...stage.gaps];
     const findings = stage.findings.map((finding) => {
       const res = screenAdvice(finding.text);
-      if (res.ok) return finding;
-      blocked += 1;
-      return {
-        text: `（这句被红线拦下：${res.hits[0] ?? "疑似给出投资动作"}。赤轨不给买卖建议，只给数据、框架、情景概率和裁决点）`,
-        tier: finding.tier,
-      };
+      if (!res.ok) {
+        blocked += 1;
+        return {
+          text: `（这句被红线拦下：${res.hits[0] ?? "疑似给出投资动作"}。赤轨不给买卖建议，只给数据、框架、情景概率和裁决点）`,
+          tier: finding.tier,
+        };
+      }
+      const screened = screenNumbers(finding.text, sources);
+      if (screened.replaced.length > 0) numbersReplaced += screened.replaced.length;
+      return { ...finding, text: screened.text };
     });
     return { ...stage, findings };
   });
@@ -392,6 +404,7 @@ export function runResearch(input: ResearchInput): ResearchReport {
     stages,
     gaps,
     blocked,
+    numbersReplaced,
     chain: {
       evidence: chainItems.filter((item) => item.inputsRefs.length === 0).length,
       calculations: chainItems.filter((item) => item.inputsRefs.length > 0).length,

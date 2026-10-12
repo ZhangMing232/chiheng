@@ -73,10 +73,14 @@ test("六阶段顺序固定，每阶段都带问题", () => {
 test("模板自带红线自查：自己写的结论一个都不许越线", () => {
   const report = runResearch({ quote: quote(), articles: [article()] });
   assert.equal(report.blocked, 0, "流水线模板自己越线了，说明写文案的人该改，不是放行");
+  // 数字闸门同理：模板里的每个数字都要能在这一阶段的证据里找到。
+  // 将来 AI 产出接进来，这道闸就开始真正干活；现在它先证明模板自己是干净的。
+  assert.equal(report.numbersReplaced, 0, `模板里有数字在证据里找不到出处：${report.numbersReplaced} 个`);
   for (const stage of report.stages) {
     for (const finding of stage.findings) {
       const res = screenAdvice(finding.text);
       assert.equal(res.ok, true, `${stage.id} 的结论命中红线：${res.hits.join("；")}`);
+      assert.ok(!finding.text.includes("（略※）"), `${stage.id} 有数字被闸门换掉，说明模板引用了没摆出来的数`);
     }
   }
 });
