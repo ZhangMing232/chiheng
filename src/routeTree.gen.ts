@@ -11,15 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiRouteImport } from './routes/ai'
+import { Route as DebateRouteImport } from './routes/debate'
 import { Route as FactorsRouteImport } from './routes/factors'
 import { Route as FlowRouteImport } from './routes/flow'
+import { Route as MyStocksRouteImport } from './routes/my-stocks'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as PositionsRouteImport } from './routes/positions'
-import { Route as ScreenerRouteImport } from './routes/screener'
-import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as DebateRouteImport } from './routes/debate'
-import { Route as MyStocksRouteImport } from './routes/my-stocks'
+import { Route as ResearchRouteImport } from './routes/research'
+import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -32,6 +32,11 @@ const AiRoute = AiRouteImport.update({
   path: '/ai',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DebateRoute = DebateRouteImport.update({
+  id: '/debate',
+  path: '/debate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FactorsRoute = FactorsRouteImport.update({
   id: '/factors',
   path: '/factors',
@@ -40,6 +45,11 @@ const FactorsRoute = FactorsRouteImport.update({
 const FlowRoute = FlowRouteImport.update({
   id: '/flow',
   path: '/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyStocksRoute = MyStocksRouteImport.update({
+  id: '/my-stocks',
+  path: '/my-stocks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsRoute = NewsRouteImport.update({
@@ -52,24 +62,14 @@ const PositionsRoute = PositionsRouteImport.update({
   path: '/positions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResearchRoute = ResearchRouteImport.update({
-  id: '/research',
-  path: '/research',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DebateRoute = DebateRouteImport.update({
-  id: '/debate',
-  path: '/debate',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyStocksRoute = MyStocksRouteImport.update({
-  id: '/my-stocks',
-  path: '/my-stocks',
+const ResearchRoute = ResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScreenerRoute = ScreenerRouteImport.update({
@@ -86,28 +86,28 @@ const SymbolRoute = SymbolRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
+  '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
-  '/research': typeof ResearchRoute
   '/reports': typeof ReportsRoute
-  '/debate': typeof DebateRoute
-  '/my-stocks': typeof MyStocksRoute
+  '/research': typeof ResearchRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
+  '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
-  '/research': typeof ResearchRoute
   '/reports': typeof ReportsRoute
-  '/debate': typeof DebateRoute
-  '/my-stocks': typeof MyStocksRoute
+  '/research': typeof ResearchRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -115,14 +115,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
+  '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
   '/positions': typeof PositionsRoute
-  '/research': typeof ResearchRoute
   '/reports': typeof ReportsRoute
-  '/debate': typeof DebateRoute
-  '/my-stocks': typeof MyStocksRoute
+  '/research': typeof ResearchRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -131,42 +131,42 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ai'
+    | '/debate'
     | '/factors'
     | '/flow'
+    | '/my-stocks'
     | '/news'
     | '/positions'
-    | '/research'
     | '/reports'
-    | '/debate'
-    | '/my-stocks'
+    | '/research'
     | '/screener'
     | '/symbol'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/ai'
+    | '/debate'
     | '/factors'
     | '/flow'
+    | '/my-stocks'
     | '/news'
     | '/positions'
-    | '/research'
     | '/reports'
-    | '/debate'
-    | '/my-stocks'
+    | '/research'
     | '/screener'
     | '/symbol'
   id:
     | '__root__'
     | '/'
     | '/ai'
+    | '/debate'
     | '/factors'
     | '/flow'
+    | '/my-stocks'
     | '/news'
     | '/positions'
-    | '/research'
     | '/reports'
-    | '/debate'
-    | '/my-stocks'
+    | '/research'
     | '/screener'
     | '/symbol'
   fileRoutesById: FileRoutesById
@@ -174,14 +174,14 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiRoute: typeof AiRoute
+  DebateRoute: typeof DebateRoute
   FactorsRoute: typeof FactorsRoute
   FlowRoute: typeof FlowRoute
+  MyStocksRoute: typeof MyStocksRoute
   NewsRoute: typeof NewsRoute
   PositionsRoute: typeof PositionsRoute
-  ResearchRoute: typeof ResearchRoute
   ReportsRoute: typeof ReportsRoute
-  DebateRoute: typeof DebateRoute
-  MyStocksRoute: typeof MyStocksRoute
+  ResearchRoute: typeof ResearchRoute
   ScreenerRoute: typeof ScreenerRoute
   SymbolRoute: typeof SymbolRoute
 }
@@ -202,6 +202,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/debate': {
+      id: '/debate'
+      path: '/debate'
+      fullPath: '/debate'
+      preLoaderRoute: typeof DebateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/factors': {
       id: '/factors'
       path: '/factors'
@@ -214,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/flow'
       fullPath: '/flow'
       preLoaderRoute: typeof FlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-stocks': {
+      id: '/my-stocks'
+      path: '/my-stocks'
+      fullPath: '/my-stocks'
+      preLoaderRoute: typeof MyStocksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news': {
@@ -230,13 +244,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PositionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/research': {
-      id: '/research'
-      path: '/research'
-      fullPath: '/research'
-      preLoaderRoute: typeof ResearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/reports': {
       id: '/reports'
       path: '/reports'
@@ -244,18 +251,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/debate': {
-      id: '/debate'
-      path: '/debate'
-      fullPath: '/debate'
-      preLoaderRoute: typeof DebateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-stocks': {
-      id: '/my-stocks'
-      path: '/my-stocks'
-      fullPath: '/my-stocks'
-      preLoaderRoute: typeof MyStocksRouteImport
+    '/research': {
+      id: '/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/screener': {
@@ -278,14 +278,14 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiRoute: AiRoute,
+  DebateRoute: DebateRoute,
   FactorsRoute: FactorsRoute,
   FlowRoute: FlowRoute,
+  MyStocksRoute: MyStocksRoute,
   NewsRoute: NewsRoute,
   PositionsRoute: PositionsRoute,
-  ResearchRoute: ResearchRoute,
   ReportsRoute: ReportsRoute,
-  DebateRoute: DebateRoute,
-  MyStocksRoute: MyStocksRoute,
+  ResearchRoute: ResearchRoute,
   ScreenerRoute: ScreenerRoute,
   SymbolRoute: SymbolRoute,
 }
