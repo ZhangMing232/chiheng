@@ -25,6 +25,7 @@ import {
   Scale,
   Search,
   Sparkles,
+  Star,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
@@ -35,7 +36,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  *  折叠让「市场情报」这类低频组可以收起来给高频组让地方。 */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -59,7 +60,10 @@ const SIDEBAR: {
   },
   {
     label: "我的",
-    items: [{ to: "/reports", label: "我的报告", icon: FileText }],
+    items: [
+      { to: "/my-stocks", label: "自选与持仓", icon: Star },
+      { to: "/reports", label: "我的报告", icon: FileText },
+    ],
   },
 ];
 
