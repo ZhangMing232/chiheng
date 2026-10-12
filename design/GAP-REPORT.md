@@ -34,6 +34,15 @@
 | M2 | 港股（T+0、印花税、HKD） | 仅 A 股 | 同上 | ⬜ |
 | M3 | 印度/韩/加/越 | 无 | 用户最初只说了 A+美+港，这三个是它多出来的 | ⬜ |
 
+## 实现类裁剪（我搬了它的设计但砍了部分，逐条列出）
+
+| # | 它的原版 | 赤轨现状 | 砍掉的部分 | 状态 |
+|---|---|---|---|---|
+| S1 | company-research 六阶段（profile→financials→valuation→industry→catalyst→verdict，每阶段有专属 SOP 和 Gate） | 赤轨自定六阶段（identity/price/capital/catalyst/valuation/verdict） | 赤轨的六阶段**不是它的六阶段**——是按赤轨现有数据重新设计的。它的 industry 阶段（产业链）赤轨没有对应 | ⬜ 待用户确认这个重设计 |
+| S2 | number_gate.ts 274 行（含宽松换算、单位换算扩展、插件标签注册） | ~200 行内核 | 宽松换算的完整实现、registerGateLabels 插件机制 | ⬜ |
+| S3 | stop_guard 含六阶段文件校验（stageProblems 查 stages/*.json） | 只搬了推进感知（judgeRound） | 阶段产物校验那半（赤轨没有 stage 文件体系） | ⬜ |
+| S4 | evidence 用 sha256 + 哈希链账本（governance/ledger.py） | FNV-1a（客户端要能跑） | 防篡改的哈希链（赤轨的证据 id 只用于去重引用） | ⬜ |
+
 ## 工程类缺口
 
 | # | 项 | 现状 | 状态 |
