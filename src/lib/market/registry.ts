@@ -46,7 +46,8 @@ export type EndpointKind =
   | "fundamental"
   | "valuation"
   | "news"
-  | "calendar";
+  | "calendar"
+  | "risk";
 
 export type Endpoint = {
   id: string;
@@ -335,6 +336,40 @@ export const ENDPOINTS: Endpoint[] = [
       "单源无备份：RPTA_WEB_RZRQ_GGMX 一个端点，挂了 getMargin 带 why 降级",
     ],
     fetcher: "margin.ts + scripts/fetch-margin.ts（落盘 data/risk/margin-latest.json）",
+  },
+  {
+    id: "eastmoney.holder",
+    title: "东财股东户数（筹码集中度）",
+    source: "eastmoney",
+    market: "a",
+    compliance: "public-web",
+    kind: "risk",
+    critical: false,
+    unit: "户（HOLDER_NUM）/ %（HOLDER_NUM_RATIO 环比）",
+    traps: [
+      "**2026-10-12 实测通过**（600519 浦发：2026-06-30 163327 户 / +8.1%，RPT_HOLDERNUM_DET），见 holder-lift.ts:fetchHolders",
+      "**季度披露，一年约 4 个点**：不是日频数据——页面要标披露期；新股/部分票没有记录，见 holder-lift.ts 头注释",
+      "HOLDER_NUM_RATIO 是较上期变化百分比（8.1 = 户数环比 +8.1%）——正 = 筹码发散、负 = 集中，见 holder-lift.ts 头注释",
+      "排序用 sortColumns=END_DATE&sortTypes=-1（最新在前），缓存 1 小时——见 holder-lift.ts:fetchHolders",
+    ],
+    fetcher: "holder-lift.ts:fetchHolders → quotes.functions.ts:getHolders",
+  },
+  {
+    id: "eastmoney.lift",
+    title: "东财限售解禁表（抛压日历）",
+    source: "eastmoney",
+    market: "a",
+    compliance: "public-web",
+    kind: "risk",
+    critical: false,
+    unit: "万股（FREE_SHARES）/ 万元（LIFT_MARKET_CAP）/ 小数（FREE_RATIO）",
+    traps: [
+      "**2026-10-12 实测通过**（600519/688041/001270 等，RPT_LIFT_STAGE）——见 holder-lift.ts:fetchLifts",
+      "**解禁日字段叫 FREE_DATE，不叫 LIFT_DATE**——columns 写错东财直接报 9501 而不是返回空，踩过",
+      "FREE_SHARES 是万股、LIFT_MARKET_CAP 是万元、FREE_RATIO 是小数（0.102 = 10.2%，页面展示 ×100）",
+      "接口含历史解禁——调用方要自己筛未来窗口（upcomingLifts 默认 90 天）；近期没解禁的票返回 0 条是正常不是故障",
+    ],
+    fetcher: "holder-lift.ts:fetchLifts/upcomingLifts → quotes.functions.ts:getLifts",
   },
   {
     id: "eastmoney.news",

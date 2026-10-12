@@ -36,7 +36,7 @@ import {
 } from "@/lib/market/format";
 import { BOARD_LABEL, limitTag } from "@/lib/market/model";
 import type { Bar, Board } from "@/lib/market/types";
-import { getKline } from "@/lib/market/quotes.functions";
+import { getKline, getHolders, getLifts } from "@/lib/market/quotes.functions";
 import { getSymbolPanel } from "@/lib/market/symbol-panel.functions";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { StateBlock } from "@/components/state-block";
@@ -123,6 +123,20 @@ function SymbolPanel({ id }: { id: string }) {
     queryKey: ["kline", id],
     queryFn: () => getKline({ data: { id } }),
     staleTime: 5 * 60_000,
+  });
+  // 筹码与解禁也是独立 query：东财 datacenter 慢，失败了只这一块降级，不拖首屏。
+  // 服务端有 1 小时缓存，这里 staleTime 同口径，避免每次开抽屉都重打。
+  const holders = useQuery({
+    queryKey: ["holders", id],
+    queryFn: () => getHolders({ data: { id } }),
+    staleTime: 60 * 60_000,
+    retry: false,
+  });
+  const lifts = useQuery({
+    queryKey: ["lifts", id],
+    queryFn: () => getLifts({ data: { id } }),
+    staleTime: 60 * 60_000,
+    retry: false,
   });
 
   if (panel.isLoading) {
@@ -278,6 +292,87 @@ function SymbolPanel({ id }: { id: string }) {
               {data?.why ?? "账本里没有这只票的成交"}
             </p>
           )}
+        </Block>
+
+        {/* 筹码与解禁：户数变化看筹码发散/集中，解禁表是未来的抛压日历（D4） */}
+        <Block title="筹码与解禁">
+          <div className="rounded bg-surface-2 px-3 py-2 text-xs">
+            {holders.isLoading ? (
+              <p className="text-muted">正在取股东户数</p>
+            ) : holders.isError || (holders.data?.length ?? 0) === 0 ? (
+              <p className="text-muted">股东户数取不到（季度披露，部分票没有）</p>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-muted">股东户数（{holders.data![0].date}）</span>
+                  <span className="tabular-nums">
+                    {fmtWan(holders.data![0].num / 10_000)}
+                    {holders.data![0].chgPct != null ? (
+                      <span
+                        className={cx(
+                          "ml-1.5 tabular-nums",
+                          // 户数上升 = 筹码发散（散户变多），下降 = 集中。和涨跌同色口径：发散偏利空用 down
+                          holders.data![0].chgPct > 0 ? "text-down" : holders.data![0].chgPct < 0 ? "text-up" : "text-muted",
+                        )}
+                      >
+                        {signedPct(holders.data![0].chgPct)}
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+                {holders.data!.length > 1 ? (
+                  <ul className="mt-1.5 flex flex-col gap-0.5 tabular-nums text-muted">
+                    {holders.data!.slice(1, 4).map((point) => (
+                      <li key={point.date} className="flex justify-between">
+                        <span>{point.date}</span>
+                        <span>
+                          {fmtWan(point.num / 10_000)}
+                          {point.chgPct != null ? (
+                            <span
+                              className={cx(
+                                "ml-1.5",
+                                point.chgPct > 0 ? "text-down" : point.chgPct < 0 ? "text-up" : undefined,
+                              )}
+                            >
+                              {signedPct(point.chgPct)}
+                            </span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <p className="mt-1.5 text-[11px] text-muted">户数上升 = 筹码发散，下降 = 集中</p>
+              </>
+            )}
+            <div className="my-2 border-t border-line" />
+            {lifts.isLoading ? (
+              <p className="text-muted">正在取解禁表</p>
+            ) : lifts.isError ? (
+              <p className="text-muted">解禁表取不到</p>
+            ) : (lifts.data?.length ?? 0) === 0 ? (
+              <p className="text-muted">未来 90 天没有解禁</p>
+            ) : (
+              <>
+                <ul className="flex flex-col gap-1">
+                  {lifts.data!.map((row) => (
+                    <li key={`${row.date}-${row.type}`} className="flex items-baseline justify-between gap-2">
+                      <span className="tabular-nums text-muted">{row.date}</span>
+                      <span className="min-w-0 flex-1 truncate">{row.type}</span>
+                      <span className="tabular-nums">
+                        {fmtPlain(row.sharesYi, 2)} 亿股
+                        {row.ratioPct > 0 ? (
+                          <span className="ml-1.5 text-down">{fmtPlain(row.ratioPct, 1)}%</span>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[11px] text-muted">解禁占总股本比例是未来的抛压，数字越大越要当心</p>
+              </>
+            )}
+            <p className="mt-1.5 text-[11px] text-muted">来源：东财 datacenter，季度披露/已实测</p>
+          </div>
         </Block>
 
         {/* 走势 */}

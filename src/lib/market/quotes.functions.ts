@@ -26,6 +26,7 @@ import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle,
 import { loadFlow } from "@/lib/market/flow";
 import { loadHotMoney } from "@/lib/market/hotmoney";
 import type { MarginRow } from "@/lib/market/margin";
+import { fetchHolders, fetchLifts, upcomingLifts } from "@/lib/market/holder-lift";
 import { loadIndexFutures } from "@/lib/market/index-futures";
 import { ensureUserBook, readUserBook } from "@/lib/market/book-file";
 import { sessionPhase } from "@/lib/market/session";
@@ -371,6 +372,41 @@ export const getMargin = createServerFn({ method: "GET" }).handler(async () => {
     };
   }
 });
+
+/** 股东户数最近几期（D4）。id 带 sh/sz/bj 前缀，这里剥掉。拉不到抛错，页面降级。 */
+export const getHolders = createServerFn({ method: "GET" })
+  .validator((data: unknown) => {
+    if (
+      typeof data !== "object" ||
+      data === null ||
+      !("id" in data) ||
+      typeof (data as { id?: unknown }).id !== "string" ||
+      !/^(sh|sz|bj)\d{6}$/.test((data as { id: string }).id)
+    ) {
+      throw new Error("无效的股票代码");
+    }
+    return { id: (data as { id: string }).id };
+  })
+  .handler(async ({ data }) => fetchHolders(data.id.replace(/^(sh|sz|bj)/, "")));
+
+/** 未来 90 天解禁（D4）。今天按服务器时钟算。 */
+export const getLifts = createServerFn({ method: "GET" })
+  .validator((data: unknown) => {
+    if (
+      typeof data !== "object" ||
+      data === null ||
+      !("id" in data) ||
+      typeof (data as { id?: unknown }).id !== "string" ||
+      !/^(sh|sz|bj)\d{6}$/.test((data as { id: string }).id)
+    ) {
+      throw new Error("无效的股票代码");
+    }
+    return { id: (data as { id: string }).id };
+  })
+  .handler(async ({ data }) => {
+    const rows = await fetchLifts(data.id.replace(/^(sh|sz|bj)/, ""));
+    return upcomingLifts(rows, new Date().toISOString().slice(0, 10));
+  });
 
 /** 给页面用的股指期货持仓。没有参数。单位是手。 */
 export const getIndexFutures = createServerFn({ method: "GET" }).handler(async () => loadIndexFutures());
