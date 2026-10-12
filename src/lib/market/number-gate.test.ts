@@ -88,3 +88,24 @@ test("2026-10-12 回归：证据/计算 id 里的数字不是数据点，不许�
   assert.match(r.text, /ev-1xq7j8z/, `id 被啃了：${r.text}`);
   assert.match(r.text, /calc-ab12cd/);
 });
+
+test("T1：规则阈值（比较词+无量纲计数）不是数据点，放行", () => {
+  // 已踩三次：文案里的阈值数字被当数据点拦，根因是闸门分不清「数据点」和「规则阈值」
+  const r = screenNumbers("评分高于 2 才入选，近 4 个季度营收加速，超过 5 家机构覆盖，取前 3 名。", []);
+  assert.deepEqual(r.replaced, [], `阈值被误拦了：${r.replaced.join(",")}`);
+  assert.match(r.text, /高于 2/);
+  assert.match(r.text, /近 4 个季度/);
+});
+
+test("T1：带度量单位的阈值仍核对——那种写法读起来就是数据", () => {
+  // 红线：豁免只信无量纲计数。%、倍、元这些单位不豁免，编的「市盈率低于 20 倍」必须拦
+  const r = screenNumbers("市盈率低于 20 倍，涨幅超过 5%，市值不到 80 亿。", SOURCES);
+  assert.deepEqual(r.replaced, ["20", "5", "80"], `带单位的阈值被误放了：${r.replaced.join(",")}`);
+});
+
+test("T1：没有计数单位的阈值只信 10 以内——「市盈率高于 20」仍按数据核对", () => {
+  const small = screenNumbers("评分高于 2。", []);
+  assert.deepEqual(small.replaced, [], "小整数阈值放行");
+  const big = screenNumbers("市盈率高于 20。", SOURCES);
+  assert.deepEqual(big.replaced, ["20"], "省略单位的大整数是省略，不是旋钮，仍要拦");
+});
