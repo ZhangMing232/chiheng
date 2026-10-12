@@ -38,10 +38,10 @@
 
 | # | 它的原版 | 赤轨现状 | 砍掉的部分 | 状态 |
 |---|---|---|---|---|
-| S1 | company-research 六阶段（profile→financials→valuation→industry→catalyst→verdict，每阶段有专属 SOP 和 Gate） | 赤轨自定六阶段（identity/price/capital/catalyst/valuation/verdict） | 赤轨的六阶段**不是它的六阶段**——是按赤轨现有数据重新设计的。它的 industry 阶段（产业链）赤轨没有对应 | ⬜ 待用户确认这个重设计 |
-| S2 | number_gate.ts 274 行（含宽松换算、单位换算扩展、插件标签注册） | ~200 行内核 | 宽松换算的完整实现、registerGateLabels 插件机制 | ⬜ |
-| S3 | stop_guard 含六阶段文件校验（stageProblems 查 stages/*.json） | 只搬了推进感知（judgeRound） | 阶段产物校验那半（赤轨没有 stage 文件体系） | ⬜ |
-| S4 | evidence 用 sha256 + 哈希链账本（governance/ledger.py） | FNV-1a（客户端要能跑） | 防篡改的哈希链（赤轨的证据 id 只用于去重引用） | ⬜ |
+| S1 | company-research 六阶段（profile→financials→valuation→industry→catalyst→verdict，每阶段有专属 SOP 和 Gate） | 赤轨自定六阶段（identity/price/capital/catalyst/valuation/verdict） | 赤轨的六阶段**不是它的六阶段**——是按赤轨现有数据重新设计的。它的 industry 阶段（产业链）赤轨没有对应 | ✅ 2026-10-12 用户拍板：接受重设计 |
+| S2 | number_gate.ts 274 行（含宽松换算、单位换算扩展、插件标签注册） | ~200 行内核 | 宽松换算的完整实现、registerGateLabels 插件机制 | ✅ 2026-10-12 用户拍板：接受（赤轨用不上那么宽） |
+| S3 | stop_guard 含六阶段文件校验（stageProblems 查 stages/*.json） | 只搬了推进感知（judgeRound） | 阶段产物校验那半（赤轨没有 stage 文件体系） | ✅ 2026-10-12 用户拍板：接受 |
+| S4 | evidence 用 sha256 + 哈希链账本（governance/ledger.py） | FNV-1a（客户端要能跑） | 防篡改的哈希链（赤轨的证据 id 只用于去重引用） | ✅ 2026-10-12 用户拍板：接受（证据不是安全边界） |
 
 ## 工程类缺口
 
