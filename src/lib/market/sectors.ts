@@ -149,9 +149,9 @@ function secondStrong(members: Member[], sector: string, sectorPct: number, tail
   const leader = ranked[0];
   for (const item of ranked.slice(1)) {
     const quote = asQuote(item);
-    const limit = limitPct(quote);
+    const limit = limitPct(quote); // 板块成员都是 A 股，null（无涨跌停）不会发生
     const gap = leader.chg - item.chg;
-    if (item.chg < 2 || item.chg >= limit - 1 || gap < 2) continue;
+    if (item.chg < 2 || (limit != null && item.chg >= limit - 1) || gap < 2) continue;
     const buy = Math.round(item.price * 100) / 100;
     const targetPct = Math.min(6, gap);
     const sell = Math.round(buy * (1 + targetPct / 100) * 100) / 100;
@@ -168,7 +168,7 @@ function secondStrong(members: Member[], sector: string, sectorPct: number, tail
       buy,
       sell,
       stop,
-      hit: tailHalf && quote.price > 0 && item.chg < limit - 1,
+      hit: tailHalf && quote.price > 0 && (limit == null || item.chg < limit - 1),
     };
   }
   return null;
@@ -248,13 +248,13 @@ async function refreshFrozen(picks: Listed[]): Promise<Listed[]> {
   return picks.map((pick) => {
     const now = live.get(pick.quote.id);
     const quote = now ? { ...pick.quote, price: now.price, chg: now.chg } : pick.quote;
-    const limit = limitPct(quote);
+    const limit = limitPct(quote); // 补涨名单是 A 股，null（无涨跌停）不会发生
     const chg = quote.chg ?? 0;
     const base = pick.reasons.filter((line) => !line.startsWith("14:30"));
     if (!now) {
       return { ...pick, quote, hit: false, block: "away" as const, reasons: [...base, "14:30 已冻结。现价没刷新，先不买"] };
     }
-    if (chg >= limit - 1) {
+    if (limit != null && chg >= limit - 1) {
       return { ...pick, quote, hit: false, block: "limit" as const, reasons: [...base, "14:30 已冻结。现在涨停，买不进"] };
     }
     if (quote.price > pick.buy + 0.01) {

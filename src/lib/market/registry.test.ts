@@ -63,10 +63,14 @@ test("criticalOf('a') 至少覆盖快照与 K 线", () => {
   assert.ok(ids.includes("tencent.kline"), "K 线必须关键");
 });
 
-test("market 字段已为多市场预留（现在只填 a）", () => {
-  // P3 接美股/港股时只加条目，不改结构——这条断言防止有人现在就塞 'hk'/'us' 但没接数据源
-  assert.ok(
-    ENDPOINTS.every((e) => e.market === "a"),
-    "现在只有 A 股数据源，market 不该出现 hk/us（除非 P3 已接入）",
-  );
+test("market 字段：A 股之外，hk/us 只许出现在港美端点（M1/M2 已接入）", () => {
+  // 2026-10-12 M1/M2 拍板先美港：market 不再只填 a，但 hk/us 只许是港美行情端点——
+  // 防止有人给 A 股端点随手填 hk/us，或加了 market 条目却没接数据源。
+  const overseasIds = new Set(["eastmoney.hk", "eastmoney.us"]);
+  for (const e of ENDPOINTS) {
+    if (e.market === "a") continue;
+    assert.ok(overseasIds.has(e.id), `${e.id} 标了 market=${e.market} 但不是已接入的港美端点`);
+  }
+  assert.ok(ENDPOINTS.some((e) => e.market === "hk"), "港股端点必须存在（M1/M2 已拍板）");
+  assert.ok(ENDPOINTS.some((e) => e.market === "us"), "美股端点必须存在（M1/M2 已拍板）");
 });

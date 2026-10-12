@@ -32,6 +32,8 @@ import { ensureUserBook, readUserBook } from "@/lib/market/book-file";
 import { sessionPhase } from "@/lib/market/session";
 import type { Bar, IndexQuote, Trend, TrendPoint, Universe } from "@/lib/market/types";
 import { fetchIndices, fetchUniverse } from "@/lib/market/providers/index";
+import { fetchOverseasKline, fetchOverseasQuote, searchOverseas } from "@/lib/market/providers/overseas";
+import { ID_PATTERN, marketOf } from "@/lib/market/markets";
 
 /**
  * 全市场快照的缓存时间。
@@ -165,6 +167,11 @@ export async function loadIndices(): Promise<IndexQuote[]> {
  * 就一定不是跌停，所以那边按跌幅先把这种情况挡掉。
  */
 export async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }> {
+  // 港/美（M1/M2）走东财港美行情域，和 A 股腾讯域完全分开；缓存口径相同。
+  if (marketOf(id) !== "a") {
+    const bars = await fetchOverseasKline(id);
+    return { id, bars };
+  }
   const hit = klineCache.get(id);
   if (hit && Date.now() - hit.at < 5 * 60_000) return { id, bars: hit.bars };
   const url = `https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=${id},day,,,120`;
@@ -414,6 +421,7 @@ export const getIndexFutures = createServerFn({ method: "GET" }).handler(async (
 /**
  * 顶栏全局搜索（⌘K）。按名称或六位代码在全市场里找，最多 8 条。
  * 空查询直接回空，不拉行情——省得每次点开下拉都去请求一遍。
+ * 港/美（M1/M2）：A 股名单里没有它们，字母/五位数字查询另走东财联想接口合并进来。
  */
 export const getQuickSearch = createServerFn({ method: "GET" })
   .validator((data: unknown) => {
@@ -424,18 +432,28 @@ export const getQuickSearch = createServerFn({ method: "GET" })
     return { q };
   })
   .handler(async ({ data }) => {
-    if (!data.q) return { matches: [] as { id: string; code: string; name: string; chg: number | null }[] };
+    const empty = { matches: [] as { id: string; code: string; name: string; chg: number | null }[] };
+    if (!data.q) return empty;
     const universe = await loadUniverse(false).catch(() => null);
-    if (!universe) return { matches: [] as { id: string; code: string; name: string; chg: number | null }[] };
     const needle = data.q.toLowerCase();
-    const matches = universe.quotes
+    const aMatches = (universe?.quotes ?? [])
       .filter((quote) => quote.name.toLowerCase().includes(needle) || quote.code.includes(needle))
       .slice(0, 8)
       .map((quote) => ({ id: quote.id, code: quote.code, name: quote.name, chg: quote.chg }));
-    return { matches };
+    // 字母或五位数字才可能是港美股代码/拼音，中文两字以上也可能是港股名（腾讯→腾讯控股）。
+    // 联想接口失败静默降级成纯 A 股结果，不让整个搜索挂掉。
+    const overseasLooks = /^[A-Za-z.]{1,6}$/.test(data.q) || /^\d{5}$/.test(data.q) || /^[\u4e00-\u9fff]{2,}$/.test(data.q);
+    if (!overseasLooks) return { matches: aMatches };
+    const overseas = await searchOverseas(data.q).catch(() => []);
+    const seen = new Set(aMatches.map((m) => m.id));
+    const overseasMatches = overseas
+      .filter((hit) => !seen.has(hit.id))
+      .slice(0, 8 - aMatches.length)
+      .map((hit) => ({ id: hit.id, code: hit.code, name: `${hit.name}（${hit.market === "hk" ? "港股" : "美股"}）`, chg: null as number | null }));
+    return { matches: [...aMatches, ...overseasMatches] };
   });
 
-/** 给页面用的日 K。传入 { id }，id 必须是 sh、sz 或 bj 加六位代码。 */
+/** 给页面用的日 K。传入 { id }，id 形状见 markets.ts:ID_PATTERN（A 股 sh/sz/bj + 六位，港 hk + 五位，美 us + 字母代码）。 */
 export const getKline = createServerFn({ method: "GET" })
   .validator((data: unknown) => {
     if (
@@ -447,10 +465,29 @@ export const getKline = createServerFn({ method: "GET" })
       throw new Error("无效的股票代码");
     }
     const id = (data as { id: string }).id;
-    if (!/^(sh|sz|bj)\d{6}$/.test(id)) throw new Error("无效的股票代码");
+    if (!ID_PATTERN.test(id)) throw new Error("无效的股票代码");
     return { id };
   })
   .handler(async ({ data }) => loadKline(data.id));
+
+/** 港/美股报价（M1/M2）。东财港美行情域，拉不到带 why 让页面降级，不编造。 */
+export const getOverseasQuote = createServerFn({ method: "GET" })
+  .validator((data: unknown) => {
+    if (
+      typeof data !== "object" ||
+      data === null ||
+      !("id" in data) ||
+      typeof (data as { id?: unknown }).id !== "string" ||
+      marketOf((data as { id: string }).id) === "a"
+    ) {
+      throw new Error("无效的港美股代码");
+    }
+    return { id: (data as { id: string }).id };
+  })
+  .handler(async ({ data }) => {
+    const quote = await fetchOverseasQuote(data.id).catch(() => null);
+    return { quote, why: quote ? null : "港美股行情暂时拉不下来，稍后再试" };
+  });
 
 /** 读本机记录器状态。返回上次记录时间 at（毫秒，没有是 null）和是否正常 ok。 */
 export const getRecorder = createServerFn({ method: "GET" }).handler(async () => {

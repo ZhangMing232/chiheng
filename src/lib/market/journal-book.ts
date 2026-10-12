@@ -6,6 +6,7 @@
  * 买入当天不能卖。循环从买入日的下一根 K 线开始，所以天然是 T+1。
  * 同一天既碰到止损又碰到止盈，先按止损算，不按更好看的卖出价。
  * 跌停封死的那天卖不掉，这天不算卖出，继续等下一天。
+ * 无涨跌停的市场（美/港，limitPct 传 null）没有「封死」概念，这段检查整段跳过。
  * 手续费是写死的一来一回：佣金万 2.5 两边、印花税万 5（只在卖出里折进这一笔）、过户费万 0.1 两边。
  * 没有做「佣金不足 5 元按 5 元收」。这是模拟账，不会发给券商。
  */
@@ -34,7 +35,7 @@ export function exitFill(
   entry: number,
   stop: number,
   target: number,
-  limitPct = 10,
+  limitPct: number | null = 10,
   sessions = HOLD_SESSIONS,
 ): { date: string; price: number; reason: "target" | "stop" | "time" } | null {
   const start = bars.findIndex((bar) => normDay(bar.date) === normDay(entryDate));
@@ -52,13 +53,14 @@ export function exitFill(
       else extra -= 1;
       continue;
     }
-    const down = Math.round(prev * (1 - limitPct / 100) * 100) / 100;
+    const down = limitPct != null ? Math.round(prev * (1 - limitPct / 100) * 100) / 100 : 0;
     // 跌停最多只能跌 limitPct。跌幅比这还大，一定不是跌停，而是除权除息或者
     // 长期停牌后复牌——这些日子照样能卖，不能当成「封死卖不掉」跳过。
     // 留半个点的容差，挡住四舍五入和那些不到一分钱的误差。
+    // limitPct 为 null（美/港无涨跌停）时 down=0，sealedDown 恒 false，整段不生效。
     const drop = prev > 0 ? ((prev - bar.c) / prev) * 100 : 0;
     const sealedDown =
-      drop <= limitPct + 0.5 && down > 0 && bar.c <= down + 0.01 && (bar.h == null || bar.h <= down + 0.01);
+      limitPct != null && drop <= limitPct + 0.5 && down > 0 && bar.c <= down + 0.01 && (bar.h == null || bar.h <= down + 0.01);
     prev = bar.c;
     // last 表示「持股天数已经用完了」。left 减到 0 之后也算到期，
     // 这样到期那天刚好跌停时，下一个能卖的收盘价就会成交，而不是一直等下去。

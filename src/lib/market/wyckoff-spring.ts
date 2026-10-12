@@ -156,7 +156,8 @@ function sumVol(rows: SpringBar[], from: number, to: number): number {
  * 跌停闸偏松**：一只真 ST 股跌 5% 封死，回测算「只跌了 5%，没到板」。这类票会混进
  * Spring 样本。K 线不带 ST 标记，本轮无法修。
  */
-function isSealedDown(rows: SpringBar[], j: number, limitPct: number): boolean {
+function isSealedDown(rows: SpringBar[], j: number, limitPct: number | null): boolean {
+  if (limitPct == null) return false; // 无涨跌停的市场（美/港）没有封死概念
   if (j < 1) return false;
   const prev = rows[j - 1].c;
   const bar = rows[j];
@@ -172,7 +173,7 @@ function isSealedDown(rows: SpringBar[], j: number, limitPct: number): boolean {
 export function isSpringAt(
   rows: SpringBar[],
   j: number,
-  limitPct: number,
+  limitPct: number | null,
 ): { depth: number; wick: number; volRatio: number; rangeLow: number; rangeHeight: number } | null {
   // 数据不足：既要有区间低点 [j-60, j)，也要有均量 [j-20, j)
   if (j < RANGE_WIN || j < VOL_WIN) return null;

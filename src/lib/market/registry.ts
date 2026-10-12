@@ -23,8 +23,7 @@
  *    所以这个文件的 import 必须零副作用。
  */
 
-/** 市场标识。现在只有 A 股，字段为 P3 多市场预留。 */
-export type MarketId = "a" | "hk" | "us";
+import type { MarketId } from "@/lib/market/markets";
 
 /** 数据源。 */
 export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock";
@@ -385,6 +384,40 @@ export const ENDPOINTS: Endpoint[] = [
       "只覆盖 A 股；**全球消息（美股/港股/宏观）尚未接入**——news.ts:120 只拉东财 A 股快讯，这是相对 Vibe（A/美/港）最大的覆盖差距，P3 补",
     ],
     fetcher: "news.ts:loadHeadlines",
+  },
+  {
+    id: "eastmoney.hk",
+    title: "东财港股行情（报价 + 日 K）",
+    source: "eastmoney",
+    market: "hk",
+    compliance: "public-web",
+    kind: "kline",
+    critical: false,
+    unit: "港元",
+    traps: [
+      "**2026-10-12 实测通过**（hk00700 腾讯控股 425.800 港元）——见 providers/overseas.ts:fetchOverseasQuote",
+      "**行情域和 A 股分开**：secid=116.XXXXX（港股），A 股的腾讯/东财域里没有港美股，见 oversea​s.ts:secidOf",
+      "K 线七段是「日期,开,收,高,低,量,额」——**开收在高前**，和腾讯 qfqday 顺序不同，别照搬，见 oversea​s.ts:parseKlineRow",
+      "报价走 kline lmt=1 顺带拿（最新 K 线 + preKPrice 昨收 + name），不碰 stock/get 的 f43——那个要 ÷1000 且随票变",
+      "REMAINING 写「数据源可用 yahoo」，实测本机 query1.finance.yahoo.com 返回运营商 block 页（HTML）——所以接东财，yahoo 留作备用路线",
+    ],
+    fetcher: "providers/overseas.ts → quotes.functions.ts:getOverseasQuote/getKline",
+  },
+  {
+    id: "eastmoney.us",
+    title: "东财美股行情（报价 + 日 K）",
+    source: "eastmoney",
+    market: "us",
+    compliance: "public-web",
+    kind: "kline",
+    critical: false,
+    unit: "美元",
+    traps: [
+      "**2026-10-12 实测通过**（usAAPL 苹果 340.935 美元）——见 providers/overseas.ts:fetchOverseasQuote",
+      "secid=105.SYMBOL（美股）；联想接口正股 SecurityType=20（Apple Notes 债券是 7），别收进搜索，见 oversea​s.ts:parseSuggest",
+      "美股分冬夏令时（America/New_York  offset -5/-4）——markets.ts 只登记了时区，交易时段接入时要处理",
+    ],
+    fetcher: "providers/overseas.ts → quotes.functions.ts:getOverseasQuote/getKline",
   },
   {
     id: "cffex.futures",

@@ -83,7 +83,7 @@ function prevClose(quote: Quote): number | null {
 function tradable(quote: Quote): boolean {
   if (quote.st || quote.price < 4 || quote.cap < 40 || quote.chg == null) return false;
   const limit = limitPct(quote);
-  if (quote.chg >= limit - 0.3 || quote.chg <= -limit + 0.3) return false;
+  if (limit != null && (quote.chg >= limit - 0.3 || quote.chg <= -limit + 0.3)) return false;
   return true;
 }
 

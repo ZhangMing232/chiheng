@@ -8,6 +8,7 @@
  * TRACK_NEED 是样本要记满 60 个交易日才谈胜率，不是持股天数。
  */
 import type { Board, Quote } from "@/lib/market/types";
+import { marketOf } from "@/lib/market/markets";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 
 export type Scored = { score: number; reasons: string[] };
@@ -52,19 +53,26 @@ export const BOARD_LABEL: Record<Board, string> = {
   cyb: "创业",
   kcb: "科创",
   bj: "北证",
+  hk: "港股",
+  us: "美股",
 };
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
-/** 按股票代码和名字给出涨跌停百分比。10 表示 10%，不是 0.1。 */
-export function limitPct(quote: Quote): number {
+/**
+ * 按股票代码和名字给出涨跌停百分比。10 表示 10%，不是 0.1。
+ * 美/港无涨跌停（markets.ts 的 limit: "none"），返回 null——
+ * limitTag 恒 null、exitFill 的跌停封死检查跳过。A 股行为不变。
+ */
+export function limitPct(quote: Quote): number | null {
   return boardLimit(quote.id, quote.name);
 }
 
 /** 不看行情、只看代码和名字，算出涨跌停百分比。给还没有 Quote 的地方用。 */
-export function boardLimit(id: string, name: string): number {
+export function boardLimit(id: string, name: string): number | null {
+  if (marketOf(id) !== "a") return null;
   if (name.toUpperCase().includes("ST") || name.includes("退")) return 5;
   // sh689 是科创板存托凭证（实测只有九号公司 689009），同样 20%。
   // boardOf 已经把它归到 kcb，这里漏掉会出现「板块是科创、涨跌停按 10%」的错位。
@@ -73,10 +81,11 @@ export function boardLimit(id: string, name: string): number {
   return 10;
 }
 
-/** 现价已经贴到涨停或跌停就标出来。留了 0.15 个百分点的缝，避免四舍五入把涨停漏掉。 */
+/** 现价已经贴到涨停或跌停就标出来。留了 0.15 个百分点的缝，避免四舍五入把涨停漏掉。无涨跌停的市场恒 null。 */
 export function limitTag(quote: Quote): "涨停" | "跌停" | null {
   if (quote.chg == null) return null;
   const limit = limitPct(quote);
+  if (limit == null) return null;
   if (quote.chg >= limit - 0.15) return "涨停";
   if (quote.chg <= -limit + 0.15) return "跌停";
   return null;
@@ -94,12 +103,16 @@ export function isIdleBook(quotes: Quote[]): boolean {
 
 function notSealedUp(quote: Quote): boolean {
   if (quote.chg == null) return true;
-  return quote.chg < limitPct(quote) - 0.3;
+  const limit = limitPct(quote);
+  if (limit == null) return true; // 无涨跌停的市场（美/港）不存在封板
+  return quote.chg < limit - 0.3;
 }
 
 function notSealedDown(quote: Quote): boolean {
   if (quote.chg == null) return true;
-  return quote.chg > -limitPct(quote) + 0.3;
+  const limit = limitPct(quote);
+  if (limit == null) return true;
+  return quote.chg > -limit + 0.3;
 }
 
 function pct(n: number | null): string {

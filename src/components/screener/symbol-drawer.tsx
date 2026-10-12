@@ -6,10 +6,11 @@
  * 1. **它由 store 驱动，不由父组件传参**。原来的 `Detail` 收 `quote`/`score`/`reasons`
  *    四个 prop，只能活在选股页里（那里才有 quote 和模型得分）。PPT 要求「点任意股票名
  *    滑出抽屉、不离开当前页」，所以数据改成自己取：行情/持仓/消息/资金流走
- *    `getSymbolPanel`，走势走 `getKline`。
+ *    `getSymbolPanel`，走势走 `getKline`。港/美股（M1/M2）只有行情：报价走
+ *    `getOverseasQuote`，A 股专属区块（账本/筹码/资金/消息）整段不渲染。
  * 2. **模型得分和入选理由是选股页额外给的**（store 的 `note`）。别的页面不知道这两个
  *    数——它们只看得到行情和账本——所以拿不到就显示「未参加当前模型」，不能编一个。
- * 3. **这里只展示，不买入、不改账。** 行情有延迟。
+ * 3. **这里只展示，不买入、不改账。** 行情有延迟。港美股的币种是当地货币（港元/美元）。
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -35,8 +36,9 @@ import {
   toneClass,
 } from "@/lib/market/format";
 import { BOARD_LABEL, limitTag } from "@/lib/market/model";
+import { currencyLabelOf, marketOf } from "@/lib/market/markets";
 import type { Bar, Board } from "@/lib/market/types";
-import { getKline, getHolders, getLifts } from "@/lib/market/quotes.functions";
+import { getKline, getHolders, getLifts, getOverseasQuote } from "@/lib/market/quotes.functions";
 import { getSymbolPanel } from "@/lib/market/symbol-panel.functions";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { StateBlock } from "@/components/state-block";
@@ -102,21 +104,40 @@ function PanelHeader({ id, name, tag }: { id: string; name: string | null; tag: 
 }
 
 /**
- * sh600519 → "sh"，给 BOARD_LABEL 查。BOARD_LABEL 的键是 Board（sh/sz/cyb/kcb/bj）
- * 不是中文板块名——查错了 TS 会直接报索引越界。
+ * sh600519 → "sh"，给 BOARD_LABEL 查。BOARD_LABEL 的键是 Board（sh/sz/cyb/kcb/bj/hk/us）
+ * 不是中文板块名——查错了 TS 会直接报索引越界。港/美按前缀直接归 board。
  */
 function boardOf(id: string): Board {
   if (id.startsWith("sh")) return "sh";
   if (id.startsWith("bj")) return "bj";
+  if (id.startsWith("hk")) return "hk";
+  if (id.startsWith("us")) return "us";
   return "sz";
+}
+
+/** 东财个股页 URL。A 股直接 /sh600519.html，港美要走 /hk/、/us/ 子路径（实测）。 */
+function eastmoneyUrl(id: string): string {
+  if (id.startsWith("hk")) return `https://quote.eastmoney.com/hk/${id.slice(2)}.html`;
+  if (id.startsWith("us")) return `https://quote.eastmoney.com/us/${id.slice(2)}.html`;
+  return `https://quote.eastmoney.com/${id}.html`;
 }
 
 function SymbolPanel({ id }: { id: string }) {
   const note = useSymbolUi((s) => s.note);
+  // 港/美（M1/M2）只有行情：账本/消息/资金/两融都是 A 股数据，那些查询直接不发起。
+  const isA = marketOf(id) === "a";
   const panel = useQuery({
     queryKey: ["symbol-panel", id],
     queryFn: () => getSymbolPanel({ data: { id } }),
     staleTime: 60_000,
+    enabled: isA,
+  });
+  const overseas = useQuery({
+    queryKey: ["overseas-quote", id],
+    queryFn: () => getOverseasQuote({ data: { id } }),
+    staleTime: 60_000,
+    enabled: !isA,
+    retry: false,
   });
   // 走势单独一条 query：它慢（要拉 250 根 K 线），独立 loading 才不会拖慢抽屉首屏
   const kline = useQuery({
@@ -131,15 +152,20 @@ function SymbolPanel({ id }: { id: string }) {
     queryFn: () => getHolders({ data: { id } }),
     staleTime: 60 * 60_000,
     retry: false,
+    enabled: isA,
   });
   const lifts = useQuery({
     queryKey: ["lifts", id],
     queryFn: () => getLifts({ data: { id } }),
     staleTime: 60 * 60_000,
     retry: false,
+    enabled: isA,
   });
 
-  if (panel.isLoading) {
+  const loading = isA ? panel.isLoading : overseas.isLoading;
+  const failed = isA ? panel.isError : overseas.isError || overseas.data?.why != null;
+
+  if (loading) {
     return (
       <>
         <PanelHeader id={id} name={null} tag={null} />
@@ -147,7 +173,7 @@ function SymbolPanel({ id }: { id: string }) {
       </>
     );
   }
-  if (panel.isError) {
+  if (failed) {
     return (
       <>
         <PanelHeader id={id} name={null} tag={null} />
@@ -162,14 +188,16 @@ function SymbolPanel({ id }: { id: string }) {
     );
   }
 
-  const data = panel.data;
+  const data = isA ? panel.data : undefined;
   const quote = data?.quote ?? null;
+  const oQuote = !isA ? (overseas.data?.quote ?? null) : null;
   const bars = kline.data?.bars ?? [];
   const trendUp =
     bars.length > 1 ? bars[bars.length - 1].c >= bars[0].c : quote?.chg != null && quote.chg >= 0;
-  const score = note?.score ?? null;
-  const reasons = note?.reasons ?? [];
+  const score = isA ? (note?.score ?? null) : null;
+  const reasons = isA ? (note?.reasons ?? []) : [];
   const book = data?.book ?? null;
+  const currency = currencyLabelOf(id);
 
   const stats: { label: string; value: string; tone?: number | null }[] = quote
     ? [
@@ -193,21 +221,25 @@ function SymbolPanel({ id }: { id: string }) {
     // 不用 fragment：这个面板要占满抽屉并自己滚动，包一层 div 比 <>…</> 少一个闭合出错点
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/* 名字和板块要等行情回来才有，所以标题栏在 Panel 里而不是抽屉壳上 */}
-      <PanelHeader id={id} name={quote?.name ?? null} tag={quote ? limitTag(quote) : null} />
+      <PanelHeader
+        id={id}
+        name={quote?.name ?? oQuote?.name ?? null}
+        tag={quote ? limitTag(quote) : null}
+      />
       <div className="flex flex-col gap-4 px-3 py-3">
-        {/* 价格 + 模型得分 */}
+        {/* 价格 + 模型得分。港美股没有模型得分和 A 股估值数据，只给现价和涨跌幅。 */}
         <div className="flex items-end justify-between gap-3">
           <div>
             <div
               className={cx(
                 "text-3xl font-medium tabular-nums",
-                quote ? toneClass(quote.chg) : "text-muted",
+                quote || oQuote ? toneClass(quote?.chg ?? oQuote?.chg ?? 0) : "text-muted",
               )}
             >
-              {quote ? fmtPrice(quote.price) : "—"}
+              {quote ? fmtPrice(quote.price) : oQuote ? `${fmtPrice(oQuote.price)} ${currency}` : "—"}
             </div>
-            <div className={cx("tabular-nums", quote ? toneClass(quote.chg) : "text-muted")}>
-              {quote ? signedPct(quote.chg) : "取不到现价"}
+            <div className={cx("tabular-nums", quote || oQuote ? toneClass(quote?.chg ?? oQuote?.chg ?? 0) : "text-muted")}>
+              {quote ? signedPct(quote.chg) : oQuote ? `${signedPct(oQuote.chg)} · ${oQuote.asOf}` : "取不到现价"}
             </div>
           </div>
           <div className="text-right">
@@ -218,9 +250,9 @@ function SymbolPanel({ id }: { id: string }) {
               </>
             ) : (
               <div className="max-w-[9rem] text-xs leading-relaxed text-muted">
-                未参加当前模型
+                {isA ? "未参加当前模型" : "港美股只看行情"}
                 <br />
-                只有选股页能给得分
+                {isA ? "只有选股页能给得分" : "选股和账本只覆盖 A 股"}
               </div>
             )}
           </div>
@@ -236,7 +268,8 @@ function SymbolPanel({ id }: { id: string }) {
           </ul>
         ) : null}
 
-        {/* 所属策略：持仓状态 + 那一笔的数 */}
+        {/* 所属策略：持仓状态 + 那一笔的数（A 股专属，账本只记 A 股） */}
+        {isA ? (
         <Block title="所属策略">
           {book?.trade ? (
             <div className="rounded bg-surface-2 px-3 py-2 text-xs">
@@ -293,8 +326,10 @@ function SymbolPanel({ id }: { id: string }) {
             </p>
           )}
         </Block>
+        ) : null}
 
-        {/* 筹码与解禁：户数变化看筹码发散/集中，解禁表是未来的抛压日历（D4） */}
+        {/* 筹码与解禁：户数变化看筹码发散/集中，解禁表是未来的抛压日历（D4，A 股专属） */}
+        {isA ? (
         <Block title="筹码与解禁">
           <div className="rounded bg-surface-2 px-3 py-2 text-xs">
             {holders.isLoading ? (
@@ -374,6 +409,7 @@ function SymbolPanel({ id }: { id: string }) {
             <p className="mt-1.5 text-[11px] text-muted">来源：东财 datacenter，季度披露/已实测</p>
           </div>
         </Block>
+        ) : null}
 
         {/* 走势 */}
         <div className="h-52">
@@ -432,7 +468,8 @@ function SymbolPanel({ id }: { id: string }) {
           </dl>
         ) : null}
 
-        {/* 资金流 */}
+        {/* 资金流（A 股专属；港美股资金流接口未接，不能显示一堆「—」装成没有） */}
+        {isA ? (
         <Block title="资金流">
           <div className="rounded bg-surface-2 px-3 py-2 text-xs">
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 tabular-nums">
@@ -461,8 +498,10 @@ function SymbolPanel({ id }: { id: string }) {
             </div>
           </div>
         </Block>
+        ) : null}
 
-        {/* 相关消息 */}
+        {/* 相关消息（A 股专属；港美股资讯源未接） */}
+        {isA ? (
         <Block title="相关消息">
           {data && data.articles.length > 0 ? (
             <ul className="flex flex-col gap-1 text-xs">
@@ -486,28 +525,33 @@ function SymbolPanel({ id }: { id: string }) {
             <p className="rounded bg-surface-2 px-3 py-2 text-xs text-muted">这只票最近没有消息</p>
           )}
         </Block>
+        ) : null}
 
         {data?.why ? (
           <p className="text-[11px] leading-relaxed text-muted">说明：{data.why}</p>
         ) : null}
 
         <div className="flex flex-col gap-2">
-          <Link
-            to="/symbol"
-            search={{ q: id.replace(/^(sh|sz|bj)/, "") }}
-            className="inline-flex h-11 items-center justify-center rounded border border-line text-sm hover:bg-surface-2"
-          >
-            打开个股页（带完整历史）
-          </Link>
+          {isA ? (
+            <Link
+              to="/symbol"
+              search={{ q: id.replace(/^(sh|sz|bj)/, "") }}
+              className="inline-flex h-11 items-center justify-center rounded border border-line text-sm hover:bg-surface-2"
+            >
+              打开个股页（带完整历史）
+            </Link>
+          ) : null}
           <a
             className="inline-flex h-11 items-center justify-center rounded border border-line text-sm"
-            href={`https://quote.eastmoney.com/${id}.html`}
+            href={eastmoneyUrl(id)}
             target="_blank"
             rel="noreferrer"
           >
             在东方财富查看这只股票
           </a>
-          <p className="text-xs text-pretty text-muted">行情有延迟，不是买卖指令。</p>
+          <p className="text-xs text-pretty text-muted">
+            {isA ? "行情有延迟，不是买卖指令。" : "港美股行情有延迟，币种为当地货币；选股和账本只覆盖 A 股。"}
+          </p>
         </div>
       </div>
     </div>
