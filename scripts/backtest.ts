@@ -84,8 +84,41 @@ const LOOKBACK = 250;
 const SAMPLE = Number(process.env.BT_SAMPLE ?? 300);
 /** 每套策略每天最多买几只，和线上一致。 */
 const MAX_POSITIONS = 10;
-/** 一来一回的手续费，和线上一致。 */
-const FEE = 0.00102;
+/** 一来一回的手续费，和线上一致（0.102%）。拆开写是为了让每一项都能被核对：
+ *  佣金 万2.5 双边 + 过户费 万0.1 双边 + 印花税 万5 卖出单边 = 0.00102。
+ *  以前这里只有一个数字，所以披露段敢写「未计印花税」——其实早就算进去了（2026-10-12 发现）。 */
+export const COMMISSION_RATE = 0.00025;
+export const COMMISSION_MIN = 5;
+export const TRANSFER_FEE = 0.00001;
+export const STAMP_TAX = 0.0005;
+const FEE = COMMISSION_RATE * 2 + TRANSFER_FEE * 2 + STAMP_TAX;
+
+/**
+ * 滑点（单边）。默认万 10，买卖各一次 = 一来一回 0.2%——比上面全部手续费还多一倍。
+ * 学 Vibe-Research 的 `ChinaAEngine`：它的 A 股默认就是这个数，且朝对交易者不利的方向
+ * 取（买贵卖便宜）。BT_SLIPPAGE=0 关掉。
+ *
+ * **这个值是我估的，不是测出来的**：真实滑点看那天的流动性和单子大小，回测没有逐笔
+ * 成交明细，给不出实证值。所以做成可调，并把它单独列在披露里，不混进手续费假装是硬事实。
+ */
+export const SLIPPAGE = Number(process.env.BT_SLIPPAGE ?? 0.001);
+
+/** 每笔本金。默认对齐线上：`MAX_SINGLE_PCT = 0.1` × 100 万 = 10 万（sizing.ts:31）。 */
+export const CAPITAL_PER_TRADE = Number(process.env.BT_CAPITAL ?? 100_000);
+
+/**
+ * 一来一回的总成本占买入金额的比例。runPass 用它。
+ *
+ * 佣金这一段单独算是有原因的：**单笔不满 ¥5 按 ¥5 收**，固定这笔钱除以本金才是它占
+ * 收益的比例，本金越大摊得越薄，所以它不是一个常数费率。
+ * 触发线是单笔 2 万——当前 10 万/笔的口径下压根不触发，看不出差别，
+ * 但换成小本金或以后做小额配送就会咬人，留着。
+ */
+export function roundTripFee(notional: number = CAPITAL_PER_TRADE): number {
+  if (!(notional > 0)) return FEE + SLIPPAGE * 2;
+  const commission = Math.max(notional * COMMISSION_RATE, COMMISSION_MIN) / notional;
+  return commission * 2 + TRANSFER_FEE * 2 + STAMP_TAX + SLIPPAGE * 2;
+}
 const CACHE = "data/backtest/kline";
 
 /**
@@ -698,7 +731,20 @@ async function main() {
   // （学 deepseek-harness-quant 的 backtest-acceptance：数据边界必须披露。）
   console.log("披露口径：");
   console.log(`  执行：t 日收盘出信号，t+1 按限价单成交；窗口 = 最近 ${LOOKBACK} 个交易日`);
-  console.log(`  成本：一来一回手续费 ${(FEE * 100).toFixed(3)}%（和线上一致）；未计印花税/滑点`);
+  // 披露口径不许手写。每一句都从上面的常量取 —— 以前这里写的是「未计印花税/滑点」，
+  // 而 0.00102 里早就含了印花税。只要文字不再自己打字就不可能漂。
+  const roundTrip = roundTripFee();
+  console.log(`  手续费：佣金 ${(COMMISSION_RATE * 1e4).toFixed(1)}‱ 双边 + 过户费 ${(TRANSFER_FEE * 1e4).toFixed(1)}‱ 双边 + 印花税 ${(STAMP_TAX * 1e4).toFixed(1)}‱ 卖出单边 = 一来一回 ${(FEE * 100).toFixed(3)}%`);
+  console.log(
+    `  滑点：单边 ${(SLIPPAGE * 100).toFixed(2)}%，一来一回 ${(SLIPPAGE * 200).toFixed(2)}%；` +
+      `这是估算不是实测（回测没有逐笔成交明细），BT_SLIPPAGE=0 可关`,
+  );
+  console.log(
+    `  最低佣金 ¥${COMMISSION_MIN}/笔：单笔 ${(CAPITAL_PER_TRADE / 10_000).toFixed(0)} 万` +
+      `（佣金 ${(CAPITAL_PER_TRADE * COMMISSION_RATE).toFixed(1)} 元）→ ${CAPITAL_PER_TRADE * COMMISSION_RATE >= COMMISSION_MIN ? "不触发" : "触发"}；` +
+      `触发线是单笔 ${(COMMISSION_MIN / COMMISSION_RATE / 10_000).toFixed(0)} 万以下`,
+  );
+  console.log(`  合计一来一回成本 ${(roundTrip * 100).toFixed(3)}%（BT_CAPITAL 改本金）`);
   console.log(`  样本：全市场列表等距抽样 ${SAMPLE} 只（BT_SAMPLE 可改），BT_OFFSET 换互不重叠的一批`);
   console.log(`  数据：日线来自腾讯 K 线接口落盘缓存（${CACHE}），qfq 前复权；市值过滤用今天的快照非历史`);
   console.log("  局限：抽样 300 只的结论外推到全市场要谨慎；回测=限价单口径，与线上现价口径有差\n");
@@ -799,10 +845,18 @@ async function main() {
   const datePos = new Map<string, number>();
   dates.forEach((d, i) => datePos.set(d, i));
   /** 从入场那天到出场那天，全池等权能拿到的收益。 */
-  function benchOver(fromIdx: number, toIdx: number): number {
+  /**
+   * 基准也要付交易成本。
+   *
+   * 以前这里只累加全池等权收益、一分钱成本不扣，而策略那侧扣了——**双方不同口径，
+   * 超额被系统性低估一个往返成本**（2026-10-12 加滑点时发现：策略平均收益掉 0.20%，
+   * 基准纹丝不动，t 从 3.10 掉到 1.97，看着像滑点把结论打没了，其实是基准在占便宜）。
+   * 基准是等权买入、持有、卖出，和策略付同样一次来回。同口径才叫对照。
+   */
+  function benchOver(fromIdx: number, toIdx: number, fee: number = roundTripFee()): number {
     let acc = 1;
     for (let i = fromIdx + 1; i <= toIdx && i < uniRet.length; i += 1) acc *= 1 + uniRet[i];
-    return acc - 1;
+    return acc - 1 - fee;
   }
 
   // 环境总闸：沪深 300 在 20 日均线下方时，认为逆风，当天不开新仓
@@ -862,7 +916,7 @@ async function main() {
     return bench[i].c > ma20;
   }
 
-  function runPass(stopPct?: number, fee: number = FEE): Record<string, Trade[]> {
+  function runPass(stopPct?: number, fee: number = roundTripFee()): Record<string, Trade[]> {
   const results: Record<string, Trade[]> = {};
   for (const key of Object.keys(STRATEGIES)) results[key] = [];
   const stats = { gap: 0, belowStop: 0, atClose: 0 };
@@ -925,7 +979,7 @@ async function main() {
             exit: spotFill.price,
             reason: spotFill.reason,
             ret: spotRet,
-            bench: benchOver(t, spotExitIdx),
+            bench: benchOver(t, spotExitIdx, fee),
             hold: Math.max(0, spotExitIdx - tIdx),
             ref: klineRef(CACHE, pick.id, rows[tIdx].date),
           });
@@ -981,7 +1035,7 @@ async function main() {
           exit: fill.price,
           reason: fill.reason,
           ret,
-          bench: benchOver(t + 1, datePos.get(fill.date) ?? t + 1),
+          bench: benchOver(t + 1, datePos.get(fill.date) ?? t + 1, fee),
           hold,
           // 信号日是第 t 天（成交在 t+1），来源指到决策那一刻能看到的最后一根 bar
           ref: klineRef(CACHE, pick.id, dates[t]),
