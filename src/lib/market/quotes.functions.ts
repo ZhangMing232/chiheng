@@ -25,6 +25,7 @@ import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
 import { loadFlow } from "@/lib/market/flow";
 import { loadHotMoney } from "@/lib/market/hotmoney";
+import type { MarginRow } from "@/lib/market/margin";
 import { loadIndexFutures } from "@/lib/market/index-futures";
 import { ensureUserBook, readUserBook } from "@/lib/market/book-file";
 import { sessionPhase } from "@/lib/market/session";
@@ -353,6 +354,23 @@ export const getFlow = createServerFn({ method: "GET" }).handler(async () => loa
 
 /** 给页面用的龙虎榜席位。没有参数。净额是万元。 */
 export const getHotMoney = createServerFn({ method: "GET" }).handler(async () => loadHotMoney());
+
+/** 两融个股明细（D3）。读 data/risk/margin-latest.json 产物，读不到带 why 不编造。 */
+export const getMargin = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const text = await readFile(join(process.cwd(), "data", "risk", "margin-latest.json"), "utf8");
+    const parsed = JSON.parse(text) as { date: string; rows: MarginRow[]; missing: number; fetchedAt: string };
+    return { ...parsed, why: null as string | null };
+  } catch (error) {
+    return {
+      date: "",
+      rows: [] as MarginRow[],
+      missing: 0,
+      fetchedAt: null,
+      why: `两融快照读不到（${(error as Error).message}）。先跑 node --experimental-strip-types --import ./scripts/alias.mjs scripts/fetch-margin.ts`,
+    };
+  }
+});
 
 /** 给页面用的股指期货持仓。没有参数。单位是手。 */
 export const getIndexFutures = createServerFn({ method: "GET" }).handler(async () => loadIndexFutures());

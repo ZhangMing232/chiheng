@@ -321,6 +321,22 @@ export const ENDPOINTS: Endpoint[] = [
     fetcher: "hotmoney.ts（datacenter-web）",
   },
   {
+    id: "eastmoney.margin",
+    title: "东财融资融券明细",
+    source: "eastmoney",
+    market: "a",
+    compliance: "public-web",
+    kind: "risk",
+    critical: false,
+    unit: "元",
+    traps: [
+      "T+1 发布：盘中跑 fetch-margin.ts 拿到的也是昨天的账，页面已注明日期",
+      "RZYEZB（占流通市值比）部分记录为 null——缺的样子就是缺，页面显示「—」不拿 0 凑",
+      "单源无备份：RPTA_WEB_RZRQ_GGMX 一个端点，挂了 getMargin 带 why 降级",
+    ],
+    fetcher: "margin.ts + scripts/fetch-margin.ts（落盘 data/risk/margin-latest.json）",
+  },
+  {
     id: "eastmoney.news",
     title: "东财快讯 / 新闻",
     source: "eastmoney",

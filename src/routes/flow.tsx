@@ -19,23 +19,35 @@ import { INDEX_LABEL } from "@/components/screener/screener";
 import { fmtPrice, fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { limitTag } from "@/lib/market/model";
 import { drawFlowPoster } from "@/lib/market/flow-poster";
-import { getFlow, getHotMoney, getIndexFutures, getIndices, getTrend, getUniverse } from "@/lib/market/quotes.functions";
+import { getFlow, getHotMoney, getIndexFutures, getIndices, getMargin, getTrend, getUniverse } from "@/lib/market/quotes.functions";
 import { drawFuturesPoster, drawHotPoster } from "@/lib/market/extra-posters";
 import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/market/flow";
 import type { HotBook } from "@/lib/market/hotmoney";
+import type { MarginRow } from "@/lib/market/margin";
+import { GapList } from "@/components/source-line";
 import type { FutBook } from "@/lib/market/index-futures";
 import type { IndexQuote, Quote, Trend } from "@/lib/market/types";
+
+/** 两融快照的 loader 形状（getMargin 的返回）。rows 有全市场四千多只，页面只取头部。 */
+type MarginPayload = {
+  date: string;
+  rows: MarginRow[];
+  missing: number;
+  fetchedAt: string | null;
+  why: string | null;
+} | null;
 
 /** 资金页路由。进来时同时去拉资金流向、指数、分时、全市场涨跌、游资和股指期货，某一块失败就那一块空着。 */
 export const Route = createFileRoute("/flow")({
   loader: async () => {
-    const [book, hot, futures, indices, universe, trend] = await Promise.all([
+    const [book, hot, futures, indices, universe, trend, margin] = await Promise.all([
       getFlow().catch((error: unknown) => ({ error })),
       getHotMoney().catch(() => null),
       getIndexFutures().catch(() => null),
       getIndices().catch(() => [] as IndexQuote[]),
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getTrend({ data: { id: "sh000001" } }).catch(() => null),
+      getMargin().catch(() => null),
     ]);
     const quotes = universe?.quotes ?? [];
     if (book && typeof book === "object" && "error" in book) {
@@ -46,10 +58,11 @@ export const Route = createFileRoute("/flow")({
         indices,
         quotes,
         trend,
+        margin,
         error: book.error instanceof Error ? book.error.message : "资金流向暂时拉不下来",
       };
     }
-    return { book, hot, futures, indices, quotes, trend, error: null as string | null };
+    return { book, hot, futures, indices, quotes, trend, margin, error: null as string | null };
   },
   component: FlowPage,
 });
@@ -94,6 +107,7 @@ const TABS = [
   { id: "flow-sectors", label: "行业" },
   { id: "flow-stocks", label: "个股" },
   { id: "flow-hot", label: "游资" },
+  { id: "flow-margin", label: "两融" },
   { id: "flow-futures", label: "期指" },
 ] as const;
 
@@ -434,6 +448,56 @@ function Market({ parts }: { parts: MarketPart[] }) {
   );
 }
 
+/** 两融（D3）：全市场杠杆总账 + 融资余额头部个股 + 缺口显式。数据来自 fetch-margin.ts 落盘快照。 */
+function Margin({ data }: { data: MarginPayload }) {
+  if (!data || data.rows.length === 0) {
+    return (
+      <Section id="flow-margin" title="两融" hint="杠杆资金的总账和个股明细。T+1 发布，收盘后跑抓取脚本更新。">
+        <p className="px-3.5 py-6 text-sm text-muted">{data?.why ?? "两融快照暂时没有。"}</p>
+      </Section>
+    );
+  }
+  const totalRzye = data.rows.reduce((s, r) => s + r.rzye, 0) / 1e8;
+  const totalRzjme = data.rows.reduce((s, r) => s + r.rzjme, 0) / 1e8;
+  const top = data.rows.slice(0, 10);
+  return (
+    <Section
+      id="flow-margin"
+      title="两融"
+      hint={`杠杆资金总账（${data.date}，东财，T+1 发布）。融资余额是全市场杠杆的总水位；占比高 = 这只票筹码杠杆重，跌起来去杠杆会放大。`}
+    >
+      <div className="flex flex-wrap gap-x-6 gap-y-1 px-3.5 py-2 text-sm">
+        <span>
+          融资余额 <b className="font-medium tabular-nums">{totalRzye.toFixed(0)}</b> 亿
+        </span>
+        <span className={toneClass(totalRzjme)}>
+          当日融资净买 <b className="font-medium tabular-nums">{totalRzjme > 0 ? "+" : ""}{totalRzjme.toFixed(1)}</b> 亿
+        </span>
+      </div>
+      <ul className="px-3.5 py-2">
+        {top.map((row) => (
+          <li key={row.id} className="flex items-baseline justify-between gap-2 border-t border-line py-1.5 text-sm first:border-t-0">
+            <span className="min-w-0 truncate">{row.name}</span>
+            <span className="shrink-0 tabular-nums text-muted">
+              融资 {(row.rzye / 1e8).toFixed(1)} 亿 · 占比 {row.ratio == null ? "—" : `${row.ratio.toFixed(1)}%`}
+              {row.rzjme !== 0 ? (
+                <span className={toneClass(row.rzjme / 1e8)}> · 净买 {(row.rzjme / 1e8).toFixed(2)} 亿</span>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="px-3.5 pb-3">
+        <p className="text-[11px] text-muted">
+          取于 {data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("zh-CN", { hour12: false }) : "—"}（本机时区）· 来源：东财
+          datacenter 两融明细，原名原样 · 快照 data/risk/margin-latest.json
+        </p>
+        <GapList items={data.missing > 0 ? [`源数据坏行 ${data.missing} 条（解析不过，已跳过）`] : []} />
+      </div>
+    </Section>
+  );
+}
+
 function Hot({ book }: { book: HotBook | null }) {
   return (
     <Section
@@ -527,7 +591,7 @@ function Futures({ book }: { book: FutBook | null }) {
 }
 
 function FlowPage() {
-  const { book, hot, futures, indices, quotes, trend, error } = Route.useLoaderData();
+  const { book, hot, futures, indices, quotes, trend, margin, error } = Route.useLoaderData();
 
   return (
     <Frame
@@ -581,6 +645,7 @@ function FlowPage() {
         ) : null}
         <PosterButton draw={() => drawHotPoster(hot ?? { date: "", seats: [] })} />
         <Hot book={hot} />
+        <Margin data={margin} />
         <PosterButton draw={() => drawFuturesPoster(futures ?? { date: "", rows: [] })} />
         <Futures book={futures} />
       </Frame>
