@@ -26,6 +26,7 @@ import { screenAdvice } from "./red-line.ts";
 import { makeCalculation, makeEvidence, formatChain, verifyChain } from "./evidence.ts";
 import { screenNumbers } from "./number-gate.ts";
 import { valuationJudgement } from "./valuation-sop.ts";
+import { decisionPointsFrom } from "./catalyst-sop.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -341,7 +342,7 @@ function valuationStage(input: ResearchInput): StageResult {
  * 只写「什么事实出现会让当前判断站不住」，不写「该怎么做」。
  * 这两句话长得很像，区别只有一行字，所以这一阶段的产出同样要过红线。
  */
-function verdictStage(input: ResearchInput): StageResult {
+function verdictStage(input: ResearchInput, prior: readonly StageResult[] = []): StageResult {
   const { quote } = input;
   const gaps: string[] = [];
   const evidence: Evidence[] = [];
@@ -349,16 +350,13 @@ function verdictStage(input: ResearchInput): StageResult {
     gaps.push("没有行情，裁决点无从给出");
     return { id: "verdict", title: "裁决点", question: "什么事实出现会让现在这套说法站不住？", evidence, findings: [], gaps, derived: [] };
   }
-  const watch: string[] = [];
-  if (quote.d20 != null) watch.push("近 20 日涨幅的方向掉头");
-  watch.push("近 3 日主力净流入同向");
-  watch.push("出现带否决性措辞的公告（退市、立案、业绩预告下修）");
-  const findings: Finding[] = [
-    {
-      text: `推翻当前描述的观察点：${watch.join("；")}。这些是「看到就该重看一遍」的条件，不是行动指令。`,
-      tier: UNVERIFIED,
-    },
-  ];
+  // 裁决点由代码从前面各阶段的证据推导（catalyst-sop.ts），不手写——
+  // 手写列表会漏（没考虑某个阶段有没有证据），而且无法单测。
+  const points = decisionPointsFrom(prior);
+  const findings: Finding[] = points.map((p) => ({
+    text: `观察「${p.object}」：${p.threshold}（来源 ${p.source}，${p.nextAt}）。触发后：${p.effect}`,
+    tier: UNVERIFIED,
+  }));
   return {
     id: "verdict",
     title: "裁决点",
@@ -370,7 +368,7 @@ function verdictStage(input: ResearchInput): StageResult {
   };
 }
 
-const STAGES: Record<StageId, (input: ResearchInput) => StageResult> = {
+const STAGES: Record<StageId, (input: ResearchInput, prior?: readonly StageResult[]) => StageResult> = {
   identity: identityStage,
   price: priceStage,
   capital: capitalStage,
@@ -400,15 +398,19 @@ export function runResearch(input: ResearchInput): ResearchReport {
 
   let blocked = 0;
   let numbersReplaced = 0;
-  const stages = STAGE_IDS.map((id) => {
-    const stage = STAGES[id](input);
+  // verdict 要读前面阶段的证据来推导裁决点，所以它必须最后算
+  const priorStages = STAGE_IDS.filter((id) => id !== "verdict").map((id) => STAGES[id](input));
+  const verdict = STAGES.verdict(input, priorStages);
+
+  const stages = [...priorStages.map((stage) => {
+    const base = stage;
     // 数字闸门的材料 = 这一阶段自己摆出来的证据和缺口。
     // 结论里出现材料里没有的数字 → 换成（略※）。模板句现在都干净（测试钉着），
     // 这道闸是给将来接进来的 AI 产出用的——护栏先装好再通车。
     // 材料要连 derived 的值一起给：估值判读文本里的分位数来自 derived，
     // 漏了它会被数字闸门当成没出处的数换掉（2026-10-12 实测踩过）。
-    const sources = [...stage.evidence.map((e) => e.value), ...stage.derived.map((d) => d.value), ...stage.gaps];
-    const findings = stage.findings.map((finding) => {
+    const sources = [...base.evidence.map((e) => e.value), ...base.derived.map((d) => d.value), ...base.gaps];
+    const findings = base.findings.map((finding) => {
       const res = screenAdvice(finding.text);
       if (!res.ok) {
         blocked += 1;
@@ -421,8 +423,8 @@ export function runResearch(input: ResearchInput): ResearchReport {
       if (screened.replaced.length > 0) numbersReplaced += screened.replaced.length;
       return { ...finding, text: screened.text };
     });
-    return { ...stage, findings };
-  });
+    return { ...base, findings };
+  }), verdict];
 
   // 引用链自检：把每个 derived 的证据和计算都摊平成一张 DAG，查悬空引用。
   // 这一步是给报告自己做的——读者看到的每个分位数都能走回原始序列。
