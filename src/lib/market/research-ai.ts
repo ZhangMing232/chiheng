@@ -27,6 +27,7 @@ import { screenAdvice } from "./red-line.ts";
 import { screenNumbers } from "./number-gate.ts";
 import { makeCalculation, formatChain } from "./evidence.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
+import { VALUATION_SOP } from "./valuation-sop.ts";
 
 /** 调 AI 的那个函数。由调用方提供（页面 loader 里接 callAI + 记账）。 */
 export type AiCaller = (prompt: string) => Promise<string>;
@@ -91,6 +92,8 @@ export function buildResearchPrompt(stages: readonly StageResult[], symbol: stri
     `3. 数字只能来自证据，不许自己编；材料里没有的数就不要提`,
     `4. 不许给买卖建议、目标价、止损位、仓位建议`,
     `5. 只输出 JSON，不要别的内容：{"refs": ["ev-xxx"], "text": "..."}`,
+    ``,
+    VALUATION_SOP,
     ``,
     RED_LINE_PROMPT,
   ].join("\n");

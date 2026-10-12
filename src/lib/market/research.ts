@@ -25,6 +25,7 @@ import type { StockArticle } from "./news.ts";
 import { screenAdvice } from "./red-line.ts";
 import { makeCalculation, makeEvidence, formatChain, verifyChain } from "./evidence.ts";
 import { screenNumbers } from "./number-gate.ts";
+import { valuationJudgement } from "./valuation-sop.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -33,6 +34,8 @@ export type ResearchTier = (typeof RESEARCH_TIERS)[number];
 /** 唯一允许没有依据的一档。其余三档都从真实数据算出，所以 tile 由代码给不出 KAfka。 */
 export const UNVERIFIED: ResearchTier = "未核实线索";
 export const CONFIRMED: ResearchTier = "已披露证实";
+/** 由代码按规则推出、但不是原始数据本身。估值判读落在这档。 */
+export const INFERRED: ResearchTier = "有依据的推断";
 
 export type Evidence = {
   label: string;
@@ -287,11 +290,42 @@ function valuationStage(input: ResearchInput): StageResult {
       chain: formatChain(calc),
     });
   }
+  if (valuation?.pbRank != null && latest?.pbMRQ != null) {
+    const ev = makeEvidence({
+      source: `baostock 序列 data/fundamentals/pe-${q.code}.json`,
+      symbol: q.code,
+      field: "pbMRQ",
+      period: `${valuation.window?.from ?? "?"}~${valuation.window?.to ?? "?"}`,
+      unit: "倍",
+      adjustment: "none",
+      asOf: latest.date,
+      value: latest.pbMRQ,
+    });
+    const calc = makeCalculation({
+      fn: "percentileRank",
+      inputs: { points: valuation.points, value: latest.pbMRQ },
+      inputsRefs: [ev.id],
+      output: { value: Math.round(valuation.pbRank * 100) / 100, unit: "分位", status: "ok" },
+    });
+    derived.push({
+      label: "PB 历史位置",
+      value: rankPhrase(valuation.pbRank),
+      tier: CONFIRMED,
+      evidenceId: ev.id,
+      calcId: calc.id,
+      chain: formatChain(calc),
+    });
+  }
+
   if (valuation?.peRank != null || valuation?.pbRank != null) {
+    // 判读由代码给（valuation-sop.ts），不交给 AI——「PE 低 PB 高」这种周期底部
+    // 特征最容易被读反，规则能钉死的就别靠模型。
+    const judged = valuationJudgement(valuation.peRank, valuation.pbRank);
     findings.push({
       text: "分位说的是它相对自己过去贵贱的位置：「贵」不等于会跌，「便宜」不等于会涨，这只是位置描述。",
       tier: CONFIRMED,
     });
+    if (judged) findings.push({ text: `${judged.verdict}。${judged.caution}`.trim(), tier: INFERRED });
   } else {
     gaps.push(
       "缺历史 PE 分位：这只票还没跑过 baostock 抓取脚本（scripts/fetch-pe-history.py），" +
@@ -371,7 +405,9 @@ export function runResearch(input: ResearchInput): ResearchReport {
     // 数字闸门的材料 = 这一阶段自己摆出来的证据和缺口。
     // 结论里出现材料里没有的数字 → 换成（略※）。模板句现在都干净（测试钉着），
     // 这道闸是给将来接进来的 AI 产出用的——护栏先装好再通车。
-    const sources = [...stage.evidence.map((e) => e.value), ...stage.gaps];
+    // 材料要连 derived 的值一起给：估值判读文本里的分位数来自 derived，
+    // 漏了它会被数字闸门当成没出处的数换掉（2026-10-12 实测踩过）。
+    const sources = [...stage.evidence.map((e) => e.value), ...stage.derived.map((d) => d.value), ...stage.gaps];
     const findings = stage.findings.map((finding) => {
       const res = screenAdvice(finding.text);
       if (!res.ok) {

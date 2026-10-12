@@ -81,3 +81,10 @@ test("回归：材料无数字时，时间窗口/日期照样豁免，不能抄�
   assert.match(r.text, /近 20 日/);
   assert.match(r.text, /2026-10-09/);
 });
+
+test("2026-10-12 回归：证据/计算 id 里的数字不是数据点，不许啃", () => {
+  // 不剥会把 AI 的引用啃成「ev（略※）xq7j8z」，读者反而点不回原始证据
+  const r = screenNumbers("结论见 ev-1xq7j8z 与 calc-ab12cd。", []);
+  assert.match(r.text, /ev-1xq7j8z/, `id 被啃了：${r.text}`);
+  assert.match(r.text, /calc-ab12cd/);
+});
