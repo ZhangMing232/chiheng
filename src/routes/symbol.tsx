@@ -8,13 +8,15 @@
  */
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
+import { KlineChart } from "@/components/kline-chart";
 import { signedPct, toneClass } from "@/lib/market/format";
 import { articleLine, drawSymbolPoster } from "@/lib/market/page-posters";
 import { shanghaiDate } from "@/lib/market/session";
-import { getSymbolNews } from "@/lib/market/quotes.functions";
+import { getKline, getSymbolNews } from "@/lib/market/quotes.functions";
 import type { NewsTone, StockArticle } from "@/lib/market/news";
 
 const TONE_LABEL: Record<NewsTone, string> = { good: "利好", bad: "利空", flat: "未表态" };
@@ -117,12 +119,15 @@ function SymbolPage() {
         </div>
       ) : null}
       {data.q ? (
-        <ArticleList
-          title={data.picked ? `${data.picked.name} ${data.picked.code}` : `没有找到「${data.q}」`}
-          chg={data.picked?.chg ?? null}
-          articles={data.articles}
-          empty={data.picked ? "这只股票暂时没有消息。" : "换一个代码或名称。"}
-        />
+        <>
+          <SymbolKline id={data.picked?.id ?? null} name={data.picked?.name ?? null} />
+          <ArticleList
+            title={data.picked ? `${data.picked.name} ${data.picked.code}` : `没有找到「${data.q}」`}
+            chg={data.picked?.chg ?? null}
+            articles={data.articles}
+            empty={data.picked ? "这只股票暂时没有消息。" : "换一个代码或名称。"}
+          />
+        </>
       ) : data.groups.length === 0 ? (
         <p className="rounded border border-line bg-surface px-3 py-6 text-sm text-muted">账上没有持仓。上面可以搜一只股票。</p>
       ) : (
@@ -137,6 +142,45 @@ function SymbolPage() {
         ))
       )}
     </Frame>
+  );
+}
+
+/**
+ * 搜中一只票时，资讯列表上方给一张完整蜡烛图（学 Vibe-Research 的个股页 KlineCard）。
+ * 独立于 loader：K 线慢，走客户端 query 不拖资讯首屏；没搜中（picked 为空）不渲染。
+ */
+function SymbolKline({ id, name }: { id: string | null; name: string | null }) {
+  const kline = useQuery({
+    queryKey: ["kline", id],
+    queryFn: () => getKline({ data: { id: id! } }),
+    staleTime: 5 * 60_000,
+    enabled: id != null,
+    retry: false,
+  });
+  if (!id) return null;
+  const bars = kline.data?.bars ?? [];
+  return (
+    <section className="overflow-hidden rounded border border-line bg-surface">
+      <div className="flex items-baseline justify-between gap-3 border-b border-line px-3.5 py-2">
+        <h2 className="text-sm font-medium">{name ?? "走势"} · 日 K</h2>
+        {kline.isLoading ? (
+          <span className="text-xs text-muted">正在取日线</span>
+        ) : bars.length < 2 ? (
+          <span className="text-xs text-muted">走势暂时没有返回</span>
+        ) : (
+          <span className="text-xs text-muted">不复权 · 蜡烛红涨绿跌</span>
+        )}
+      </div>
+      {bars.length >= 2 ? (
+        <div className="px-1.5 pt-2">
+          <KlineChart bars={bars} height={340} />
+        </div>
+      ) : (
+        <p className="px-3.5 py-6 text-sm text-muted">
+          {kline.isLoading ? "正在取日线…" : "这根票暂时没有 K 线数据。"}
+        </p>
+      )}
+    </section>
   );
 }
 

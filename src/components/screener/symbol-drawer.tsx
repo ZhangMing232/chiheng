@@ -18,15 +18,6 @@ import { useRouterState, Link } from "@tanstack/react-router";
 import { Drawer } from "vaul";
 import { X } from "lucide-react";
 import {
-  Area,
-  CartesianGrid,
-  ComposedChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   fmtCap,
   fmtMultiple,
   fmtPlain,
@@ -37,35 +28,15 @@ import {
 } from "@/lib/market/format";
 import { BOARD_LABEL, limitTag } from "@/lib/market/model";
 import { currencyLabelOf, marketOf } from "@/lib/market/markets";
-import type { Bar, Board } from "@/lib/market/types";
+import type { Board } from "@/lib/market/types";
 import { getKline, getHolders, getLifts, getOverseasQuote } from "@/lib/market/quotes.functions";
 import { getSymbolPanel } from "@/lib/market/symbol-panel.functions";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { StateBlock } from "@/components/state-block";
+import { KlineChart } from "@/components/kline-chart";
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
-}
-
-function Tip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: ReadonlyArray<{ payload?: Bar }>;
-}) {
-  const bar = payload?.[0]?.payload;
-  if (!active || !bar) return null;
-  const up = bar.c >= bar.o;
-  return (
-    <div className="rounded border border-line bg-surface px-3 py-2 text-xs text-fg">
-      <div className="text-muted">{bar.date}</div>
-      <div className={cx("tabular-nums", up ? "text-up" : "text-down")}>收 {bar.c.toFixed(2)}</div>
-      <div className="tabular-nums text-muted">
-        开 {bar.o.toFixed(2)} · 高 {bar.h.toFixed(2)} · 低 {bar.l.toFixed(2)}
-      </div>
-    </div>
-  );
 }
 
 /** 抽屉里的一小块。标题 + 内容，和终端页那几个 Panel 同一个版式。 */
@@ -192,8 +163,6 @@ function SymbolPanel({ id }: { id: string }) {
   const quote = data?.quote ?? null;
   const oQuote = !isA ? (overseas.data?.quote ?? null) : null;
   const bars = kline.data?.bars ?? [];
-  const trendUp =
-    bars.length > 1 ? bars[bars.length - 1].c >= bars[0].c : quote?.chg != null && quote.chg >= 0;
   const score = isA ? (note?.score ?? null) : null;
   const reasons = isA ? (note?.reasons ?? []) : [];
   const book = data?.book ?? null;
@@ -411,43 +380,25 @@ function SymbolPanel({ id }: { id: string }) {
         </Block>
         ) : null}
 
-        {/* 走势 */}
-        <div className="h-52">
-          {kline.isLoading ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted">
-              正在取前复权日线
-            </div>
-          ) : bars.length < 2 ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted">
-              走势暂时没有返回
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={bars} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="var(--color-line)" vertical={false} />
-                <XAxis dataKey="date" hide />
-                <YAxis hide domain={["auto", "auto"]} />
-                <Tooltip content={<Tip />} />
-                <Area
-                  type="monotone"
-                  dataKey="c"
-                  stroke={trendUp ? "var(--color-up)" : "var(--color-down)"}
-                  fill={trendUp ? "var(--color-up)" : "var(--color-down)"}
-                  fillOpacity={0.12}
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        {bars.length > 1 ? (
-          <div className="-mt-2 flex justify-between text-xs tabular-nums text-muted">
-            <span>{bars[0].date.slice(5)}</span>
-            <span>前复权收盘</span>
-            <span>{bars[bars.length - 1].date.slice(5)}</span>
+        {/* 走势：蜡烛图 + 成交量 + MA（学 Vibe-Research 的 KlineCard，ECharts 渲染，红涨绿跌） */}
+        {kline.isLoading ? (
+          <div className="flex h-52 items-center justify-center text-sm text-muted">
+            正在取日线
           </div>
-        ) : null}
+        ) : bars.length < 2 ? (
+          <div className="flex h-52 items-center justify-center text-sm text-muted">
+            走势暂时没有返回
+          </div>
+        ) : (
+          <>
+            <KlineChart bars={bars} height={300} />
+            <div className="mt-1 flex justify-between text-xs tabular-nums text-muted">
+              <span>{bars[0].date.slice(5)}</span>
+              <span>不复权日 K · 蜡烛红涨绿跌</span>
+              <span>{bars[bars.length - 1].date.slice(5)}</span>
+            </div>
+          </>
+        )}
 
         {/* 十四项基础数据 */}
         {stats.length > 0 ? (
