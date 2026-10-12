@@ -21,6 +21,13 @@
  * 所以这里的数字衡量的是「略微宽松一点的放量突破」，不是线上那一版。
  * 改线上策略时记得回来同步这里，或者干脆让两边共用同一份条件。
  *
+ * 2026-10-12 学 Vibe-Research 的三件套（判定在 src/lib/market/backtest-gate.ts，可单测）：
+ *   A 请求闸口：开跑前 decideGate() 三问（样本/覆盖/预热），答不出 → Refusal 直接退出，
+ *     没有「带一堆警告勉强跑」的第三种。
+ *   B 费用对照：同一套交易再跑一遍费用清零（runPass(_, 0)），drag 单列——
+ *     只看有费收益会高估策略。
+ *   E 来源标注：每笔 Trade 带 ref（K 线缓存文件@信号日），事后复核能回到原始 bar。
+ *
  * 2026-10-06 补上一条：放量突破的**换手率 ≥ 2%** 这道闸以前也缺，现在用
  * 流通市值反推补上了（成交额 ÷ 流通市值，和腾讯的 hsl 同口径，吻合率 99.8%）。
  * 跑 `node scripts/build-floatcap.mjs` 生成缓存；没有缓存时会在开头大声提示
@@ -49,6 +56,7 @@ import {
 } from "@/lib/market/factors";
 import type { FactorRun, DailyRow } from "@/lib/market/factors";
 import { detectWyckoffSpring } from "@/lib/market/wyckoff-spring";
+import { decideGate, costDragRows, formatDragRow, klineRef } from "@/lib/market/backtest-gate";
 import { loadQueueFactors, applyVerdictsToQueue } from "@/lib/market/factor-queue";
 import { pitValue, recordsOf } from "@/lib/market/fundamentals";
 import type { FundamentalFile } from "@/lib/market/fundamentals";
@@ -678,6 +686,8 @@ type Trade = {
   /** 同一时间段里，抽样池全体股票等权持有的收益。ret 减去它才是选股本身带来的。 */
   bench: number;
   hold: number;
+  /** 来源标注（学 Vibe-Research 的 raw_ref）：决策所用 K 线的缓存文件 @ 信号日，事后复核回到原始 bar。 */
+  ref: string;
 };
 
 async function main() {
@@ -818,6 +828,30 @@ async function main() {
         "  回测结果会偏宽松。先跑 node scripts/build-floatcap.mjs（不联网，读本地行情缓存）。\n",
     );
   }
+  // 请求闸口（学 Vibe-Research 的 gate.py「三问闸口」）：开跑前回答样本/覆盖/预热三问，
+  // 答得出来 → Plan 照跑；答不出来 → Refusal（带补救），没有带一堆警告勉强跑的第三种。
+  const MIN_BARS = 62; // 引擎里 idx < 61 跳过，即至少要 62 根 bar 才进得了选股
+  let sampleWithEnoughBars = 0;
+  for (const rows of klines.values()) if (rows.length >= MIN_BARS) sampleWithEnoughBars += 1;
+  const gate = decideGate({
+    sampleRequested: SAMPLE,
+    universeGot: ids.length,
+    sampleGot: sample.length,
+    klinesGot: klines.size,
+    minBarsRequired: MIN_BARS,
+    sampleWithEnoughBars,
+    turnoverGateActive: useTurnoverGate,
+    turnoverGateForcedOff: process.env.BT_TURNOVER === "0",
+  });
+  if (gate.kind === "refusal") {
+    console.log("回测请求闸口：Refusal —— 这次不跑");
+    console.log(`  原因：${gate.reason}`);
+    console.log(`  补救：${gate.remedy}`);
+    process.exit(1);
+  }
+  console.log("回测请求闸口：Plan");
+  for (const line of gate.plan) console.log(`  · ${line}`);
+  console.log("");
   // 入场撮合口径，三选一；默认 b（跳空按开盘价成交）
   const fillMode = process.env.BT_FILL ?? "b";
   let fillStats = { gap: 0, belowStop: 0 };
@@ -828,7 +862,7 @@ async function main() {
     return bench[i].c > ma20;
   }
 
-  function runPass(stopPct?: number): Record<string, Trade[]> {
+  function runPass(stopPct?: number, fee: number = FEE): Record<string, Trade[]> {
   const results: Record<string, Trade[]> = {};
   for (const key of Object.keys(STRATEGIES)) results[key] = [];
   const stats = { gap: 0, belowStop: 0, atClose: 0 };
@@ -882,7 +916,7 @@ async function main() {
             holdFor(key),
           );
           if (!spotFill) continue;
-          const spotRet = (spotFill.price - pick.sig.buy) / pick.sig.buy - FEE;
+          const spotRet = (spotFill.price - pick.sig.buy) / pick.sig.buy - fee;
           const spotExitIdx = idxOf.get(pick.id)?.get(spotFill.date) ?? -1;
           results[key].push({
             id: pick.id,
@@ -893,6 +927,7 @@ async function main() {
             ret: spotRet,
             bench: benchOver(t, spotExitIdx),
             hold: Math.max(0, spotExitIdx - tIdx),
+            ref: klineRef(CACHE, pick.id, rows[tIdx].date),
           });
           continue;
         }
@@ -936,7 +971,7 @@ async function main() {
           holdFor(key),
         );
         if (!fill) continue;
-        const ret = (fill.price - entry) / entry - FEE;
+        const ret = (fill.price - entry) / entry - fee;
         const exitIdx = idxOf.get(pick.id)?.get(fill.date) ?? -1;
         const hold = exitIdx - nextIdx;
         results[key].push({
@@ -948,6 +983,8 @@ async function main() {
           ret,
           bench: benchOver(t + 1, datePos.get(fill.date) ?? t + 1),
           hold,
+          // 信号日是第 t 天（成交在 t+1），来源指到决策那一刻能看到的最后一根 bar
+          ref: klineRef(CACHE, pick.id, dates[t]),
         });
       }
     }
@@ -1639,6 +1676,21 @@ async function main() {
     console.log(
       `入场撮合（口径 ${fillMode}）：跳空低开成交 ${fillStats.gap} 笔，开在止损下方不算 ${fillStats.belowStop} 笔`,
     );
+    // 费用 drag 对照（学 Vibe-Research 的 cost_compare）：同一套交易费用清零再跑一遍。
+    // drag = 有费均值 − 免费均值；只看有费收益会把策略的实际盈利能力高估 drag 那么多。
+    // BT_COSTCOMPARE=0 关掉（扫参等大批量跑时省一半时间）。
+    if (process.env.BT_COSTCOMPARE !== "0") {
+      const freeResults = runPass(stopOverride, 0);
+      const labels = Object.fromEntries(Object.entries(STRATEGIES).map(([k, d]) => [k, d.label]));
+      console.log("\n费用 drag 对照（同一套交易，费用清零重跑）：");
+      console.log("策略            笔数   有费平均   免费平均      drag");
+      console.log("-".repeat(56));
+      for (const row of costDragRows(labels, results, freeResults)) {
+        console.log(formatDragRow(row));
+      }
+      console.log("-".repeat(56));
+      console.log("drag 应约等于一来一回费率；差得多说明两笔账不是同一套交易，对照无效。");
+    }
     console.log(`同期沪深 300 买入持有：${(benchRet * 100).toFixed(1)}%（作为参照）`);
   }
   console.log("\n注：单笔收益率等权累加，不是复利；样本含幸存者偏差，实际会差一些。");
