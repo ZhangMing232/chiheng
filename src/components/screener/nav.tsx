@@ -22,6 +22,7 @@ import {
   ListFilter,
   Newspaper,
   RefreshCw,
+  Scale,
   Search,
   Sparkles,
   TrendingUp,
@@ -34,7 +35,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  *  折叠让「市场情报」这类低频组可以收起来给高频组让地方。 */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -45,6 +46,7 @@ const SIDEBAR: {
       { to: "/positions", label: "策略追踪", icon: TrendingUp },
       { to: "/ai", label: "AI 管理", icon: Sparkles },
       { to: "/research", label: "个股研判", icon: FileSearch },
+      { to: "/debate", label: "多空辩论", icon: Scale },
     ],
   },
   {

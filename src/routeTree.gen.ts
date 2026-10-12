@@ -18,6 +18,7 @@ import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as DebateRouteImport } from './routes/debate'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -60,6 +61,11 @@ const ReportsRoute = ReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DebateRoute = DebateRouteImport.update({
+  id: '/debate',
+  path: '/debate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScreenerRoute = ScreenerRouteImport.update({
   id: '/screener',
   path: '/screener',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/positions': typeof PositionsRoute
   '/research': typeof ResearchRoute
   '/reports': typeof ReportsRoute
+  '/debate': typeof DebateRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/positions': typeof PositionsRoute
   '/research': typeof ResearchRoute
   '/reports': typeof ReportsRoute
+  '/debate': typeof DebateRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/positions': typeof PositionsRoute
   '/research': typeof ResearchRoute
   '/reports': typeof ReportsRoute
+  '/debate': typeof DebateRoute
   '/screener': typeof ScreenerRoute
   '/symbol': typeof SymbolRoute
 }
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/positions'
     | '/research'
     | '/reports'
+    | '/debate'
     | '/screener'
     | '/symbol'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/positions'
     | '/research'
     | '/reports'
+    | '/debate'
     | '/screener'
     | '/symbol'
   id:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/positions'
     | '/research'
     | '/reports'
+    | '/debate'
     | '/screener'
     | '/symbol'
   fileRoutesById: FileRoutesById
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   PositionsRoute: typeof PositionsRoute
   ResearchRoute: typeof ResearchRoute
   ReportsRoute: typeof ReportsRoute
+  DebateRoute: typeof DebateRoute
   ScreenerRoute: typeof ScreenerRoute
   SymbolRoute: typeof SymbolRoute
 }
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/debate': {
+      id: '/debate'
+      path: '/debate'
+      fullPath: '/debate'
+      preLoaderRoute: typeof DebateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/screener': {
       id: '/screener'
       path: '/screener'
@@ -244,6 +264,7 @@ const rootRouteChildren: RootRouteChildren = {
   PositionsRoute: PositionsRoute,
   ResearchRoute: ResearchRoute,
   ReportsRoute: ReportsRoute,
+  DebateRoute: DebateRoute,
   ScreenerRoute: ScreenerRoute,
   SymbolRoute: SymbolRoute,
 }

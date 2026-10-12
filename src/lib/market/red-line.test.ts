@@ -101,3 +101,25 @@ test("规范：每条禁止模式都要有 why（拦了要说得清为什么）"
   }
   assert.equal(ALLOWED_OUTPUTS.length, 4);
 });
+
+test("2026-10-12 补漏：建议中间夹价格也必须拦（原来只放 8 字）", () => {
+  for (const text of [
+    "建议在 1300 元满仓买入，止损 1200。",
+    "建议把仓位加到五成，现价 1288 可以买。",
+    "推荐在 19 倍 PE 附近加仓。",
+  ]) {
+    const res = screenAdvice(text);
+    assert.equal(res.ok, false, `这句该拦：${text}`);
+  }
+});
+
+test("2026-10-12 防误伤：否定句「不建议买入」不是建议，必须放行", () => {
+  for (const text of [
+    "目前还不建议买入，等趋势确认。",
+    "不建议现在加仓。",
+    "不可以重仓。",
+  ]) {
+    const res = screenAdvice(text);
+    assert.equal(res.ok, true, `这句该放行：${text}（${res.hits.join("；")}）`);
+  }
+});
