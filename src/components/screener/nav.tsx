@@ -49,7 +49,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -75,6 +75,7 @@ const SIDEBAR: {
     label: "我的",
     items: [
       { to: "/my-stocks", label: "自选与持仓", icon: Star },
+      { to: "/inbox", label: "提醒", icon: Bell },
       { to: "/reports", label: "我的报告", icon: FileText },
     ],
   },
