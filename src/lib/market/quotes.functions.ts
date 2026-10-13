@@ -34,6 +34,7 @@ import type { Bar, IndexQuote, Trend, TrendPoint, Universe } from "@/lib/market/
 import { fetchIndices, fetchUniverse } from "@/lib/market/providers/index";
 import { fetchOverseasKline, fetchOverseasQuote, searchOverseas } from "@/lib/market/providers/overseas";
 import { ID_PATTERN, marketOf } from "@/lib/market/markets";
+import { ttlOf } from "@/lib/market/fetch-policy.ts";
 
 /**
  * 全市场快照的缓存时间。
@@ -173,7 +174,7 @@ export async function loadKline(id: string): Promise<{ id: string; bars: Bar[] }
     return { id, bars };
   }
   const hit = klineCache.get(id);
-  if (hit && Date.now() - hit.at < 5 * 60_000) return { id, bars: hit.bars };
+  if (hit && Date.now() - hit.at < ttlOf("kline")) return { id, bars: hit.bars };
   const url = `https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=${id},day,,,120`;
   const res = await fetch(url, {
     headers: KLINE_HEADERS,

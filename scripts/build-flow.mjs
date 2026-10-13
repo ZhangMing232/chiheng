@@ -25,6 +25,8 @@ const CACHE = join(here, "data/backtest/flow");
 const SAMPLE = Number(process.env.BT_SAMPLE ?? 300);
 const UA = "Mozilla/5.0";
 
+import { rateLimitOf } from "../src/lib/market/fetch-policy.ts";
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** 新浪全市场快照，拿 sh/sz 六位代码（和 backtest.ts 同一份逻辑）。 */
@@ -113,7 +115,7 @@ for (let i = 0; i < sample.length; i += 1) {
   if ((i + 1) % 25 === 0) {
     console.log(`  进度 ${i + 1}/${sample.length}（成功 ${ok} 跳过 ${skip} 失败 ${fail}）`);
   }
-  await sleep(1200); // 东财限流：串行 + ≥1.2s 间隔
+  await sleep(rateLimitOf("eastmoney").minGapMs); // 东财限流：串行 + 间隔查 fetch-policy.ts
 }
 
 console.log(`\n完成：成功 ${ok} · 复用缓存 ${skip} · 失败 ${fail} · 空 ${empty}`);

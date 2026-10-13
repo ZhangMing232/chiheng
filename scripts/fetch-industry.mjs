@@ -22,13 +22,17 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildIndustryIndex, parseBoardMembers, parseIndustryBoards } from "../src/lib/market/industry.ts";
+import { rateLimitOf } from "../src/lib/market/fetch-policy.ts";
 
 const here = new URL("..", import.meta.url).pathname;
 const OUT = join(here, "data", "backtest", "industry.json");
 const UA = "Mozilla/5.0";
-const GAP_MS = 1300;
+const GAP_MS = rateLimitOf("eastmoney").minGapMs;
 const limitArg = process.argv.indexOf("--limit");
 const LIMIT = limitArg >= 0 ? Number(process.argv[limitArg + 1]) : 0;
+// 抽样另写一个文件：**--limit 曾经把全量 496 个板块的正式索引覆盖成 3 个**（我手滑跑过
+// 一次，害得重抓 11 分钟）。抽样是验证用的，它不配动正式数据。
+const outPath = LIMIT > 0 ? `${OUT}.sample` : OUT;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -117,11 +121,11 @@ async function main() {
     new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10),
   );
   await mkdir(join(here, "data", "backtest"), { recursive: true });
-  const tmp = `${OUT}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+  const tmp = `${outPath}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   await writeFile(tmp, JSON.stringify(index), "utf-8");
-  await rename(tmp, OUT);
+  await rename(tmp, outPath);
 
-  console.log(`\n写好了 ${OUT}`);
+  console.log(`\n写好了 ${outPath}`);
   console.log(`  板块 ${index.boards.length} 个，覆盖个股 ${index.symbols} 只`);
   console.log(`  剪枝后仍多归属（不在同一条链上）${index.ambiguous.length} 只`);
   if (index.ambiguous.length > 0) {

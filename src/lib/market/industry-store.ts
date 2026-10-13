@@ -15,11 +15,12 @@ import { join } from "node:path";
 import { checkIndustryIndex, type IndustryIndex } from "./industry.ts";
 import type { BoardMonthly } from "./industry-chain.ts";
 import type { IndustryMonth } from "./industry-monthly.ts";
+import { ttlOf } from "./fetch-policy.ts";
 
 export const INDUSTRY_PATH = join("data", "backtest", "industry.json");
 export const MONTHLY_PATH = join("data", "backtest", "industry-monthly.json");
 
-const CACHE_MS = 5 * 60_000;
+const CACHE_MS = ttlOf("industry");
 
 let cache: { at: number; index: IndustryIndex } | null = null;
 

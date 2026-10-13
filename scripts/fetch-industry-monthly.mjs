@@ -23,12 +23,13 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { monthlyFromBars, parseBoardDaily, parseBoardFlow } from "../src/lib/market/industry-monthly.ts";
+import { rateLimitOf } from "../src/lib/market/fetch-policy.ts";
 
 const here = new URL("..", import.meta.url).pathname;
 const OUT = join(here, "data", "backtest", "industry-monthly.json");
 const INDEX = join(here, "data", "backtest", "industry.json");
 const UA = "Mozilla/5.0";
-const GAP_MS = 1300;
+const GAP_MS = rateLimitOf("eastmoney").minGapMs;
 const BARS = Number(process.env.BM_BARS ?? 400);
 const arg = (name) => {
   const i = process.argv.indexOf(name);
