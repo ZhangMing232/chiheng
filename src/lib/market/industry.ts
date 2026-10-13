@@ -172,13 +172,22 @@ function pickFinest(list: { code: string; name: string }[], sets: Map<string, Se
   return sorted.filter((cand) => {
     const candSet = sets.get(cand.code);
     if (!candSet) return true;
-    // 存在另一个候选，其成员集合是 cand 的真子集 → cand 更粗，剪掉
     return !sorted.some((other) => {
       if (other.code === cand.code) return false;
       const otherSet = sets.get(other.code);
-      if (!otherSet || otherSet.size >= candSet.size) return false;
-      for (const member of otherSet) if (!candSet.has(member)) return false;
-      return true;
+      if (!otherSet) return false;
+      // ① 成员集合是 cand 的真子集 → cand 更粗，剪掉
+      if (otherSet.size < candSet.size) {
+        for (const member of otherSet) if (!candSet.has(member)) return false;
+        return true;
+      }
+      // ② 成员集合完全相等 → 按层级标记剪（白酒Ⅲ 和 白酒Ⅱ 实测就是同一批票，
+      //    东财挂了两个层级标签）。排序已经把细的排前面，这里把粗的剔掉
+      if (otherSet.size === candSet.size) {
+        for (const member of otherSet) if (!candSet.has(member)) return false;
+        return layerRank(other.name) > layerRank(cand.name);
+      }
+      return false;
     });
   });
 }

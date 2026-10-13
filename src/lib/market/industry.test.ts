@@ -72,10 +72,9 @@ test("多归属取最细那层：成员集合是子集的更细", () => {
   assert.deepEqual(industryOf(index, "sh600001"), { code: "BK1", name: "元件" });
 });
 
-test("成员集合完全相同时按层级标记排：主归属取航海装备Ⅲ，含糊照记", () => {
-  // 实测东财会给同一批票挂两个层级标签（成员一模一样），包含关系剪不掉。
-  // 主归属取更细的 Ⅲ，但两个板块成员完全相同这件事要留在 ambiguous 里，
-  // 不能假装已经判明白了
+test("成员集合相同按层级标记剪掉粗的：主归属航海装备Ⅲ，不再算含糊", () => {
+  // 实测东财会给同一批票挂两个层级标签（白酒Ⅲ 和 白酒Ⅱ 就是同一批）。
+  // 两个板块成员完全一样 → 按层级标记剪掉粗的那个，这才叫判明白了
   const index = buildIndustryIndex(
     [
       { code: "BK1", name: "航海装备Ⅱ", members: ["sh600150", "sh600072"] },
@@ -84,9 +83,7 @@ test("成员集合完全相同时按层级标记排：主归属取航海装备�
     "2026-10-13",
   );
   assert.deepEqual(industryOf(index, "sh600150"), { code: "BK2", name: "航海装备Ⅲ" });
-  // 两只票都是这个情况，两只都要记
-  assert.equal(index.ambiguous.length, 2);
-  assert.equal(index.ambiguous[0]!.boards.length, 2);
+  assert.equal(index.ambiguous.length, 0);
 });
 
 test("同层级时成员少的更细：印制电路板 优先于 元件", () => {

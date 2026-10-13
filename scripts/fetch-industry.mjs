@@ -67,6 +67,30 @@ async function boardList() {
   return { all, problems };
 }
 
+/**
+ * 板块成分股也要分页拉：**和板块清单一样，pz 设 500 也只回 100 条**。
+ * 实测「食品饮料」「有色金属」这种大板块都被截在 100 只，结果是
+ * ① 大盘板块的票对不上（覆盖不全）；② 层级包含关系判断失真（白酒Ⅲ 明明是
+ * 食品饮料的子集，因为父集被截断而判成「交叉」），剪枝大面积失效。
+ */
+async function boardMembers(board) {
+  const members = [];
+  let gap = null;
+  for (let page = 1; page <= 20; page += 1) {
+    const body = await get(
+      "https://push2.eastmoney.com/api/qt/clist/get" +
+        `?pn=${page}&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3&fs=b:${board.code}&fields=f12,f13,f14`,
+    );
+    const { members: page_members, gap: pageGap } = parseBoardMembers(body, board);
+    if (page_members.length === 0) break;
+    for (const id of page_members) if (!members.includes(id)) members.push(id);
+    if (pageGap) gap = pageGap;
+    if (page_members.length < 100) break;
+    await sleep(GAP_MS);
+  }
+  return { members, gap };
+}
+
 async function main() {
   const { all, problems: listProblems } = await boardList();
   const { boards, gaps } = { boards: all, gaps: listProblems.map((reason) => ({ reason })) };
@@ -81,11 +105,7 @@ async function main() {
   const problems = [];
   for (let i = 0; i < targets.length; i += 1) {
     const board = targets[i];
-    const body = await get(
-      "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3" +
-        `&fs=b:${board.code}&fields=f12,f13,f14`,
-    );
-    const { members, gap } = parseBoardMembers(body, board);
+    const { members, gap } = await boardMembers(board);
     if (gap) problems.push(gap);
     if (members.length > 0) out.push({ code: board.code, name: board.name, members });
     if ((i + 1) % 25 === 0 || i + 1 === targets.length) console.log(`  ${i + 1}/${targets.length} ${board.name}`);

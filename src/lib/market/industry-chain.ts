@@ -51,20 +51,23 @@ export function industryStage(input: IndustryStageInput): StageResult {
   const evidence: Evidence[] = [];
   const findings: Finding[] = [];
 
-  const board = input.index ? finestIndustry(input.index, input.id)[0] ?? null : null;
+  // 判据要看**剪枝后**还剩几个，不是 bySymbol 里的全部归属——
+  // bySymbol 把一/二/三级都记着（白酒Ⅲ/白酒Ⅱ/食品饮料 三条），拿它判「含糊」
+  // 会让每一只票都报含糊。层级剪枝能判明白的（绝大多数）就不该报。
+  const finest = input.index ? finestIndustry(input.index, input.id) : [];
+  const board = finest[0] ?? null;
   if (!input.index) gaps.push("行业分类没抓过（跑 scripts/fetch-industry.mjs），这只票的行业归属无法确认");
   else if (!board) gaps.push(`${input.name} 不在行业分类表里（可能是新股或未纳入东财行业板块）`);
 
   if (board) {
     evidence.push({ label: "所属行业", value: board.name, source: SOURCE_INDUSTRY, tier: CONFIRMED });
     evidence.push({ label: "分类数据日期", value: input.index!.updatedAt, source: SOURCE_INDUSTRY, tier: CONFIRMED });
-    // 多归属且剪不掉的情况如实说：这只票同时挂在两条链上，行业读数本身就含糊
-    const all = input.index!.bySymbol[input.id] ?? [];
-    if (all.length > 1) {
+    // 剪枝后还剩多个 = 真的挂在两条链上（不在同一条层级里），如实说
+    if (finest.length > 1) {
       evidence.push({
         label: "其他归属",
-        value: all
-          .filter((b) => b.code !== board.code)
+        value: finest
+          .slice(1)
           .map((b) => b.name)
           .join(" / "),
         source: SOURCE_INDUSTRY,
