@@ -18,6 +18,7 @@ import {
   FileSearch,
   FileText,
   FlaskConical,
+  Grid2x2,
   History,
   LayoutDashboard,
   ListFilter,
@@ -49,7 +50,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -58,6 +59,7 @@ const SIDEBAR: {
       { to: "/review", label: "每日复盘", icon: History },
       { to: "/news", label: "消息追踪", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
+      { to: "/sectors", label: "板块", icon: Grid2x2 },
       { to: "/symbol", label: "个股查询", icon: Search },
     ],
   },

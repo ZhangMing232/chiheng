@@ -22,6 +22,7 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ScreenerRouteImport } from './routes/screener'
+import { Route as SectorsRouteImport } from './routes/sectors'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,11 @@ const ScreenerRoute = ScreenerRouteImport.update({
   path: '/screener',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SectorsRoute = SectorsRouteImport.update({
+  id: '/sectors',
+  path: '/sectors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/research': typeof ResearchRoute
   '/review': typeof ReviewRoute
   '/screener': typeof ScreenerRoute
+  '/sectors': typeof SectorsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/research': typeof ResearchRoute
   '/review': typeof ReviewRoute
   '/screener': typeof ScreenerRoute
+  '/sectors': typeof SectorsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/research': typeof ResearchRoute
   '/review': typeof ReviewRoute
   '/screener': typeof ScreenerRoute
+  '/sectors': typeof SectorsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/review'
     | '/screener'
+    | '/sectors'
     | '/symbol'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/review'
     | '/screener'
+    | '/sectors'
     | '/symbol'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/review'
     | '/screener'
+    | '/sectors'
     | '/symbol'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   ResearchRoute: typeof ResearchRoute
   ReviewRoute: typeof ReviewRoute
   ScreenerRoute: typeof ScreenerRoute
+  SectorsRoute: typeof SectorsRoute
   SymbolRoute: typeof SymbolRoute
 }
 
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScreenerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sectors': {
+      id: '/sectors'
+      path: '/sectors'
+      fullPath: '/sectors'
+      preLoaderRoute: typeof SectorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symbol': {
       id: '/symbol'
       path: '/symbol'
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResearchRoute: ResearchRoute,
   ReviewRoute: ReviewRoute,
   ScreenerRoute: ScreenerRoute,
+  SectorsRoute: SectorsRoute,
   SymbolRoute: SymbolRoute,
 }
 export const routeTree = rootRouteImport
