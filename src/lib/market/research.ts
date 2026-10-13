@@ -30,6 +30,8 @@ import { decisionPointsFrom } from "./catalyst-sop.ts";
 import { readEarnings, type EarningsPoint } from "./earnings-sop.ts";
 import { readFinancials, type FinancialRow } from "./financials.ts";
 import type { ConsensusRead } from "./consensus.ts";
+import type { KnowledgeFile } from "./knowledge.ts";
+import { checkOldPoints } from "./knowledge.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -105,6 +107,8 @@ export type ResearchInput = {
   financials?: readonly FinancialRow[] | null;
   /** 一致预期（D1：机构数 / 一致预期 EPS / 前瞻 CAGR / 分歧）。估值阶段算前瞻 PE 和 PEG。 */
   consensus?: ConsensusRead | null;
+  /** 旧知识档案（A5）。有它就先核对上次的预警，旧结论只当待验证项不当事实。 */
+  knowledge?: KnowledgeFile | null;
 };
 
 export type ResearchReport = {
@@ -442,6 +446,16 @@ function verdictStage(input: ResearchInput, prior: readonly StageResult[] = []):
     text: `观察「${p.object}」：${p.threshold}（来源 ${p.source}，${p.nextAt}）。触发后：${p.effect}`,
     tier: UNVERIFIED,
   }));
+
+  // 旧预警核对（A5 知识档案）：上次说的「盯什么」，这次回答「应验了没」。
+  // 旧结论只当待验证项——冲突时以本次实时数据为准，这条纪律写进 knowledge.ts 头注释。
+  if (input.knowledge) {
+    const checks = checkOldPoints(input.knowledge, input.quote ?? null, input.valuation ?? null);
+    for (const c of checks) {
+      const tag = c.status === "triggered" ? "上次的预警已应验" : c.status === "watching" ? "上次的预警还没触发" : "旧预警待人工核对";
+      findings.push({ text: `${tag}：「${c.point.object}」——${c.detail}`, tier: INFERRED });
+    }
+  }
   return {
     id: "verdict",
     title: "裁决点",
@@ -533,5 +547,35 @@ export function runResearch(input: ResearchInput): ResearchReport {
       calculations: chainItems.filter((item) => item.inputsRefs.length > 0).length,
       dangling: chainCheck.dangling,
     },
+  };
+}
+
+
+/**
+ * 从一次研判生成知识档案（A5）。
+ *
+ * 存什么：强结论 + 裁决点（待验证的预言）+ 关键快照（d20 和分位档位，
+ * 核对旧预警要用）。reportId 用于回溯到 data/reports/ 的原文。
+ */
+export function knowledgeFromReport(
+  report: ResearchReport,
+  reportId: string,
+  quote: Quote | null,
+  valuation: ValuationPosition | null,
+): KnowledgeFile {
+  const conclusions: string[] = [];
+  for (const stage of report.stages) {
+    for (const f of stage.findings) {
+      if (f.tier === INFERRED || f.tier === CONFIRMED) conclusions.push(f.text);
+    }
+  }
+  return {
+    symbol: report.symbol,
+    name: report.name,
+    savedAt: new Date().toISOString(),
+    reportId,
+    conclusions,
+    points: decisionPointsFrom(report.stages.filter((s) => s.id !== "verdict")),
+    snapshot: { d20: quote?.d20 ?? null, peRank: valuation?.peRank ?? null, pbRank: valuation?.pbRank ?? null },
   };
 }

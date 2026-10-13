@@ -51,7 +51,7 @@
 | 回测层 | `backtest/` 15557 行：多市场 engines（china_a 302 + global_equity 124）+ event_study 702 行 + constraints 229 行 + cost_compare + gate + gics | `scripts/backtest.ts` 1753 行（A 股）+ gate | **A2 事件研究**（event_study）、**A3 回测约束系统**（停牌/涨跌停/流动性） |
 | 数据层 | 168 端点（119 A 股） | D1-D4 + 行情 | 见上 D5-D10 |
 | 编排层 | `orchestrator/` **32447 行 TS** + alerts.ts（研究不是页面触发的，有编排和告警） | **无编排层**——研究流水线在 research.tsx loader 里直接跑 | **A4 编排层 + 告警**（它最大的一层） |
-| 知识层 | `knowledge/` 公司档案 + manifest 索引（研究沉淀可复用，旧结论可被反证） | **无档案沉淀** | **A5 公司知识档案**（它的 catalyst-risk §4 明确要求「旧结论冲突时反证」） |
+| 知识层 | `knowledge/` 公司档案 + manifest 索引（研究沉淀可复用，旧结论可被反证） | **A5 公司知识档案已落地**（knowledge.ts + knowledge-store.ts，2026-10-13） | ✅ 完成（赤轨版更进一步：档案存「待验证的预言」，下次研判自动核对应验没） |
 | 护栏层 | 红线 + 数字闸门 + 证据链 + stop_guard | 同 + 因子 6 关 + 三道闸 | **赤轨反超** |
 | SOP | 6 套 | 4 套 + 3 个模块 | 剩产业链、取数 |
 | 产品层 | Electron + Web 15 页 | Web 12+ 页 | Electron（E4 拍板不做） |

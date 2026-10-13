@@ -15,12 +15,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { runResearch, type StageResult } from "@/lib/market/research";
+import { knowledgeFromReport, runResearch, type StageResult } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
 import { loadEarnings } from "@/lib/market/earnings-store";
 import { loadFinancials } from "@/lib/market/financials-store";
 import { fetchConsensusReports } from "@/lib/market/consensus-store";
 import { aggregateConsensus } from "@/lib/market/consensus";
+import { loadKnowledge, saveKnowledge } from "@/lib/market/knowledge-store";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { saveResearchReport } from "@/lib/market/reports.functions";
@@ -71,7 +72,14 @@ export const Route = createFileRoute("/research")({
           .then((rs) => (rs ? aggregateConsensus(rs) : null))
           .catch(() => null)
       : null;
-    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus });
+    // 旧档案（A5）：研判前读，本次先核对上次的预警；旧结论只当待验证项
+    const knowledge = quote ? await loadKnowledge(quote.id).catch(() => null) : null;
+    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus, knowledge });
+    // 研判完自动归档（覆盖旧的）——这样下次研判同一只票能核对这次的预警
+    if (quote) {
+      const reportId = `research-${quote.id}-${Date.now().toString(36)}`;
+      await saveKnowledge(knowledgeFromReport(report, reportId, quote, valuation)).catch(() => {});
+    }
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
     // AI 综合。caller 里读档案 + 调 callAI + 记账；任何异常都由 runAiSynthesis 接住
     const ai = await runAiSynthesis(report.stages, report.symbol, report.name, async (prompt) => {
