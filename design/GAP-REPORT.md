@@ -47,8 +47,8 @@
 
 | 层 | 它（源码实测行数） | 赤轨 | 差距 |
 |---|---|---|---|
-| 计算层 | `calc/` 3424 行：技术指标库（MACD/KDJ/BOLL/RSI/EMA/MA）+ 财务公式库 + 序列函数 16 个 + 契约 | `factors.ts` 31 因子 + **A1 技术指标库已落地**（indicators.ts，口径逐字对齐）+ 财务公式（financials） | ✅ 指标库完成；仍缺它的财务公式库完整度与序列函数 |
-| 回测层 | `backtest/` 15557 行：多市场 engines（china_a 302 + global_equity 124）+ event_study 702 行 + constraints 229 行 + cost_compare + gate + gics + metrics 699 行 | `scripts/backtest.ts` 1753 行（A 股）+ gate + **A2 事件研究核心已落地**（event-study.ts） | ✅ **A2 完成**（算法+事件识别+指数日线+接进催化剂阶段，2026-10-13）；⬜ A3 约束、metrics 补全 |
+| 计算层 | `calc/` 3424 行：技术指标库（MACD/KDJ/BOLL/RSI/EMA/MA）+ 财务公式库 + 序列函数 16 个 + 契约 | `factors.ts` 31 因子 + A1 指标库 + A2 事件研究 + **metrics 指标库** + 财务拆解（financials.ts） | ✅ 主体齐；⬜ formulas 完整度（扣非×4 PE 要扣非数据、汇率换算） |
+| 回测层 | `backtest/` 15557 行：多市场 engines（china_a 302 + global_equity 124）+ event_study 702 行 + constraints 229 行 + cost_compare + gate + gics + metrics 699 行 | `scripts/backtest.ts` 1753 行（A 股）+ gate + **A2 事件研究核心已落地**（event-study.ts） | ✅ **A2 完成**（算法+识别+数据+页面，2026-10-13）；✅ **metrics 补全**（metrics.ts，629 全绿）；✅ A3 结论：**它的 constraints 是组合权重约束（多标的优化器场景），赤轨是单标的轮动，场景不同**——赤轨真正需要的成交可行性约束（涨跌停幅度按代码分、跌停封死）已在 backtest.ts:exitFill+boardLimit，且修过「跌停按止损价成交」的真 bug。若要抽成可测模块需动回测热路径，列为待讨论 |
 | 数据层 | 168 端点（119 A 股） | D1-D4 + 行情 | 见上 D5-D10 |
 | 编排层 | `orchestrator/` **32447 行 TS** + alerts.ts（研究不是页面触发的，有编排和告警） | **A4 部分落地**：定时告警（run-alerts.ts + alerts.ts，挂 home-server 心跳，收盘后核对自选旧预警）+ 收件箱 | ✅ 告警编排完成；❌ 群机器人推送（企微关闭）、MCP server（无需求）、local_agent_runtime（需讨论）、插件系统（需讨论） |
 | 知识层 | `knowledge/` 公司档案 + manifest 索引（研究沉淀可复用，旧结论可被反证） | **A5 公司知识档案已落地**（knowledge.ts + knowledge-store.ts，2026-10-13） | ✅ 完成（赤轨版更进一步：档案存「待验证的预言」，下次研判自动核对应验没） |
