@@ -47,7 +47,7 @@
 
 | 层 | 它（源码实测行数） | 赤轨 | 差距 |
 |---|---|---|---|
-| 计算层 | `calc/` 3424 行：技术指标库（MACD/KDJ/BOLL/RSI/EMA/MA）+ 财务公式库 + 序列函数 16 个 + 契约 | `factors.ts` 31 个选股因子，**无独立技术指标库** | **A1 技术指标库**（研判页技术面只有 MA） |
+| 计算层 | `calc/` 3424 行：技术指标库（MACD/KDJ/BOLL/RSI/EMA/MA）+ 财务公式库 + 序列函数 16 个 + 契约 | `factors.ts` 31 因子 + **A1 技术指标库已落地**（indicators.ts，口径逐字对齐）+ 财务公式（financials） | ✅ 指标库完成；仍缺它的财务公式库完整度与序列函数 |
 | 回测层 | `backtest/` 15557 行：多市场 engines（china_a 302 + global_equity 124）+ event_study 702 行 + constraints 229 行 + cost_compare + gate + gics | `scripts/backtest.ts` 1753 行（A 股）+ gate | **A2 事件研究**（event_study）、**A3 回测约束系统**（停牌/涨跌停/流动性） |
 | 数据层 | 168 端点（119 A 股） | D1-D4 + 行情 | 见上 D5-D10 |
 | 编排层 | `orchestrator/` **32447 行 TS** + alerts.ts（研究不是页面触发的，有编排和告警） | **无编排层**——研究流水线在 research.tsx loader 里直接跑 | **A4 编排层 + 告警**（它最大的一层） |

@@ -22,6 +22,7 @@ import { loadFinancials } from "@/lib/market/financials-store";
 import { fetchConsensusReports } from "@/lib/market/consensus-store";
 import { aggregateConsensus } from "@/lib/market/consensus";
 import { loadKnowledge, saveKnowledge } from "@/lib/market/knowledge-store";
+import { loadKlines } from "@/lib/market/kline-store";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { saveResearchReport } from "@/lib/market/reports.functions";
@@ -74,7 +75,8 @@ export const Route = createFileRoute("/research")({
       : null;
     // 旧档案（A5）：研判前读，本次先核对上次的预警；旧结论只当待验证项
     const knowledge = quote ? await loadKnowledge(quote.id).catch(() => null) : null;
-    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus, knowledge });
+    const klines = quote ? await loadKlines(quote.id).catch(() => null) : null;
+    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus, knowledge, klines });
     // 研判完自动归档（覆盖旧的）——这样下次研判同一只票能核对这次的预警
     if (quote) {
       const reportId = `research-${quote.id}-${Date.now().toString(36)}`;

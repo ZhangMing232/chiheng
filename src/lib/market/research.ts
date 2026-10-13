@@ -32,6 +32,7 @@ import { readFinancials, type FinancialRow } from "./financials.ts";
 import type { ConsensusRead } from "./consensus.ts";
 import type { KnowledgeFile } from "./knowledge.ts";
 import { checkOldPoints } from "./knowledge.ts";
+import { technicalIndicators, type KlineRow } from "./indicators.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -109,6 +110,8 @@ export type ResearchInput = {
   consensus?: ConsensusRead | null;
   /** 旧知识档案（A5）。有它就先核对上次的预警，旧结论只当待验证项不当事实。 */
   knowledge?: KnowledgeFile | null;
+  /** 日线 K 线（前复权，fetch-kline.py 抓的）。技术指标的原料，没有就写缺口。 */
+  klines?: readonly KlineRow[] | null;
 };
 
 export type ResearchReport = {
@@ -196,6 +199,51 @@ function priceStage(input: ResearchInput): StageResult {
       tier: CONFIRMED,
     });
   }
+  // 技术指标（A1）：有 K 线就算 MACD/KDJ/RSI/BOLL。**只摆数不做解读**——
+  // 指标层不许出现「金叉买入」这类信号（indicators.ts 头注释的纪律），
+  // 方向判断留给读者，赤轨只负责把数算对。
+  if (input.klines && input.klines.length > 0) {
+    const ind = technicalIndicators(input.klines);
+    const SRC = "baostock 日线（前复权，scripts/fetch-kline.py）";
+    if (ind.status === "ok") {
+      evidence.push({ label: "K 线根数", value: `${ind.points} 根（${ind.window![0]}~${ind.window![1]}）`, source: SRC, tier: CONFIRMED });
+      evidence.push({
+        label: "MACD",
+        value: `dif ${ind.macd!.dif.toFixed(3)} / dea ${ind.macd!.dea.toFixed(3)} / hist ${ind.macd!.hist.toFixed(3)}`,
+        source: SRC,
+        tier: CONFIRMED,
+      });
+      evidence.push({
+        label: "KDJ",
+        value: ind.kdj ? `K ${ind.kdj.k.toFixed(1)} / D ${ind.kdj.d.toFixed(1)} / J ${ind.kdj.j.toFixed(1)}` : "算不出",
+        source: SRC,
+        tier: CONFIRMED,
+      });
+      evidence.push({
+        label: "RSI",
+        value: `6 日 ${ind.rsi!.rsi6?.toFixed(1) ?? "—"} / 12 日 ${ind.rsi!.rsi12?.toFixed(1) ?? "—"} / 24 日 ${ind.rsi!.rsi24?.toFixed(1) ?? "—"}`,
+        source: SRC,
+        tier: CONFIRMED,
+      });
+      evidence.push({
+        label: "BOLL",
+        value: ind.boll ? `上 ${ind.boll.upper.toFixed(2)} / 中 ${ind.boll.middle.toFixed(2)} / 下 ${ind.boll.lower.toFixed(2)}（带宽 ${ind.boll.bandwidthPct.toFixed(1)}%）` : "算不出",
+        source: SRC,
+        tier: CONFIRMED,
+      });
+      findings.push({
+        text: "技术指标只是数值（MACD/KDJ/RSI/BOLL，口径与 Vibe-Research 逐字对齐）。赤轨不解读方向——「金叉」「超买」这类判断留给读者，指标层不许给信号。",
+        tier: CONFIRMED,
+      });
+    } else if (ind.status === "not_meaningful") {
+      gaps.push(`K 线不足 ${ind.points} 根，技术指标不可靠（跑 scripts/fetch-kline.py 补齐）`);
+    } else {
+      gaps.push(`K 线数据有问题：${ind.reason ?? "未知"}——指标没算，比算错强`);
+    }
+  } else {
+    gaps.push("没有日线 K 线（跑 scripts/fetch-kline.py），技术指标这一段是空的");
+  }
+
   return { id: "price", title: "价格位置", question: "现在站在什么位置上，贵了还是便宜了多久？", evidence, findings, gaps, derived: [] };
 }
 
