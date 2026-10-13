@@ -76,7 +76,9 @@ export const Route = createFileRoute("/research")({
     // 旧档案（A5）：研判前读，本次先核对上次的预警；旧结论只当待验证项
     const knowledge = quote ? await loadKnowledge(quote.id).catch(() => null) : null;
     const klines = quote ? await loadKlines(quote.id).catch(() => null) : null;
-    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus, knowledge, klines });
+    // 沪深300日线：事件研究的对照指数（单独一份，不在个股 K 线里）
+    const indexKlines = quote ? await loadKlines("sh000300").catch(() => null) : null;
+    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus, knowledge, klines, indexKlines });
     // 研判完自动归档（覆盖旧的）——这样下次研判同一只票能核对这次的预警
     if (quote) {
       const reportId = `research-${quote.id}-${Date.now().toString(36)}`;

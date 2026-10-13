@@ -33,6 +33,8 @@ import type { ConsensusRead } from "./consensus.ts";
 import type { KnowledgeFile } from "./knowledge.ts";
 import { checkOldPoints } from "./knowledge.ts";
 import { technicalIndicators, type KlineRow } from "./indicators.ts";
+import { studyEvents } from "./event-study.ts";
+import { classifyArticles } from "./event-rules.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
 
 /** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
@@ -112,6 +114,8 @@ export type ResearchInput = {
   knowledge?: KnowledgeFile | null;
   /** 日线 K 线（前复权，fetch-kline.py 抓的）。技术指标的原料，没有就写缺口。 */
   klines?: readonly KlineRow[] | null;
+  /** 沪深300日线（事件研究的对照指数）。没有就算不了超额，写缺口。 */
+  indexKlines?: readonly KlineRow[] | null;
 };
 
 export type ResearchReport = {
@@ -298,6 +302,39 @@ function catalystStage(input: ResearchInput): StageResult {
   // 之上更完整的一层。没有三表就退回只用比率（不硬凑）。
   // 关键：**数字先摆成 evidence 再下结论**——数字闸门要求每个出现在结论里的数
   // 都能在证据里找到出处，直接写进 findings 会被当成「没出处的数」换掉（踩过）。
+  // 事件研究（A2）：把公告识别成事件，算历史上每次同类事件前后相对沪深300的超额。
+  // 回答「这个催化剂历史上管不管用」——比只看标题强。数字照例先摆 evidence。
+  if (input.klines && input.indexKlines && input.articles.length > 0) {
+    const events = classifyArticles(input.articles);
+    if (events.length === 0) {
+      gaps.push("公告里没有识别得出的事件（业绩预告/增减持/回购等），事件研究这一段是空的");
+    } else {
+      const study = studyEvents(events, input.klines, input.indexKlines);
+      const SRC = "巨潮公告识别 + baostock 日线（沪深300对照）";
+      evidence.push({ label: "识别出的事件", value: `${study.listed} 次（公告共 ${input.articles.length} 条）`, source: SRC, tier: CONFIRMED });
+      if (study.summary) {
+        const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
+        evidence.push({ label: "事件前 5 日平均超额", value: pct(study.summary.pre), source: SRC, tier: CONFIRMED });
+        evidence.push({ label: "事件后 0–20 日平均超额", value: pct(study.summary.d0_20), source: SRC, tier: CONFIRMED });
+        evidence.push({
+          label: "20 日超额为正的比例",
+          value: study.summary.positiveShare != null ? `${Math.round(study.summary.positiveShare * 100)}%（${study.summary.n} 次有效）` : "—",
+          source: SRC,
+          tier: CONFIRMED,
+        });
+        findings.push({
+          text: "这是历史上同类事件的超额收益平均，只描述过去，不预测这一次；少于 8 次的事件不给平均（几次的平均说明不了什么）。",
+          tier: INFERRED,
+        });
+      } else {
+        findings.push({ text: "有效事件不足 8 次，按纪律只列逐次结果、不给平均值。", tier: INFERRED });
+      }
+      for (const gap of study.gaps) if (!gaps.includes(gap)) gaps.push(gap);
+    }
+  } else if (input.articles.length > 0) {
+    gaps.push("缺 K 线或沪深300日线（跑 scripts/fetch-kline.py），事件研究算不了");
+  }
+
   if (input.financials && input.financials.length > 0) {
     const fr = readFinancials(input.financials);
     const SRC = "baostock 三表（scripts/fetch-three-sheets.py）";
