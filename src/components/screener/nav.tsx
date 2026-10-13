@@ -32,25 +32,26 @@ import {
 } from "lucide-react";
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
 
-/** 桌面端左侧分组导航（PPT 新信息架构）。窄屏隐藏，改用顶栏下的页签。
- *  图标和可折叠分组学 Vibe-Research 的侧边栏：图标让八页扫一眼就能认，
- *  折叠让「市场情报」这类低频组可以收起来给高频组让地方。 */
+/**
+ * 左侧分组导航。2026-10-13 对照 Vibe-Research 的 nav.ts 重构：
+ *
+ * 它的三条原则（原文）照搬：
+ *   1. **最多两级**：一级栏目 + 二级页面；页面里自己的小分类只在页面里切，不占侧栏
+ *   2. **顺序按炒股的人每天的先后**：先看自己的（主控台）→ 复盘和情报 →
+ *      最后才是研究工具（它的原话：「先看自己的股票怎么样，再复盘，再看产业资讯，
+ *      最后才是研究工具」）
+ *   3. **接入 AI 固定在侧栏底部**（pinned），不混在研究组里
+ *
+ * 重构前的问题（用户 2026-10-13 指出）：
+ *   - 「策略研究」组塞了 6 项（选股/因子/追踪/AI 管理/研判/辩论），AI 管理是设置性质
+ *     却混在研究工具里；而且底部已有 pinned「接入 AI」，组里那个是重复入口
+ *   - 顺序不是「每天先看什么」——研究工具排在最前面
+ */
 const SIDEBAR: {
   label: string;
   items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
-  {
-    label: "策略研究",
-    items: [
-      { to: "/screener", label: "策略选股", icon: ListFilter },
-      { to: "/factors", label: "因子发掘", icon: FlaskConical },
-      { to: "/positions", label: "策略追踪", icon: TrendingUp },
-      { to: "/ai", label: "AI 管理", icon: Sparkles },
-      { to: "/research", label: "个股研判", icon: FileSearch },
-      { to: "/debate", label: "多空辩论", icon: Scale },
-    ],
-  },
   {
     label: "市场情报",
     items: [
@@ -58,6 +59,16 @@ const SIDEBAR: {
       { to: "/news", label: "消息追踪", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/symbol", label: "个股查询", icon: Search },
+    ],
+  },
+  {
+    label: "策略研究",
+    items: [
+      { to: "/research", label: "个股研判", icon: FileSearch },
+      { to: "/debate", label: "多空辩论", icon: Scale },
+      { to: "/screener", label: "策略选股", icon: ListFilter },
+      { to: "/positions", label: "策略追踪", icon: TrendingUp },
+      { to: "/factors", label: "因子发掘", icon: FlaskConical },
     ],
   },
   {

@@ -16,6 +16,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { FactorLoopPanels } from "@/components/screener/factor-loop-panels";
 import { Stat, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { SourceLine } from "@/components/source-line";
@@ -513,6 +514,9 @@ function FactorsPage() {
       <p className="px-1 text-[11px] leading-relaxed text-warn">
         超额 ≠ 收益；|t| &lt; 2 等于没测出来；两段翻号 = 不能用；禁调参过关。
       </p>
+
+      {/* 因子与策略的 AI 闭环（2026-10-13 从 /ai 页搬来）：待验队列、决策者记分牌、挑战者提名 */}
+      <FactorLoopPanels />
     </Frame>
   );
 }

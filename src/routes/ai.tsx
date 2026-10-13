@@ -59,13 +59,10 @@ type AIStatusPayload = {
 };
 
 type Loader = {
-  queue: QueuePayload;
   ai: AIStatusPayload;
-  chal: Challenger[];
+  /** 进化运行账本（每轮提议/被拒/报错）——进化控制台的原料，属于 AI 接入域，留本页 */
   log: AILogEntry[];
-  stats: ReturnType<typeof evolveStats>;
   usage: { allowed: boolean; entries: AIUsageEntry[]; stats: UsageStats | null };
-  ledger: { allowed: boolean; ledger: DecisionLedger | null };
   rules: { groups: RuleGroup[] } | null;
 };
 
@@ -75,19 +72,15 @@ function messageOf(error: unknown): string {
 
 export const Route = createFileRoute("/ai")({
   loader: async (): Promise<Loader> => {
-    const [queue, ai, chal, logRes, usage, ledger, rules] = await Promise.all([
-      getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
+    const [ai, logRes, usage, rules] = await Promise.all([
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [] })),
-      getChallengers()
-        .then((res) => res.list)
-        .catch((): Challenger[] => []),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
       getAIUsage().catch((): Loader["usage"] => ({ allowed: false, entries: [], stats: null })),
-      getDecisionLedger().catch((): Loader["ledger"] => ({ allowed: false, ledger: null })),
       getSystemRules().catch((): Loader["rules"] => null),
     ]);
-    const log = logRes.entries;
-    return { queue, ai, chal, log, stats: evolveStats(log, queue.entries, chal), usage, ledger, rules };
+    // 因子待验队列 / 决策者记分牌 / 挑战者提名已搬到因子发掘页（FactorLoopPanels 组件），
+    // 这里只留 AI 接入本身：接口配置、进化控制台、Token 用量。
+    return { ai, log: logRes.entries, usage, rules };
   },
   component: AIPage,
 });
@@ -406,40 +399,6 @@ function ConfigBlock({ ai }: { ai: AIStatusPayload }) {
   );
 }
 
-/** 决策者记分牌：AI 提议 vs 人工登记，因子过关率 + 挑战者转正率对照。 */
-function LedgerSection({ ledger }: { ledger: Loader["ledger"] }) {
-  if (!ledger.allowed) {
-    return <p className="px-3.5 py-3 text-xs text-muted">只有主人账号能看记分牌。</p>;
-  }
-  const L = ledger.ledger;
-  if (!L) {
-    return (
-      <div className="px-3.5 py-3">
-        <StateBlock kind="empty" title="记分牌还没数据" hint="第一次因子判决 / 挑战者判决跑完后自动有。判定产物在 data/ 下，不在 git 里。" />
-      </div>
-    );
-  }
-  const col = (title: string, f: DecisionLedger["factors"]["ai"], c: DecisionLedger["challengers"]["ai"], deaths: number) => (
-    <div className="bg-surface px-3.5 py-3">
-      <div className="text-xs font-medium text-fg">{title}</div>
-      <dl className="mt-2 space-y-1 text-xs text-muted">
-        <div className="flex justify-between"><dt>因子提议</dt><dd className="text-fg">{f.proposed}</dd></div>
-        <div className="flex justify-between"><dt>过 6 关</dt><dd className={f.passed > 0 ? "text-up" : "text-fg"}>{f.passed}{f.proposed > 0 ? `（${Math.round((f.passed / f.proposed) * 100)}%）` : ""}</dd></div>
-        <div className="flex justify-between"><dt>在验</dt><dd className="text-fg">{f.pending}</dd></div>
-        <div className="flex justify-between"><dt>淘汰/衰减</dt><dd className="text-down">{f.dead}{deaths > f.dead ? `（死因档案另记 ${deaths} 条）` : ""}</dd></div>
-        <div className="mt-2 border-t border-line pt-2 flex justify-between"><dt>挑战者提名</dt><dd className="text-fg">{c.proposed}</dd></div>
-        <div className="flex justify-between"><dt>已转正</dt><dd className={c.promoted > 0 ? "text-up" : "text-fg"}>{c.promoted}</dd></div>
-        <div className="flex justify-between"><dt>已淘汰 / 未决</dt><dd className="text-fg">{c.rejected} / {c.inconclusive}</dd></div>
-      </dl>
-    </div>
-  );
-  return (
-    <div className="grid gap-px bg-line sm:grid-cols-2">
-      {col("AI 提议", L.factors.ai, L.challengers.ai, L.tombstones.ai)}
-      {col("人工登记", L.factors.manual, L.challengers.manual, L.tombstones.manual)}
-    </div>
-  );
-}
 
 /** Token 用量监控：统计卡 + 7 天趋势 + 按模型分桶 + 最近流水。 */
 function UsageSection({ usage }: { usage: Loader["usage"] }) {
@@ -610,7 +569,7 @@ function RulesSection({ groups }: { groups: RuleGroup[] }) {
 }
 
 function AIPage() {
-  const { queue, ai, chal, log, stats, usage, ledger, rules } = Route.useLoaderData();
+  const { ai, log, usage, rules } = Route.useLoaderData();
   const router = useRouter();
   const [factorMsg, setFactorMsg] = useState<string | null>(null);
   const [stratMsg, setStratMsg] = useState<string | null>(null);
@@ -684,8 +643,6 @@ function AIPage() {
     }
   };
 
-  const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
-  const runningCount = chal.filter((c) => c.status === "running").length;
 
   return (
     <Frame aside="AI 管理">
@@ -727,20 +684,6 @@ function AIPage() {
           ) : (
             <p className="text-xs text-muted">主人账号登录后可运行进化和开关自动模式。</p>
           )}
-        </div>
-        <div className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-4">
-          {[
-            { label: "因子层轮数", value: stats.factorRounds, sub: `AI 提议 ${stats.factorProposed} 个` },
-            { label: "因子过关 / 淘汰", value: `${stats.factorPassed} / ${stats.factorTombstoned}`, sub: "过 6 关 / 连续 2 次未过" },
-            { label: "策略层轮数", value: stats.strategyRounds, sub: `AI 提名 ${stats.chalNominated} 个` },
-            { label: "挑战者转正 / 淘汰", value: `${stats.chalPromoted} / ${stats.chalRejected}`, sub: "Welch 判决产物" },
-          ].map((s) => (
-            <div key={s.label} className="bg-surface px-3.5 py-2.5">
-              <div className="text-[10px] tracking-widest text-muted">{s.label}</div>
-              <div className="mt-0.5 text-lg font-semibold tabular-nums">{s.value}</div>
-              <div className="text-[11px] text-muted">{s.sub}</div>
-            </div>
-          ))}
         </div>
         <div className="px-3.5 py-3">
           {log.length > 0 ? (
@@ -794,136 +737,6 @@ function AIPage() {
         <UsageSection usage={usage} />
       </Section>
 
-      <Section
-        title="决策者记分牌"
-        hint="同一个问题用记账回答：AI 做的决策到底行不行。因子层看 6 关过关率，策略层看挑战者转正率，两列对照——AI 列长期难看就该怀疑闭环，不该怀疑判据。数据缺哪边就空哪边，不补 0 冒充。"
-      >
-        <LedgerSection ledger={ledger} />
-      </Section>
-
-      <Section
-        id="ai-queue"
-        title="因子层：待验队列"
-        hint="AI 读最近一轮 6 关判决，针对败因提 1~3 个新假设；进队列后收盘自动进 6 关检验，连续 2 次没过自动淘汰，过关/淘汰推微信。"
-      >
-        <div className="border-b border-line px-3.5 py-2">
-          {ai.allowed ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={busy !== null || !ai.configured}
-                onClick={() => void runFactor()}
-                className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {busy === "factor" ? "AI 思考中…" : "让 AI 提议一轮新因子"}
-              </button>
-              {factorMsg ? <span className="min-w-0 text-xs text-muted">{factorMsg}</span> : null}
-            </div>
-          ) : (
-            <p className="text-xs text-muted">主人账号登录后可运行 AI 闭环。</p>
-          )}
-        </div>
-        <div className="px-3.5 py-3">
-          {queue.entries.length > 0 ? (
-            <Table className="data-table" caption="待验队列：AI 或人工预登记的因子，跑 BT_FACTOR=1 时附加进 6 关检验">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className={thClass()}>状态</th>
-                  <th className={thClass("text-left")}>因子</th>
-                  <th className={thClass()}>方向</th>
-                  <th className={thClass("text-left")}>表达式</th>
-                  <th className={thClass("text-left")}>经济逻辑</th>
-                  <th className={thClass()}>跑过/失败</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...queue.entries].reverse().map((e) => {
-                  const st = QUEUE_STATUS[e.status];
-                  return (
-                    <tr key={e.id} className={`border-b border-line last:border-b-0 ${e.status === "tombstone" ? "opacity-50" : ""}`}>
-                      <td data-l="状态" className={`px-2.5 py-1.5 ${st.className}`}>
-                        {st.label}
-                      </td>
-                      <td data-l="因子" className="px-2.5 py-1.5 text-left">
-                        <span className="font-medium">{e.name}</span>
-                        <span className="ml-1.5 text-[11px] text-muted">{e.id}</span>
-                        {e.note ? <span className="ml-1.5 text-[11px] text-muted">（{e.note}）</span> : null}
-                      </td>
-                      <td data-l="方向" className="px-2.5 py-1.5">
-                        {e.direction > 0 ? "正向" : "反向"}
-                      </td>
-                      <td data-l="表达式" className="px-2.5 py-1.5 font-mono text-[11px] text-muted">
-                        {e.expr}
-                      </td>
-                      <td data-l="经济逻辑" className="max-w-[36ch] px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">
-                        {e.rationale}
-                      </td>
-                      <td data-l="跑过/失败" className="px-2.5 py-1.5 text-[11px] text-muted">
-                        {e.runs} 次{e.failCount > 0 ? ` · 连续失败 ${e.failCount}` : ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </Table>
-          ) : (
-            <StateBlock
-              kind="empty"
-              title="待验队列是空的"
-              hint={ai.allowed ? "点上面的「让 AI 提议一轮新因子」；进队列后收盘自动判决，过关/淘汰会推微信。开自动进化后每晚自己转。" : "主人账号配置 AI 接口后可以自动补充新因子。"}
-            />
-          )}
-          {queue.missing ? <p className="mt-2 text-[11px] text-muted">{queue.missing}（还没跑过，正常）</p> : null}
-        </div>
-      </Section>
-
-      <Section
-        title="策略层：冠军-挑战者提名"
-        hint="AI 只许调出场参数（持有天数/止损/目标价），选股名单不许动。提名通过的直接开跑纸面（每策略每天限 1 只），攒满 30 笔后 Welch t ≥ 1.5 转正 / t ≤ −2 淘汰——判决在记账进程里，AI 碰不到。名单详情在策略追踪页。"
-      >
-        <div className="border-b border-line px-3.5 py-2">
-          {ai.allowed ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={busy !== null || !ai.configured}
-                onClick={() => void runStrategy()}
-                className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {busy === "strategy" ? "AI 思考中…" : "让 AI 提名挑战者"}
-              </button>
-              {stratMsg ? <span className="min-w-0 text-xs text-muted">{stratMsg}</span> : null}
-            </div>
-          ) : (
-            <p className="text-xs text-muted">主人账号登录后可运行 AI 闭环。</p>
-          )}
-        </div>
-        <div className="px-3.5 py-3">
-          {chal.length > 0 ? (
-            <ul className="space-y-1">
-              {chal.slice(-12).reverse().map((c) => {
-                const st = CHAL_STATUS[c.status];
-                return (
-                  <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
-                    <span className={`shrink-0 ${st.className}`}>{st.label}</span>
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-muted">
-                      {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
-                      {c.targetPct ?? "沿用冠军"}% · {c.since} 开跑
-                    </span>
-                    {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <StateBlock kind="empty" title="还没有挑战者" hint="点上面的「让 AI 提名挑战者」，或手工编辑 data/challengers.json（README 有模板）。" />
-          )}
-          <p className="mt-2 text-[11px] text-muted">
-            当前 {runningCount} 个在跑 · <Link to="/positions" className="hover:text-fg hover:underline">去策略追踪看持仓明细 →</Link>
-          </p>
-        </div>
-      </Section>
 
       {rules ? <RulesSection groups={rules.groups} /> : null}
 
