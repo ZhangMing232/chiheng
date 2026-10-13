@@ -12,14 +12,15 @@
 
 // 交易时段里，现价打到这只股票的买入价才记入。买入价写下后不再改。
 // 之后碰到卖出价或止损价就结算；同一天两边都碰到按止损。否则等第 8 个交易日收盘。
-import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { openSync } from "node:fs";
 import { execFile, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { BACKUP_KEEP_DAYS, backupJournal, pruneBackups } from "@/lib/market/journal-backup";
 import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
-import { exitFill, hardGate, nthClose, softGate, dayReliable, netReturn } from "../src/lib/market/journal-book.ts";
+import { hardGate, nthClose, softGate, dayReliable, netReturn } from "../src/lib/market/journal-book.ts";
+import { isStuck, settleOne } from "@/lib/market/settle";
 import { evaluateGate, readStrategyGates, writeStrategyGates } from "../src/lib/market/strategy-gate.ts";
 import {
   appendChampionLog,
@@ -35,7 +36,7 @@ import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
-import { boardLimit, HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
+import { HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
 import { ACTIVE_STYLES, holdOf, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
@@ -566,40 +567,31 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
         if (trade.exit != null) continue;
         try {
           const data = await kline(trade.id);
-          const plan = trade.stop && trade.target ? { stop: trade.stop, target: trade.target } : planExit(trade.entry, null, rules);
-          const filled = exitFill(
-            data.bars,
-            day.date,
-            trade.entry,
-            plan.stop,
-            plan.target,
-            boardLimit(trade.id, trade.name),
-            trade.hold ?? HOLD_SESSIONS,
-          );
-          if (!filled) {
+          // 判定搬去 src/lib/market/settle.ts（有单测钉住）。原来这段内联在这儿，
+          // 其中「还没到卖出日 vs 真卡住」的区分是踩过坑的：早先一律报「会一直挂着」，
+          // 结果每次拿几十笔正常持仓刷一条假警报。现在 waiting 不算卡住。
+          const verdict = settleOne({
+            id: trade.id,
+            name: trade.name,
+            dayDate: day.date,
+            entry: trade.entry,
+            stop: trade.stop ?? null,
+            target: trade.target ?? null,
+            hold: trade.hold ?? HOLD_SESSIONS,
+            bars: data.bars,
+            rules,
+          });
+          if (verdict.kind !== "filled") {
             stillOpen = true;
-            const bars = data.bars;
-            // 「算不出来」有两种，得分开说，不然天天误报：
-            // 一是还没到卖出日（正常得很，09-30 建的仓拿到今天才 3 个交易日）；
-            // 二是真的卡住了——买入日不在这 120 根 K 线里（停牌很久、或者持仓比
-            // K 线窗口还早），这种才会永远挂着、占着名额、不进胜率，页面上也看不出来。
-            // 早先一律报「会一直挂着」，结果每次都拿几十笔正常持仓刷一条假警报。
-            if (!bars.some((bar) => bar.date === day.date)) {
-              stuck.push(`${trade.name} ${day.date}（K 线里没有买入日这根，最早 ${bars[0]?.date ?? "无"}）`);
-              continue;
-            }
-            const hold = trade.hold ?? HOLD_SESSIONS;
-            const passed = bars.filter((bar) => bar.date > day.date).length;
-            if (passed < hold) continue;
-            stuck.push(`${trade.name} ${day.date}（已过 ${passed} 个交易日仍算不出卖出价）`);
+            if (isStuck(verdict)) stuck.push(verdict.reason);
             continue;
           }
-          trade.exit = filled.price;
-          trade.exitDate = filled.date;
+          trade.exit = verdict.price;
+          trade.exitDate = verdict.date;
           trade.exitKind = "daily";
           changed = true;
-          const key = `${userId}:${day.date}:${trade.id}:${filled.reason}`;
-          if (filled.reason === "time" && !alerts.has(key)) {
+          const key = `${userId}:${day.date}:${trade.id}:${verdict.reason}`;
+          if (verdict.reason === "time" && !alerts.has(key)) {
             alerts.add(key);
             alertsChanged = true;
             if (speak) {
