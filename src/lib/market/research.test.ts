@@ -61,7 +61,7 @@ function article(over: Partial<StockArticle> = {}): StockArticle {
   };
 }
 
-test("六阶段顺序固定，每阶段都带问题", () => {
+test("阶段顺序固定（七阶段），每阶段都带问题", () => {
   const report = runResearch({ quote: quote(), articles: [] });
   assert.deepEqual(report.stages.map((s) => s.id), [...STAGE_IDS]);
   for (const stage of report.stages) {

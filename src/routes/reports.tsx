@@ -48,7 +48,7 @@ function ReportsPage() {
           <StateBlock
             kind="empty"
             title="这台机器上还没有报告"
-            hint="去「个股研判」页输入一只股票，六阶段跑完后点「存成报告」，这里就会出现。报告存在本机，data 目录不进 git，换机器不会跟过来。"
+            hint="去「个股研判」页输入一只股票，七阶段跑完后点「存成报告」，这里就会出现。报告存在本机，data 目录不进 git，换机器不会跟过来。"
             action={{ label: "去个股研判", onClick: () => { window.location.assign("/research"); } }}
           />
         ) : (

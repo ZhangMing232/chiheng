@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>赤轨 · AI 投研开放平台（产品设计 v2）</title>
+<style>
+:root{
+  --bg:#0b0e15; --fg:#eef2f6; --muted:#8b95a6;
+  --surface:#131926; --surface-2:#1a2233; --surface-3:#202a3d; --line:#242f45;
+  --up:#f2495c; --down:#0bb97b; --up-soft:#2e1f2c; --down-soft:#173730;
+  --brand:#e63c4f; --brand-text:#f0566a; --brand-soft:#2c1d2b;
+  --accent:#3d8bff; --accent-soft:#182740;
+  --warn:#e8a33d; --warn-soft:#33260f;
+  --gold:#c9a869; --gold-soft:#332a16;
+  --ok:#2fbf8a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.6 "PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .up{color:var(--up)} .down{color:var(--down)}
+.warn{color:var(--warn)} .gold{color:var(--gold)} .acc{color:var(--accent)} .ok{color:var(--ok)}
+.kbd{font:10px ui-monospace,Menlo,monospace;background:var(--surface-3);border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:2px 5px;color:var(--muted)}
+
+header{display:flex;align-items:center;gap:13px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:30}
+.logo{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.06em;font-size:15px}
+.logo i{width:3px;height:17px;border-radius:2px;background:var(--brand);display:block}
+.search{flex:1;max-width:380px;display:flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:6px 11px;color:var(--muted);font-size:12px}
+.search kbd{margin-left:auto}
+.right{margin-left:auto;display:flex;align-items:center;gap:9px}
+.pill{padding:3px 9px;border-radius:99px;font-size:11px;border:1px solid var(--line);background:var(--surface-2);display:inline-flex;align-items:center;gap:5px}
+.pill.gold{background:var(--gold-soft);color:var(--gold);border-color:transparent}
+.pill.acc{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--accent));display:grid;place-items:center;font-size:11px;font-weight:600;color:#fff}
+.btn{padding:5px 11px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer;font:12px inherit}
+.btn:hover{background:var(--surface-2)}
+.btn.p{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.g{background:var(--gold);border-color:var(--gold);color:#241a06;font-weight:600}
+
+.wrap{display:flex;min-height:calc(100vh - 48px)}
+aside{width:188px;flex-shrink:0;border-right:1px solid var(--line);background:var(--surface);padding:13px 9px;overflow-y:auto}
+aside .g{font-size:10px;letter-spacing:.16em;color:var(--muted);padding:13px 9px 5px}
+aside a{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;color:var(--muted);text-decoration:none;font-size:13px;cursor:pointer}
+aside a:hover{background:var(--surface-2);color:var(--fg)}
+aside a.on{background:var(--brand-soft);color:var(--brand-text);font-weight:500}
+aside a .lk{font-size:9px;padding:0 4px;border-radius:3px;background:var(--gold-soft);color:var(--gold);margin-left:auto}
+aside a .nw{font-size:9px;padding:0 4px;border-radius:3px;background:var(--accent-soft);color:var(--accent);margin-left:auto}
+main{flex:1;padding:20px;overflow-x:hidden;max-width:1200px}
+.page{display:none} .page.on{display:block}
+h1{font-size:18px;font-weight:600}
+.sub{color:var(--muted);font-size:12px;margin:3px 0 18px}
+h2{font-size:13px;font-weight:600;margin:0 0 9px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+h3{font-size:12px;font-weight:600;margin:14px 0 7px;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:14px;margin-bottom:13px}
+.grid{display:grid;gap:13px}
+.tag{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.tag.ok{background:var(--down-soft);color:var(--down);border-color:transparent}
+.tag.bad{background:var(--up-soft);color:var(--up);border-color:transparent}
+.tag.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.tag.brand{background:var(--brand-soft);color:var(--brand-text);border-color:transparent}
+.tag.gold{background:var(--gold-soft);color:var(--gold);border-color:transparent}
+.tag.acc{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--muted);font-weight:400;font-size:11px;padding:6px 9px;border-bottom:1px solid var(--line)}
+td{padding:6px 9px;border-bottom:1px solid var(--line)}
+tbody tr:hover{background:var(--surface-2)}
+.r{text-align:right}
+.sn{color:var(--accent);cursor:pointer} .sn:hover{text-decoration:underline}
+
+/* 开放度阶梯 */
+.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.rung{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;position:relative;transition:.15s;cursor:default}
+.rung:hover{border-color:var(--accent)}
+.rung .lv{font-size:10px;letter-spacing:.14em;color:var(--muted)}
+.rung .nm{font-weight:600;margin:3px 0 6px;font-size:13px}
+.rung .ds{font-size:11px;color:var(--muted);min-height:44px}
+.rung .st{margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+.rung.live{border-color:var(--ok)}
+.rung.plan{opacity:.62}
+
+/* 因子工坊 */
+.expr{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:11px 13px;color:var(--fg);font:14px ui-monospace,Menlo,monospace;outline:none}
+.expr:focus{border-color:var(--accent)}
+.expr.bad{border-color:var(--up)}
+.expr.good{border-color:var(--ok)}
+.verdict{margin-top:9px;padding:9px 11px;border-radius:7px;font-size:12px;display:none}
+.verdict.show{display:block}
+.verdict.bad{background:var(--up-soft);border:1px solid var(--up);color:var(--fg)}
+.verdict.good{background:var(--down-soft);border:1px solid var(--down);color:var(--fg)}
+.vars{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.var{padding:2px 7px;border-radius:5px;background:var(--surface-2);border:1px solid var(--line);font:11px ui-monospace,Menlo,monospace;cursor:pointer;color:var(--muted)}
+.var:hover{border-color:var(--accent);color:var(--fg)}
+.var.fn{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.gates{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
+.gate{padding:4px 9px;border-radius:6px;font-size:11px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+.gate.pass{background:var(--down-soft);color:var(--down);border-color:transparent}
+.gate.fail{background:var(--up-soft);color:var(--up);border-color:transparent}
+
+/* 看板 */
+.board{display:grid;grid-template-columns:repeat(12,1fr);gap:11px}
+.mod{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;cursor:grab;position:relative;min-height:88px}
+.mod:hover{border-color:var(--accent)}
+.mod .mh{font-size:11px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between}
+.mod .mt{font-weight:600;font-size:13px}
+.mod.w4{grid-column:span 4} .mod.w6{grid-column:span 6} .mod.w8{grid-column:span 8} .mod.w12{grid-column:span 12}
+.mod.drag{opacity:.4;border-style:dashed}
+.library{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px}
+.lib-item{padding:5px 10px;border-radius:6px;background:var(--surface-2);border:1px dashed var(--line);font-size:12px;cursor:grab;color:var(--muted)}
+.lib-item:hover{border-color:var(--accent);color:var(--fg)}
+
+/* 滑块 */
+.sl{display:flex;align-items:center;gap:10px;margin:9px 0}
+.sl label{width:74px;font-size:12px;color:var(--muted)}
+.sl input{flex:1;accent-color:var(--brand)}
+.sl .v{width:52px;text-align:right;font:12px ui-monospace,Menlo,monospace}
+
+/* 代码 */
+pre{background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:11px 13px;font:11px/1.7 ui-monospace,Menlo,monospace;overflow-x:auto;color:var(--fg)}
+pre .c{color:var(--muted)} pre .k{color:var(--accent)} pre .s{color:var(--ok)}
+@media(max-width:1000px){.ladder,.board{grid-template-columns:1fr}.mod{grid-column:span 12!important}aside{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><i></i>赤轨</div>
+  <div class="search"><span>搜索股票 / 因子 / 策略 / 文档…</span><kbd>⌘K</kbd></div>
+  <div class="right">
+    <span class="pill gold">专业版</span>
+    <span class="pill acc">额度 1280/3000</span>
+    <div class="avatar">张</div>
+  </div>
+</header>
+
+<div class="wrap">
+<aside>
+  <div class="g">工作台</div>
+  <a class="on" data-p="home">今日投研</a>
+  <a data-p="board">我的看板<span class="nw">可拖拽</span></a>
+  <div class="g">发现</div>
+  <a data-p="pick">智能选股</a>
+  <a data-p="factor">因子工坊<span class="nw">NEW</span></a>
+  <a data-p="strategy">策略工坊<span class="nw">NEW</span></a>
+  <a data-p="lab">AI 实验室<span class="lk">PRO</span></a>
+  <div class="g">洞察</div>
+  <a data-p="news">全球消息</a>
+  <a data-p="flow">资金流向</a>
+  <a data-p="stock">AI 个股研判</a>
+  <div class="g">创作</div>
+  <a data-p="create">AI 文生图</a>
+  <a data-p="poster">海报卡片</a>
+  <div class="g">开放</div>
+  <a data-p="open">API 与 MCP<span class="nw">NEW</span></a>
+  <a data-p="hook">Webhook 提醒</a>
+  <div class="g">我的</div>
+  <a data-p="plan">会员方案</a>
+</aside>
+
+<main>
+
+<!-- ═══ 首页 ═══ -->
+<section class="page on" id="home">
+  <h1>今日投研</h1>
+  <div class="sub">2026-10-11 周日休市 · 以下为上一交易日收盘数据</div>
+
+  <div class="card" style="border-color:var(--accent)">
+    <h2><span class="tag acc">AI 今日解读</span> 基于你的自选与持仓</h2>
+    <div style="font-size:13px;line-height:1.65">
+      上周 A 股缩量调整，你关注的 <b>半导体</b> 回撤 7.2%，rebound 持仓浮亏最大（芯原股份 −9.32%）。
+      值得注意：<b>止损出局占比 77%</b>，而到目标的交易平均赚 <b class="up">+7.79%</b> ——
+      问题可能不在选股，在<b>止损设置过紧</b>。
+    </div>
+    <div class="vars" style="margin-top:11px">
+      <span class="var" onclick="go('strategy')">帮我查止损参数</span>
+      <span class="var" onclick="go('factor')">新建因子试试</span>
+      <span class="var" onclick="go('news')">今晚有什么消息</span>
+      <span class="var" onclick="go('flow')">资金在往哪流</span>
+    </div>
+  </div>
+
+  <h3>开放度阶梯 · 从改配置到写代码</h3>
+  <div class="ladder">
+    <div class="rung live">
+      <div class="lv">L1</div>
+      <div class="nm">配置</div>
+      <div class="ds">主题、字号、布局模块、提醒开关。不改策略逻辑。</div>
+      <div class="st"><span class="tag ok">已上线</span></div>
+    </div>
+    <div class="rung live">
+      <div class="lv">L2</div>
+      <div class="nm">表达式</div>
+      <div class="ds">用白名单公式写自己的因子，如 <span class="mono">std20 / amp20</span>。</div>
+      <div class="st"><span class="tag ok">已上线</span></div>
+    </div>
+    <div class="rung live">
+      <div class="lv">L3</div>
+      <div class="nm">策略</div>
+      <div class="ds">把因子组装成策略，调买入/止损/目标/持有天数。</div>
+      <div class="st"><span class="tag ok">已上线</span></div>
+    </div>
+    <div class="rung plan">
+      <div class="lv">L4</div>
+      <div class="nm">脚本</div>
+      <div class="ds">沙箱内写自己的研判脚本（Python 子集），只读行情。</div>
+      <div class="st"><span class="tag warn">规划中</span></div>
+    </div>
+    <div class="rung plan">
+      <div class="lv">L5</div>
+      <div class="nm">协议</div>
+      <div class="ds">MCP / REST / Webhook，把赤轨接进你自己的系统。</div>
+      <div class="st"><span class="tag warn">规划中</span></div>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="card">
+      <h2>我的策略</h2>
+      <table><tbody>
+        <tr><td>放量突破</td><td class="r"><span class="tag brand">在用</span></td><td class="r mono up">+5.29%</td></tr>
+        <tr><td>中期反转</td><td class="r"><span class="tag brand">在用</span></td><td class="r mono down">−5.24%</td></tr>
+        <tr><td>我的·低波动</td><td class="r"><span class="tag acc">自建</span></td><td class="r mono up">+1.88%</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <h2>我的因子</h2>
+      <table><tbody>
+        <tr><td>波动压缩比</td><td class="r"><span class="tag ok">过关</span></td><td class="r mono">t=2.31</td></tr>
+        <tr><td>缩量反转</td><td class="r"><span class="tag warn">监测中</span></td><td class="r mono">t=1.72</td></tr>
+        <tr><td>量价背离</td><td class="r"><span class="tag bad">已淘汰</span></td><td class="r mono">t=0.84</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <h2>待办</h2>
+      <div style="font-size:12px">
+        <div style="padding:3px 0">· <span class="warn">硬闸拦下开仓（连亏 3 天）</span></div>
+        <div style="padding:3px 0">· 4 个挑战者 0 样本</div>
+        <div style="padding:3px 0">· rebound 13 笔 10-22 结算</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 因子工坊 ═══ -->
+<section class="page" id="factor">
+  <h1>因子工坊 <span class="tag acc">L2 开放</span></h1>
+  <div class="sub">自己写因子公式 · 白名单编译，无 eval，天然无前视</div>
+
+  <div class="card">
+    <h2>新建因子</h2>
+    <input class="expr" id="expr" value="std20 / amp20" placeholder="输入表达式，如 d60 * volShrink" />
+    <div class="verdict" id="vbox"></div>
+
+    <h3>可用字段（点击插入）</h3>
+    <div class="vars">
+      <span class="var" onclick="ins('c')">c 收盘</span>
+      <span class="var" onclick="ins('prev')">prev 昨收</span>
+      <span class="var" onclick="ins('d5')">d5 五日涨</span>
+      <span class="var" onclick="ins('d20')">d20 廿日涨</span>
+      <span class="var" onclick="ins('d60')">d60 六十日涨</span>
+      <span class="var" onclick="ins('std20')">std20 廿日波动</span>
+      <span class="var" onclick="ins('amp20')">amp20 振幅</span>
+      <span class="var" onclick="ins('volShrink')">volShrink 量能萎缩</span>
+      <span class="var" onclick="ins('shrinkDays')">shrinkDays 缩量天数</span>
+      <span class="var" onclick="ins('rsi14')">rsi14</span>
+      <span class="var" onclick="ins('momAccel')">momAccel 动量加速</span>
+      <span class="var" onclick="ins('turnover')">turnover 换手</span>
+      <span class="var fn" onclick="ins('abs(')">abs()</span>
+      <span class="var fn" onclick="ins('log(')">log()</span>
+      <span class="var fn" onclick="ins('sqrt(')">sqrt()</span>
+      <span class="var fn" onclick="ins(' * ')">×</span>
+      <span class="var fn" onclick="ins(' / ')">÷</span>
+      <span class="var fn" onclick="ins(' + ')">+</span>
+      <span class="var fn" onclick="ins(' - ')">−</span>
+    </div>
+
+    <h3>提交后要走完的 6 关（判决预先登记，不由你说）</h3>
+    <div class="gates">
+      <span class="gate">G1 单调</span>
+      <span class="gate">G2 |t|≥2</span>
+      <span class="gate">G3 两段同号</span>
+      <span class="gate">G4 换样本</span>
+      <span class="gate">G5 Bonferroni</span>
+      <span class="gate">G6 可交易</span>
+    </div>
+    <button class="btn p" style="margin-top:13px;width:100%" onclick="submitFactor()">
+      提交检验（消耗约 240 点额度 · 约 8 分钟）
+    </button>
+  </div>
+
+  <div class="card">
+    <h2>我的因子</h2>
+    <table>
+      <thead><tr><th>名称</th><th>表达式</th><th class="r">t 值</th><th>状态</th><th class="r">创建于</th></tr></thead>
+      <tbody>
+        <tr><td>波动压缩比</td><td class="mono muted">std20 / amp20</td><td class="r mono">2.31</td><td><span class="tag ok">过关</span></td><td class="r mono muted">10-05</td></tr>
+        <tr><td>缩量反转</td><td class="mono muted">d60 * volShrink</td><td class="r mono">1.72</td><td><span class="tag warn">监测中</span></td><td class="r mono muted">10-07</td></tr>
+        <tr><td>量价背离</td><td class="mono muted">abs(d20) - amp20</td><td class="r mono">0.84</td><td><span class="tag bad">已淘汰</span></td><td class="r mono muted">10-08</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>为什么用表达式而不是让你写代码</h2>
+    <div class="muted" style="font-size:12px">
+      表达式走白名单编译（Shunting-yard 手工解析，<b>没有 eval / new Function</b>），
+      白名单外的标识符直接编译失败。好处是三件事同时成立：<br>
+      1. <b>安全</b>——表达式只是数据，永远不可能变成代码；<br>
+      2. <b>无前视</b>——能引用的字段只含第 t 天及之前的 OHLCV，想作弊都没门；<br>
+      3. <b>可分享</b>——一行公式就是完整定义，别人复制过去结果完全一致。
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 策略工坊 ═══ -->
+<section class="page" id="strategy">
+  <h1>策略工坊 <span class="tag acc">L3 开放</span></h1>
+  <div class="sub">把因子组装成策略 · 参数旋钮实时可见，判决仍由预登记规则给</div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <h2>组装</h2>
+      <h3>选因子</h3>
+      <select style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:7px 9px;color:var(--fg);font:13px inherit">
+        <option>波动压缩比（自建 · t=2.31）</option>
+        <option>缩量反转（自建 · t=1.72）</option>
+        <option>d60 反向（内置）</option>
+        <option>量比 × 换手（内置）</option>
+      </select>
+      <h3>买卖规则</h3>
+      <div class="sl"><label>买入价</label><input type="range" min="98" max="106" value="102" oninput="sv(this,'bp','%')"><span class="v" id="bp">102%</span></div>
+      <div class="sl"><label>止损</label><input type="range" min="2" max="25" value="7" oninput="sv(this,'sp','%')"><span class="v" id="sp">7%</span></div>
+      <div class="sl"><label>目标</label><input type="range" min="8" max="40" value="18" oninput="sv(this,'tp','%')"><span class="v" id="tp">18%</span></div>
+      <div class="sl"><label>持有上限</label><input type="range" min="3" max="30" value="12" oninput="sv(this,'hd','天')"><span class="v" id="hd">12天</span></div>
+      <div class="sl"><label>单日最多</label><input type="range" min="1" max="10" value="5" oninput="sv(this,'mx','只')"><span class="v" id="mx">5只</span></div>
+      <button class="btn p" style="width:100%;margin-top:9px">保存为我的策略并回测</button>
+    </div>
+
+    <div class="card">
+      <h2>为什么要这么设</h2>
+      <div style="font-size:12px">
+        <div style="padding:5px 0;border-bottom:1px solid var(--line)">
+          <b class="warn">止损 7%</b> —— 你现在内置的 breakout 是 −2%，
+          实测 77% 交易死于止损；放宽到 7~8% 是 AI 挑战者正在试的方向。
+        </div>
+        <div style="padding:5px 0;border-bottom:1px solid var(--line)">
+          <b>持有 12 天</b> —— 短于 22 天缓退版，适合先小样本验证。
+        </div>
+        <div style="padding:5px 0">
+          <b class="muted">单日 5 只</b> —— 名额越少，单笔样本越干净，但攒够 30 笔更慢。
+        </div>
+      </div>
+      <h3>提交后</h3>
+      <div class="muted" style="font-size:12px">
+        你的策略会作为「挑战者」和内置冠军<b>并行跑纸面盘</b>，
+        各攒 30 笔后由 Welch 判决决定谁转正。<b>判决不是我给，是预先登记的函数给。</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>我的策略</h2>
+    <table>
+      <thead><tr><th>名称</th><th>因子</th><th class="r">止损</th><th class="r">持有</th><th class="r">样本</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td>我的·低波动</td><td>波动压缩比</td><td class="r mono">7%</td><td class="r mono">12天</td><td class="r mono">18/30</td><td><span class="tag acc">攒样本</span></td></tr>
+        <tr><td>我的·缩量抄底</td><td>缩量反转</td><td class="r mono">15%</td><td class="r mono">22天</td><td class="r mono">4/30</td><td><span class="tag acc">攒样本</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ 我的看板 ═══ -->
+<section class="page" id="board">
+  <h1>我的看板 <span class="tag acc">L1 开放</span></h1>
+  <div class="sub">拖拽排布你关心的模块 · 布局保存在账号里，换设备同步</div>
+
+  <div class="card">
+    <h2>模块库（拖到下方）</h2>
+    <div class="library">
+      <span class="lib-item">AI 今日解读</span>
+      <span class="lib-item">自选股</span>
+      <span class="lib-item">我的策略</span>
+      <span class="lib-item">我的因子</span>
+      <span class="lib-item">资金概览</span>
+      <span class="lib-item">行业涨跌</span>
+      <span class="lib-item">全球消息</span>
+      <span class="lib-item">待办提醒</span>
+      <span class="lib-item">大盘分时</span>
+      <span class="lib-item">龙虎榜</span>
+    </div>
+
+    <h2>当前布局（可拖拽）</h2>
+    <div class="board" id="board">
+      <div class="mod w8" draggable="true"><div class="mh"><span>AI 今日解读</span><span>⋮⋮</span></div><div class="mt">上周缩量调整，半导体回撤 7.2%…</div></div>
+      <div class="mod w4" draggable="true"><div class="mh"><span>自选股</span><span>⋮⋮</span></div><div class="mt">5 只 · 2 涨 3 跌</div></div>
+      <div class="mod w4" draggable="true"><div class="mh"><span>我的策略</span><span>⋮⋮</span></div><div class="mt">3 套 · 最好 +5.29%</div></div>
+      <div class="mod w4" draggable="true"><div class="mh"><span>资金概览</span><span>⋮⋮</span></div><div class="mt">主力 +128.4 亿</div></div>
+      <div class="mod w4" draggable="true"><div class="mh"><span>待办提醒</span><span>⋮⋮</span></div><div class="mt">3 项待处理</div></div>
+    </div>
+    <div style="display:flex;gap:9px;margin-top:13px">
+      <button class="btn p">保存布局</button>
+      <button class="btn">恢复默认</button>
+      <span class="muted" style="align-self:center;font-size:11px">上次保存：10 分钟前</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 开放平台 ═══ -->
+<section class="page" id="open">
+  <h1>API 与 MCP <span class="tag warn">L5 规划中</span></h1>
+  <div class="sub">把赤轨接进你自己的系统 · 行情 / 因子 / 策略 / 提醒</div>
+
+  <div class="card">
+    <h2>REST API</h2>
+<pre><span class="c"># 取全市场快照（你的额度内）</span>
+curl -H <span class="s">"Authorization: Bearer ck_live_xxx"</span> \
+  https://api.chiheng.cn/v1/quotes?market=a
+
+<span class="c"># 取某个因子的最新分档</span>
+curl -H <span class="s">"Authorization: Bearer ck_live_xxx"</span> \
+  https://api.chiheng.cn/v1/factors/std20_div_amp20/buckets</pre>
+    <div class="muted" style="margin-top:9px;font-size:12px">
+      按调用次数计额度，不走 AI token（数据接口不消耗 AI 额度）。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>MCP（接进 Claude / Cursor / 任意 MCP 客户端）</h2>
+<pre>{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"chiheng"</span>: {
+      <span class="k">"command"</span>: <span class="s">"npx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"chiheng-mcp"</span>],
+      <span class="k">"env"</span>: { <span class="k">"CHIHENG_TOKEN"</span>: <span class="s">"ck_live_xxx"</span> }
+    }
+  }
+}</pre>
+    <div class="muted" style="margin-top:9px;font-size:12px">
+      暴露的工具：<span class="mono">get_quotes</span> · <span class="mono">list_signals</span> ·
+      <span class="mono">get_factor_buckets</span> · <span class="mono">run_backtest</span> ·
+      <span class="mono">ask_stock</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>我的密钥</h2>
+    <table>
+      <thead><tr><th>名称</th><th>密钥</th><th>权限</th><th class="r">本月调用</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td>本地开发</td><td class="mono muted">ck_live_4f2a…9c81</td><td>只读</td><td class="r mono">1,284</td><td><span class="tag ok">启用</span></td></tr>
+        <tr><td>量化脚本</td><td class="mono muted">ck_live_7b3e…1d05</td><td>只读 + 回测</td><td class="r mono">8,902</td><td><span class="tag ok">启用</span></td></tr>
+      </tbody>
+    </table>
+    <button class="btn" style="margin-top:11px">新建密钥</button>
+  </div>
+</section>
+
+<!-- ═══ Webhook ═══ -->
+<section class="page" id="hook">
+  <h1>Webhook 提醒</h1>
+  <div class="sub">把信号推到你自己的服务 · 企业微信 / 飞书 / 钉钉 / 自定义 URL</div>
+  <div class="card">
+    <h2>我的提醒规则</h2>
+    <table>
+      <thead><tr><th>触发条件</th><th>目标</th><th>状态</th><th class="r">今日推送</th></tr></thead>
+      <tbody>
+        <tr><td>我的策略出现买入信号</td><td>企业微信群</td><td><span class="tag ok">启用</span></td><td class="r mono">3</td></tr>
+        <tr><td>持仓触及止损</td><td>飞书 + 自定义 URL</td><td><span class="tag ok">启用</span></td><td class="r mono">0</td></tr>
+        <tr><td>我的因子过 6 关</td><td>自定义 URL</td><td><span class="tag ok">启用</span></td><td class="r mono">0</td></tr>
+        <tr><td>硬闸拦下开仓</td><td>邮件</td><td><span class="tag warn">未配置</span></td><td class="r mono">0</td></tr>
+      </tbody>
+    </table>
+    <button class="btn p" style="margin-top:11px">新建规则</button>
+  </div>
+  <div class="card">
+    <h2>推送去重</h2>
+    <div class="muted" style="font-size:12px">
+      同一条信号<b>同一天只推一次</b>（已推送记录落在 <span class="mono">sell-alerts.json</span>），
+      避免服务重启后重复刷屏。这条纪律在你项目里已经有了，直接复用即可。
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 智能选股 ═══ -->
+<section class="page" id="pick">
+  <h1>智能选股</h1>
+  <div class="sub">内置 6 套 + 我的策略 · 筛选条件可保存为「我的筛选器」</div>
+  <div class="card">
+    <h2>筛选器 <span class="tag acc">可保存</span></h2>
+    <div class="vars">
+      <span class="var">板块：全部</span><span class="var">股价 4–200</span>
+      <span class="var">市值 ≥ 40 亿</span><span class="var">排除 ST</span>
+      <span class="var">排除涨停</span><span class="var fn">+ 加条件</span>
+    </div>
+    <div style="margin-top:11px"><button class="btn">保存为「我的筛选器 A」</button></div>
+  </div>
+  <div class="card">
+    <h2>放量突破 <span class="tag brand">在用</span></h2>
+    <table>
+      <thead><tr><th>代码</th><th>名称</th><th class="r">现价</th><th class="r">量比</th><th class="r">5日</th><th class="r">计划买入</th></tr></thead>
+      <tbody>
+        <tr><td class="mono muted">301658</td><td><span class="sn">首航新能</span></td><td class="r mono">22.44</td><td class="r mono">2.1</td><td class="r mono up">+3.4%</td><td class="r mono">22.44</td></tr>
+        <tr><td class="mono muted">002125</td><td><span class="sn">湘潭电化</span></td><td class="r mono">12.50</td><td class="r mono">1.9</td><td class="r mono up">+2.8%</td><td class="r mono">12.50</td></tr>
+        <tr><td class="mono muted">300490</td><td><span class="sn">华自科技</span></td><td class="r mono">11.24</td><td class="r mono">2.4</td><td class="r mono up">+5.1%</td><td class="r mono">11.24</td></tr>
+        <tr><td class="mono muted">600285</td><td><span class="sn">羚锐制药</span></td><td class="r mono">19.46</td><td class="r mono">1.8</td><td class="r mono down">−0.6%</td><td class="r mono">19.46</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ AI 实验室 ═══ -->
+<section class="page" id="lab">
+  <h1>AI 实验室 <span class="tag gold">专业版</span></h1>
+  <div class="sub">AI 自动挖因子、自动试策略 · 判决永远由预登记规则给</div>
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <h2>AI 自动因子</h2>
+      <div style="font-size:12px">
+        <div class="sl"><label>每晚上限</label><input type="range" min="1" max="10" value="3" oninput="sv(this,'af','个')"><span class="v" id="af">3个</span></div>
+        <div class="sl"><label>最低 t 值</label><input type="range" min="15" max="35" value="20" oninput="sv(this,'mt','')"><span class="v" id="mt">2.0</span></div>
+        <div class="sl"><label>自动淘汰</label><input type="range" min="1" max="5" value="2" oninput="sv(this,'at','次')"><span class="v" id="at">2次</span></div>
+      </div>
+      <div class="muted" style="margin-top:9px;font-size:11px">
+        队列 15 条：10 已淘汰 / 3 测过 / 2 待验 / <span class="warn">0 过关</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>AI 自动策略</h2>
+      <div style="font-size:12px">
+        <div style="padding:4px 0">· 4 个挑战者并行攒纸面样本</div>
+        <div style="padding:4px 0">· 需各 30 笔，现 <span class="warn">0 笔</span></div>
+        <div style="padding:4px 0">· Welch：t ≥ 1.5 转正，t ≤ −2 淘汰</div>
+      </div>
+      <div class="muted" style="margin-top:9px;font-size:11px">
+        <b>AI 只提议参数，判决函数预先登记</b> —— 这条红线写死在代码里，
+        界面上也永远不让你绕过。
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>为什么这页收费最贵</h2>
+    <div class="muted" style="font-size:12px">
+      每个因子提案要跑一次全历史回测（约 250 交易日 × 全市场 = 几万条样本）。
+      <b class="gold">AI 提议便宜，验证很贵</b> —— 所以按「验证次数」计费，不是按提问次数。
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 全球消息 ═══ -->
+<section class="page" id="news">
+  <h1>全球消息</h1>
+  <div class="sub">A 股 / 港股 / 美股 / 宏观 · AI 摘要与影响面标记</div>
+  <div class="grid" style="grid-template-columns:1.6fr 1fr">
+    <div class="card">
+      <h2>消息流 <span class="tag acc">AI 已摘要</span></h2>
+      <div style="font-size:12px">
+        <div style="padding:8px 0;border-bottom:1px solid var(--line)">
+          <div style="display:flex;gap:8px;align-items:center"><span class="tag bad">A股</span><span class="muted mono">10-10 20:14</span></div>
+          <div style="margin-top:3px">立讯精密：涉及美国 337 调查，公司称对经营无重大不利影响</div>
+          <div class="muted" style="font-size:11px;margin-top:3px">AI：影响面 <b>立讯精密</b> · 情绪 <span class="down">偏空</span> · 来源 巨潮原文 PDF</div>
+        </div>
+        <div style="padding:8px 0;border-bottom:1px solid var(--line)">
+          <div style="display:flex;gap:8px;align-items:center"><span class="tag acc">美股</span><span class="muted mono">10-10 21:30</span></div>
+          <div style="margin-top:3px">美联储 9 月纪要偏鹰，美元指数走强</div>
+          <div class="muted" style="font-size:11px;margin-top:3px">AI：影响面 <b>出口链 / 贵金属</b> · 情绪 <span class="down">偏空</span></div>
+        </div>
+        <div style="padding:8px 0">
+          <div style="display:flex;gap:8px;align-items:center"><span class="tag warn">宏观</span><span class="muted mono">10-11 08:00</span></div>
+          <div style="margin-top:3px">9 月社融数据超预期</div>
+          <div class="muted" style="font-size:11px;margin-top:3px">AI：影响面 <b>银行 / 地产</b> · 情绪 <span class="up">偏多</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>影响面聚合</h2>
+      <table><tbody>
+        <tr><td>半导体</td><td class="r"><span class="tag bad">3 条偏空</span></td></tr>
+        <tr><td>电池</td><td class="r"><span class="tag ok">2 条偏多</span></td></tr>
+        <tr><td>银行</td><td class="r"><span class="tag ok">1 条偏多</span></td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 资金流向 ═══ -->
+<section class="page" id="flow">
+  <h1>资金流向</h1>
+  <div class="sub">各类资金一页汇总 · 主力 / 北向 / 两融 / 龙虎榜 / 行业 / 期指</div>
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <h2>个股主力</h2>
+      <table>
+        <thead><tr><th>个股</th><th class="r">净流入</th><th class="r">5日累计</th></tr></thead>
+        <tbody>
+          <tr><td><span class="sn">宁德时代</span></td><td class="r mono up">+8.2亿</td><td class="r mono up">+21.4亿</td></tr>
+          <tr><td><span class="sn">贵州茅台</span></td><td class="r mono up">+5.1亿</td><td class="r mono down">−3.2亿</td></tr>
+          <tr><td><span class="sn">芯原股份</span></td><td class="r mono down">−4.7亿</td><td class="r mono down">−12.8亿</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>行业</h2>
+      <table>
+        <thead><tr><th>行业</th><th class="r">净流入</th><th class="r">涨跌</th></tr></thead>
+        <tbody>
+          <tr><td>电池</td><td class="r mono up">+32.1亿</td><td class="r mono up">+3.2%</td></tr>
+          <tr><td>半导体</td><td class="r mono down">−28.4亿</td><td class="r mono down">−2.8%</td></tr>
+          <tr><td>银行</td><td class="r mono up">+11.7亿</td><td class="r mono up">+0.9%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ AI 个股研判 ═══ -->
+<section class="page" id="stock">
+  <h1>AI 个股研判</h1>
+  <div class="sub">对话式追问 · 每句结论都带引用来源</div>
+  <div class="card">
+    <div style="display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;gap:9px">
+        <div style="width:24px;height:24px;border-radius:6px;background:var(--surface-3);color:var(--muted);display:grid;place-items:center;font-size:10px;flex-shrink:0">张</div>
+        <div style="background:var(--surface-2);border-radius:8px;padding:9px 12px;font-size:12px;max-width:78%">芯原股份上周跌了 9%，我拿的 rebound 仓位要止损吗？</div>
+      </div>
+      <div style="display:flex;gap:9px">
+        <div style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--accent),#7c5cff);color:#fff;display:grid;place-items:center;font-size:10px;flex-shrink:0">AI</div>
+        <div style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:9px 12px;font-size:12px;max-width:78%">
+          先说结论：<b>你的止损位 125.74（−25%），现价 152.02 还没到</b>。三点供参考：<br>
+          1. 这笔 10-08 建仓，rebound 规则持有 22 天，10-22 前后才到判定期；<br>
+          2. 同期半导体主力净流出 28.4 亿，是板块性回撤不是个股问题；<br>
+          3. 但你全部已结交易里 <b>77% 是止损出局</b>，到目标的平均赚 7.79%。
+          要不要止损是个股判断，<b>止损参数本身可能过紧</b>值得单独查。
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)">
+            引用：账本 3 笔持仓 · 资金流 5 日 −12.8 亿 · 已结 53 笔退出方式统计
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:9px">
+        <div style="width:24px;height:24px;border-radius:6px;background:var(--surface-3);color:var(--muted);display:grid;place-items:center;font-size:10px;flex-shrink:0">张</div>
+        <div style="background:var(--surface-2);border-radius:8px;padding:9px 12px;font-size:12px;max-width:78%">帮我查一下止损参数</div>
+      </div>
+      <div style="display:flex;gap:9px">
+        <div style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--accent),#7c5cff);color:#fff;display:grid;place-items:center;font-size:10px;flex-shrink:0">AI</div>
+        <div style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:9px 12px;font-size:12px;max-width:78%">
+          已加入待办：<b>回测对比 −2% / −7% / −15% 三档止损</b>。
+          需跑一次全历史回测，消耗约 240 点额度，预计 8 分钟。<br>
+          <span class="tag gold">专业版</span> 排队中…
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)">
+            判决不由我给，由预先登记的 6 关函数判定
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 文生图 ═══ -->
+<section class="page" id="create">
+  <h1>AI 文生图</h1>
+  <div class="sub">生成投研配图 · <b class="warn">数字一律由模板层叠加，AI 只画氛围</b></div>
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <h2>生成</h2>
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:10px;font-size:12px;margin-bottom:10px">
+        描述：<span class="muted">深色科技感的半导体产业链示意图，蓝紫渐变，抽象线路</span>
+      </div>
+      <div class="vars">
+        <span class="var">夜轨</span><span class="var">青图</span><span class="var">金线</span><span class="var fn">赤霞</span>
+      </div>
+      <button class="btn p" style="width:100%;margin-top:11px">生成（消耗 30 点额度）</button>
+      <div class="muted" style="margin-top:10px;font-size:11px">
+        ⚠ 金融场景不能让 AI 编数字。做法是：AI 生成背景插画，
+        <b>价格、涨跌幅、因子名由模板层叠加</b>——既好看又不会错。
+      </div>
+    </div>
+    <div class="card">
+      <h2>成品预览</h2>
+      <div style="aspect-ratio:16/10;border-radius:8px;background:linear-gradient(135deg,#0a0f1a,#141d33 55%,#1b2a4a);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;position:relative;overflow:hidden">
+        <div style="position:absolute;inset:0;opacity:.35;background:radial-gradient(circle at 78% 22%,#3d8bff 0,transparent 42%),radial-gradient(circle at 22% 78%,#7c5cff 0,transparent 45%)"></div>
+        <div style="position:relative">
+          <div style="font-size:11px;color:#8b95a6">AI 背景 · 数字由模板叠加</div>
+          <div style="font-size:19px;font-weight:600;margin-top:3px">半导体 · 主力净流出</div>
+          <div style="font-size:26px;font-weight:600;color:#0bb97b;margin-top:5px" class="mono">−28.4 亿</div>
+          <div style="font-size:11px;color:#8b95a6;margin-top:5px">2026-10-10 · 赤轨</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 海报 ═══ -->
+<section class="page" id="poster">
+  <h1>海报卡片</h1>
+  <div class="sub">模板化生成，数字 100% 来自真实数据 · 8 套主题</div>
+  <div class="card">
+    <h2>选主题</h2>
+    <div class="vars">
+      <span class="var">夜轨</span><span class="var">青图</span><span class="var">金线</span><span class="var">赤霞</span>
+      <span class="var">素纸</span><span class="var">终端</span><span class="var">辉光</span><span class="var">侧栏</span>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:13px">
+      <div style="aspect-ratio:1/1.4;border-radius:8px;background:linear-gradient(160deg,#070b10,#121820);border:1px solid var(--line);padding:13px;display:flex;flex-direction:column;justify-content:space-between">
+        <div><div style="font-size:10px;color:#8b97a8">赤轨 · 夜轨</div><div style="font-size:14px;font-weight:600;margin-top:4px">今日信号</div></div>
+        <div>
+          <div style="font-size:11px;color:#8b97a8">放量突破 4 只</div>
+          <div style="font-size:22px;font-weight:600;color:#f0535e" class="mono">+5.29%</div>
+          <div style="font-size:10px;color:#8b97a8;margin-top:5px">2026-10-10</div>
+        </div>
+      </div>
+      <div style="aspect-ratio:1/1.4;border-radius:8px;background:linear-gradient(160deg,#0c0a07,#14110c);border:1px solid var(--gold);padding:13px;display:flex;flex-direction:column;justify-content:space-between">
+        <div><div style="font-size:10px;color:#a89880">赤轨 · 金线</div><div style="font-size:14px;font-weight:600;margin-top:4px;color:#f6edd9">资金流向</div></div>
+        <div>
+          <div style="font-size:11px;color:#a89880">电池 净流入</div>
+          <div style="font-size:22px;font-weight:600;color:#e25b4a" class="mono">+32.1 亿</div>
+          <div style="font-size:10px;color:#a89880;margin-top:5px">2026-10-10</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 会员 ═══ -->
+<section class="page" id="plan">
+  <h1>会员方案</h1>
+  <div class="sub">按「验证成本」分层 —— AI 提问便宜，跑回测贵</div>
+  <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="card">
+      <div style="font-size:14px;font-weight:600">免费版</div>
+      <div style="font-size:22px;font-weight:600;margin:3px 0 11px">¥0 <span class="muted" style="font-size:11px;font-weight:400">/ 月</span></div>
+      <div style="font-size:12px">
+        <div style="padding:3px 0">✓ 延迟行情（15 分钟）</div>
+        <div style="padding:3px 0">✓ 智能选股（基础 3 套）</div>
+        <div style="padding:3px 0">✓ 因子工坊 · 每月 2 次检验</div>
+        <div style="padding:3px 0">✓ 每日 20 点 AI 额度</div>
+        <div class="muted" style="padding:3px 0;opacity:.6">✗ AI 自动因子 / 自动策略</div>
+        <div class="muted" style="padding:3px 0;opacity:.6">✗ 全球消息（仅 A 股）</div>
+        <div class="muted" style="padding:3px 0;opacity:.6">✗ 文生图 / API</div>
+      </div>
+      <button class="btn" style="width:100%;margin-top:12px">当前</button>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:600">进阶版</div>
+      <div style="font-size:22px;font-weight:600;margin:3px 0 11px">¥99 <span class="muted" style="font-size:11px;font-weight:400">/ 月</span></div>
+      <div style="font-size:12px">
+        <div style="padding:3px 0">✓ 实时行情</div>
+        <div style="padding:3px 0">✓ 全部 6 套策略 + 我的策略</div>
+        <div style="padding:3px 0">✓ 因子工坊 · 每月 20 次</div>
+        <div style="padding:3px 0">✓ 全球消息 + AI 摘要</div>
+        <div style="padding:3px 0">✓ AI 个股研判（无限次）</div>
+        <div style="padding:3px 0">✓ 每日 800 点 AI 额度</div>
+        <div class="muted" style="padding:3px 0;opacity:.6">✗ AI 自动因子（需跑回测）</div>
+        <div class="muted" style="padding:3px 0;opacity:.6">✗ 文生图 / API</div>
+      </div>
+      <button class="btn" style="width:100%;margin-top:12px">升级</button>
+    </div>
+    <div class="card" style="border-color:var(--gold)">
+      <div style="font-size:14px;font-weight:600">专业版 <span class="tag gold">推荐</span></div>
+      <div style="font-size:22px;font-weight:600;margin:3px 0 11px">¥399 <span class="muted" style="font-size:11px;font-weight:400">/ 月</span></div>
+      <div style="font-size:12px">
+        <div style="padding:3px 0">✓ 进阶版全部</div>
+        <div style="padding:3px 0">✓ <b>AI 自动因子</b>（每晚闭环 + 6 关）</div>
+        <div style="padding:3px 0">✓ <b>AI 自动策略</b>（冠军挑战者）</div>
+        <div style="padding:3px 0">✓ 因子 / 策略工坊不限次</div>
+        <div style="padding:3px 0">✓ AI 文生图 + 海报全部主题</div>
+        <div style="padding:3px 0">✓ <b>API 与 MCP</b></div>
+        <div style="padding:3px 0">✓ 每日 3000 点 AI 额度</div>
+      </div>
+      <button class="btn g" style="width:100%;margin-top:12px">当前方案</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>计费依据</h2>
+    <div class="muted" style="font-size:12px">
+      你项目里已有 <span class="mono">ai-usage.ts</span>（token 账本：prompt/completion tokens、
+      耗时、成败、单价快照）。<b>这套账本可直接当计费基础</b>，不用另建。
+      缺的只是「停得住」——超预算自动停，也就是硬闸门那一层。
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+function go(p){
+  document.querySelectorAll("aside a").forEach(x=>x.classList.remove("on"));
+  document.querySelectorAll(".page").forEach(x=>x.classList.remove("on"));
+  document.querySelector(`aside a[data-p="${p}"]`).classList.add("on");
+  document.getElementById(p).classList.add("on");
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("aside a").forEach(a=>a.onclick=()=>go(a.dataset.p));
+
+function sv(el,id,unit){
+  const v = el.value;
+  document.getElementById(id).textContent = (id==="mt" ? (v/10).toFixed(1) : v+unit);
+}
+function ins(t){
+  const e = document.getElementById("expr");
+  const s = e.selectionStart ?? e.value.length;
+  e.value = e.value.slice(0,s) + t + e.value.slice(s);
+  e.focus();
+  check(e.value);
+}
+const ALLOWED = new Set(["c","prev","open","low","prevLow","chg","d5","d10","d20","d60",
+  "momAccel","rsi14","bias20","std20","std60","amp20","corrVRet","shrinkDays",
+  "distHigh20","distLow60","bollB","volShrink","volRatio","turnover","amountWan","floatCap"]);
+const FUNCS = new Set(["abs","log","sqrt"]);
+function check(v){
+  const box = document.getElementById("vbox");
+  const e = document.getElementById("expr");
+  box.className = "verdict show";
+  if(!v.trim()){ box.className="verdict"; e.className="expr"; return; }
+  // 简易白名单校验：抽出所有标识符
+  const ids = (v.match(/[A-Za-z_][A-Za-z0-9_]*/g) || []);
+  const bad = ids.filter(i => !ALLOWED.has(i) && !FUNCS.has(i));
+  if(bad.length){
+    e.className = "expr bad";
+    box.className = "verdict bad";
+    box.innerHTML = `✗ 编译失败：标识符 <b class="mono">${bad.join(", ")}</b> 不在白名单内。白名单只有 MetricRow 的数值字段 + abs/log/sqrt —— 想加字段要改 factor-expr.ts，不能放宽解析器。`;
+    return;
+  }
+  // 括号配平
+  const ob = (v.match(/\(/g)||[]).length, cb = (v.match(/\)/g)||[]).length;
+  if(ob !== cb){
+    e.className = "expr bad"; box.className = "verdict bad";
+    box.innerHTML = `✗ 括号不配平：${ob} 个 <span class="mono">(</span>，${cb} 个 <span class="mono">)</span>。`;
+    return;
+  }
+  e.className = "expr good"; box.className = "verdict good";
+  box.innerHTML = `✓ 编译通过。取值函数已生成，数据不足的日子返回 <b>null</b>（不是 0），分档时自动丢弃 —— 不会把「没数据」当成「最低档」。`;
+}
+document.getElementById("expr").addEventListener("input", e => check(e.target.value));
+check(document.getElementById("expr").value);
+
+function submitFactor(){
+  const box = document.getElementById("vbox");
+  box.className = "verdict show good";
+  box.innerHTML = `已提交：进入 6 关判决队列，今晚收盘后自动跑。结果会推送给你 —— <b>过不过关由预登记函数判定，不是你说了算也不是我说了算。</b>`;
+}
+// 看板拖拽
+let dragEl = null;
+document.querySelectorAll("#board .mod").forEach(m=>{
+  m.addEventListener("dragstart",()=>{dragEl=m;m.classList.add("drag")});
+  m.addEventListener("dragend",()=>{m.classList.remove("drag")});
+  m.addEventListener("dragover",e=>{
+    e.preventDefault();
+    if(!dragEl||dragEl===m) return;
+    const board = document.getElementById("board");
+    const arr = [...board.children];
+    if(arr.indexOf(dragEl) < arr.indexOf(m)) board.insertBefore(dragEl, m.nextSibling);
+    else board.insertBefore(dragEl, m);
+  });
+});
+</script>
+</body>
+</html>

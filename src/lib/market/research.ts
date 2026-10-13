@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 个股研判流水线——学 Vibe-Research 的 `company-research` 六阶段 SOP 改的赤轨版。
+ * 个股研判流水线——学 Vibe-Research 的 `company-research` 六阶段 SOP（赤轨加了行业阶段，共七阶段） 改的赤轨版。
  * 一阶段只回答一个问题，每阶段的产物只有三样：证据（带来源）、发现（带可信度档）、
  * 缺口（明确写缺什么）。它的目的不是给结论，而是把「知道什么、凭什么知道、还不知道什么」
  * 三件事分开摆出来。
@@ -36,16 +36,19 @@ import { pegSafe } from "./formulas.ts";
 import { technicalIndicators, type KlineRow } from "./indicators.ts";
 import { studyEvents } from "./event-study.ts";
 import { classifyArticles } from "./event-rules.ts";
+import { industryStage, type BoardMonthly } from "./industry-chain.ts";
+import type { IndustryIndex } from "./industry.ts";
 import { rankPhrase, type ValuationPosition } from "./pe-history.ts";
+// 本模块内部也要用这几档常量，re-export 不产生本地绑定，得再 import 一次
+import { CONFIRMED, INFERRED, UNVERIFIED, type ResearchTier } from "./research-tiers.ts";
 
-/** 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。 */
-export const RESEARCH_TIERS = ["已披露证实", "有依据的推断", "未核实线索", "被反证"] as const;
-export type ResearchTier = (typeof RESEARCH_TIERS)[number];
-/** 唯一允许没有依据的一档。其余三档都从真实数据算出，所以 tile 由代码给不出 KAfka。 */
-export const UNVERIFIED: ResearchTier = "未核实线索";
-export const CONFIRMED: ResearchTier = "已披露证实";
-/** 由代码按规则推出、但不是原始数据本身。估值判读落在这档。 */
-export const INFERRED: ResearchTier = "有依据的推断";
+/**
+ * 四档可信度（学 Vibe-Research `orchestrator/src/finance/inference_tiers.ts`，同一组词）。
+ * 定义搬去 research-tiers.ts（避免阶段函数和 research.ts 形成运行时循环依赖），
+ * 这里原样转出，调用方不用改。
+ */
+export { RESEARCH_TIERS, UNVERIFIED, CONFIRMED, INFERRED, REFUTED } from "./research-tiers.ts";
+export type { ResearchTier } from "./research-tiers.ts";
 
 export type Evidence = {
   label: string;
@@ -87,7 +90,12 @@ export type StageResult = {
   derived: DerivedNumber[];
 };
 
-export const STAGE_IDS = ["identity", "price", "capital", "catalyst", "valuation", "verdict"] as const;
+/**
+ * 阶段顺序。industry（行业与产业链）插在 catalyst 之后、valuation 之前：
+ * 先看这只票自己发生了什么（价格/资金/催化剂），再看它所在的行业环境，
+ * 最后才落估值锚。Vibe 把 industry 放在 valuation 之前，同一套读法。
+ */
+export const STAGE_IDS = ["identity", "price", "capital", "catalyst", "industry", "valuation", "verdict"] as const;
 
 export type ResearchInput = {
   /** null = 没拿到行情，此时所有阶段都只能出缺口 */
@@ -117,6 +125,16 @@ export type ResearchInput = {
   klines?: readonly KlineRow[] | null;
   /** 沪深300日线（事件研究的对照指数）。没有就算不了超额，写缺口。 */
   indexKlines?: readonly KlineRow[] | null;
+  /**
+   * 行业分类索引（D6，东财三级行业）。没有 = 没跑过 fetch-industry.mjs，
+   * 行业阶段照实写缺口，不许用板块名猜一个行业出来。
+   */
+  industry?: IndustryIndex | null;
+  /**
+   * 该票所属行业板块的月度序列（D5）。由调用方按 industry 查到的板块代码去取；
+   * 没有 = 没跑过 fetch-industry-monthly.mjs，写缺口。
+   */
+  boardMonthly?: BoardMonthly | null;
 };
 
 export type ResearchReport = {
@@ -514,7 +532,7 @@ function valuationStage(input: ResearchInput): StageResult {
 }
 
 /**
- * 第六阶段：裁决点。
+ * 第七阶段：裁决点。
  *
  * 只写「什么事实出现会让当前判断站不住」，不写「该怎么做」。
  * 这两句话长得很像，区别只有一行字，所以这一阶段的产出同样要过红线。
@@ -560,6 +578,15 @@ const STAGES: Record<StageId, (input: ResearchInput, prior?: readonly StageResul
   price: priceStage,
   capital: capitalStage,
   catalyst: catalystStage,
+  // 行业阶段的输入形状和 ResearchInput 不完全一样（它要的是分类索引 + 板块月度），
+  // 在这儿转一手，别把 industry-chain.ts 拖进 ResearchInput 的细节里
+  industry: (input: ResearchInput) =>
+    industryStage({
+      id: input.quote?.id ?? "",
+      name: input.quote?.name ?? "未拿到行情的标的",
+      index: input.industry ?? null,
+      monthly: input.boardMonthly ?? null,
+    }),
   valuation: valuationStage,
   verdict: verdictStage,
 };
@@ -569,12 +596,13 @@ export const STAGE_TITLE: Record<StageId, string> = {
   price: "价格位置",
   capital: "资金与成交",
   catalyst: "催化剂与风险",
+  industry: "行业与产业链",
   valuation: "估值锚",
   verdict: "裁决点",
 };
 
 /**
- * 跑一遍六阶段。
+ * 跑一遍七阶段。
  *
  * 每条 finding 产出后过红线：命中就换成占位句，并在 blocked 里计数。
  * 占位句写「为什么这句没出来」，不写「已删除」——后者是又一个黑箱。

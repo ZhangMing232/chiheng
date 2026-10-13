@@ -18,7 +18,7 @@ export const getReports = createServerFn({ method: "GET" }).handler(async (): Pr
   return listReports();
 });
 
-/** 存一份。report 和 ai 都由页面传上来（那里刚跑完六阶段和 AI 综合）。 */
+/** 存一份。report 和 ai 都由页面传上来（那里刚跑完七阶段和 AI 综合）。 */
 export const saveResearchReport = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const d = data as { report?: ResearchReport; ai?: AiSynthesis | null };

@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>赤轨 UI 重设计方案 · 2026-10-11</title>
+<style>
+:root[data-theme="dark"]{
+  --bg:#0b0e15; --fg:#eef2f6; --muted:#8b95a6;
+  --surface:#131926; --surface-2:#1a2233; --line:#242f45;
+  --up:#f2495c; --down:#0bb97b; --up-soft:#2e1f2c; --down-soft:#173730;
+  --brand:#e63c4f; --brand-text:#f0566a; --brand-soft:#2c1d2b;
+  --accent:#3d8bff; --accent-soft:#182740;
+  --warn:#e8a33d; --warn-soft:#33260f;
+  --gold:#c9a869;
+}
+:root[data-theme="light"]{
+  --bg:#f5f6f8; --fg:#1a1d23; --muted:#5e6779;
+  --surface:#ffffff; --surface-2:#eef1f5; --line:#e3e7ee;
+  --up:#c9202e; --down:#0b7040; --up-soft:#fdecee; --down-soft:#e7f6ef;
+  --brand:#c62016; --brand-text:#c62016; --brand-soft:#fdecea;
+  --accent:#1a6fd4; --accent-soft:#e8f0fc;
+  --warn:#8f5c00; --warn-soft:#fdf1dc;
+  --gold:#8a6d2f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  font-size:13px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+/* ── 顶栏 ── */
+header{
+  display:flex;align-items:center;gap:16px;
+  padding:12px 20px;border-bottom:1px solid var(--line);
+  background:var(--surface);position:sticky;top:0;z-index:20;
+}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.05em}
+.brand i{width:3px;height:16px;border-radius:2px;background:var(--brand);display:block}
+.brand small{color:var(--muted);font-weight:400;font-size:11px;letter-spacing:0}
+.tabs{display:flex;gap:4px;margin-left:auto}
+.tab{
+  padding:5px 12px;border-radius:6px;border:1px solid var(--line);
+  color:var(--muted);cursor:pointer;font-size:12px;background:transparent;
+  font-family:inherit;transition:.15s;
+}
+.tab:hover{background:var(--surface-2);color:var(--fg)}
+.tab[aria-selected="true"]{background:var(--brand-soft);color:var(--brand-text);border-color:var(--brand)}
+.ghost{
+  padding:5px 10px;border-radius:6px;border:1px solid var(--line);
+  background:transparent;color:var(--muted);cursor:pointer;font-size:12px;font-family:inherit;
+}
+.ghost:hover{background:var(--surface-2);color:var(--fg)}
+
+/* ── 布局 ── */
+.wrap{display:flex;min-height:calc(100vh - 52px)}
+aside{
+  width:190px;flex-shrink:0;border-right:1px solid var(--line);
+  background:var(--surface);padding:16px 10px;
+}
+aside .grp{font-size:10px;letter-spacing:.15em;color:var(--muted);padding:14px 10px 6px}
+aside a{
+  display:block;padding:6px 10px;border-radius:5px;color:var(--muted);
+  text-decoration:none;font-size:13px;
+}
+aside a:hover{background:var(--surface-2);color:var(--fg)}
+aside a.on{background:var(--brand-soft);color:var(--brand-text);font-weight:500}
+main{flex:1;padding:22px;overflow-x:hidden}
+.page{display:none}
+.page.on{display:block}
+
+h1{font-size:19px;font-weight:600;margin-bottom:4px}
+.sub{color:var(--muted);font-size:12px;margin-bottom:20px}
+h2{font-size:13px;font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px}
+.grid{display:grid;gap:14px}
+.muted{color:var(--muted)}
+.up{color:var(--up)} .down{color:var(--down)}
+.warn{color:var(--warn)} .gold{color:var(--gold)}
+.tag{
+  display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;
+  background:var(--surface-2);color:var(--muted);border:1px solid var(--line);
+}
+.tag.ok{background:var(--down-soft);color:var(--down);border-color:transparent}
+.tag.bad{background:var(--up-soft);color:var(--up);border-color:transparent}
+.tag.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.tag.brand{background:var(--brand-soft);color:var(--brand-text);border-color:transparent}
+
+/* ── 方案 A 流水线 ── */
+.pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;position:relative}
+.step{
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:14px;position:relative;cursor:pointer;transition:.15s;
+}
+.step:hover{border-color:var(--accent);transform:translateY(-2px)}
+.step::after{
+  content:"→";position:absolute;right:-13px;top:50%;transform:translateY(-50%);
+  color:var(--muted);font-size:15px;z-index:2;
+}
+.step:last-child::after{display:none}
+.step .no{
+  width:18px;height:18px;border-radius:50%;background:var(--surface-2);
+  color:var(--muted);font-size:10px;display:grid;place-items:center;margin-bottom:8px;
+}
+.step .nm{font-weight:600;font-size:13px;margin-bottom:8px}
+.step .big{font-size:22px;font-weight:600;line-height:1.2}
+.step .cap{color:var(--muted);font-size:11px;margin-top:2px}
+.step .st{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+.step.blocked{border-color:var(--warn)}
+.step.blocked .no{background:var(--warn-soft);color:var(--warn)}
+
+/* ── 时间线 ── */
+.tl{position:relative;padding-left:20px}
+.tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--line)}
+.ev{position:relative;padding-bottom:18px}
+.ev::before{
+  content:"";position:absolute;left:-19px;top:5px;width:9px;height:9px;border-radius:50%;
+  background:var(--surface-2);border:2px solid var(--line);
+}
+.ev.ai::before{background:var(--accent);border-color:var(--accent)}
+.ev.verdict::before{background:var(--gold);border-color:var(--gold)}
+.ev.live::before{background:var(--up);border-color:var(--up)}
+.ev .t{font-size:11px;color:var(--muted);margin-bottom:2px}
+.ev .h{font-weight:500;margin-bottom:4px}
+.ev .b{color:var(--muted);font-size:12px}
+.ev .box{
+  margin-top:7px;background:var(--surface);border:1px solid var(--line);
+  border-radius:6px;padding:9px 11px;font-size:12px;
+}
+.ev .box .kv{display:flex;gap:8px}
+.ev .box .kv span:first-child{color:var(--muted);min-width:56px}
+
+/* ── 表格 ── */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{
+  text-align:left;color:var(--muted);font-weight:400;font-size:11px;
+  padding:7px 10px;border-bottom:1px solid var(--line);
+}
+td{padding:7px 10px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-2)}
+.r{text-align:right}
+.sn{
+  color:var(--accent);cursor:pointer;border-bottom:1px dashed transparent;
+}
+.sn:hover{border-bottom-color:var(--accent)}
+
+/* ── 抽屉 ── */
+.mask{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;
+  opacity:0;pointer-events:none;transition:.2s;
+}
+.mask.on{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(420px,92vw);
+  background:var(--surface);border-left:1px solid var(--line);z-index:50;
+  transform:translateX(100%);transition:transform .24s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;
+}
+.drawer.on{transform:none}
+.dh{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px}
+.dh .nm{font-size:15px;font-weight:600}
+.db{flex:1;overflow-y:auto;padding:14px 16px}
+.dsec{margin-bottom:16px}
+.dsec .t{font-size:11px;letter-spacing:.1em;color:var(--muted);margin-bottom:7px}
+.kv2{display:flex;justify-content:space-between;padding:4px 0;font-size:12px}
+.kv2 span:last-child{font-weight:500}
+
+/* ── 终端式（方案 C） ── */
+.term{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;height:520px}
+.tp{background:var(--surface);padding:11px 13px;overflow:hidden}
+.tp .h{font-size:11px;color:var(--muted);margin-bottom:7px;display:flex;justify-content:space-between}
+.tp .row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}
+.note{
+  margin-top:14px;background:var(--warn-soft);border:1px solid var(--warn);
+  border-radius:8px;padding:12px 14px;font-size:12px;color:var(--fg);
+}
+.note b{color:var(--warn)}
+.kbd{
+  font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--muted);
+  background:var(--surface-2);border:1px solid var(--line);border-bottom-width:2px;
+  border-radius:3px;padding:2px 5px;
+}
+@media(max-width:900px){
+  .pipe{grid-template-columns:1fr 1fr}
+  .step::after{display:none}
+  .term{grid-template-columns:1fr;grid-template-rows:none;height:auto}
+  aside{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><i></i>赤轨 <small>策略实验台</small></div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-page="a">方案 A · 流水线</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="b">方案 B · 证据面板</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="c">方案 C · 终端式</button>
+  </div>
+  <button class="ghost" id="theme">切换深浅</button>
+</header>
+
+<div class="wrap">
+  <aside>
+    <div class="grp">工作台</div>
+    <a class="on">主控台</a>
+    <div class="grp">策略研究</div>
+    <a>策略选股</a><a>因子发掘</a><a>策略追踪</a><a>AI 管理</a>
+    <div class="grp">市场情报</div>
+    <a>消息追踪</a><a>资金流向</a><a>个股查询</a>
+  </aside>
+
+  <main>
+    <!-- ══ 方案 A ══ -->
+    <section class="page on" id="a">
+      <h1>研究流水线</h1>
+      <div class="sub">四步一眼看完，卡在哪一步直接标出来 · 数据取自 2026-10-10 真实状态</div>
+
+      <div class="pipe">
+        <div class="step">
+          <div class="no">1</div>
+          <div class="nm">因子发掘</div>
+          <div class="big mono">15</div><div class="cap">条在队列</div>
+          <div class="st"><span class="tag warn">0 过关</span> <span class="muted" style="font-size:11px">2 待验 / 10 已淘汰</span></div>
+        </div>
+        <div class="step blocked">
+          <div class="no">2</div>
+          <div class="nm">策略验证</div>
+          <div class="big mono warn">4</div><div class="cap">个挑战者 · <span class="warn">0 样本</span></div>
+          <div class="st"><span class="tag bad">硬闸拦下</span> <span class="muted" style="font-size:11px">连亏 3 天</span></div>
+        </div>
+        <div class="step">
+          <div class="no">3</div>
+          <div class="nm">纸面实盘</div>
+          <div class="big mono">41</div><div class="cap">笔在拿 · <span class="up">+0.33%</span></div>
+          <div class="st"><span class="tag ok">记账正常</span> <span class="muted" style="font-size:11px">心跳 1 分钟</span></div>
+        </div>
+        <div class="step">
+          <div class="no">4</div>
+          <div class="nm">复盘</div>
+          <div class="big mono down">53</div><div class="cap">笔已结 · <span class="down">−2.58%</span></div>
+          <div class="st"><span class="tag warn">77% 止损</span> <span class="muted" style="font-size:11px">到目标仅 11%</span></div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1.35fr 1fr;margin-top:16px">
+        <div class="card">
+          <h2>今日决策 · 时间倒序</h2>
+          <div class="tl">
+            <div class="ev ai">
+              <div class="t">10-09 15:01 · AI 提议</div>
+              <div class="h">中期反转·大市值缓退</div>
+              <div class="b">参数 hold=22 / stop=6% / target=16%</div>
+            </div>
+            <div class="ev verdict">
+              <div class="t">10-09 15:05 · 判决登记</div>
+              <div class="h">已受理 · 等样本</div>
+              <div class="b">需双方各 30 笔已平仓，现 0 笔</div>
+            </div>
+            <div class="ev live">
+              <div class="t">10-09 09:30 · 实盘</div>
+              <div class="h">建仓 3 笔 rebound</div>
+              <div class="b">沐曦股份 · 华虹宏力 · 君正股份</div>
+            </div>
+            <div class="ev">
+              <div class="t">10-09 09:38 · 硬闸</div>
+              <div class="h warn">停止新开仓</div>
+              <div class="b">已连续亏损 3 个交易日，候选 11 只未开仓</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" style="margin-bottom:14px">
+            <h2>在拿 · 按策略</h2>
+            <table>
+              <thead><tr><th>策略</th><th class="r">笔数</th><th class="r">盈亏</th></tr></thead>
+              <tbody>
+                <tr><td>breakout <span class="tag brand">在用</span></td><td class="r mono">7</td><td class="r mono up">+5.29%</td></tr>
+                <tr><td>value <span class="tag">已下线</span></td><td class="r mono">12</td><td class="r mono up">+2.18%</td></tr>
+                <tr><td>early <span class="tag">已下线</span></td><td class="r mono">7</td><td class="r mono up">+2.30%</td></tr>
+                <tr><td>rebound <span class="tag brand">在用</span></td><td class="r mono">13</td><td class="r mono down">−5.24%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <h2>已结 · 退出方式</h2>
+            <table>
+              <thead><tr><th>方式</th><th class="r">占比</th><th class="r">平均</th></tr></thead>
+              <tbody>
+                <tr><td>止损</td><td class="r mono warn">77%</td><td class="r mono down">−3.94%</td></tr>
+                <tr><td>到期平仓</td><td class="r mono">11%</td><td class="r mono down">−3.67%</td></tr>
+                <tr><td>到目标</td><td class="r mono">11%</td><td class="r mono up">+7.79%</td></tr>
+              </tbody>
+            </table>
+            <div class="muted" style="margin-top:9px;font-size:11px">
+              选股能力是有的（到目标赚 7.79%），但 77% 被止损砍掉。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>点任意股票名 → 右侧滑出抽屉（不离开当前页）</h2>
+        <table>
+          <thead><tr><th>代码</th><th>名称</th><th>策略</th><th class="r">买入</th><th class="r">现价</th><th class="r">盈亏</th></tr></thead>
+          <tbody>
+            <tr><td class="mono muted">sh688802</td><td><span class="sn" data-s="0">沐曦股份-U</span></td><td>rebound</td><td class="r mono">467.78</td><td class="r mono">464.08</td><td class="r mono down">−0.79%</td></tr>
+            <tr><td class="mono muted">sh688521</td><td><span class="sn" data-s="1">芯原股份</span></td><td>rebound</td><td class="r mono">167.65</td><td class="r mono">152.02</td><td class="r mono down">−9.32%</td></tr>
+            <tr><td class="mono muted">sz301662</td><td><span class="sn" data-s="2">宏工科技</span></td><td>breakout</td><td class="r mono">71.45</td><td class="r mono">78.18</td><td class="r mono up">+9.42%</td></tr>
+            <tr><td class="mono muted">sh600521</td><td><span class="sn" data-s="3">华海药业</span></td><td>breakout</td><td class="r mono">16.67</td><td class="r mono">17.45</td><td class="r mono up">+4.68%</td></tr>
+          </tbody>
+        </table>
+        <div class="muted" style="margin-top:9px;font-size:11px">
+          按 <span class="kbd">?</span> 看全部快捷键 · <span class="kbd">t</span> 换深浅 · <span class="kbd">Esc</span> 关抽屉
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 方案 B ══ -->
+    <section class="page" id="b">
+      <h1>决策时间线</h1>
+      <div class="sub">AI 提议 / 人工登记 → 判决 → 实盘结果，一条链串起来可审计</div>
+      <div class="grid" style="grid-template-columns:1.4fr 1fr">
+        <div class="card">
+          <h2>中期反转·大市值缓退 <span class="tag warn">阻塞 6 天</span></h2>
+          <div class="tl">
+            <div class="ev ai">
+              <div class="t">10-09 15:01</div>
+              <div class="h">AI 提议</div>
+              <div class="b">理由：大市值反转修复节奏慢于小票，给更久持有时间</div>
+              <div class="box">
+                <div class="kv"><span>持有</span><span class="mono">22 天</span></div>
+                <div class="kv"><span>止损</span><span class="mono">6%</span></div>
+                <div class="kv"><span>目标</span><span class="mono">16%</span></div>
+                <div class="kv"><span>来源</span><span class="tag">AI</span></div>
+              </div>
+            </div>
+            <div class="ev verdict">
+              <div class="t">10-09 15:05</div>
+              <div class="h">判决登记</div>
+              <div class="b">预先登记的 Welch 判决：双方各 30 笔已平仓才判</div>
+              <div class="box">
+                <div class="kv"><span>门槛</span><span class="mono">30 笔</span></div>
+                <div class="kv"><span>转正</span><span class="mono">t ≥ 1.5</span></div>
+                <div class="kv"><span>淘汰</span><span class="mono">t ≤ −2</span></div>
+                <div class="kv"><span>当前</span><span class="mono warn">0 笔</span></div>
+              </div>
+            </div>
+            <div class="ev live">
+              <div class="t">10-10 09:30</div>
+              <div class="h">实盘</div>
+              <div class="b">硬闸拦下，未产生样本</div>
+              <div class="box">
+                <div class="kv"><span>原因</span><span class="warn">连亏 3 天</span></div>
+                <div class="kv"><span>候选</span><span class="mono">7 只未开仓</span></div>
+              </div>
+            </div>
+            <div class="ev">
+              <div class="t">建议</div>
+              <div class="h gold">纸面单应绕过硬闸</div>
+              <div class="b">纸面单不花钱，只是模拟记录，不该被真钱风控连坐</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:14px">
+            <h2>决策者记分牌</h2>
+            <table>
+              <thead><tr><th>来源</th><th class="r">提名</th><th class="r">过关</th><th class="r">存活</th></tr></thead>
+              <tbody>
+                <tr><td>AI 提议</td><td class="r mono">2</td><td class="r mono muted">0</td><td class="r mono">2</td></tr>
+                <tr><td>人工登记</td><td class="r mono">2</td><td class="r mono muted">0</td><td class="r mono">2</td></tr>
+              </tbody>
+            </table>
+            <div class="muted" style="margin-top:9px;font-size:11px">
+              四条全部 0 样本，判决一次都没真正跑通过。
+            </div>
+          </div>
+          <div class="card">
+            <h2>三层闸门</h2>
+            <table>
+              <thead><tr><th>闸门</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td>硬闸（真钱风控）</td><td><span class="tag bad">拦下</span></td></tr>
+                <tr><td>策略闸</td><td><span class="tag">无数据</span></td></tr>
+                <tr><td>数据审计闸</td><td><span class="tag ok">通过</span></td></tr>
+                <tr><td>衰减监控</td><td><span class="tag">未触发</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 方案 C ══ -->
+    <section class="page" id="c">
+      <h1>终端式 · 六面板</h1>
+      <div class="sub">密集信息 + 键盘优先，参考 Bloomberg / quantumterminal</div>
+      <div class="term">
+        <div class="tp"><div class="h"><span>观察名单</span><span class="mono">5224</span></div>
+          <div class="row"><span>沐曦股份-U</span><span class="mono down">−0.79%</span></div>
+          <div class="row"><span>芯原股份</span><span class="mono down">−9.32%</span></div>
+          <div class="row"><span>宏工科技</span><span class="mono up">+9.42%</span></div>
+          <div class="row"><span>华海药业</span><span class="mono up">+4.68%</span></div>
+          <div class="row"><span>兆易创新</span><span class="mono down">−7.11%</span></div>
+        </div>
+        <div class="tp"><div class="h"><span>分时</span><span class="mono muted">上证</span></div>
+          <div style="height:100%;display:grid;place-items:center;color:var(--muted);font-size:12px">K 线区域</div>
+        </div>
+        <div class="tp"><div class="h"><span>盘口</span><span class="muted">十档</span></div>
+          <div class="row"><span class="down">卖五 17.49</span><span class="mono muted">120</span></div>
+          <div class="row"><span class="down">卖四 17.48</span><span class="mono muted">86</span></div>
+          <div class="row"><span class="up">买一 17.45</span><span class="mono muted">204</span></div>
+          <div class="row"><span class="up">买二 17.44</span><span class="mono muted">331</span></div>
+        </div>
+        <div class="tp"><div class="h"><span>今日信号</span><span class="mono">3</span></div>
+          <div class="row"><span>rebound 建仓</span><span class="mono">3 笔</span></div>
+          <div class="row"><span>breakout 拦下</span><span class="mono warn">4 只</span></div>
+          <div class="row"><span>挑战者样本</span><span class="mono warn">0</span></div>
+        </div>
+        <div class="tp"><div class="h"><span>成交</span><span class="mono muted">今日</span></div>
+          <div class="row"><span>09:30 沐曦股份</span><span class="mono">467.78</span></div>
+          <div class="row"><span>09:30 华虹宏力</span><span class="mono">194.85</span></div>
+          <div class="row"><span>09:30 君正股份</span><span class="mono">116.69</span></div>
+        </div>
+        <div class="tp"><div class="h"><span>因子队列</span><span class="mono">15</span></div>
+          <div class="row"><span>已淘汰</span><span class="mono muted">10</span></div>
+          <div class="row"><span>测过</span><span class="mono">3</span></div>
+          <div class="row"><span>待验</span><span class="mono warn">2</span></div>
+          <div class="row"><span>过关</span><span class="mono warn">0</span></div>
+        </div>
+      </div>
+      <div class="note">
+        <b>我不推荐这个方案。</b> 终端式是为「盯盘下单」设计的，而你的 <span class="mono">live-trader.ts</span>
+        生产调用点是零——不做实盘。密集六面板只会让<b>证据链更难读</b>：因子过了几关、挑战者攒了几笔样本、
+        硬闸为什么拦，这些信息塞进小格子里反而看不见。而且你已经有了 <span class="kbd">?</span> 键位面板和
+        个股抽屉，再做一套命令系统是重复建设。
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="mask" id="mask"></div>
+<div class="drawer" id="drawer">
+  <div class="dh">
+    <div style="flex:1">
+      <div class="nm" id="dName">—</div>
+      <div class="muted mono" id="dCode" style="font-size:11px">—</div>
+    </div>
+    <button class="ghost" id="dClose">关闭 <span class="kbd">Esc</span></button>
+  </div>
+  <div class="db">
+    <div class="dsec">
+      <div class="t">行情</div>
+      <div class="kv2"><span class="muted">现价</span><span class="mono" id="dPx">—</span></div>
+      <div class="kv2"><span class="muted">涨跌</span><span class="mono" id="dChg">—</span></div>
+      <div class="kv2"><span class="muted">板块</span><span id="dBoard">—</span></div>
+    </div>
+    <div class="dsec">
+      <div class="t">本笔持仓</div>
+      <div class="kv2"><span class="muted">策略</span><span id="dStyle">—</span></div>
+      <div class="kv2"><span class="muted">买入价</span><span class="mono" id="dEntry">—</span></div>
+      <div class="kv2"><span class="muted">止损价</span><span class="mono" id="dStop">—</span></div>
+      <div class="kv2"><span class="muted">浮动盈亏</span><span class="mono" id="dPnl">—</span></div>
+    </div>
+    <div class="dsec">
+      <div class="t">相关公告 · 巨潮原文</div>
+      <div id="dNews" style="font-size:12px"></div>
+    </div>
+    <div class="dsec">
+      <div class="t">主力资金</div>
+      <div class="kv2"><span class="muted">5 日累计占比</span><span class="mono" id="dFlow">—</span></div>
+      <div class="muted" style="font-size:11px;margin-top:4px">数字拿不到就写「—」，不留空、不写 0</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const S = [
+  {name:"沐曦股份-U", code:"sh688802", px:"464.08", chg:"−0.79%", dir:"down", board:"科创板",
+   style:"rebound", entry:"467.78", stop:"350.84", pnl:"−0.79%", pdir:"down",
+   news:["关于 2026 年限制性股票激励计划授予登记的公告","关于召开 2026 年第三季度业绩说明会的公告"]},
+  {name:"芯原股份", code:"sh688521", px:"152.02", chg:"−9.32%", dir:"down", board:"科创板",
+   style:"rebound", entry:"167.65", stop:"125.74", pnl:"−9.32%", pdir:"down",
+   news:["关于 5nm 以下 FinFET 设计平台进展的自愿性披露公告"]},
+  {name:"宏工科技", code:"sz301662", px:"78.18", chg:"+9.42%", dir:"up", board:"创业板",
+   style:"breakout", entry:"71.45", stop:"66.30", pnl:"+9.42%", pdir:"up",
+   news:["关于收到锂电池正负极材料智能生产线中标通知书的公告"]},
+  {name:"华海药业", code:"sh600521", px:"17.45", chg:"+4.68%", dir:"up", board:"沪市主板",
+   style:"breakout", entry:"16.67", stop:"16.34", pnl:"+4.68%", pdir:"up",
+   news:["关于制剂产品获得美国 FDA 批准文号的公告","关于控股股东部分股份解除质押的公告"]},
+];
+const $ = (id) => document.getElementById(id);
+const drawer = $("drawer"), mask = $("mask");
+function open(i){
+  const s = S[i];
+  $("dName").textContent = s.name;
+  $("dCode").textContent = s.code;
+  $("dPx").textContent = s.px;
+  $("dChg").innerHTML = `<span class="${s.dir}">${s.chg}</span>`;
+  $("dBoard").textContent = s.board;
+  $("dStyle").innerHTML = `<span class="tag brand">${s.style}</span>`;
+  $("dEntry").textContent = s.entry;
+  $("dStop").textContent = s.stop;
+  $("dPnl").innerHTML = `<span class="${s.pdir}">${s.pnl}</span>`;
+  $("dFlow").textContent = "—";
+  $("dNews").innerHTML = s.news.map(n =>
+    `<div style="padding:5px 0;border-bottom:1px solid var(--line)">· ${n}</div>`).join("");
+  drawer.classList.add("on"); mask.classList.add("on");
+}
+function close(){ drawer.classList.remove("on"); mask.classList.remove("on"); }
+document.querySelectorAll(".sn").forEach(el =>
+  el.addEventListener("click", () => open(+el.dataset.s)));
+$("dClose").onclick = close; mask.onclick = close;
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") close();
+  if (e.key === "t" && !e.metaKey && !e.ctrlKey) {
+    const r = document.documentElement;
+    r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark";
+  }
+});
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", "false"));
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("on"));
+  t.setAttribute("aria-selected", "true");
+  document.getElementById(t.dataset.page).classList.add("on");
+});
+$("theme").onclick = () => {
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark";
+};
+</script>
+</body>
+</html>

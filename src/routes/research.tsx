@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 「个股研判」页。学 Vibe-Research 的 company-research 六阶段 SOP：输入一只股票，
+ * 「个股研判」页。学 Vibe-Research 的 company-research 七阶段 SOP：输入一只股票，
  * 按六个固定阶段把「知道什么、凭什么知道、还不知道什么」分开摆出来。
  *
  * 你需要知道的（纪律）：
@@ -23,6 +23,8 @@ import { fetchConsensusReports } from "@/lib/market/consensus-store";
 import { aggregateConsensus } from "@/lib/market/consensus";
 import { loadKnowledge, saveKnowledge } from "@/lib/market/knowledge-store";
 import { loadKlines } from "@/lib/market/kline-store";
+import { loadBoardMonthly, loadIndustry } from "@/lib/market/industry-store";
+import { finestIndustry } from "@/lib/market/industry";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { saveResearchReport } from "@/lib/market/reports.functions";
@@ -39,7 +41,7 @@ import type { StockArticle } from "@/lib/market/news";
  *
  * AI 综合在 loader 里跑（服务端）：注入的 caller 读 AI 档案 + 调 callAI。
  * **AI 挂了不影响这一页**——runAiSynthesis 自己降级成 failed 并带上原因，
- * 六阶段的规则结论照常显示。
+ * 七阶段的规则结论照常显示。
  */
 export const Route = createFileRoute("/research")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -78,7 +80,24 @@ export const Route = createFileRoute("/research")({
     const klines = quote ? await loadKlines(quote.id).catch(() => null) : null;
     // 沪深300日线：事件研究的对照指数（单独一份，不在个股 K 线里）
     const indexKlines = quote ? await loadKlines("sh000300").catch(() => null) : null;
-    const report = runResearch({ quote, articles: news.articles, valuation, earnings, financials, consensus, knowledge, klines, indexKlines });
+    // 行业与产业链（D6 分类 + D5 月度温度计）。分类拿不到就只给分类缺口，
+    // 月度拿不到就只给月度缺口——两件事分开写，别混成一句「行业数据缺失」。
+    const industry = quote ? await loadIndustry().catch(() => null) : null;
+    const boardCode = quote && industry ? finestIndustry(industry, quote.id)[0]?.code ?? null : null;
+    const boardMonthly = boardCode ? await loadBoardMonthly(boardCode).catch(() => null) : null;
+    const report = runResearch({
+      quote,
+      articles: news.articles,
+      valuation,
+      earnings,
+      financials,
+      consensus,
+      knowledge,
+      klines,
+      indexKlines,
+      industry,
+      boardMonthly,
+    });
     // 研判完自动归档（覆盖旧的）——这样下次研判同一只票能核对这次的预警
     if (quote) {
       const reportId = `research-${quote.id}-${Date.now().toString(36)}`;
@@ -130,7 +149,7 @@ function ResearchPage() {
         <Panel
           title="个股研判"
           note={
-            <span className="text-xs text-muted">六阶段 · 只给数据和裁决点，不给买卖建议</span>
+            <span className="text-xs text-muted">七阶段 · 只给数据和裁决点，不给买卖建议</span>
           }
           action={
             <button
@@ -264,7 +283,7 @@ function ResearchPage() {
       ))}
 
       <p className="px-1 text-xs leading-relaxed text-muted">
-        这一页的六阶段套用 Vibe-Research 的个股研究 SOP，每条结论按四档可信度标注。
+        这一页的七阶段套用 Vibe-Research 的个股研究 SOP，每条结论按四档可信度标注。
         判据都是固定规则，不是模型即兴发挥；它们描述的是过去和现在，不代表未来会重复。
       </p>
     </Frame>
