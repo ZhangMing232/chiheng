@@ -32,6 +32,7 @@ import { readFinancials, type FinancialRow } from "./financials.ts";
 import type { ConsensusRead } from "./consensus.ts";
 import type { KnowledgeFile } from "./knowledge.ts";
 import { checkOldPoints } from "./knowledge.ts";
+import { pegSafe } from "./formulas.ts";
 import { technicalIndicators, type KlineRow } from "./indicators.ts";
 import { studyEvents } from "./event-study.ts";
 import { classifyArticles } from "./event-rules.ts";
@@ -485,8 +486,10 @@ function valuationStage(input: ResearchInput): StageResult {
     if (q.price != null && c.epsThisYear != null && c.epsThisYear > 0) {
       const fwdPe = q.price / c.epsThisYear;
       evidence.push({ label: "前瞻 PE（现价 ÷ 一致预期 EPS）", value: `${fwdPe.toFixed(1)} 倍`, source: SRC, tier: CONFIRMED });
-      if (c.forwardCagr != null && c.forwardCagr > 0) {
-        const peg = fwdPe / (c.forwardCagr * 100);
+      // PEG 用护栏版（formulas.pegSafe）：CAGR ≤ 0 或误传百分数时返回 null，
+      // 不给怪值——负增长下 PEG 数学上失效，写出来比算个数强。
+      const peg = pegSafe(fwdPe, c.forwardCagr);
+      if (peg != null) {
         evidence.push({ label: "PEG（前瞻 PE ÷ 前瞻增速）", value: peg.toFixed(2), source: SRC, tier: CONFIRMED });
         findings.push({
           text:
