@@ -17,6 +17,7 @@ import { openSync } from "node:fs";
 import { execFile, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { BACKUP_KEEP_DAYS, backupJournal, pruneBackups } from "@/lib/market/journal-backup";
 import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
 import { exitFill, hardGate, nthClose, softGate, dayReliable, netReturn } from "../src/lib/market/journal-book.ts";
 import { evaluateGate, readStrategyGates, writeStrategyGates } from "../src/lib/market/strategy-gate.ts";
@@ -142,16 +143,23 @@ async function mark(ok: boolean) {
   await writeFile(pulsePath, JSON.stringify({ at: Date.now(), ok }));
 }
 
+/**
+ * 备份账本（2026-10-13 E3 加固，逻辑搬到 src/lib/market/journal-backup.ts）。
+ *
+ * 原版三个问题：失败会抛（被 unhandledRejection 接住直接 exit(1)，备份是冗余
+ * 不该有让记账进程陪葬的权力）；无轮换（每天一份永不清理）；无校验（复制到一半的
+ * 坏 JSON 顶着备份的名字，比没备份更危险）。现在：失败只记日志、保留最近 45 份、
+ * 备份后校验 JSON。
+ */
 async function backup(userId: string, date: string) {
-  const from = join(process.cwd(), "data", "books", `${userId}.json`);
-  try {
-    await access(from);
-  } catch {
+  const result = await backupJournal(userId, date);
+  if (!result.ok) {
+    // 备份失败不抛、不 exit——记账主流程照常。冗余挂掉不该拖着生产死。
+    console.error(`[backup] 失败但继续记账：${result.reason ?? "未知原因"}`);
     return;
   }
-  const dir = join(backupDir, userId);
-  await mkdir(dir, { recursive: true });
-  await copyFile(from, join(dir, `journal-${date}.json`));
+  const pruned = await pruneBackups(userId);
+  if (pruned > 0) console.log(`[backup] 清理旧备份 ${pruned} 份（保留最近 ${BACKUP_KEEP_DAYS} 份）`);
 }
 
 let failing = false;
