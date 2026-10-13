@@ -618,7 +618,8 @@ export function knowledgeFromReport(
     }
   }
   return {
-    symbol: report.symbol,
+    // 键必须带市场前缀（sh600519），和其他 store 的 byCode 键一致——见 KnowledgeFile.symbol 注释
+    symbol: quote?.id ?? report.symbol,
     name: report.name,
     savedAt: new Date().toISOString(),
     reportId,

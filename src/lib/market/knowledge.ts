@@ -23,6 +23,11 @@ import type { Quote } from "./types.ts";
 
 /** 一只票的知识档案（一只一份，快照式）。 */
 export type KnowledgeFile = {
+  /**
+   * **带市场前缀的 id**（sh600519），与 watchlist.id / quote.id / fundamentals 的
+   * byCode 键一致——不统一键名的话 run-alerts 按 item.id 读档案会读不到（踩过）。
+   * 六位码另有 name 字段供展示。
+   */
   symbol: string;
   name: string;
   /** 归档时间 */

@@ -42,6 +42,36 @@ record();
 const timer = setInterval(record, 60_000);
 
 /**
+ * 收盘后自选告警（A4 编排层）。
+ *
+ * 对标 Vibe-Research 的 notify.ts：到点跑任务 → 结果进收件箱。它的三条纪律照搬：
+ *   1. 只在本程序运行时生效（服务没起就不会跑，界面上要原样说明）
+ *   2. 门判定取不到时不跑（行情拉不到，run-alerts.ts 里留说明不产告警）
+ *   3. 一天一次 + 24 小时去重（按本地日期记 ranDay，告警 id 带日期）
+ *
+ * 为什么挂在记账循环旁边：两个都是「服务活着才跑」的本机定时任务，
+ * 复用同一个 60 秒心跳最省事，不必再装一个定时器。
+ */
+let alertRanDay = "";
+function runAlerts() {
+  const day = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD 本地日期
+  if (alertRanDay === day) return; // 一天一次
+  const hour = new Date().getHours();
+  if (hour < 15) return; // 没到收盘后不跑（告警是收盘核对）
+  alertRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/run-alerts.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error(`run-alerts exited ${code}（今天的自选告警没跑成，收件箱里会有说明）`);
+  });
+}
+runAlerts();
+const alertTimer = setInterval(runAlerts, 60_000);
+
+/**
  * 拉起真正的网页服务，并在它意外退出时再拉一次。
  *
  * 为什么要这层：服务进程会因为各种意料之外的原因没掉——有人（或某个清理动作）
@@ -105,6 +135,7 @@ function shutdown() {
   shuttingDown = true;
   stopping = true;
   clearInterval(timer);
+  clearInterval(alertTimer);
   // 子进程会自己打印 "Stopping server gracefully" 并等 5 秒；
   // 到点还没走就强杀。它先退出的话我们跟着退出，不留残骸。
   const hard = setTimeout(() => {
