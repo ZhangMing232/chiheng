@@ -26,7 +26,7 @@ import {
   signedPct,
   toneClass,
 } from "@/lib/market/format";
-import { BOARD_LABEL, limitTag } from "@/lib/market/model";
+import { BOARD_LABEL, boardOf, limitTag } from "@/lib/market/model";
 import { currencyLabelOf, marketOf } from "@/lib/market/markets";
 import type { Board } from "@/lib/market/types";
 import { getKline, getHolders, getLifts, getOverseasQuote } from "@/lib/market/quotes.functions";
@@ -72,18 +72,6 @@ function PanelHeader({ id, name, tag }: { id: string; name: string | null; tag: 
       </Drawer.Close>
     </header>
   );
-}
-
-/**
- * sh600519 → "sh"，给 BOARD_LABEL 查。BOARD_LABEL 的键是 Board（sh/sz/cyb/kcb/bj/hk/us）
- * 不是中文板块名——查错了 TS 会直接报索引越界。港/美按前缀直接归 board。
- */
-function boardOf(id: string): Board {
-  if (id.startsWith("sh")) return "sh";
-  if (id.startsWith("bj")) return "bj";
-  if (id.startsWith("hk")) return "hk";
-  if (id.startsWith("us")) return "us";
-  return "sz";
 }
 
 /** 东财个股页 URL。A 股直接 /sh600519.html，港美要走 /hk/、/us/ 子路径（实测）。 */

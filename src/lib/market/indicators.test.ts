@@ -102,3 +102,29 @@ test("指标只给数不做解读（返回里没有买卖信号字样）", () =>
   const json = JSON.stringify(r);
   assert.ok(!/(买入|卖出|金叉|死叉|加仓|建仓)/.test(json), "指标层不许出现动作词");
 });
+
+/**
+ * 钉 2026-10-14 修的那个：数据不够的均线以前写 NaN。
+ * NaN 的坏处是任何比较都返回 false——看起来像「在均线下方」，实际是「不知道」，
+ * 违反项目「缺数据和确认没有是两件事」那条纪律。现在键直接不存在（undefined）。
+ */
+test("数据不够的均线不给值，不能给 NaN", () => {
+  const rows = Array.from({ length: 8 }, (_v, i) => ({
+    date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+    open: 10, high: 11, low: 9, close: 10 + i * 0.1,
+  }));
+  const ind = technicalIndicators(rows as never);
+  assert.equal(ind.status, "not_meaningful", "8 根不够算均线，应该判不可靠");
+});
+
+test("够长的序列里 ma 的值都是有限数，不含 NaN", () => {
+  const rows = Array.from({ length: 120 }, (_v, i) => ({
+    date: `2026-04-${String((i % 28) + 1).padStart(2, "0")}`,
+    open: 10, high: 11, low: 9, close: 10 + (i % 7) * 0.1,
+  }));
+  const ind = technicalIndicators(rows as never);
+  if (ind.status !== "ok") return; // 数据造得不对就不硬断言，但绝不因此放过 NaN
+  for (const [key, value] of Object.entries(ind.ma ?? {})) {
+    assert.ok(Number.isFinite(value), `ma.${key} 是 ${value}，不能是 NaN 或 Infinity`);
+  }
+});

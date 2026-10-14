@@ -32,7 +32,7 @@ cd /Volumes/colorful/chiheng
 npm run serve        # 启动服务（正式网页 http://127.0.0.1:8787，前台，窗口别关）
 npm run preflight    # 开盘前自检：11 项检查 + 退出码（0 就绪 / 1 有阻塞 / 2 休市）
 npm run build:mac    # 改了前端之后必须 build 才可见（⚠️ 见下方「我跑不了的命令」）
-npm test             # 928 条测试
+npm test             # 949 条测试
 npm run lint         # 0 error（45 个既有 warning）
 ```
 
@@ -57,7 +57,7 @@ npm run lint         # 0 error（45 个既有 warning）
 
 ```
 src/
-├── routes/           19 个页面（TanStack Router 文件路由）
+├── routes/           20 个页面（TanStack Router 文件路由）
 ├── lib/market/       113 个模块：策略、数据、账本、研究流水线
 │   ├── providers/    行情源适配（tencent / sina / eastmoney / overseas）
 │   └── *.test.ts     85 个测试文件，和源码 1:1 挨着
@@ -71,11 +71,11 @@ data/                 全部运行时数据，**不在 git 里**
 
 **页面清单**：主控台 `/`、每日复盘 `/review`、消息 `/news`、资金 `/flow`、
 板块 `/sectors`、日历 `/calendar`、个股 `/symbol`、研判 `/research`、辩论 `/debate`、
-选股 `/screener`、策略追踪 `/positions`、因子 `/factors`、回测 `/backtest`、
-自选 `/my-stocks`、笔记 `/notes`、提醒 `/inbox`、报告 `/reports`、AI `/ai`、
-设置与状态 `/settings`。
+港美 `/overseas`、选股 `/screener`、策略追踪 `/positions`、因子 `/factors`、
+回测 `/backtest`、自选 `/my-stocks`、笔记 `/notes`、提醒 `/inbox`、报告 `/reports`、
+AI `/ai`（**侧栏无入口**，入口在设置页）、设置与状态 `/settings`。
 
-规模：296 提交 · 44,394 行（src + scripts）· 928 条测试。
+规模：300 提交 · 44,500 行（src + scripts）· 949 条测试。
 
 ---
 
@@ -95,6 +95,7 @@ data/                 全部运行时数据，**不在 git 里**
 | 行业月度 | `fetch-industry-monthly.mjs` | `industry-monthly.json` 8928 完整月 | 24 小时 |
 | 交易日历 | `fetch-calendar.py`（baostock） | `calendar.json` 79 交易日 | 只到当年底 |
 | 回测记录 | `backtest.ts` 自动追加 | `runs.jsonl` | 跑一次加一行 |
+| 笔记 | 笔记页写 | `notes.json` | 你写的时候 |
 
 **限速与缓存 TTL 只有一个来源**：`src/lib/market/fetch-policy.ts`。
 脚本里不许再写裸的 `sleep(1200)`（东财风控实测：串行 1.2s 安全，开并发立刻被封）。
@@ -129,7 +130,9 @@ data/                 全部运行时数据，**不在 git 里**
    报告只给「数据 / 分析框架 / 情景概率 / 裁决点」四类输出。
 2. **缺数据和「确认没有」是两件事**。拿不到就写缺口，不许补 0、不许留空数组冒充。
 3. **数字必须有出处**。数字闸门扫结论里的数字，没在证据里的换成（略※）。
-   文案里的阈值（「近 3 个」「≥2 天」）有豁免，带度量单位的仍要核对。
+   **规则阈值有豁免**：比较词 + 无量纲计数（「近 3 个」「连续 2 天」「评分高于 2」）
+   放行——它们是旋钮不是数据。带度量单位的（「PE 低于 20 倍」「涨幅超过 5%」）
+   和没比较词的（「持有 8 天」）仍要核对。
 4. **不编**。产业链上下游映射表宁可不做（没有知识库支撑，编出来就是假数据）；
    申万分类拿不到就换东财并说清代价，不假装有。
 5. **不拿旧值冒充新值**。过期就是过期，`isFresh` 判到 TTL 那一毫秒。
@@ -142,7 +145,7 @@ data/                 全部运行时数据，**不在 git 里**
 | 项 | 状态 |
 |---|---|
 | 服务 | **没在跑**（行情快照昨晚 23:59，之后没更新） |
-| 测试 | 928 条全绿 · typecheck 干净 · lint 0 error |
+| 测试 | 949 条全绿 · typecheck 干净 · lint 0 error |
 | 账本 | 4 天记录 / 94 笔 / **30 笔未平仓**（2026-09-29 ~ 10-09 建仓） |
 | 待结算 | 30 笔持仓的到期日排在 10-16 ~ 10-23（见 `/calendar`） |
 | 过期数据 | 行情快照、流通市值快照、行业分类（服务没跑导致的） |

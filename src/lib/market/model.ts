@@ -62,6 +62,29 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 /**
+ * 内部 id → 板块。**全项目只有这一份**，别再各写各的。
+ *
+ * 2026-10-14 收口的理由：当时有三份 boardOf、两种行为——
+ * `sectors.ts` 那份认科创/创业，`symbol-drawer.tsx` 那份不认。结果个股抽屉里
+ * 科创板（sh688）显示「沪市」、创业板（sz300）显示「深市」，而同一页的涨跌停
+ * 按 20% 算（boardLimit 认代码段）——**页面自己跟自己矛盾**。
+ * 现在三处都用这份，看板标签和涨跌停口径永远一致。
+ *
+ * 顺序有讲究：hk/us 在最前（它们的 id 不以 sh/sz/bj 开头，但放前面更不容易被
+ * 后面加规则误伤），然后 sh688/sh689（科创，含存托凭证 689009）、sz300/sz301
+ * （创业）要在 sh/sz 之前判。
+ */
+export function boardOf(id: string): Board {
+  if (id.startsWith("hk")) return "hk";
+  if (id.startsWith("us")) return "us";
+  if (id.startsWith("sh688") || id.startsWith("sh689")) return "kcb";
+  if (id.startsWith("sz300") || id.startsWith("sz301")) return "cyb";
+  if (id.startsWith("bj")) return "bj";
+  if (id.startsWith("sh")) return "sh";
+  return "sz";
+}
+
+/**
  * 按股票代码和名字给出涨跌停百分比。10 表示 10%，不是 0.1。
  * 美/港无涨跌停（markets.ts 的 limit: "none"），返回 null——
  * limitTag 恒 null、exitFill 的跌停封死检查跳过。A 股行为不变。
@@ -75,7 +98,7 @@ export function boardLimit(id: string, name: string): number | null {
   if (marketOf(id) !== "a") return null;
   if (name.toUpperCase().includes("ST") || name.includes("退")) return 5;
   // sh689 是科创板存托凭证（实测只有九号公司 689009），同样 20%。
-  // boardOf 已经把它归到 kcb，这里漏掉会出现「板块是科创、涨跌停按 10%」的错位。
+  // 上面的 boardOf 已把它归到 kcb；这里漏掉就会出现「板块是科创、涨跌停按 10%」的错位。
   if (id.startsWith("sh688") || id.startsWith("sh689") || id.startsWith("sz300") || id.startsWith("sz301")) return 20;
   if (id.startsWith("bj")) return 30;
   return 10;

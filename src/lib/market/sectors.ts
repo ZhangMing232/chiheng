@@ -11,7 +11,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { limitPct } from "./model.ts";
 import type { Listed } from "./strategies.ts";
-import type { Board, Quote } from "./types.ts";
+import type { Quote } from "./types.ts";
+import { boardOf } from "./model.ts";
 
 type Member = {
   symbol: string;
@@ -24,14 +25,6 @@ type Member = {
 
 const cache = { at: 0, tailHalf: false, rows: [] as Listed[] };
 const freezePath = join(process.cwd(), "data", "relay-freeze.json");
-
-function boardOf(id: string): Board {
-  if (id.startsWith("sh688") || id.startsWith("sh689")) return "kcb";
-  if (id.startsWith("sz300") || id.startsWith("sz301")) return "cyb";
-  if (id.startsWith("bj")) return "bj";
-  if (id.startsWith("sh")) return "sh";
-  return "sz";
-}
 
 function asQuote(member: Member): Quote {
   return {

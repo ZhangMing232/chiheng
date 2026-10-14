@@ -21,8 +21,10 @@ async function main() {
   const { book, missing } = await fetchMarginBook(date);
   const summary = marginSummary(book);
   await mkdir("data/risk", { recursive: true });
-  // 同目录 tmp + rename：rename(2) 原子换入，读者要么看到旧文件要么看到新的
-  const tmp = `${OUT}.tmp`;
+  // 同目录 tmp + rename：rename(2) 原子换入，读者要么看到旧文件要么看到新的。
+  // 临时名要带 pid + 随机数——固定 `.tmp` 的话两个进程同时跑会写同一个临时文件，
+  // 一个 rename 成功后另一个 ENOENT 抛出来，白跑一趟。
+  const tmp = `${OUT}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   await writeFile(tmp, JSON.stringify({ ...book, missing, fetchedAt: new Date().toISOString() }));
   await rename(tmp, OUT);
   console.log(`落盘 ${OUT}：${book.rows.length} 只，坏行 ${missing} 条`);

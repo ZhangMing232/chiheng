@@ -27,7 +27,10 @@ async function main() {
     // 不存在，继续归档
   }
   await mkdir(dir, { recursive: true });
-  const tmp = `${out}.tmp`;
+  // 临时名带 pid + 随机数：固定 `.tmp` 的话两个进程同时跑会写同一个临时文件，
+  // 一个 rename 成功后另一个 ENOENT 抛出来，白跑一趟还可能留下半个文件。
+  // 项目里其它落盘处（notes-store / book-file / sectors-view 抓取脚本）都是这个写法。
+  const tmp = `${out}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   await writeFile(tmp, JSON.stringify({ ...book, archivedAt: new Date().toISOString() }));
   await rename(tmp, out);
   console.log(`归档 ${out}：${book.seats.length} 个席位`);

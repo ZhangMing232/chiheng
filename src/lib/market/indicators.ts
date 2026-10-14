@@ -122,7 +122,14 @@ export function technicalIndicators(klines: readonly unknown[], params: Indicato
   const last = rows[n - 1]!;
 
   const ma: Record<string, number> = {};
-  for (const p of maP) ma[`ma${p}`] = n >= p ? closes.slice(-p).reduce((s, v) => s + v, 0) / p : NaN;
+  // 数据不够的均线**不写这个键**，不要写 NaN。
+  // NaN 的坏处：类型是 Record<string, number>，tsc 不报错；但任何比较
+  // （`ma5 > close`）都返回 false，看起来像「在均线下方」，实际是「不知道」——
+  // 这正是本项目「缺数据和确认没有是两件事」那条纪律说的那种错。
+  // 键不存在时读出来是 undefined，页面显示「—」，那才对。
+  for (const p of maP) {
+    if (n >= p) ma[`ma${p}`] = closes.slice(-p).reduce((s, v) => s + v, 0) / p;
+  }
 
   const emaOut: Record<string, number> = {};
   for (const p of emaP) emaOut[`ema${p}`] = ema(closes, p)[n - 1]!;

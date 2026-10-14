@@ -82,7 +82,10 @@ async function readSnapshot(): Promise<Snapshot | null> {
 /** 落盘要先写临时文件再改名：两个进程同时写的话，直接覆盖会把文件写成半截。 */
 async function writeSnapshot(snapshot: Snapshot): Promise<void> {
   const target = UNIVERSE_CACHE();
-  const staged = `${target}.${process.pid}.tmp`;
+  // 临时名带 pid **和随机数**：只带 pid 的话，同一个进程里两个并发协程
+  // （比如两个请求同时触发拉快照）会算出同一个临时名，一个 rename 成功后
+  // 另一个 ENOENT——写失败会被下面 catch 吞掉，表现为「这分钟没刷新」而不是报错。
+  const staged = `${target}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   try {
     await mkdir(dirname(target), { recursive: true });
     await writeFile(staged, JSON.stringify(snapshot));
