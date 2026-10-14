@@ -44,6 +44,13 @@ export type BacktestStyleStat = {
   worstStreak: number;
   /** 按天算的回撤（小数） */
   drawdown: number;
+  /**
+   * 日度序列（页面四张图要它）。没有序列就只有汇总指标，画不出曲线。
+   * 老记录没有这个字段——读取层要能容忍（undefined），不能因此报废整份历史。
+   */
+  daily?: { date: string; ret: number; n: number }[];
+  /** 同日期的基准（同期全池）平均，给超额曲线用 */
+  bench?: { date: string; ret: number; n: number }[];
 };
 
 /** 跑这次的环境。不同口径的数字不能直接比，所以这些必须跟着数字一起存。 */

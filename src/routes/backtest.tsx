@@ -21,8 +21,10 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
-import { loadBacktestRuns, RUNS_PATH } from "@/lib/market/backtest-runs";
+import { loadBacktestRuns, RUNS_PATH, type BacktestRun } from "@/lib/market/backtest-runs";
 import { envDiff, runSummary, styleRows, untested, type SortKey } from "@/lib/market/backtest-view";
+import { barsToShow, buildCurve, curveSummary, monthlyBars, yearlyBars } from "@/lib/market/backtest-curve";
+import { AreaChart, BarChart, LineChart } from "@/components/backtest-charts";
 import { toneClass } from "@/lib/market/format";
 
 export const Route = createFileRoute("/backtest")({
@@ -174,6 +176,8 @@ function BacktestPage() {
           </tbody>
         </table>
 
+        <BacktestCharts picked={picked} />
+
         {weak.length > 0 ? (
           <div className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
             测不出超额（|t| &lt; 2）的有 {weak.length} 套：
@@ -190,4 +194,127 @@ function BacktestPage() {
       </Panel>
     </Frame>
   );
+}
+/**
+ * 四张图：累计收益 / 回撤 / 月度 / 年度。
+ *
+ * 算法抄 Vibe-Research 的 event_study.py（cumsum 累计 + 逐列平均 + 「少于 8 次
+ * 不给平均」的纪律），但**赤轨的口径三处不一样**，页面必须标清：
+ * 1. 等权累加不是复利——账本不记仓位大小，每笔当等权，曲线是 Σ(ret) 不是 ∏(1+ret)。
+ *    不标这一条，读者会把 30% 读成"净值涨三成"。
+ * 2. 基准（同期全池）不是可投资序列，所以默认显示累计收益，过剩要切。
+ * 3. 成交日不够的月份不画，并说清挡了哪几个月。
+ */
+function BacktestCharts({ picked }: { picked: BacktestRun }) {
+  const [metric, setMetric] = useState<"ret" | "alpha">("ret");
+  // 默认看第一套策略（中期反转），它有最多的成交日
+  const withDaily = picked.styles.filter((s) => (s.daily?.length ?? 0) > 0);
+  const [key, setKey] = useState<string>(withDaily[0]?.key ?? "");
+  const row = withDaily.find((s) => s.key === key) ?? withDaily[0];
+
+  if (!row || !row.daily) {
+    return (
+      <Panel title="曲线" note="这次运行没落日度序列">
+        <p className="px-3.5 py-3 text-sm text-muted">
+          这次运行是<strong>改动之前</strong>跑的，没存日度序列，画不出曲线。重跑一次回测就有了
+          （<code className="text-[11px]">node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts</code>）。
+          老记录照样能看上面的指标表——只是没图。
+        </p>
+      </Panel>
+    );
+  }
+
+  const curve = buildCurve(row.daily, row.bench ?? []);
+  const monthly = monthlyBars(row.daily);
+  const yearly = yearlyBars(row.daily);
+  const summary = curveSummary(curve, monthly);
+  const { show, hidden } = barsToShow(monthly);
+
+  const cum = metric === "ret" ? curve.cum : curve.cum.map((v, i) => round6(v - curve.cumBench[i]!));
+  const bench = metric === "ret" ? [] : curve.cumBench;
+
+  return (
+    <Panel
+      title="曲线"
+      note={`${row.label} · ${row.daily.length} 个成交日 · 等权累加不是复利`}
+    >
+      {withDaily.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
+          {withDaily.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setKey(s.key)}
+              className={
+                "rounded border px-2 py-1 text-xs transition " +
+                (s.key === row.key ? "border-brand text-fg" : "border-line text-muted hover:text-fg")
+              }
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
+        {(["ret", "alpha"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMetric(m)}
+            className={
+              "rounded border px-2 py-1 text-xs transition " +
+              (metric === m ? "border-brand text-fg" : "border-line text-muted hover:text-fg")
+            }
+          >
+            {m === "ret" ? "累计收益" : "累计超额（扣同期全池）"}
+          </button>
+        ))}
+        {summary ? (
+          <span className="text-[11px] text-muted">
+            总累计 {(summary.total * 100).toFixed(2)}% · 最大回落 {(summary.maxDd * 100).toFixed(1)} 个百分点 · 胜出月份 {summary.winMonths}/{summary.months}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="px-3.5 py-2 text-[11px] text-muted">
+        纵轴是<strong>按天等权</strong>的收益率累加，不是复利净值，也<strong>不是上面表格那个「平均收益」</strong>——
+        表格是每笔等权（一笔一个样本，统计口径），曲线是每天等权（一天全部平仓算一份，组合口径）。
+        持仓期重叠时两者会明显分叉：某天集中平仓 50 笔，笔平均只占 50/N，日平均占 1/N 天。
+        两个数都是真的，别拿一个去核对另一个。要看过剩，切到「累计超额」：那条扣掉了同期全池，
+        但基准不是可投资的序列，只是"同一时间随便买一只的平均结果"。
+      </div>
+
+      <div className="border-b border-line px-3.5 pb-2">
+        <LineChart dates={curve.dates} series={[{ name: metric === "ret" ? "累计收益" : "累计超额", data: cum }]} bench={bench} />
+      </div>
+
+      <div className="border-b border-line px-3.5 pb-2">
+        <p className="py-1 text-xs text-muted">
+          回落（从累计高点算，<strong>百分点</strong>不是比例——等权累加没有"净值"概念。和上面表格里那个回撤不是同一个口径，那个是复利净值口径）
+        </p>
+        <AreaChart dates={curve.dates} data={curve.dd} />
+      </div>
+
+      <div className="grid gap-3 border-b border-line px-3.5 py-2 sm:grid-cols-2">
+        <div>
+          <p className="py-1 text-xs text-muted">按月度（该月成交日的等权平均）</p>
+          <BarChart labels={show.map((b) => b.key)} data={show.map((b) => b.ret)} />
+          {hidden.length > 0 ? (
+            <p className="py-1 text-[11px] text-muted">
+              {hidden.length} 个月没画：{hidden.join("、")}——成交日不够 3 天，几次的平均不是平均。
+            </p>
+          ) : null}
+        </div>
+        <div>
+          <p className="py-1 text-xs text-muted">按年度（口径同月度）</p>
+          <BarChart labels={yearly.map((b) => b.key)} data={yearly.map((b) => b.ret)} />
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function round6(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
 }

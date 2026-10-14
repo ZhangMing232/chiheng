@@ -713,7 +713,14 @@ const STRATEGIES = {
 
 type Trade = {
   id: string;
+  /** 信号日（t 日收盘后选股） */
   date: string;
+  /**
+   * **卖出日**（收益真正落袋那天）。2026-10-14 加：日度序列和按天统计必须按它聚合，
+   * 按 date（信号日）聚合会把不同平仓日的收益挤到同一天——中期反转 248 天的总累计
+   * 因此算出 -139.9%，而按平均收益该是 -7.4%，差 20 倍。
+   */
+  exitDate: string;
   entry: number;
   exit: number;
   reason: string;
@@ -1035,6 +1042,7 @@ async function main() {
         results[key].push({
           id: pick.id,
           date: bar.date,
+          exitDate: fill.date,
           entry,
           exit: fill.price,
           reason: fill.reason,
@@ -1093,6 +1101,11 @@ async function main() {
     }
     const drawdown = drawdownByDay(trades);
     if (collect) {
+      // 日度序列也落一份：页面的四张图（累计/回撤/月度/年度）要它。
+      // 没有序列就只有汇总指标，画不出曲线——这是原来 runs.jsonl 的短板。
+      // 基准序列单独存（date → 平均 bench），曲线那边按日期对齐，缺的日子不补 0。
+      const dayRows = dayRowsOf(trades);
+      const benchRows = benchRowsOf(trades);
       runStats.push({
         key,
         label: def.label,
@@ -1106,6 +1119,8 @@ async function main() {
         avgHold: hold,
         worstStreak: worst,
         drawdown,
+        daily: dayRows,
+        bench: benchRows,
       });
     }
     console.log(
@@ -1126,6 +1141,39 @@ async function main() {
   }
 
   /**
+   * 落盘用的日度序列：那天所有平仓的等权平均收益 + 笔数。
+   * 和 byDay 同源（byDay 只给数值，这里要带日期和笔数）。
+   */
+  function dayRowsOf(trades: Trade[]): { date: string; ret: number; n: number }[] {
+    const bucket = new Map<string, { sum: number; n: number }>();
+    for (const t of trades) {
+      // 按**卖出日**聚合：收益是那天落袋的。按信号日会把不同平仓日的收益挤到同一天，
+      // 累计曲线和月度柱子全错（2026-10-14 实测差 20 倍）。
+      const row = bucket.get(t.exitDate) ?? { sum: 0, n: 0 };
+      row.sum += t.ret;
+      row.n += 1;
+      bucket.set(t.date, row);
+    }
+    return [...bucket.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, row]) => ({ date, ret: row.sum / row.n, n: row.n }));
+  }
+
+  /** 同日期的基准（同期全池）平均，给超额曲线用。 */
+  function benchRowsOf(trades: Trade[]): { date: string; ret: number; n: number }[] {
+    const bucket = new Map<string, { sum: number; n: number }>();
+    for (const t of trades) {
+      const row = bucket.get(t.exitDate) ?? { sum: 0, n: 0 };
+      row.sum += t.bench;
+      row.n += 1;
+      bucket.set(t.date, row);
+    }
+    return [...bucket.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, row]) => ({ date, ret: row.sum / row.n, n: row.n }));
+  }
+
+  /**
    * 每天一个数：那天卖出的所有仓位，当天收益率的平均。
    *
    * 是「平均」不是「总和」——一天卖出十笔就等于十个满仓，可实际上它们是十个
@@ -1135,7 +1183,10 @@ async function main() {
   function byDay(trades: Trade[]): number[] {
     const bucket = new Map<string, { sum: number; n: number }>();
     for (const t of trades) {
-      const row = bucket.get(t.date) ?? { sum: 0, n: 0 };
+      // 按**卖出日**聚合（2026-10-14 修）：收益是卖出日落袋的。原来按 date（信号日）
+      // 聚合，把还没实现的收益算到信号日——连亏天数和回撤因此偏乐观/偏悲观，
+      // 而且和线上闸门（按实际盈亏日）不是同一个口径。
+      const row = bucket.get(t.exitDate) ?? { sum: 0, n: 0 };
       row.sum += t.ret;
       row.n += 1;
       bucket.set(t.date, row);
