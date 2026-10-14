@@ -30,13 +30,14 @@
     "trade:dry": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/live-trader.ts",
     "trade:live": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/live-trader.ts --confirm",
     "test:bridge": "NODE_ENV=test node scripts/test-bridge-contract.mjs",
-    "test:all": "npm test && npm run test:bridge",
+    "test:all": "npm test && npm run test:bridge && npm run test:py",
     "lint": "eslint .",
     "format": "prettier --write .",
     "report": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/style-report.ts",
     "preflight": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/preflight.ts",
     "watch:open": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/preflight.ts --watch",
-    "build:note": "node scripts/after-build.mjs"
+    "build:note": "node scripts/after-build.mjs",
+    "test:py": "python3 scripts/fetch-tdx-package.test.py"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

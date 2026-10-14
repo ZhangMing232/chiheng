@@ -89,6 +89,13 @@ export const DATA_FILES: FileFact[] = [
     required: false,
   },
   {
+    path: "data/backtest/tdx-daily",
+    label: "通达信盘后包（全市场日线）",
+    ttlKey: "tdxDaily",
+    refresh: "python3 scripts/fetch-tdx-package.py（收盘后数小时才有当天的包）",
+    required: false,
+  },
+  {
     path: "data/backtest/calendar.json",
     label: "交易日历",
     ttlKey: null,

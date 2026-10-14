@@ -12,7 +12,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { DATA_FILES, allFreshness, missingRequired, type Facts, type Freshness } from "./data-files.ts";
 import { readRules } from "./rules-file.ts";
@@ -26,7 +26,23 @@ async function factsOf(root: string): Promise<Facts> {
   for (const file of DATA_FILES) {
     try {
       const st = await stat(join(root, file.path));
-      out[file.path] = { size: st.size, mtime: st.mtimeMs };
+      if (st.isDirectory()) {
+        // 目录（通达信盘后包那种按日期一份份落的）要看**里面最新那份**的时间，
+        // 目录自身的 mtime 是最后一次增删的时间，拿它判新鲜度会把「删过文件」
+        // 也算成更新过。
+        const names = await readdir(join(root, file.path));
+        let latest: { size: number; mtime: number } | null = null;
+        let count = 0;
+        for (const name of names) {
+          if (!name.endsWith(".json")) continue;
+          count += 1;
+          const one = await stat(join(root, file.path, name));
+          if (!latest || one.mtimeMs > latest.mtime) latest = { size: one.size, mtime: one.mtimeMs };
+        }
+        out[file.path] = latest ? { size: count * 1024, mtime: latest.mtime } : null;
+      } else {
+        out[file.path] = { size: st.size, mtime: st.mtimeMs };
+      }
     } catch {
       out[file.path] = null;
     }

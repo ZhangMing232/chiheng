@@ -26,7 +26,7 @@
 import type { MarketId } from "@/lib/market/markets";
 
 /** 数据源。 */
-export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock";
+export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx";
 
 /**
  * 合规级别。
@@ -81,6 +81,7 @@ export const SOURCE_NAMES: Record<SourceId, string> = {
   bse: "北交所",
   cffex: "中金所",
   baostock: "证券宝 baostock",
+  tdx: "通达信官网",
 };
 
 export const ENDPOINTS: Endpoint[] = [
@@ -430,6 +431,27 @@ export const ENDPOINTS: Endpoint[] = [
     unit: "手",
     traps: ["CSV 下载源，解析见 index-futures.ts:50"],
     fetcher: "index-futures.ts",
+  },
+  {
+    id: "tdx.daily",
+    title: "通达信盘后包（全市场日线截面）",
+    source: "tdx",
+    market: "a",
+    compliance: "official",
+    kind: "kline",
+    critical: false,
+    unit: "元/股",
+    traps: [
+      "**2026-10-14 接入并实测**：一个请求拿沪深北全市场当日日线（20261013 实测 5565 只 A 股股票，2.7MB zip），见 scripts/fetch-tdx-package.py",
+      "**它是日线源，不是腾讯快照的替代品**：一天一个包，盘中不更新——腾讯快照盘中 5 分钟一拉，盘后包一天一个，两者的更新节奏不同",
+      "**当天的包 404 是正常的**：2026-10-14 实测 20261014 的包 404、20261013 有（收盘后数小时才发布）。报错必须写「还没发布」而不是「接口挂了」——不同含义，否则会白排查",
+      "**成交量单位是股**（腾讯的 K 线是科创板股、其余手——两个口径不同）。混用前先换算，不然差 100 倍；实测 600519 成交量 2657276 股 = 2.66 万手",
+      "**包里 52168 条只有 5565 条是 A 股股票**（2026-10-13 实测）：其余是指数（沪 000xxx/深 399xxx/北 899xxx/999xxx）、ETF 与 LOF（沪 5xxxxx/深 15xxxx）、可转债与债券、B 股、通达自编（88xxxx）。用白名单按市场过滤，见 scripts/fetch-tdx-package.py 的 STOCK_PREFIX",
+      "**同一个代码段在不同市场含义不同**：沪市 000001 是上证指数，深市 000001 是平安银行。所以过滤必须是 (market, prefix) 组合，不能只看 prefix——第一版按黑名单写全漏了",
+      "5565 只 vs 腾讯快照 5224 只**对不齐**（差 341 只，两个口径不同，可能来自 ST 与停牌股处理差异）。这个截面不能直接当 universe 用",
+      "二进制布局：.cod 150 字节/条（代码 0:6、序号 32:34、名称 40:72 GBK）+ .md1 512 字节/块（昨收 4:12、开高低收 12:44、成交量 56:64、成交额 72:80，小端）。协议来自 a-stock-data SKILL V3.9.0 §1.3（参考 jing2uo/tdx2db，MIT），见 scripts/fetch-tdx-package.py:_parse_market",
+    ],
+    fetcher: "scripts/fetch-tdx-package.py → data/backtest/tdx-daily/{ymd}.json",
   },
   {
     id: "sina.sector",

@@ -34,6 +34,15 @@ export type RateLimit = {
  * 没有登记的源 = 没有已知风控，按需请求（但也别开并发去压人家）。
  */
 export const RATE_LIMITS: Partial<Record<SourceId, RateLimit>> = {
+  tdx: {
+    source: "tdx",
+    minGapMs: 1000,
+    // 一天只该拉一次（盘后包按日发布），正常用法压根碰不到限速。登记它是为了
+    // 「补历史」那个场景——`--back N` 会连着拉 N 天，每包 2.7MB，不限速会把
+    // 官网当下载器用。1s 是保守值，没有实测依据（官网没有风控记录），
+    // 真被封了再收紧。
+    why: "无实测风控记录；按「官方源、一天一次」的保守值登记，防的是补历史时的连续拉取",
+  },
   eastmoney: {
     source: "eastmoney",
     minGapMs: 1300,
@@ -49,7 +58,7 @@ export function rateLimitOf(source: SourceId): RateLimit {
 }
 
 /** 缓存数据的键。 */
-export type CacheKey = "universe" | "kline" | "industry" | "industryMonthly" | "cap" | "fundamentals" | "consensus" | "klines";
+export type CacheKey = "universe" | "kline" | "industry" | "industryMonthly" | "cap" | "fundamentals" | "consensus" | "klines" | "tdxDaily";
 
 /** 一份缓存的有效期。 */
 export type CachePolicy = {
@@ -79,6 +88,13 @@ export const CACHE_TTL: Record<CacheKey, CachePolicy> = {
     key: "klines",
     ttlMs: 12 * HOUR,
     why: "fetch-kline.py 抓的离线日线（前复权），一天抓一次就够；研判页读它做技术指标",
+  },
+  tdxDaily: {
+    key: "tdxDaily",
+    ttlMs: 26 * HOUR,
+    // 一天一个包，收盘后数小时才发布。26 小时 = 给一夜的余量，第二天拉到新的
+    // 之前不算过期；真过期了就是脚本没跑，页面该说「该重抓」而不是显示旧截面。
+    why: "盘后包按日发布（当天收盘后数小时），26 小时覆盖一夜余量",
   },
   industry: {
     key: "industry",
