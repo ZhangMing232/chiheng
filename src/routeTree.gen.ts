@@ -19,6 +19,7 @@ import { Route as FlowRouteImport } from './routes/flow'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as MyStocksRouteImport } from './routes/my-stocks'
 import { Route as NewsRouteImport } from './routes/news'
+import { Route as NotesRouteImport } from './routes/notes'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResearchRouteImport } from './routes/research'
@@ -77,6 +78,11 @@ const NewsRoute = NewsRouteImport.update({
   path: '/news',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotesRoute = NotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PositionsRoute = PositionsRouteImport.update({
   id: '/positions',
   path: '/positions',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
+  '/notes': typeof NotesRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
+  '/notes': typeof NotesRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
+  '/notes': typeof NotesRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -184,6 +193,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/my-stocks'
     | '/news'
+    | '/notes'
     | '/positions'
     | '/reports'
     | '/research'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/my-stocks'
     | '/news'
+    | '/notes'
     | '/positions'
     | '/reports'
     | '/research'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/my-stocks'
     | '/news'
+    | '/notes'
     | '/positions'
     | '/reports'
     | '/research'
@@ -242,6 +254,7 @@ export interface RootRouteChildren {
   InboxRoute: typeof InboxRoute
   MyStocksRoute: typeof MyStocksRoute
   NewsRoute: typeof NewsRoute
+  NotesRoute: typeof NotesRoute
   PositionsRoute: typeof PositionsRoute
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRoute
@@ -323,6 +336,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notes': {
+      id: '/notes'
+      path: '/notes'
+      fullPath: '/notes'
+      preLoaderRoute: typeof NotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/positions': {
       id: '/positions'
       path: '/positions'
@@ -386,6 +406,7 @@ const rootRouteChildren: RootRouteChildren = {
   InboxRoute: InboxRoute,
   MyStocksRoute: MyStocksRoute,
   NewsRoute: NewsRoute,
+  NotesRoute: NotesRoute,
   PositionsRoute: PositionsRoute,
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRoute,
