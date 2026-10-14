@@ -17,7 +17,7 @@ import {
   writeWatchlist,
   type WatchItem,
 } from "./watchlist.ts";
-import { loadUniverse } from "./quotes.functions";
+import { loadUniverse } from "@/lib/market/quotes.functions";
 import type { Quote } from "./types.ts";
 
 export type WatchRow = WatchItem & { quote: Quote | null };

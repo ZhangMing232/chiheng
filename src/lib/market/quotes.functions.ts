@@ -34,7 +34,7 @@ import type { Bar, IndexQuote, Trend, TrendPoint, Universe } from "@/lib/market/
 import { fetchIndices, fetchUniverse } from "@/lib/market/providers/index";
 import { fetchOverseasKline, fetchOverseasQuote, searchOverseas } from "@/lib/market/providers/overseas";
 import { ID_PATTERN, marketOf } from "@/lib/market/markets";
-import { ttlOf } from "@/lib/market/fetch-policy.ts";
+import { ttlOf } from "@/lib/market/fetch-policy";
 
 /**
  * 全市场快照的缓存时间。
