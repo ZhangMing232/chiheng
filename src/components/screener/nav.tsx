@@ -29,6 +29,7 @@ import {
   RefreshCw,
   Scale,
   Search,
+  Settings,
   Sparkles,
   Star,
   TrendingUp,
@@ -53,7 +54,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -83,6 +84,7 @@ const SIDEBAR: {
     items: [
       { to: "/my-stocks", label: "自选与持仓", icon: Star },
       { to: "/inbox", label: "提醒", icon: Bell },
+      { to: "/settings", label: "设置与状态", icon: Settings },
       { to: "/notes", label: "笔记", icon: NotebookPen },
       { to: "/reports", label: "我的报告", icon: FileText },
     ],

@@ -26,6 +26,7 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as SectorsRouteImport } from './routes/sectors'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -113,6 +114,11 @@ const SectorsRoute = SectorsRouteImport.update({
   path: '/sectors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/review': typeof ReviewRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
+  '/settings': typeof SettingsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesByTo {
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/review': typeof ReviewRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
+  '/settings': typeof SettingsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesById {
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/review': typeof ReviewRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
+  '/settings': typeof SettingsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRouteTypes {
@@ -200,6 +209,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/screener'
     | '/sectors'
+    | '/settings'
     | '/symbol'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/screener'
     | '/sectors'
+    | '/settings'
     | '/symbol'
   id:
     | '__root__'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/screener'
     | '/sectors'
+    | '/settings'
     | '/symbol'
   fileRoutesById: FileRoutesById
 }
@@ -261,6 +273,7 @@ export interface RootRouteChildren {
   ReviewRoute: typeof ReviewRoute
   ScreenerRoute: typeof ScreenerRoute
   SectorsRoute: typeof SectorsRoute
+  SettingsRoute: typeof SettingsRoute
   SymbolRoute: typeof SymbolRoute
 }
 
@@ -385,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SectorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symbol': {
       id: '/symbol'
       path: '/symbol'
@@ -413,6 +433,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReviewRoute: ReviewRoute,
   ScreenerRoute: ScreenerRoute,
   SectorsRoute: SectorsRoute,
+  SettingsRoute: SettingsRoute,
   SymbolRoute: SymbolRoute,
 }
 export const routeTree = rootRouteImport
