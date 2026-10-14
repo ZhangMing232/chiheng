@@ -121,7 +121,47 @@ function spawnServer() {
   return child;
 }
 
-let server = spawnServer();
+/**
+ * 起服务之前先探端口。2026-10-14 连着栽了两次：19:00 那个 serve 还在跑，
+ * 又开一个 `npm run serve`，子进程因端口被占立刻退出，而日志只写「退出码 0」——
+ * 看不出是端口冲突，白排查。探一下，被占就说清楚，并且**不再重试**
+ * （重试没意义：占着端口的那个不退，重试一百次也起不来）。
+ */
+async function portFree(port) {
+  const net = await import("node:net");
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: "127.0.0.1", port: Number(port) });
+    socket.setTimeout(1500);
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(false); // 连上了 = 有人占着
+    });
+    socket.once("timeout", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(true)); // 没人听 = 空着
+  });
+}
+
+let server = null;
+
+
+async function main() {
+  const free = await portFree(port);
+  if (!free) {
+    console.log(
+      `${clock()} 端口 ${port} 已经被占用了——多半是另一个 serve 已经在跑。` +
+        `先把它停掉（在它的窗口按 Ctrl-C），或者直接用浏览器开 http://127.0.0.1:${port} 看看是不是已经能开。` +
+        `不重试：占着端口的进程不退，重试多少次都一样。`,
+    );
+    // 记账和告警是另一套（直接读 src，不走 .output），所以这里退出不影响它们
+    process.exit(0);
+  }
+  server = spawnServer();
+}
+
+main();
 
 let shuttingDown = false;
 function shutdown() {
