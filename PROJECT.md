@@ -75,7 +75,7 @@ data/                 全部运行时数据，**不在 git 里**
 回测 `/backtest`、自选 `/my-stocks`、笔记 `/notes`、提醒 `/inbox`、报告 `/reports`、
 AI `/ai`（**侧栏无入口**，入口在设置页）、设置与状态 `/settings`。
 
-规模：300 提交 · 44,500 行（src + scripts）· 949 条测试。
+规模：298 提交 · 44,500 行（src + scripts）· 949 条测试。
 
 ---
 
