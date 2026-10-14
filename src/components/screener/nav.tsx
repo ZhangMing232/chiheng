@@ -19,6 +19,7 @@ import {
   FileSearch,
   FileText,
   FlaskConical,
+  Globe,
   Grid2x2,
   History,
   LayoutDashboard,
@@ -54,7 +55,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -64,6 +65,7 @@ const SIDEBAR: {
       { to: "/news", label: "消息追踪", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/sectors", label: "板块", icon: Grid2x2 },
+      { to: "/overseas", label: "港美行情", icon: Globe },
       { to: "/calendar", label: "日历", icon: CalendarDays },
       { to: "/symbol", label: "个股查询", icon: Search },
     ],
