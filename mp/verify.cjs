@@ -110,7 +110,7 @@ const cronLine = (recordSrc.split("\n").find((l) => l.includes("0 30 14")) || ""
 const cronCfg = fs.readFileSync(path.join(__dirname, "cloudfunctions/record/config.json"), "utf8");
 checks.push([
   "record 注释里的 cron 是 7 段（微信云开发口径，末尾是年）",
-  /^\*\s*0 30 14 \* \* MON-FRI \*\s*(\（.*\）)?\s*$/.test(cronLine),
+  /^\*\s*0 30 14 \* \* MON-FRI \*\s*(（.*）)?\s*$/.test(cronLine),
 ]);
 checks.push([
   "record/config.json 里 triggers 的 cron 也是 7 段、和注释一致",

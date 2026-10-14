@@ -45,7 +45,7 @@ test("顺序不同但集合相同 = 没推进（指纹要先排序）", () => {
 });
 
 test("连续空转到上限就终止本轮", () => {
-  let t = trace({ blocks: DEFAULT_LIMITS.maxIdle - 1, idle: DEFAULT_LIMITS.maxIdle - 1, lastKeys: ["a"] });
+  const t = trace({ blocks: DEFAULT_LIMITS.maxIdle - 1, idle: DEFAULT_LIMITS.maxIdle - 1, lastKeys: ["a"] });
   const v = judgeRound(["还差报告"], ["a"], t);
   assert.equal(v.outcome, "abort");
   assert.match(v.why, /空转终止/);

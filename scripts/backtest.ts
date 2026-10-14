@@ -234,7 +234,7 @@ async function loadKlines(ids: string[]): Promise<Map<string, Row[]>> {
  * 返回因子检验需要的全部：klines、idxOf、dates、benchOver。
  */
 async function factorPrep(sampleIds: string[], capFloor: number) {
-  let klines = await loadKlines(sampleIds);
+  const klines = await loadKlines(sampleIds);
   if (capFloor > 0) {
     let cap: Record<string, number> = {};
     try {
