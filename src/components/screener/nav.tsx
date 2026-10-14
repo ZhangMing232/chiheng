@@ -22,6 +22,7 @@ import {
   Globe,
   Grid2x2,
   History,
+  Flame,
   LayoutDashboard,
   LineChart,
   ListFilter,
@@ -55,13 +56,14 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
     label: "市场情报",
     items: [
       { to: "/review", label: "每日复盘", icon: History },
+      { to: "/signals", label: "信号", icon: Flame },
       { to: "/news", label: "消息追踪", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/sectors", label: "板块", icon: Grid2x2 },

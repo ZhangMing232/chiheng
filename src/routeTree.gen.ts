@@ -21,6 +21,7 @@ import { Route as MyStocksRouteImport } from './routes/my-stocks'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as OverseasRouteImport } from './routes/overseas'
+import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResearchRouteImport } from './routes/research'
@@ -90,6 +91,11 @@ const OverseasRoute = OverseasRouteImport.update({
   path: '/overseas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignalsRoute = SignalsRouteImport.update({
+  id: '/signals',
+  path: '/signals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PositionsRoute = PositionsRouteImport.update({
   id: '/positions',
   path: '/positions',
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
   '/overseas': typeof OverseasRoute
+  '/signals': typeof SignalsRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
   '/overseas': typeof OverseasRoute
+  '/signals': typeof SignalsRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
   '/overseas': typeof OverseasRoute
+  '/signals': typeof SignalsRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/news'
     | '/notes'
     | '/overseas'
+    | '/signals'
     | '/positions'
     | '/reports'
     | '/research'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/news'
     | '/notes'
     | '/overseas'
+    | '/signals'
     | '/positions'
     | '/reports'
     | '/research'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/news'
     | '/notes'
     | '/overseas'
+    | '/signals'
     | '/positions'
     | '/reports'
     | '/research'
@@ -280,6 +292,7 @@ export interface RootRouteChildren {
   NewsRoute: typeof NewsRoute
   NotesRoute: typeof NotesRoute
   OverseasRoute: typeof OverseasRoute
+  SignalsRoute: typeof SignalsRoute
   PositionsRoute: typeof PositionsRoute
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRoute
@@ -376,6 +389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OverseasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signals': {
+      id: '/signals'
+      path: '/signals'
+      fullPath: '/signals'
+      preLoaderRoute: typeof SignalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/positions': {
       id: '/positions'
       path: '/positions'
@@ -448,6 +468,7 @@ const rootRouteChildren: RootRouteChildren = {
   NewsRoute: NewsRoute,
   NotesRoute: NotesRoute,
   OverseasRoute: OverseasRoute,
+  SignalsRoute: SignalsRoute,
   PositionsRoute: PositionsRoute,
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRoute,
