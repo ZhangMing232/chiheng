@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiRouteImport } from './routes/ai'
+import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DebateRouteImport } from './routes/debate'
 import { Route as FactorsRouteImport } from './routes/factors'
@@ -34,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
 const AiRoute = AiRouteImport.update({
   id: '/ai',
   path: '/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BacktestRoute = BacktestRouteImport.update({
+  id: '/backtest',
+  path: '/backtest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -110,6 +116,7 @@ const SymbolRoute = SymbolRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ai'
+    | '/backtest'
     | '/calendar'
     | '/debate'
     | '/factors'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ai'
+    | '/backtest'
     | '/calendar'
     | '/debate'
     | '/factors'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/ai'
+    | '/backtest'
     | '/calendar'
     | '/debate'
     | '/factors'
@@ -222,6 +234,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiRoute: typeof AiRoute
+  BacktestRoute: typeof BacktestRoute
   CalendarRoute: typeof CalendarRoute
   DebateRoute: typeof DebateRoute
   FactorsRoute: typeof FactorsRoute
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/ai'
       preLoaderRoute: typeof AiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backtest': {
+      id: '/backtest'
+      path: '/backtest'
+      fullPath: '/backtest'
+      preLoaderRoute: typeof BacktestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -358,6 +378,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiRoute: AiRoute,
+  BacktestRoute: BacktestRoute,
   CalendarRoute: CalendarRoute,
   DebateRoute: DebateRoute,
   FactorsRoute: FactorsRoute,

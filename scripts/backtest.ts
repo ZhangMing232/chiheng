@@ -40,6 +40,8 @@ import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { exitFill } from "@/lib/market/journal-book";
 import { boardLimit } from "@/lib/market/model";
 import { holdOf } from "@/lib/market/strategies";
+import type { BacktestRun, BacktestStyleStat } from "@/lib/market/backtest-runs";
+import { RUNS_PATH } from "@/lib/market/backtest-runs";
 import type { StyleId } from "@/lib/market/strategies";
 import type { Bar } from "@/lib/market/types";
 import {
@@ -909,6 +911,8 @@ async function main() {
   // 入场撮合口径，三选一；默认 b（跳空按开盘价成交）
   const fillMode = process.env.BT_FILL ?? "b";
   let fillStats = { gap: 0, belowStop: 0 };
+  /** 主结果那次 report 的指标攒这里，最后落 JSONL（页面 /backtest 读它） */
+  const runStats: BacktestStyleStat[] = [];
   function bullishAt(date: string): boolean {
     const i = bench.findIndex((r) => r.date === date);
     if (i < 20) return false;
@@ -1047,7 +1051,14 @@ async function main() {
   return results;
   }
 
-  function report(results: Record<string, Trade[]>, title: string) {
+  /**
+   * 打一份策略指标表到 stdout。
+   *
+   * `collect` 为真时顺手把指标攒进 `runStats`（页面 /backtest 读它）。
+   * 只有**主结果**那次传 true：止损扫描和费用对照重跑出来的中间数字不是
+   * 「一次运行的结果」，混进历史表里会把曲线搞脏。
+   */
+  function report(results: Record<string, Trade[]>, title: string, collect = false) {
   console.log(title);
   console.log("策略            笔数   胜率   平均收益   同期全池    超额    t值   跑赢   平均持有  连亏天数  回撤");
   console.log("-".repeat(110));
@@ -1081,6 +1092,22 @@ async function main() {
       if (streak > worst) worst = streak;
     }
     const drawdown = drawdownByDay(trades);
+    if (collect) {
+      runStats.push({
+        key,
+        label: def.label,
+        trades: trades.length,
+        winRate: wins / trades.length,
+        avgRet: avg,
+        benchAvg,
+        alpha,
+        tStat,
+        beatRate: trades.filter((t) => t.ret > t.bench).length / trades.length,
+        avgHold: hold,
+        worstStreak: worst,
+        drawdown,
+      });
+    }
     console.log(
       def.label.padEnd(14) +
         String(trades.length).padEnd(6) +
@@ -1723,7 +1750,8 @@ async function main() {
   } else {
     const stopOverride = process.env.BT_STOP ? Number(process.env.BT_STOP) : undefined;
     const results = runPass(stopOverride);
-    report(results, process.env.BT_HALF ? `区间：${process.env.BT_HALF} 段` : "");
+    // 主结果这次要落 JSONL（页面读它）；止损扫描那次不落——中间数字不是「一次运行的结果」
+    report(results, process.env.BT_HALF ? `区间：${process.env.BT_HALF} 段` : "", true);
     console.log("出场原因拆解：");
     for (const key of Object.keys(STRATEGIES)) breakdown(results, key);
     console.log("");
@@ -1746,6 +1774,32 @@ async function main() {
       console.log("drag 应约等于一来一回费率；差得多说明两笔账不是同一套交易，对照无效。");
     }
     console.log(`同期沪深 300 买入持有：${(benchRet * 100).toFixed(1)}%（作为参照）`);
+
+    // 顺手落一份结构化记录（页面 /backtest 读它）。**只追加不改**：跑一次加一行。
+    // 环境参数和数字一起存——成本口径改过一次（0.102% → 0.302%），不带 env 的历史
+    // 数字没法和新的比。
+    if (process.env.BT_NO_LOG !== "1" && runStats.length > 0) {
+      const record: BacktestRun = {
+        ranAt: new Date().toISOString(),
+        ranDate: new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10),
+        env: {
+          start: startDate,
+          end: endDate,
+          days: dates.length - startIdx,
+          sample: SAMPLE,
+          covered: klines.size,
+          fillMode,
+          fee: FEE + SLIPPAGE * 2,
+          turnoverGate: useTurnoverGate,
+          stopPct: stopOverride ?? null,
+          bench300: benchRet,
+        },
+        styles: runStats,
+        note: process.env.BT_HALF ? `区间 ${process.env.BT_HALF} 段` : null,
+      };
+      await appendFile(RUNS_PATH, `${JSON.stringify(record)}\n`, "utf-8");
+      console.log(`\n已记录本次运行到 ${RUNS_PATH}（页面 /backtest 能看到了）`);
+    }
   }
   console.log("\n注：单笔收益率等权累加，不是复利；样本含幸存者偏差，实际会差一些。");
 }
