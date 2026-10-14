@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiRouteImport } from './routes/ai'
+import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DebateRouteImport } from './routes/debate'
 import { Route as FactorsRouteImport } from './routes/factors'
 import { Route as FlowRouteImport } from './routes/flow'
@@ -33,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 const AiRoute = AiRouteImport.update({
   id: '/ai',
   path: '/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DebateRoute = DebateRouteImport.update({
@@ -104,6 +110,7 @@ const SymbolRoute = SymbolRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ai'
+    | '/calendar'
     | '/debate'
     | '/factors'
     | '/flow'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ai'
+    | '/calendar'
     | '/debate'
     | '/factors'
     | '/flow'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/ai'
+    | '/calendar'
     | '/debate'
     | '/factors'
     | '/flow'
@@ -210,6 +222,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiRoute: typeof AiRoute
+  CalendarRoute: typeof CalendarRoute
   DebateRoute: typeof DebateRoute
   FactorsRoute: typeof FactorsRoute
   FlowRoute: typeof FlowRoute
@@ -239,6 +252,13 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/ai'
       preLoaderRoute: typeof AiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/debate': {
@@ -338,6 +358,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiRoute: AiRoute,
+  CalendarRoute: CalendarRoute,
   DebateRoute: DebateRoute,
   FactorsRoute: FactorsRoute,
   FlowRoute: FlowRoute,
