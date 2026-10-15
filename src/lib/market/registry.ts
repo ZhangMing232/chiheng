@@ -512,7 +512,7 @@ export const ENDPOINTS: Endpoint[] = [
       "**sheet 名不能写死 sheet1.xml**：2021 年那份就不是 sheet1（实测）；而且它是 .xls 旧二进制格式不是 zip，脚本读不了——会明说并记进 failed 数组，不静默跳过，见 parse_xlsx",
       "**未来的月份有行但数值全空**（10 月、11 月已列出还没发布），要剔掉——否则 null 会被当成「社融为 0」",
       "**只支持 2021 年起**：2020 及更早是旧版式（表头与项目名合并在同一单元格、附表还带「2017 年以来的历史区」），和这套解析不兼容——脚本见 FIRST_SUPPORTED_YEAR 直接抛错，硬凑会出错",
-      "链路是三级跳（索引 → 年份页 → 专题页 → xlsx），每级结构变了都抛错，**不静默返回空表**",
+      "链路是三级跳（索引 → 年份页 → 专题页 → xlsx），每级结构变了都抛错，**不静默返回空表**——空表比报错难发现得多（skill 文档里标的 fail-fast 原则）",
     ],
     fetcher: "scripts/fetch-social-financing.py → data/macro/social-financing.json → macro.functions.ts:getSocialFinancing",
   },
