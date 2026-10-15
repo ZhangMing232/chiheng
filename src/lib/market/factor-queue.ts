@@ -31,7 +31,8 @@ import { appendAILog, factorSelfHistory, readAILog } from "./ai-log.ts";
 import type { Factor, MetricRow } from "./factors.ts";
 import type { FactorRunRow } from "./factor-runs-file.ts";
 import { GATE_KEYS } from "./factors-view.ts";
-import { appendTombstones, buildRecord, diffTombstones } from "./factor-tombstones.ts";
+import { appendTombstones, buildRecord, diffTombstones, readTombstones } from "./factor-tombstones.ts";
+import { necropsyLines } from "./factor-necropsy.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
 
 // ── 数据结构 ────────────────────────────────────────────────────
@@ -281,7 +282,7 @@ export function parseAIProposals(
 /** 把最新一批判决压成给 AI 的败因摘要。数字原样来自日志，不加工。
  *  history = AI 自己之前提议的下场（factorSelfHistory 产物），给了就加一段
  *  自我反馈——自我进化的核心：让它读到自己的历史成败再提下一轮。 */
-export function buildPrompt(rows: FactorRunRow[], history?: string[]): string {
+export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[]): string {
   const lines = rows.map((r) => {
     const failed = GATE_KEYS.filter((k) => r.gates[k] === false).map((k) => k.toUpperCase());
     const buckets = r.bucketMeans.map((v) => `${(v * 100).toFixed(2)}%`).join(" → ");
@@ -305,6 +306,9 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[]): string {
     ...lines,
     ...(history && history.length > 0
       ? ["", "你自己之前几轮提议的下场（据此纠错：别再提已淘汰方向的微调变体；已过关的想想下一个相邻假设；总被拒的先检查表达式合规）：", ...history]
+      : []),
+    ...(necropsy && necropsy.length > 0
+      ? ["", "已被证伪方向的完整死因档案（换皮重提 = 浪费一轮检验；真想复活某个方向，先回答它当初死于哪关、这次的表达式怎么不一样）：", ...necropsy]
       : []),
     "",
     "只输出 JSON 数组，不要输出任何别的文字。",
@@ -513,10 +517,12 @@ export async function runFactorAILoop(
   }
   const { entries } = await readQueue();
   const history = factorSelfHistory(await readAILog(), entries);
+  // 死因档案喂给下一轮：26 个死因子躺在档案里，不读就是每轮从零猜。
+  const necropsy = necropsyLines(await readTombstones());
   let raw: string;
   try {
     const { readActiveMeta } = await import("./ai-profiles.ts");
-    raw = await callAI(config, buildPrompt(runs.batch.rows, history), { layer: "factor", trigger, ...(await readActiveMeta()) });
+    raw = await callAI(config, buildPrompt(runs.batch.rows, history, necropsy), { layer: "factor", trigger, ...(await readActiveMeta()) });
   } catch (error) {
     const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });

@@ -46,7 +46,8 @@ export type EndpointKind =
   | "valuation"
   | "news"
   | "calendar"
-  | "risk";
+  | "risk"
+  | "event";
 
 export type Endpoint = {
   id: string;
