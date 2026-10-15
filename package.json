@@ -37,7 +37,8 @@
     "preflight": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/preflight.ts",
     "watch:open": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/preflight.ts --watch",
     "build:note": "node scripts/after-build.mjs",
-    "test:py": "python3 scripts/fetch-tdx-package.test.py"
+    "test:py": "python3 scripts/fetch-tdx-package.test.py",
+    "serve:dev": "node scripts/home-server.mjs --dev"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

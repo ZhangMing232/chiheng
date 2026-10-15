@@ -25,9 +25,12 @@ import { type LimitUpRow } from "@/lib/market/limit-up";
 import { toneClass } from "@/lib/market/format";
 
 export const Route = createFileRoute("/signals")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    date: typeof search.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? search.date : "",
-  }),
+  // date 缺的时候**不写这个键**：写了空串，TanStack 会认为 URL 和归一化后的
+  // search 不一致，先把 /signals 重定向到 /signals?date=（一次白跳的 307）。
+  validateSearch: (search: Record<string, unknown>): { date?: string } => {
+    const date = typeof search.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? search.date : "";
+    return date === "" ? {} : { date };
+  },
   loaderDeps: ({ search }) => ({ date: search.date }),
   loader: ({ deps }) =>
     getSignals({ data: { date: deps.date || undefined } }).catch(() => null),

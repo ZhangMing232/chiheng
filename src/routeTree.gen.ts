@@ -21,7 +21,6 @@ import { Route as MyStocksRouteImport } from './routes/my-stocks'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as OverseasRouteImport } from './routes/overseas'
-import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResearchRouteImport } from './routes/research'
@@ -29,6 +28,7 @@ import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as SectorsRouteImport } from './routes/sectors'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as SymbolRouteImport } from './routes/symbol'
 
 const IndexRoute = IndexRouteImport.update({
@@ -91,11 +91,6 @@ const OverseasRoute = OverseasRouteImport.update({
   path: '/overseas',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignalsRoute = SignalsRouteImport.update({
-  id: '/signals',
-  path: '/signals',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PositionsRoute = PositionsRouteImport.update({
   id: '/positions',
   path: '/positions',
@@ -131,6 +126,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignalsRoute = SignalsRouteImport.update({
+  id: '/signals',
+  path: '/signals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
@@ -150,7 +150,6 @@ export interface FileRoutesByFullPath {
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
   '/overseas': typeof OverseasRoute
-  '/signals': typeof SignalsRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -158,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
+  '/signals': typeof SignalsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesByTo {
@@ -173,7 +173,6 @@ export interface FileRoutesByTo {
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
   '/overseas': typeof OverseasRoute
-  '/signals': typeof SignalsRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -181,6 +180,7 @@ export interface FileRoutesByTo {
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
+  '/signals': typeof SignalsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRoutesById {
@@ -197,7 +197,6 @@ export interface FileRoutesById {
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
   '/overseas': typeof OverseasRoute
-  '/signals': typeof SignalsRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -205,6 +204,7 @@ export interface FileRoutesById {
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
+  '/signals': typeof SignalsRoute
   '/symbol': typeof SymbolRoute
 }
 export interface FileRouteTypes {
@@ -222,7 +222,6 @@ export interface FileRouteTypes {
     | '/news'
     | '/notes'
     | '/overseas'
-    | '/signals'
     | '/positions'
     | '/reports'
     | '/research'
@@ -230,6 +229,7 @@ export interface FileRouteTypes {
     | '/screener'
     | '/sectors'
     | '/settings'
+    | '/signals'
     | '/symbol'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -245,7 +245,6 @@ export interface FileRouteTypes {
     | '/news'
     | '/notes'
     | '/overseas'
-    | '/signals'
     | '/positions'
     | '/reports'
     | '/research'
@@ -253,6 +252,7 @@ export interface FileRouteTypes {
     | '/screener'
     | '/sectors'
     | '/settings'
+    | '/signals'
     | '/symbol'
   id:
     | '__root__'
@@ -268,7 +268,6 @@ export interface FileRouteTypes {
     | '/news'
     | '/notes'
     | '/overseas'
-    | '/signals'
     | '/positions'
     | '/reports'
     | '/research'
@@ -276,6 +275,7 @@ export interface FileRouteTypes {
     | '/screener'
     | '/sectors'
     | '/settings'
+    | '/signals'
     | '/symbol'
   fileRoutesById: FileRoutesById
 }
@@ -292,7 +292,6 @@ export interface RootRouteChildren {
   NewsRoute: typeof NewsRoute
   NotesRoute: typeof NotesRoute
   OverseasRoute: typeof OverseasRoute
-  SignalsRoute: typeof SignalsRoute
   PositionsRoute: typeof PositionsRoute
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRoute
@@ -300,6 +299,7 @@ export interface RootRouteChildren {
   ScreenerRoute: typeof ScreenerRoute
   SectorsRoute: typeof SectorsRoute
   SettingsRoute: typeof SettingsRoute
+  SignalsRoute: typeof SignalsRoute
   SymbolRoute: typeof SymbolRoute
 }
 
@@ -389,13 +389,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OverseasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/signals': {
-      id: '/signals'
-      path: '/signals'
-      fullPath: '/signals'
-      preLoaderRoute: typeof SignalsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/positions': {
       id: '/positions'
       path: '/positions'
@@ -445,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signals': {
+      id: '/signals'
+      path: '/signals'
+      fullPath: '/signals'
+      preLoaderRoute: typeof SignalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symbol': {
       id: '/symbol'
       path: '/symbol'
@@ -468,7 +468,6 @@ const rootRouteChildren: RootRouteChildren = {
   NewsRoute: NewsRoute,
   NotesRoute: NotesRoute,
   OverseasRoute: OverseasRoute,
-  SignalsRoute: SignalsRoute,
   PositionsRoute: PositionsRoute,
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRoute,
@@ -476,6 +475,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScreenerRoute: ScreenerRoute,
   SectorsRoute: SectorsRoute,
   SettingsRoute: SettingsRoute,
+  SignalsRoute: SignalsRoute,
   SymbolRoute: SymbolRoute,
 }
 export const routeTree = rootRouteImport

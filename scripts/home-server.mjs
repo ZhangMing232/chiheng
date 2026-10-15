@@ -89,10 +89,17 @@ function clock() {
 
 function spawnServer() {
   const startedAt = Date.now();
-  const child = spawn(process.execPath, [entry], {
-    stdio: "inherit",
-    env: { ...process.env, PORT: port, HOST: host, NITRO_PORT: port, NITRO_HOST: host },
-  });
+  // dev 模式起 vite dev（改 src 秒级热更新，不用 build）；默认起构建产物 .output。
+  const dev = process.argv.includes("--dev");
+  const child = dev
+    ? spawn(process.execPath, [join("scripts", "with-app-env.mjs"), "vite", "dev", "--host", host, "--port", port], {
+        stdio: "inherit",
+        env: { ...process.env },
+      })
+    : spawn(process.execPath, [entry], {
+        stdio: "inherit",
+        env: { ...process.env, PORT: port, HOST: host, NITRO_PORT: port, NITRO_HOST: host },
+      });
   child.on("exit", (code, signal) => {
     if (stopping) return;
     // 「起来不到一分钟就死」和「跑了一阵才掉」要分开看：
@@ -263,6 +270,12 @@ function warnIfSelfIsStale() {
   }
 }
 
-warnIfStaleBuild();
+if (!process.argv.includes("--dev")) warnIfStaleBuild();
 warnIfSelfIsStale();
+if (process.argv.includes("--dev")) {
+  console.log(
+    `${clock()} dev 模式：改完 src 网页会自动热更新，不用 npm run build:mac。` +
+      `记账和告警照跑（它们直接读 src）。正式部署前才需要 build。`,
+  );
+}
 console.log(`赤轨在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);
