@@ -87,10 +87,34 @@ function clock() {
   return new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * 该起 dev 还是构建产物。
+ *
+ * 自动判断的规则只有一条：**src 比 .output 新就走 dev**。
+ * 这样用户永远只打 `npm run serve`：改完代码刷新就能看到，不用记着 build；
+ * build 过了就自动回到正式产物，也不用记着切。`--dev` / `--prod` 可以强制。
+ *
+ * 为什么不再"只提示不切换"：原来只打印一句「页面跑的是旧逻辑」，但人照样会忘，
+ * 然后看着旧页面排查半天——2026-10-14 就这么白排查了三次。
+ */
+function pickDev() {
+  if (process.argv.includes("--prod")) return false;
+  if (process.argv.includes("--dev")) return true;
+  try {
+    const builtAt = statSync(".output").mtimeMs;
+    return newestMtime("src") > builtAt;
+  } catch {
+    return true; // .output 不在（从没 build 过）→ dev
+  }
+}
+
 function spawnServer() {
   const startedAt = Date.now();
-  // dev 模式起 vite dev（改 src 秒级热更新，不用 build）；默认起构建产物 .output。
-  const dev = process.argv.includes("--dev");
+  // dev 模式起 vite dev（改 src 秒级热更新，不用 build）；否则起构建产物 .output。
+  // **默认自动判断**：src 比 .output 新（或 .output 根本不在）就走 dev——不然用户
+  // 改完代码忘了 build，跑的是旧逻辑，而这种"旧"看不出来（2026-10-14 连踩几次）。
+  // 要强制用哪一个：--dev 或 --prod。
+  const dev = pickDev();
   const child = dev
     ? spawn(process.execPath, [join("scripts", "with-app-env.mjs"), "vite", "dev", "--host", host, "--port", port], {
         stdio: "inherit",
@@ -270,12 +294,13 @@ function warnIfSelfIsStale() {
   }
 }
 
-if (!process.argv.includes("--dev")) warnIfStaleBuild();
+if (!pickDev()) warnIfStaleBuild();
 warnIfSelfIsStale();
-if (process.argv.includes("--dev")) {
+if (pickDev()) {
   console.log(
-    `${clock()} dev 模式：改完 src 网页会自动热更新，不用 npm run build:mac。` +
-      `记账和告警照跑（它们直接读 src）。正式部署前才需要 build。`,
+    `${clock()} dev 模式（src 比构建产物新，自动选的）：改完 src 网页会自动热更新，` +
+      `不用 npm run build:mac。记账和告警照跑（它们直接读 src）。` +
+      `要跑正式产物就先 npm run build:mac，或者 npm run serve -- --prod。`,
   );
 }
 console.log(`赤轨在本机 ${host}:${port} 上提供访问。同一局域网用这台电脑的 IP 加端口打开。`);
