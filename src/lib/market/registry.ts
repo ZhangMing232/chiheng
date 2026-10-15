@@ -26,7 +26,7 @@
 import type { MarketId } from "@/lib/market/markets";
 
 /** 数据源。 */
-export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx" | "chinabond" | "nbs" | "pboc";
+export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx" | "chinabond" | "nbs" | "pboc" | "local";
 
 /**
  * 合规级别。
@@ -85,6 +85,7 @@ export const SOURCE_NAMES: Record<SourceId, string> = {
   chinabond: "中债（中央结算公司）",
   nbs: "国家统计局",
   pboc: "中国人民银行",
+  local: "本机文件",
 };
 
 export const ENDPOINTS: Endpoint[] = [
@@ -553,6 +554,25 @@ export const ENDPOINTS: Endpoint[] = [
       "限速走 fetch-policy 的 eastmoney：1300ms 串行，与资金流/行业那些端点同一风控面——开并发会立刻 403，串行跑 300 只全程无问题（2026-10 实测）",
     ],
     fetcher: "macro.functions.ts:getLpr → datacenter-web.eastmoney.com RPTA_WEB_RATE",
+  },
+  {
+    id: "local.docs",
+    title: "本地研报文档库（摄入 PDF/Word/Markdown）",
+    source: "local",
+    market: "a",
+    compliance: "licensed",
+    kind: "announcement",
+    critical: false,
+    unit: "字",
+    traps: [
+      "**2026-10-15 接入并实测**：ingest-doc.py 摄入 → data/docs/*.json → docs.functions.ts 检索；PDF/Word/Markdown/文本/研判 JSON 五种都实测过",
+      "**PDF 用 pypdf（纯 Python，arm64 装得上，实测 6.20.1）**；.docx 是 zip+XML 同样零依赖手写解析；老式 .doc 是二进制格式读不了（和 akshare 那次装不上依赖不同，这次是格式本身不支持）",
+      "**扫描件（图片版 PDF）抽不出字 → 摄入直接报错、不入库**：那需要 OCR，而 pypdf 只认文字层。和普通 PDF 不同——普通 PDF 抽得到（实测 15 页抽 2859 字），扫描件一律 0 字，所以宁可不入库也不要假装成功，见 ingest-doc.py:ingest_pdf",
+      "**每块必须带出处**（第几页/第几行）——这是「引用回查原文」的落点。没有出处的命中一律不给，见 docs.ts:parseDoc",
+      "**不做中文分词**：中文没有空格，真分词要引 jieba 词典（arm64 装包有前车之鉴）。所以搜索框要的是关键词不是整句话，见 docs.ts:termsOf",
+      "**子集化 TTF 的中文 PDF 没验证过**：只实测了 reportlab 生成的 CID 字体样张（85 字全对）。真实研报的字体嵌入方式可能不同，抽出多少字如实显示在页面上",
+    ],
+    fetcher: "scripts/ingest-doc.py → data/docs/*.json → docs.functions.ts:getDocLibrary/searchDocLibrary",
   },
   {
     id: "sina.sector",

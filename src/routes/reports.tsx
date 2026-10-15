@@ -16,10 +16,12 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getReportContent, getReports } from "@/lib/market/reports.functions";
+import { getDocLibrary, searchDocLibrary } from "@/lib/market/docs.functions";
+import { snippetOf } from "@/lib/market/docs";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/reports")({
-  loader: () => getReports(),
+  loader: () => Promise.all([getReports(), getDocLibrary()]),
   component: ReportsPage,
 });
 
@@ -32,7 +34,7 @@ const AI_LABEL: Record<string, { text: string; tone: "brand" | "warn" | "muted" 
 };
 
 function ReportsPage() {
-  const rows = Route.useLoaderData();
+  const [rows, library] = Route.useLoaderData();
   const [openId, setOpenId] = useState<string | null>(null);
   const { data: opened, isFetching } = useQuery({
     queryKey: ["report-content", openId],
@@ -105,6 +107,124 @@ function ReportsPage() {
         报告里带了宪法口径、四档可信度和证据 id——AI 说过什么、依据是哪几条，事后都查得到。
         想去研判新标的？<Link to="/research" search={{ q: "" }} className="text-accent hover:underline">去个股研判</Link>
       </p>
+      <DocLibraryPanel library={library} />
     </Frame>
+  );
+}
+
+/**
+ * 文档库：摄入进来的研报（PDF/Word/Markdown/文本/自己的研判 JSON），可搜索、
+ * 每条命中带出处。
+ *
+ * **三条口径写在页面上，不藏着**：
+ * 1. **不做中文分词**——中文没有空格，真分词要引 jieba 词典（arm64 装包有前车之鉴）。
+ *    所以搜索框要的是**关键词**，不是整句话。
+ * 2. **出处必显示**（第几页/第几行）。没有出处的命中一律不给——读的人无法核对
+ *    AI 引用的话出自哪里，这是「引用回查原文」的落点。
+ * 3. **抽取质量如实显示**：PDF 抽出多少字写在每份文档上。扫描件（图片版）抽不出，
+ *    摄入时就会报错不入库——需要 OCR，pypdf 做不到。
+ */
+function DocLibraryPanel({ library }: { library: Awaited<ReturnType<typeof getDocLibrary>> }) {
+  const [q, setQ] = useState("");
+  const [submitted, setSubmitted] = useState("");
+  const { data } = useQuery({
+    queryKey: ["doc-search", submitted],
+    queryFn: () => searchDocLibrary({ data: { q: submitted, limit: 20 } }),
+    enabled: submitted.trim().length > 0,
+    staleTime: 60_000,
+  });
+
+  return (
+    <Panel
+      title="文档库"
+      note={
+        <span className="text-xs text-muted">
+          摄入 PDF/Word/Markdown/文本 · {library.docs.length} 份 / {library.totalChunks} 块 ·
+          存在本机 data/docs/
+        </span>
+      }
+    >
+      {library.docs.length === 0 ? (
+        <StateBlock
+          kind="empty"
+          title="还没有摄入任何文档"
+          hint="跑一次 python3 scripts/ingest-doc.py <路径>（支持 PDF / docx / md / txt / json）。PDF 用 pypdf 解析，扫描件抽不出字会直接报错不入库。"
+        />
+      ) : (
+        <>
+          <form
+            className="flex gap-2 border-b border-line px-3.5 py-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSubmitted(q);
+            }}
+          >
+            <input
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder="关键词（不是整句话）"
+              className="min-w-0 flex-1 rounded border border-line bg-surface px-2 py-1 text-sm outline-none focus:border-brand"
+            />
+            <button type="submit" className="rounded border border-brand px-3 py-1 text-sm text-brand-text hover:bg-brand-soft">
+              搜
+            </button>
+          </form>
+
+          {submitted.trim() ? (
+            <div className="border-b border-line px-3.5 py-2">
+              {!data || data.hits.length === 0 ? (
+                <p className="text-sm text-muted">
+                  {data ? `「${submitted}」在 ${data.searched} 份文档里没找到` : "搜着…"}
+                  <span className="ml-2 text-xs">换短关键词试试——这里不做中文分词，长句搜不到。</span>
+                </p>
+              ) : (
+                <ul>
+                  {data.hits.map((hit, index) => (
+                    <li key={`${hit.docId}-${hit.chunk.locator}-${index}`} className="border-t border-line py-2 first:border-t-0">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="text-sm font-medium">{hit.docTitle}</span>
+                        <Tag tone="muted">{hit.format}</Tag>
+                        <Tag tone="brand">{hit.chunk.locator}</Tag>
+                        <span className="text-[11px] text-muted">命中 {hit.terms.join("、")}</span>
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-fg">{snippetOf(hit.chunk, hit.terms)}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+
+          <ul>
+            {library.docs.map((doc) => (
+              <li key={doc.id} className="flex flex-wrap items-baseline justify-between gap-2 border-t border-line px-3.5 py-2 first:border-t-0">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{doc.title}</div>
+                  <div className="mt-0.5 text-xs text-muted">
+                    {doc.chunks.length} 块
+                    {doc.stats.extractedChars != null ? ` / ${doc.stats.extractedChars} 字` : ""}
+                    {doc.stats.pages != null ? ` / ${doc.stats.pages} 页` : ""} · 摄入于 {doc.ingestedAt.slice(0, 10)}
+                  </div>
+                </div>
+                <Tag tone="muted">{doc.format}</Tag>
+              </li>
+            ))}
+          </ul>
+
+          {library.broken.length > 0 ? (
+            <p className="border-t border-line px-3.5 py-2 text-[11px] text-warn">
+              {library.broken.length} 份读不出来（没算进上面的列表）：
+              {library.broken.map((b) => `${b.file}（${b.why}）`).join("、")}
+            </p>
+          ) : null}
+
+          <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+            摄入脚本：<code>python3 scripts/ingest-doc.py &lt;路径&gt;</code>。PDF 用 pypdf（纯 Python，
+            arm64 能装）；.docx 是 zip+XML 同样零依赖手写解析，老式 .doc 读不了。
+            <strong>扫描件（图片版 PDF）抽不出字会直接报错不入库</strong>——那需要 OCR。
+          </p>
+        </>
+      )}
+    </Panel>
   );
 }
