@@ -41,7 +41,7 @@ async function walk(dir: string): Promise<string[]> {
   return out;
 }
 
-test("🔴 不许出现 @/ 别名带 .ts 后缀的 import（alias 会拼成双扩展名，node 直接跑不起来）", async () => {
+test("🔴 @/ 别名不许带 .ts 后缀（alias 会拼成双扩展名，node 跑不起来）", async () => {
   const files: string[] = [];
   for (const dir of DIRS) files.push(...(await walk(join(ROOT, dir))));
 
@@ -53,6 +53,11 @@ test("🔴 不许出现 @/ 别名带 .ts 后缀的 import（alias 会拼成双�
     for (const m of text.matchAll(re)) {
       bad.push(`${relative(ROOT, file)}: ${m[1]}`);
     }
+    // ⚠️ **相对路径带 .ts 后缀是合法的**（`from "./fetch-policy.ts"`），别把它也拦掉：
+    // node 的 --experimental-strip-types 认 .ts 扩展名，只是不认**无扩展名**
+    // （`from "./fetch-policy"` → ERR_MODULE_NOT_FOUND）。src/lib/market 下有 100+
+    // 处这种写法在跑着，动它之前先看证据。
+    // 真正要拦的只有上面那一种：@/ 别名后面带 .ts，因为 alias.mjs 会再拼一个。
     // import「@/ 路径 + .ts」的动态形式
     for (const m of text.matchAll(/import\(\s*"(@\/[^"]*\.ts)"\s*\)/g)) {
       bad.push(`${relative(ROOT, file)}: ${m[1]}（动态 import）`);

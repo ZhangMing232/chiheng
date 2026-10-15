@@ -23,18 +23,21 @@ import { limitTag } from "@/lib/market/model";
 import { readMarket } from "@/lib/market/flow";
 import { shanghaiDate } from "@/lib/market/session";
 import { getFlow, getIndices, getNews, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
+import { getMacro } from "@/lib/market/macro.functions";
+import { TENOR_LABELS } from "@/lib/market/macro";
 import type { NewsItem, NewsTone } from "@/lib/market/news";
 
 export const Route = createFileRoute("/review")({
   loader: async () => {
-    const [universe, indices, flow, news, journal] = await Promise.all([
+    const [universe, indices, flow, news, journal, macro] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getIndices().catch(() => []),
       getFlow().catch(() => null),
       getNews().catch(() => [] as NewsItem[]),
       getServerJournal().catch(() => ({ days: [], personal: false, why: "读账本失败" })),
+      getMacro().catch(() => null),
     ]);
-    return { universe, indices, flow, news, journal, date: shanghaiDate() };
+    return { universe, indices, flow, news, journal, macro, date: shanghaiDate() };
   },
   component: Review,
 });
@@ -46,7 +49,7 @@ const TONE_TEXT: Record<NewsTone, { label: string; className: string }> = {
 };
 
 function Review() {
-  const { universe, indices, flow, news, journal, date } = Route.useLoaderData();
+  const { universe, indices, flow, news, journal, macro, date } = Route.useLoaderData();
 
   // 涨跌家数和涨跌停统计：直接扫全市场快照。快照不完整（partial/stale）时下面标明。
   const quotes = universe?.quotes ?? [];
@@ -169,6 +172,8 @@ function Review() {
             <StateBlock kind="empty" title="资金数据暂时拉不到" hint="东财资金接口超时或限流，刷新重试。" />
           </Panel>
         )}
+        <MacroPanel macro={macro} />
+
         {marketLines.length > 0 ? (
           <ul className="flex flex-col gap-1 rounded border border-line bg-surface px-3.5 py-2 text-xs leading-relaxed text-muted">
             {marketLines.map((line) => (
@@ -247,5 +252,73 @@ function Review() {
         </p>
       </div>
     </Frame>
+  );
+}
+
+
+/**
+ * 宏观水温：中债国债收益率曲线。
+ *
+ * **只摆事实不下判断**——10 年国债往下走通常被读成"钱变便宜"，但那是对未来的
+ * 预期，不是已经发生的事。这里给数字和截至日期，判断留给读的人。
+ *
+ * 口径三条（都写在页面上）：
+ * 1. 单位是 %，1.6516 = 1.6516%
+ * 2. **数据截至哪天不一定是今天**——中债不公布债券市场交易日历，也不给总条数，
+ *    所以「某天没数据」分不清是节假日还是接口坏了，只报截至日期
+ * 3. 拿不到就显示「没拿到」，不显示全 0（0% 会被读成「收益率 0」）
+ */
+function MacroPanel({ macro }: { macro: Awaited<ReturnType<typeof getMacro>> | null }) {
+  if (!macro) {
+    return (
+      <Panel title="宏观水温（10 年国债）" note="没拉到">
+        <StateBlock kind="empty" title="中债没拉到" hint="中央结算公司接口没响应，刷新重试。" />
+      </Panel>
+    );
+  }
+  if (!macro.snapshot) {
+    return (
+      <Panel title="宏观水温（10 年国债）" note={macro.why ?? "没数据"}>
+        <StateBlock kind="empty" title="没取到收益率曲线" hint={macro.why ?? "中债返回了空"} />
+      </Panel>
+    );
+  }
+  const s = macro.snapshot;
+  const order = ["3m", "6m", "1y", "3y", "5y", "7y", "10y", "30y"];
+  return (
+    <Panel title="宏观水温（中债国债收益率）" note={`数据截至 ${s.date} · 官方源`}>
+      <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+        <Stat
+          label="10 年国债"
+          value={s.tenors["10y"] == null ? "—" : `${s.tenors["10y"]}%`}
+          hint="市场的水温"
+          className="bg-surface"
+        />
+        <Stat
+          label="10y − 1y"
+          value={s.slope10y1y == null ? "—" : `${s.slope10y1y > 0 ? "+" : ""}${s.slope10y1y} pp`}
+          hint="曲线陡不陡"
+          className="bg-surface"
+        />
+        <Stat
+          label="30y − 10y"
+          value={s.slope30y10y == null ? "—" : `${s.slope30y10y > 0 ? "+" : ""}${s.slope30y10y} pp`}
+          hint="超长端溢价"
+          className="bg-surface"
+        />
+        <Stat label="覆盖交易日" value={s.days} hint={`近 ${macro.points.length} 天有数据`} className="bg-surface" />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2 text-xs text-muted">
+        {order.map((k) => (
+          <span key={k}>
+            {TENOR_LABELS[k]} {s.tenors[k] == null ? "—" : `${s.tenors[k]}%`}
+          </span>
+        ))}
+      </div>
+      <p className="px-3.5 pb-2 text-[11px] text-muted">
+        只摆数字不下判断——收益率往下走常被读成「钱变便宜」，那是对未来的预期，不是已经发生的事。
+        中债不公布债券市场交易日历，所以数据截至日不一定是今天（节假日正常）。
+      </p>
+    </Panel>
   );
 }

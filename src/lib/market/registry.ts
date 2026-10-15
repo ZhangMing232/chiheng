@@ -26,7 +26,7 @@
 import type { MarketId } from "@/lib/market/markets";
 
 /** 数据源。 */
-export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx";
+export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx" | "chinabond";
 
 /**
  * 合规级别。
@@ -82,6 +82,7 @@ export const SOURCE_NAMES: Record<SourceId, string> = {
   cffex: "中金所",
   baostock: "证券宝 baostock",
   tdx: "通达信官网",
+  chinabond: "中债（中央结算公司）",
 };
 
 export const ENDPOINTS: Endpoint[] = [
@@ -473,6 +474,25 @@ export const ENDPOINTS: Endpoint[] = [
       "接口来自 a-stock-data SKILL V3.10.2 §8.1（push2ex 四池）；**同花顺涨停揭秘没接**——那是市场叙事不是核验过的因果",
     ],
     fetcher: "limit-up.functions.ts:getSignals → push2ex.eastmoney.com getTopicZTPool/ZBPool/DTPool",
+  },
+  {
+    id: "chinabond.yield",
+    title: "中债国债收益率曲线（宏观水温）",
+    source: "chinabond",
+    market: "a",
+    compliance: "official",
+    kind: "index",
+    critical: false,
+    unit: "%",
+    traps: [
+      "**2026-10-15 接入并实测**：一次查 30 天返回 18 个交易日 × 8 档期限，10-14 的 10 年期 1.6516%，见 macro.functions.ts:getMacro",
+      "**单位是 %**（1.6516 = 1.6516%），不是小数——除 100 就成了 0.0166%",
+      "**官网单次查询超过 1 年会静默返回 0 行**（不是报错，是空表——比报错更难发现），所以窗口固定 180 天，见 macro.functions.ts 的 WINDOW_DAYS",
+      "**它不公布债券市场交易日历也没有总条数**，所以「某天没数据」分不清是节假日还是接口坏了——和能判定的源不同，只报「数据截至哪天」，不当异常",
+      "**中短期票据曲线没有 30 年那一档**（和国债曲线的档位不齐），解析给 null 不给 0",
+      "接口来自 a-stock-data SKILL V3.10.2 §11.3（中央结算公司官方，零鉴权），走 HTML 表格解析，见 macro.ts:parseYieldCurve",
+    ],
+    fetcher: "macro.functions.ts:getMacro → yield.chinabond.com.cn/cbweb-pbc-web/pbc/historyQuery",
   },
   {
     id: "sina.sector",
