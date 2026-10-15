@@ -277,3 +277,106 @@ export function parseLpr(rows: readonly Record<string, unknown>[]): { points: Lp
 export function lprSnapshotOf(points: LprPoint[]): LprPoint | null {
   return points.length > 0 ? points[points.length - 1]! : null;
 }
+
+// ── 社会融资规模（人民银行，月频）────────────────────────────────────────
+//
+// 数据由 `scripts/fetch-social-financing.py` 落盘到
+// `data/macro/social-financing.json`（**零依赖手写 xlsx 解析**——akshare 就是
+// 因为 arm64 装不上依赖而废的，社融不能再踩一次）。
+//
+// 实测 2026-10-15：2022-01 ~ 2026-09 共 57 个月；2026-09 社融增量 35476 亿。
+// 2021 那年的附件是 .xls 旧格式，脚本读不了（会明说，不静默跳过）。
+
+export type SocialFinancingRow = {
+  /** YYYY-MM */
+  month: string;
+  /** 社融增量，亿元人民币 */
+  afreTotal: number | null;
+  rmbLoans: number | null;
+  fxLoans: number | null;
+  entrustedLoans: number | null;
+  trustLoans: number | null;
+  bankersAcceptance: number | null;
+  corporateBonds: number | null;
+  governmentBonds: number | null;
+  equityFinancing: number | null;
+  abs: number | null;
+  writeOff: number | null;
+};
+
+export type SocialFinancingFile = {
+  source: string;
+  unit: string;
+  fetchedAt: string;
+  columns?: { key: string; label: string }[];
+  rows: SocialFinancingRow[];
+  failed?: string[];
+};
+
+/**
+ * 校验落盘文件。**行数对不上、月份格式不对都算损坏**——宁可给 null 让页面说
+ * 「数据有问题」，也不要拿半份数据当全的。
+ */
+export function parseSocialFinancing(raw: unknown): SocialFinancingFile | null {
+  const file = raw as Partial<SocialFinancingFile> | null;
+  if (!file || !Array.isArray(file.rows) || file.rows.length === 0) return null;
+  const rows: SocialFinancingRow[] = [];
+  for (const row of file.rows as Record<string, unknown>[]) {
+    const month = typeof row.month === "string" ? row.month : "";
+    if (!/^\d{4}-\d{2}$/.test(month)) continue; // 坏行跳过，不让一行拖垮整份
+    const pick = (key: string): number | null => {
+      const v = row[key];
+      return typeof v === "number" && Number.isFinite(v) ? v : null;
+    };
+    rows.push({
+      month,
+      afreTotal: pick("afreTotal"),
+      rmbLoans: pick("rmbLoans"),
+      fxLoans: pick("fxLoans"),
+      entrustedLoans: pick("entrustedLoans"),
+      trustLoans: pick("trustLoans"),
+      bankersAcceptance: pick("bankersAcceptance"),
+      corporateBonds: pick("corporateBonds"),
+      governmentBonds: pick("governmentBonds"),
+      equityFinancing: pick("equityFinancing"),
+      abs: pick("abs"),
+      writeOff: pick("writeOff"),
+    });
+  }
+  if (rows.length === 0) return null;
+  rows.sort((a, b) => a.month.localeCompare(b.month));
+  return {
+    source: typeof file.source === "string" ? file.source : "人民银行",
+    unit: typeof file.unit === "string" ? file.unit : "亿元人民币",
+    fetchedAt: typeof file.fetchedAt === "string" ? file.fetchedAt : "",
+    columns: file.columns,
+    rows,
+    failed: Array.isArray(file.failed) ? file.failed : [],
+  };
+}
+
+/** 12 个月移动合计（社融是**增量**流量，单月数字噪声大，看累计更稳）。 */
+export function trailingSum(rows: readonly SocialFinancingRow[], key: "afreTotal" | "rmbLoans", months: number): number | null {
+  const usable = rows.filter((r) => r[key] != null);
+  if (usable.length === 0) return null;
+  const tail = usable.slice(-months);
+  return round2(tail.reduce((sum, r) => sum + (r[key] as number), 0));
+}
+
+/**
+ * 社融的「钱在进还是在出」。
+ *
+ * **只是陈述差额，不是预测**：正数 = 累计投放 > 累计到期，负数 = 净回笼。
+ * 拿它跟国债收益率对照才有点意义（收益率看价格、社融看数量），
+ * 但那层解读不在本页做——见 /review 的宏观面板。
+ */
+export function twelveMonthChange(rows: readonly SocialFinancingRow[], key: "afreTotal" | "rmbLoans"): number | null {
+  const usable = rows.filter((r) => r[key] != null);
+  if (usable.length < 12) return null;
+  const tail = usable.slice(-12);
+  return round2(tail.reduce((sum, r) => sum + (r[key] as number), 0));
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}

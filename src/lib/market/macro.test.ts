@@ -17,10 +17,13 @@ import {
   lprSnapshotOf,
   parseLpr,
   parsePmi,
+  parseSocialFinancing,
   parseYieldCurve,
   pmiZone,
   snapshotOf,
   spreadOf,
+  trailingSum,
+  twelveMonthChange,
 } from "@/lib/market/macro";
 
 /** 真实返回的一行（2026-10-14 中债国债，实测）。 */
@@ -186,4 +189,58 @@ test("LPR 快照取最新一次；空表给 null", () => {
     { TRADE_DATE: "2026-09-20", LPR1Y: 3, LPR5Y: 3.5 },
   ]);
   assert.equal(lprSnapshotOf(points)!.date, "2026-09-20");
+});
+
+// ── 社融（落盘文件校验 + 移动合计）────────────────────────────────────
+
+test("社融：坏月份跳过，好行照收（不让一行拖垮整份）", () => {
+  const f = parseSocialFinancing({
+    source: "人民银行",
+    rows: [
+      { month: "2026-09", afreTotal: 35476, rmbLoans: 12734 },
+      { month: "不是月份", afreTotal: 1 },
+      { month: "2026-08", afreTotal: 16581, rmbLoans: 552 },
+    ],
+  });
+  assert.ok(f);
+  assert.equal(f.rows.length, 2);
+  assert.deepEqual(f.rows.map((r) => r.month), ["2026-08", "2026-09"], "按月份升序");
+  assert.equal(f.rows[1]!.afreTotal, 35476);
+});
+
+test("社融：缺失的列给 null 不给 0", () => {
+  const f = parseSocialFinancing({ rows: [{ month: "2026-09", afreTotal: 35476 }] })!;
+  assert.equal(f.rows[0]!.rmbLoans, null, "0 会被读成「人民币贷款为 0」");
+});
+
+test("社融：空文件 / rows 不是数组给 null（页面显示没数据）", () => {
+  assert.equal(parseSocialFinancing(null), null);
+  assert.equal(parseSocialFinancing({ rows: [] }), null);
+  assert.equal(parseSocialFinancing({ rows: "不是数组" }), null);
+  assert.equal(parseSocialFinancing({ rows: [{ month: "坏月份" }] }), null, "全部是坏行也当没数据");
+});
+
+test("社融：12 个月合计需要 12 行，不够给 null（不拿 3 个月当一年）", () => {
+  const few = parseSocialFinancing({
+    rows: [
+      { month: "2026-07", afreTotal: 14068 },
+      { month: "2026-08", afreTotal: 16581 },
+      { month: "2026-09", afreTotal: 35476 },
+    ],
+  })!;
+  assert.equal(twelveMonthChange(few.rows, "afreTotal"), null, "只有 3 个月，不给年度合计");
+  assert.equal(trailingSum(few.rows, "afreTotal", 3), 66125);
+  assert.equal(trailingSum(few.rows, "afreTotal", 12), 66125, "只有 3 行就按 3 行算，不补零");
+});
+
+test("社融：12 个月合计数对（2026 全年滚动）", () => {
+  const rows = parseSocialFinancing({
+    rows: Array.from({ length: 12 }, (_, i) => ({
+      month: `2026-${String(i + 1).padStart(2, "0")}`,
+      afreTotal: 1000,
+      rmbLoans: 500,
+    })),
+  })!.rows;
+  assert.equal(twelveMonthChange(rows, "afreTotal"), 12000);
+  assert.equal(twelveMonthChange(rows, "rmbLoans"), 6000);
 });

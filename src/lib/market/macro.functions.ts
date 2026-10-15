@@ -14,11 +14,14 @@
  * 4. **拿不到就给 null**，页面显示「宏观数据没拿到」，不显示全 0。
  */
 
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import {
   lprSnapshotOf,
   parseLpr,
   parsePmi,
+  parseSocialFinancing,
   parseYieldCurve,
   snapshotOf,
   type LprPoint,
@@ -171,5 +174,34 @@ export const getLpr = createServerFn({ method: "GET" }).handler(async (): Promis
     return { lpr, history: points, why: null };
   } catch (error) {
     return { lpr: null, history: [], why: `LPR 没拉到：${error instanceof Error ? error.message : String(error)}` };
+  }
+});
+
+// ── 社会融资规模（读落盘文件，不实时抓）─────────────────────────────────
+//
+// 数据由 `scripts/fetch-social-financing.py` 落盘。为什么不实时抓：那条链路是
+// 三级跳（索引 → 年份页 → 专题页 → xlsx 附件），一次要 4 个请求，而社融是
+// **月频**数据（次月中旬发布），实时抓毫无意义。跑一次脚本用一个月。
+
+const SF_PATH = () => join(process.cwd(), "data", "macro", "social-financing.json");
+
+export const getSocialFinancing = createServerFn({ method: "GET" }).handler(async (): Promise<{
+  file: import("./macro.ts").SocialFinancingFile | null;
+  why: string | null;
+}> => {
+  try {
+    const raw = await readFile(SF_PATH(), "utf-8");
+    const file = parseSocialFinancing(JSON.parse(raw));
+    if (!file) return { file: null, why: "落盘文件在，但内容认不出来（格式可能变了）" };
+    return { file, why: null };
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "ENOENT") {
+      return {
+        file: null,
+        why: "还没抓过。跑一次 python3 scripts/fetch-social-financing.py（社融次月中旬发布，跑一次能用一个月）",
+      };
+    }
+    return { file: null, why: `读落盘文件失败：${error instanceof Error ? error.message : String(error)}` };
   }
 });

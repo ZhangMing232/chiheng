@@ -26,7 +26,7 @@
 import type { MarketId } from "@/lib/market/markets";
 
 /** 数据源。 */
-export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx" | "chinabond" | "nbs";
+export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx" | "chinabond" | "nbs" | "pboc";
 
 /**
  * 合规级别。
@@ -84,6 +84,7 @@ export const SOURCE_NAMES: Record<SourceId, string> = {
   tdx: "通达信官网",
   chinabond: "中债（中央结算公司）",
   nbs: "国家统计局",
+  pboc: "中国人民银行",
 };
 
 export const ENDPOINTS: Endpoint[] = [
@@ -494,6 +495,26 @@ export const ENDPOINTS: Endpoint[] = [
       "接口来自 a-stock-data SKILL V3.10.2 §11.3（中央结算公司官方，零鉴权），走 HTML 表格解析，见 macro.ts:parseYieldCurve",
     ],
     fetcher: "macro.functions.ts:getMacro → yield.chinabond.com.cn/cbweb-pbc-web/pbc/historyQuery",
+  },
+  {
+    id: "pboc.socialfinancing",
+    title: "人民银行社会融资规模增量（社融）",
+    source: "pboc",
+    market: "a",
+    compliance: "official",
+    kind: "index",
+    critical: false,
+    unit: "亿元人民币",
+    traps: [
+      "**2026-10-15 接入并实测**：2022-01 ~ 2026-09 共 57 个月；2026-09 社融增量 35476 亿（贷款 12734 · 政府债 15362 · 企业债 -393），见 scripts/fetch-social-financing.py",
+      "**xlsx 是纯标准库手写解析的（零新增依赖）**：akshare 就是因为 arm64 装不上 py-mini-racer 而废掉的，社融不能再踩一次。xlsx 就是 zip + XML，zipfile + re 够用——和通达信盘后包那套一样，见 fetch-social-financing.py:parse_xlsx",
+      "**Excel 会把 `2026.10` 的尾零吃掉读成 `2026.1`**，和 1 月的 `2026.01` 撞车——1 月在表里始终两位，所以一位的那位判为 10 月，见 month_label()",
+      "**sheet 名不能写死 sheet1.xml**：2021 年那份就不是 sheet1（实测）；而且它是 .xls 旧二进制格式不是 zip，脚本读不了——会明说并记进 failed 数组，不静默跳过，见 parse_xlsx",
+      "**未来的月份有行但数值全空**（10 月、11 月已列出还没发布），要剔掉——否则 null 会被当成「社融为 0」",
+      "**只支持 2021 年起**：2020 及更早是旧版式（表头与项目名合并在同一单元格、附表还带「2017 年以来的历史区」），和这套解析不兼容——脚本见 FIRST_SUPPORTED_YEAR 直接抛错，硬凑会出错",
+      "链路是三级跳（索引 → 年份页 → 专题页 → xlsx），每级结构变了都抛错，**不静默返回空表**",
+    ],
+    fetcher: "scripts/fetch-social-financing.py → data/macro/social-financing.json → macro.functions.ts:getSocialFinancing",
   },
   {
     id: "nbs.pmi",

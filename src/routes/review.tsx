@@ -23,13 +23,13 @@ import { limitTag } from "@/lib/market/model";
 import { readMarket } from "@/lib/market/flow";
 import { shanghaiDate } from "@/lib/market/session";
 import { getFlow, getIndices, getNews, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
-import { getLpr, getMacro, getPmi } from "@/lib/market/macro.functions";
-import { TENOR_LABELS, pmiZone } from "@/lib/market/macro";
+import { getLpr, getMacro, getPmi, getSocialFinancing } from "@/lib/market/macro.functions";
+import { TENOR_LABELS, pmiZone, twelveMonthChange } from "@/lib/market/macro";
 import type { NewsItem, NewsTone } from "@/lib/market/news";
 
 export const Route = createFileRoute("/review")({
   loader: async () => {
-    const [universe, indices, flow, news, journal, macro, pmi, lpr] = await Promise.all([
+    const [universe, indices, flow, news, journal, macro, pmi, lpr, social] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getIndices().catch(() => []),
       getFlow().catch(() => null),
@@ -38,8 +38,9 @@ export const Route = createFileRoute("/review")({
       getMacro().catch(() => null),
       getPmi().catch(() => null),
       getLpr().catch(() => null),
+      getSocialFinancing().catch(() => null),
     ]);
-    return { universe, indices, flow, news, journal, macro, pmi, lpr, date: shanghaiDate() };
+    return { universe, indices, flow, news, journal, macro, pmi, lpr, social, date: shanghaiDate() };
   },
   component: Review,
 });
@@ -51,7 +52,7 @@ const TONE_TEXT: Record<NewsTone, { label: string; className: string }> = {
 };
 
 function Review() {
-  const { universe, indices, flow, news, journal, macro, pmi, lpr, date } = Route.useLoaderData();
+  const { universe, indices, flow, news, journal, macro, pmi, lpr, social, date } = Route.useLoaderData();
 
   // 涨跌家数和涨跌停统计：直接扫全市场快照。快照不完整（partial/stale）时下面标明。
   const quotes = universe?.quotes ?? [];
@@ -174,7 +175,7 @@ function Review() {
             <StateBlock kind="empty" title="资金数据暂时拉不到" hint="东财资金接口超时或限流，刷新重试。" />
           </Panel>
         )}
-        <MacroPanel macro={macro} pmi={pmi} lpr={lpr} />
+        <MacroPanel macro={macro} pmi={pmi} lpr={lpr} social={social} />
 
         {marketLines.length > 0 ? (
           <ul className="flex flex-col gap-1 rounded border border-line bg-surface px-3.5 py-2 text-xs leading-relaxed text-muted">
@@ -274,10 +275,12 @@ function MacroPanel({
   macro,
   pmi,
   lpr,
+  social,
 }: {
   macro: Awaited<ReturnType<typeof getMacro>> | null;
   pmi: Awaited<ReturnType<typeof getPmi>> | null;
   lpr: Awaited<ReturnType<typeof getLpr>> | null;
+  social: Awaited<ReturnType<typeof getSocialFinancing>> | null;
 }) {
   if (!macro) {
     return (
@@ -331,6 +334,7 @@ function MacroPanel({
         中债不公布债券市场交易日历，所以数据截至日不一定是今天（节假日正常）。
       </p>
     </Panel>
+    <SocialFinancingPanel social={social} />
     <PmiPanel pmi={pmi} />
     <LprPanel lpr={lpr} />
     </>
@@ -402,6 +406,61 @@ function LprPanel({ lpr }: { lpr: Awaited<ReturnType<typeof getLpr>> | null }) {
       <p className="px-3.5 pb-2 text-[11px] text-muted">
         月频，2019-08 改革后每月 20 日报价。**直接相关的是银行和地产**——降息先压银行息差、
         再影响地产融资成本。历史上还有旧贷款基准利率（1991-2015），那些不是 LPR，已经剔掉。
+      </p>
+    </Panel>
+  );
+}
+
+
+/** 社会融资规模（人民银行，月频，领先指标）。 */
+function SocialFinancingPanel({ social }: { social: Awaited<ReturnType<typeof getSocialFinancing>> | null }) {
+  if (!social?.file) {
+    return (
+      <Panel title="社会融资规模（社融）" note="没数据">
+        <StateBlock kind="empty" title="社融还没抓过" hint={social?.why ?? "跑一次 python3 scripts/fetch-social-financing.py"} />
+      </Panel>
+    );
+  }
+  const rows = social.file.rows;
+  const last = rows[rows.length - 1]!;
+  const sum12 = twelveMonthChange(rows, "afreTotal");
+  const loan12 = twelveMonthChange(rows, "rmbLoans");
+  const fmt = (v: number | null): string => (v == null ? "—" : `${v.toLocaleString("zh-CN")} 亿`);
+  return (
+    <Panel
+      title="社会融资规模（人民银行 · 领先指标）"
+      note={`${last.month} · ${rows.length} 个月 · 抓于 ${social.file.fetchedAt.slice(0, 10)}`}
+    >
+      <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+        <Stat
+          label="当月社融增量"
+          value={fmt(last.afreTotal)}
+          hint={`${last.month}`}
+          tone={(last.afreTotal ?? 0) >= 0 ? "text-up" : "text-down"}
+          className="bg-surface"
+        />
+        <Stat
+          label="近 12 个月累计"
+          value={fmt(sum12)}
+          hint="社融增量滚动合计"
+          tone={(sum12 ?? 0) >= 0 ? "text-up" : "text-down"}
+          className="bg-surface"
+        />
+        <Stat label="当月人民币贷款" value={fmt(last.rmbLoans)} hint="社融的主要构成" className="bg-surface" />
+        <Stat label="近 12 月贷款" value={fmt(loan12)} hint="贷款滚动合计" className="bg-surface" />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2 text-xs text-muted">
+        <span>当月构成：</span>
+        <span>政府债 {fmt(last.governmentBonds)}</span>
+        <span>企业债 {fmt(last.corporateBonds)}</span>
+        <span>未贴现银票 {fmt(last.bankersAcceptance)}</span>
+        <span>股票融资 {fmt(last.equityFinancing)}</span>
+      </div>
+      <p className="px-3.5 pb-2 text-[11px] text-muted">
+        社融是<strong>增量</strong>（当月新投放的规模），单月数字噪声大，所以更该看 12 个月累计。
+        单位亿元人民币，按源原样没做换算。<strong>月频，次月中旬发布</strong>——
+        它比 PMI 更前瞻，也比财报早一个季度。数据由脚本从人民银行官网抓（零依赖手写
+        xlsx 解析），页面只读落盘文件。
       </p>
     </Panel>
   );
