@@ -20,6 +20,7 @@ import { fmtPrice, fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { limitTag } from "@/lib/market/model";
 import { drawFlowPoster } from "@/lib/market/flow-poster";
 import { getFlow, getHotMoney, getIndexFutures, getIndices, getMargin, getTrend, getUniverse } from "@/lib/market/quotes.functions";
+import { getCloseSnapshot } from "@/lib/market/tdx-daily.functions";
 import { drawFuturesPoster, drawHotPoster } from "@/lib/market/extra-posters";
 import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/market/flow";
 import type { HotBook } from "@/lib/market/hotmoney";
@@ -40,7 +41,7 @@ type MarginPayload = {
 /** 资金页路由。进来时同时去拉资金流向、指数、分时、全市场涨跌、游资和股指期货，某一块失败就那一块空着。 */
 export const Route = createFileRoute("/flow")({
   loader: async () => {
-    const [book, hot, futures, indices, universe, trend, margin] = await Promise.all([
+    const [book, hot, futures, indices, universe, trend, margin, close] = await Promise.all([
       getFlow().catch((error: unknown) => ({ error })),
       getHotMoney().catch(() => null),
       getIndexFutures().catch(() => null),
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/flow")({
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getTrend({ data: { id: "sh000001" } }).catch(() => null),
       getMargin().catch(() => null),
+      getCloseSnapshot({ data: { limit: 20 } }).catch(() => null),
     ]);
     const quotes = universe?.quotes ?? [];
     if (book && typeof book === "object" && "error" in book) {
@@ -59,10 +61,11 @@ export const Route = createFileRoute("/flow")({
         quotes,
         trend,
         margin,
+        close,
         error: book.error instanceof Error ? book.error.message : "资金流向暂时拉不下来",
       };
     }
-    return { book, hot, futures, indices, quotes, trend, margin, error: null as string | null };
+    return { book, hot, futures, indices, quotes, trend, margin, close, error: null as string | null };
   },
   component: FlowPage,
 });
@@ -107,6 +110,7 @@ const TABS = [
   { id: "flow-sectors", label: "行业" },
   { id: "flow-stocks", label: "个股" },
   { id: "flow-hot", label: "游资" },
+  { id: "flow-close", label: "收盘快照" },
   { id: "flow-margin", label: "两融" },
   { id: "flow-futures", label: "期指" },
 ] as const;
@@ -591,7 +595,7 @@ function Futures({ book }: { book: FutBook | null }) {
 }
 
 function FlowPage() {
-  const { book, hot, futures, indices, quotes, trend, margin, error } = Route.useLoaderData();
+  const { book, hot, futures, indices, quotes, trend, margin, close, error } = Route.useLoaderData();
 
   return (
     <Frame
@@ -645,9 +649,92 @@ function FlowPage() {
         ) : null}
         <PosterButton draw={() => drawHotPoster(hot ?? { date: "", seats: [] })} />
         <Hot book={hot} />
+        <CloseSnapshotPanel close={close} />
         <Margin data={margin} />
         <PosterButton draw={() => drawFuturesPoster(futures ?? { date: "", rows: [] })} />
         <Futures book={futures} />
       </Frame>
+  );
+}
+
+
+/**
+ * 收盘快照（通达信盘后包）。
+ *
+ * **这一块和页面其他数字不是一回事**，三条差别写在 hint 里：
+ * 1. 上面那些是**腾讯盘中快照**，每分钟变；这一块是**收盘后的定盘数据**
+ * 2. 涨跌幅由盘后包自己的**昨收**算，不借任何快照源
+ * 3. **它含北交所**——腾讯和新浪都把 bj 挡掉了，页面别处拿不到这一块
+ *
+ * 数据截至哪天不一定是今天：盘后包要收盘后数小时才发布，而且它是**增量**
+ * （每天要跑一次 `python3 scripts/fetch-tdx-package.py`），中间可能缺好几天。
+ */
+function CloseSnapshotPanel({ close }: { close: Awaited<ReturnType<typeof getCloseSnapshot>> | null }) {
+  if (!close?.snapshot) {
+    return (
+      <Section
+        id="flow-close"
+        title="收盘快照"
+        hint={close?.why ?? "还没抓过盘后包。跑一次 python3 scripts/fetch-tdx-package.py（收盘后数小时才有当天的包）"}
+      >
+        <p className="px-3.5 py-6 text-sm text-muted">
+          这一块要通达信盘后包。它是<strong>收盘后的定盘数据</strong>，也是本页唯一含
+          <strong>北交所</strong>的数字——腾讯和新浪都不给北交所。
+        </p>
+      </Section>
+    );
+  }
+  const s = close.snapshot;
+  const fmtAmount = (v: number): string =>
+    v >= 1e8 ? `${(v / 1e8).toFixed(2)} 亿` : `${(v / 1e4).toFixed(0)} 万`;
+  return (
+    <Section
+      id="flow-close"
+      title="收盘快照（通达信盘后包）"
+      hint={`数据截至 ${s.date} · ${s.totalCount} 只全市场，其中北交所 ${s.bjCount} 只（别处拿不到）。涨跌幅由盘后包自己的昨收算，不借盘中快照。`}
+    >
+      <table className="w-full">
+        <caption className="sr-only">收盘成交额前 {s.top.length} 名：代码、名称、板块、收盘价、涨跌幅、成交额</caption>
+        <thead>
+          <tr className="border-b border-line text-xs text-muted">
+            <th className={thClass("text-left")}>名称</th>
+            <th className={thClass("text-left")}>板块</th>
+            <th className={thClass()}>收盘</th>
+            <th className={thClass()}>涨跌幅</th>
+            <th className={thClass()}>成交额</th>
+          </tr>
+        </thead>
+        <tbody>
+          {s.top.map((row) => (
+            <tr key={row.id} className="border-t border-line/60">
+              <td className={tdClass("text-left")}>
+                <StockName id={row.id} name={row.name} source="flow" />
+              </td>
+              <td className={tdClass("text-left text-muted")}>{row.board}</td>
+              <td className={tdClass("text-right tabular-nums text-muted")}>{row.price}</td>
+              <td className={tdClass("text-right tabular-nums " + toneClass(row.chg))}>{signedPct(row.chg)}</td>
+              <td className={tdClass("text-right tabular-nums text-muted")}>{fmtAmount(row.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {s.bjTop.length > 0 ? (
+        <div className="border-t border-line px-3.5 py-2">
+          <p className="pb-1 text-xs text-muted">
+            <strong className="text-fg">北交所成交额前 {s.bjTop.length}</strong>
+            <span className="ml-1">全市场 TOP{s.top.length} 里一只北交所都没有——流动性差两个数量级，所以单列。这一块是本页别处拿不到的（腾讯和新浪都挡掉 bj）。</span>
+          </p>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1">
+            {s.bjTop.map((row) => (
+              <li key={row.id} className="text-xs">
+                <StockName id={row.id} name={row.name} source="flow" />
+                <span className={"ml-1 tabular-nums " + toneClass(row.chg)}>{signedPct(row.chg)}</span>
+                <span className="ml-1 tabular-nums text-muted">{fmtAmount(row.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </Section>
   );
 }
