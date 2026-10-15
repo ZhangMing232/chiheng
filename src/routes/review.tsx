@@ -23,21 +23,23 @@ import { limitTag } from "@/lib/market/model";
 import { readMarket } from "@/lib/market/flow";
 import { shanghaiDate } from "@/lib/market/session";
 import { getFlow, getIndices, getNews, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
-import { getMacro } from "@/lib/market/macro.functions";
-import { TENOR_LABELS } from "@/lib/market/macro";
+import { getLpr, getMacro, getPmi } from "@/lib/market/macro.functions";
+import { TENOR_LABELS, pmiZone } from "@/lib/market/macro";
 import type { NewsItem, NewsTone } from "@/lib/market/news";
 
 export const Route = createFileRoute("/review")({
   loader: async () => {
-    const [universe, indices, flow, news, journal, macro] = await Promise.all([
+    const [universe, indices, flow, news, journal, macro, pmi, lpr] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getIndices().catch(() => []),
       getFlow().catch(() => null),
       getNews().catch(() => [] as NewsItem[]),
       getServerJournal().catch(() => ({ days: [], personal: false, why: "读账本失败" })),
       getMacro().catch(() => null),
+      getPmi().catch(() => null),
+      getLpr().catch(() => null),
     ]);
-    return { universe, indices, flow, news, journal, macro, date: shanghaiDate() };
+    return { universe, indices, flow, news, journal, macro, pmi, lpr, date: shanghaiDate() };
   },
   component: Review,
 });
@@ -49,7 +51,7 @@ const TONE_TEXT: Record<NewsTone, { label: string; className: string }> = {
 };
 
 function Review() {
-  const { universe, indices, flow, news, journal, macro, date } = Route.useLoaderData();
+  const { universe, indices, flow, news, journal, macro, pmi, lpr, date } = Route.useLoaderData();
 
   // 涨跌家数和涨跌停统计：直接扫全市场快照。快照不完整（partial/stale）时下面标明。
   const quotes = universe?.quotes ?? [];
@@ -172,7 +174,7 @@ function Review() {
             <StateBlock kind="empty" title="资金数据暂时拉不到" hint="东财资金接口超时或限流，刷新重试。" />
           </Panel>
         )}
-        <MacroPanel macro={macro} />
+        <MacroPanel macro={macro} pmi={pmi} lpr={lpr} />
 
         {marketLines.length > 0 ? (
           <ul className="flex flex-col gap-1 rounded border border-line bg-surface px-3.5 py-2 text-xs leading-relaxed text-muted">
@@ -268,7 +270,15 @@ function Review() {
  *    所以「某天没数据」分不清是节假日还是接口坏了，只报截至日期
  * 3. 拿不到就显示「没拿到」，不显示全 0（0% 会被读成「收益率 0」）
  */
-function MacroPanel({ macro }: { macro: Awaited<ReturnType<typeof getMacro>> | null }) {
+function MacroPanel({
+  macro,
+  pmi,
+  lpr,
+}: {
+  macro: Awaited<ReturnType<typeof getMacro>> | null;
+  pmi: Awaited<ReturnType<typeof getPmi>> | null;
+  lpr: Awaited<ReturnType<typeof getLpr>> | null;
+}) {
   if (!macro) {
     return (
       <Panel title="宏观水温（10 年国债）" note="没拉到">
@@ -286,6 +296,7 @@ function MacroPanel({ macro }: { macro: Awaited<ReturnType<typeof getMacro>> | n
   const s = macro.snapshot;
   const order = ["3m", "6m", "1y", "3y", "5y", "7y", "10y", "30y"];
   return (
+    <>
     <Panel title="宏观水温（中债国债收益率）" note={`数据截至 ${s.date} · 官方源`}>
       <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
         <Stat
@@ -318,6 +329,79 @@ function MacroPanel({ macro }: { macro: Awaited<ReturnType<typeof getMacro>> | n
       <p className="px-3.5 pb-2 text-[11px] text-muted">
         只摆数字不下判断——收益率往下走常被读成「钱变便宜」，那是对未来的预期，不是已经发生的事。
         中债不公布债券市场交易日历，所以数据截至日不一定是今天（节假日正常）。
+      </p>
+    </Panel>
+    <PmiPanel pmi={pmi} />
+    <LprPanel lpr={lpr} />
+    </>
+  );
+}
+
+/** PMI（月频，国家统计局）。50 是荣枯线。 */
+function PmiPanel({ pmi }: { pmi: Awaited<ReturnType<typeof getPmi>> | null }) {
+  if (!pmi?.pmi) {
+    return (
+      <Panel title="制造业 PMI" note={pmi?.why ?? "没拉到"}>
+        <StateBlock kind="empty" title="PMI 没拿到" hint={pmi?.why ?? "统计局没响应，刷新重试。"} />
+      </Panel>
+    );
+  }
+  const p = pmi.pmi;
+  const zone = pmiZone(p.manufacturing);
+  const zoneText = zone === "expansion" ? "扩张区间" : zone === "contraction" ? "收缩区间" : "刚好在荣枯线";
+  return (
+    <Panel title="制造业 PMI（国家统计局）" note={`${p.month ?? "月份未知"} · 月频`}>
+      <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+        <Stat
+          label="制造业 PMI"
+          value={p.manufacturing ?? "—"}
+          hint={zoneText}
+          tone={(p.manufacturing ?? 50) >= 50 ? "text-up" : "text-down"}
+          className="bg-surface"
+        />
+        <Stat label="非制造业" value={p.nonManufacturing ?? "—"} hint="商务活动指数" className="bg-surface" />
+        <Stat label="综合产出" value={p.composite ?? "—"} hint="PMI 产出指数" className="bg-surface" />
+        <Stat
+          label="大 / 中 / 小"
+          value={`${p.large ?? "—"} / ${p.medium ?? "—"} / ${p.small ?? "—"}`}
+          hint="分企业规模"
+          className="bg-surface"
+        />
+      </div>
+      <p className="px-3.5 pb-2 text-[11px] text-muted">
+        50 是荣枯线，制造业 PMI 在它上方叫扩张、下方叫收缩。**月频数据，月末发布**，
+        比财报早一个季度反映景气。分档字段（大小企业）统计局改过措辞，认不出就显示「—」。
+      </p>
+    </Panel>
+  );
+}
+
+/** LPR（月频，东财）。2019-08 改革后每月 20 日报价。 */
+function LprPanel({ lpr }: { lpr: Awaited<ReturnType<typeof getLpr>> | null }) {
+  if (!lpr?.lpr) {
+    return (
+      <Panel title="LPR 贷款市场报价利率" note={lpr?.why ?? "没拉到"}>
+        <StateBlock kind="empty" title="LPR 没拿到" hint={lpr?.why ?? "东财没响应，刷新重试。"} />
+      </Panel>
+    );
+  }
+  const p = lpr.lpr;
+  return (
+    <Panel title="LPR 贷款市场报价利率" note={`${p.date} 报价 · 月频`}>
+      <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+        <Stat label="1 年期 LPR" value={p.lpr1y == null ? "—" : `${p.lpr1y}%`} hint="短期贷款基准" className="bg-surface" />
+        <Stat label="5 年期以上" value={p.lpr5y == null ? "—" : `${p.lpr5y}%`} hint="长期贷款基准" className="bg-surface" />
+        <Stat label="历史条数" value={lpr.history.length} hint="2019-08 改革后" className="bg-surface" />
+        <Stat
+          label="5y − 1y"
+          value={p.lpr5y == null || p.lpr1y == null ? "—" : `${(p.lpr5y - p.lpr1y).toFixed(2)} pp`}
+          hint="期限利差"
+          className="bg-surface"
+        />
+      </div>
+      <p className="px-3.5 pb-2 text-[11px] text-muted">
+        月频，2019-08 改革后每月 20 日报价。**直接相关的是银行和地产**——降息先压银行息差、
+        再影响地产融资成本。历史上还有旧贷款基准利率（1991-2015），那些不是 LPR，已经剔掉。
       </p>
     </Panel>
   );

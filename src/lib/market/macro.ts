@@ -141,3 +141,139 @@ export function snapshotOf(points: YieldPoint[]): MacroSnapshot | null {
 function round4(n: number): number {
   return Math.round(n * 1e4) / 1e4;
 }
+// ── PMI（国家统计局，月频）─────────────────────────────────────────────
+//
+// 接口来自 a-stock-data SKILL V3.10.2 §11.2。实测 2026-10-15：首页通、
+// 命中「2026年9月中国采购经理指数运行情况」，制造业 50.1 / 非制造业 50.2 /
+// 综合 50.7。
+//
+// ⚠️ **registry 里那条「统计局被 WAF 403 挡」说的是 akshare 的接口**
+//（分行业宏观那条路），**统计局官网本身是通的**——首页和最新发布页都能取。
+// 换源的时候别被那条旧记录误导。
+
+export type PmiReading = {
+  /** 数据所属月份（不是拉取日期） */
+  month: string | null;
+  /** 制造业 PMI，50 是荣枯线 */
+  manufacturing: number | null;
+  nonManufacturing: number | null;
+  composite: number | null;
+  large: number | null;
+  medium: number | null;
+  small: number | null;
+};
+
+/**
+ * 解析统计局 PMI 发布页。
+ *
+ * **两个坑（都实测踩过）**：
+ * 1. 正文是**全角括号而且括号里有空格**：`（ PMI ）为 49.2%`。所以必须把空白
+ *    **整个删掉**再匹配——只压成单个空格的话一条都匹配不到（这是 skill 文档
+ *    里标🔴 的坑）。
+ * 2. 大中小企业的措辞统计局用过三种版式，要逐层回退。认不出来给 null，
+ *    **不猜**（这些是可选字段，主体三个 PMI 是必须的）。
+ */
+export function parsePmi(bodyHtml: string): PmiReading {
+  // 先剥 script/style，再去标签，最后把**所有空白（含全角空格）整个删掉**
+  const text = bodyHtml
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/[\s\u3000\u00a0]+/g, "");
+  const grab = (pattern: RegExp): number | null => {
+    const m = text.match(pattern);
+    return m && m[1] != null ? Number(m[1]) : Number.isFinite(Number(m?.[1])) ? Number(m![1]) : null;
+  };
+
+  // 大中小三种版式：①全合并 ②中小合并 ③全拆
+  let large: number | null = null;
+  let medium: number | null = null;
+  let small: number | null = null;
+  const combined = text.match(/大、中、小型企业PMI分别为([\d.]+)%、([\d.]+)%和([\d.]+)%/);
+  if (combined) {
+    large = Number(combined[1]);
+    medium = Number(combined[2]);
+    small = Number(combined[3]);
+  } else {
+    const ms = text.match(/中、小型企业PMI分别为([\d.]+)%和([\d.]+)%/);
+    if (ms) {
+      medium = Number(ms[1]);
+      small = Number(ms[2]);
+    }
+    const lg = text.match(/大型企业PMI为([\d.]+)%/);
+    if (lg) large = Number(lg[1]);
+    const md = text.match(/中型企业PMI为([\d.]+)%/);
+    if (md) medium = Number(md[1]);
+    const sm = text.match(/小型企业PMI为([\d.]+)%/);
+    if (sm) small = Number(sm[1]);
+  }
+
+  const month = bodyHtml.match(/(\d{4})年(\d{1,2})月/)?.[0] ?? null;
+  return {
+    month,
+    manufacturing: grab(/制造业采购经理指数（PMI）为([\d.]+)%/),
+    nonManufacturing: grab(/非制造业商务活动指数为([\d.]+)%/),
+    composite: grab(/综合PMI产出指数为([\d.]+)%/),
+    large,
+    medium,
+    small,
+  };
+}
+
+/** PMI 相对荣枯线的位置：扩张 / 收缩 / 刚好。null 表示没数。 */
+export function pmiZone(value: number | null): "expansion" | "contraction" | "flat" | null {
+  if (value == null) return null;
+  if (value > 50) return "expansion";
+  if (value < 50) return "contraction";
+  return "flat";
+}
+
+// ── LPR（东财数据中心，月频）────────────────────────────────────────────
+//
+// 接口来自 a-stock-data SKILL V3.10.2 §11.5。实测 2026-10-15：最近 8 条
+// 2026-09-20 1Y 3.0 / 5Y 3.5。
+//
+// ⚠️ **东财同一张报表里混着旧贷款基准利率**（1991-04 至 2015-10，38 行，
+// LPR 字段为空）。不剔除的话历史图上会多出一段 5% 以上的"贷款利率"。
+
+export type LprPoint = {
+  date: string;
+  /** 1 年期 LPR，% */
+  lpr1y: number | null;
+  /** 5 年期以上 LPR，% 。2019-08-20 才设立，之前是 null */
+  lpr5y: number | null;
+};
+
+/**
+ * 解析东财 LPR 报表（按 TRADE_DATE 倒序）。
+ *
+ * `LPR1Y` 为空的行是旧贷款基准利率，**剔掉**——它们不是 LPR。
+ * 剩下的行如果 `LPR1Y` 认不出数，给 null 并计数，不静默当 0。
+ */
+export function parseLpr(rows: readonly Record<string, unknown>[]): { points: LprPoint[]; bad: number } {
+  const points: LprPoint[] = [];
+  let bad = 0;
+  for (const row of rows) {
+    const raw = row.LPR1Y;
+    if (raw == null || raw === "") continue; // 旧贷款基准利率，不是 LPR
+    const date = String(row.TRADE_DATE ?? "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      bad += 1;
+      continue;
+    }
+    const v = Number(raw);
+    if (!Number.isFinite(v)) {
+      bad += 1;
+      points.push({ date, lpr1y: null, lpr5y: null });
+      continue;
+    }
+    const v5 = row.LPR5Y == null || row.LPR5Y === "" ? null : Number(row.LPR5Y);
+    points.push({ date, lpr1y: v, lpr5y: v5 != null && Number.isFinite(v5) ? v5 : null });
+  }
+  points.sort((a, b) => a.date.localeCompare(b.date));
+  return { points, bad };
+}
+
+/** LPR 快照（最新一次报价）。一条都没有给 null。 */
+export function lprSnapshotOf(points: LprPoint[]): LprPoint | null {
+  return points.length > 0 ? points[points.length - 1]! : null;
+}

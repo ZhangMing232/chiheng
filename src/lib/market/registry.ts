@@ -26,7 +26,7 @@
 import type { MarketId } from "@/lib/market/markets";
 
 /** 数据源。 */
-export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx" | "chinabond";
+export type SourceId = "tencent" | "sina" | "eastmoney" | "cninfo" | "tushare" | "akshare" | "bse" | "cffex" | "baostock" | "tdx" | "chinabond" | "nbs";
 
 /**
  * 合规级别。
@@ -83,6 +83,7 @@ export const SOURCE_NAMES: Record<SourceId, string> = {
   baostock: "证券宝 baostock",
   tdx: "通达信官网",
   chinabond: "中债（中央结算公司）",
+  nbs: "国家统计局",
 };
 
 export const ENDPOINTS: Endpoint[] = [
@@ -493,6 +494,42 @@ export const ENDPOINTS: Endpoint[] = [
       "接口来自 a-stock-data SKILL V3.10.2 §11.3（中央结算公司官方，零鉴权），走 HTML 表格解析，见 macro.ts:parseYieldCurve",
     ],
     fetcher: "macro.functions.ts:getMacro → yield.chinabond.com.cn/cbweb-pbc-web/pbc/historyQuery",
+  },
+  {
+    id: "nbs.pmi",
+    title: "国家统计局 PMI（制造业/非制造业/综合）",
+    source: "nbs",
+    market: "a",
+    compliance: "official",
+    kind: "index",
+    critical: false,
+    unit: "%",
+    traps: [
+      "**2026-10-15 接入并实测**：2026年9月制造业 50.1 / 非制造业 50.2 / 综合 50.7，见 macro.functions.ts:getPmi",
+      "**registry 里另一条「统计局被 WAF 403 挡」说的是 akshare 的分行业接口**，**统计局官网本身是通的**——首页和最新发布页都能取。别被那条旧记录误导",
+      "**正文是全角括号而且括号里有空格**（`（ PMI ）为 50.1%`），必须把空白**整个删掉**再匹配——只压成单个空格的话一条都匹配不到（实测，和 skill 文档标的🔴 坑一致）",
+      "**大中小企业的措辞统计局改过**（三种版式，全合并/中小合并/全拆），解析要逐层回退；认不出给 null 不猜，主体三个 PMI 才是必须项",
+      "月频、月末发布，比财报早一个季度反映景气——和国债收益率的日频不同，别当日频信号用",
+    ],
+    fetcher: "macro.functions.ts:getPmi → stats.gov.cn/sj/zxfb/ 找「采购经理指数」条目",
+  },
+  {
+    id: "eastmoney.lpr",
+    title: "LPR 贷款市场报价利率（东财数据中心）",
+    source: "eastmoney",
+    market: "a",
+    compliance: "public-web",
+    kind: "index",
+    critical: false,
+    unit: "%",
+    traps: [
+      "**2026-10-15 接入并实测**：2026-09-20 报价 1Y 3.0 / 5Y 3.5，见 macro.functions.ts:getLpr",
+      "**东财分页从第 1 页起，所以 sortTypes 必须 -1（降序）**：给升序的话拿到的是最早的 200 条（2013-10~2014-06，实测页面显示 2014-06-24 / 5.76%），而快照取最后一条。这个 bug 只有实测能发现——测试用的是自己造的数据，测不出东财怎么分页",
+      "**同一张报表里混着旧贷款基准利率**（1991-04 ~ 2015-10，38 行，LPR1Y 字段为空）。不剔掉的话历史图上会多出一段 5% 以上的「贷款利率」——它和 LPR 是不同的东西",
+      "2019-08-20 改革后每月 20 日报价；5 年期品种在那之前不存在（给 null 不是 0）",
+      "限速走 fetch-policy 的 eastmoney：1300ms 串行，与资金流/行业那些端点同一风控面——开并发会立刻 403，串行跑 300 只全程无问题（2026-10 实测）",
+    ],
+    fetcher: "macro.functions.ts:getLpr → datacenter-web.eastmoney.com RPTA_WEB_RATE",
   },
   {
     id: "sina.sector",
