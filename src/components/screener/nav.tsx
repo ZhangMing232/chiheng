@@ -56,7 +56,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/events" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
@@ -81,6 +81,7 @@ const SIDEBAR: {
       { to: "/positions", label: "策略追踪", icon: TrendingUp },
       { to: "/factors", label: "因子发掘", icon: FlaskConical },
       { to: "/backtest", label: "回测", icon: LineChart },
+      { to: "/events", label: "事件", icon: Bell },
     ],
   },
   {

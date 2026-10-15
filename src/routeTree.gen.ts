@@ -14,6 +14,7 @@ import { Route as AiRouteImport } from './routes/ai'
 import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DebateRouteImport } from './routes/debate'
+import { Route as EventsRouteImport } from './routes/events'
 import { Route as FactorsRouteImport } from './routes/factors'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as InboxRouteImport } from './routes/inbox'
@@ -54,6 +55,11 @@ const CalendarRoute = CalendarRouteImport.update({
 const DebateRoute = DebateRouteImport.update({
   id: '/debate',
   path: '/debate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsRoute = EventsRouteImport.update({
+  id: '/events',
+  path: '/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FactorsRoute = FactorsRouteImport.update({
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
+  '/events': typeof EventsRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
   '/inbox': typeof InboxRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
+  '/events': typeof EventsRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
   '/inbox': typeof InboxRoute
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
+  '/events': typeof EventsRoute
   '/factors': typeof FactorsRoute
   '/flow': typeof FlowRoute
   '/inbox': typeof InboxRoute
@@ -215,6 +224,7 @@ export interface FileRouteTypes {
     | '/backtest'
     | '/calendar'
     | '/debate'
+    | '/events'
     | '/factors'
     | '/flow'
     | '/inbox'
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/backtest'
     | '/calendar'
     | '/debate'
+    | '/events'
     | '/factors'
     | '/flow'
     | '/inbox'
@@ -261,6 +272,7 @@ export interface FileRouteTypes {
     | '/backtest'
     | '/calendar'
     | '/debate'
+    | '/events'
     | '/factors'
     | '/flow'
     | '/inbox'
@@ -285,6 +297,7 @@ export interface RootRouteChildren {
   BacktestRoute: typeof BacktestRoute
   CalendarRoute: typeof CalendarRoute
   DebateRoute: typeof DebateRoute
+  EventsRoute: typeof EventsRoute
   FactorsRoute: typeof FactorsRoute
   FlowRoute: typeof FlowRoute
   InboxRoute: typeof InboxRoute
@@ -338,6 +351,13 @@ declare module '@tanstack/react-router' {
       path: '/debate'
       fullPath: '/debate'
       preLoaderRoute: typeof DebateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/factors': {
@@ -461,6 +481,7 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestRoute: BacktestRoute,
   CalendarRoute: CalendarRoute,
   DebateRoute: DebateRoute,
+  EventsRoute: EventsRoute,
   FactorsRoute: FactorsRoute,
   FlowRoute: FlowRoute,
   InboxRoute: InboxRoute,
