@@ -12,7 +12,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const entry = ".output/server/index.mjs";
 if (!existsSync(entry)) {
@@ -118,7 +118,21 @@ function spawnServer() {
   const child = dev
     ? spawn(process.execPath, [join("scripts", "with-app-env.mjs"), "vite", "dev", "--host", host, "--port", port], {
         stdio: "inherit",
-        env: { ...process.env },
+        // **PATH 要自己补两段**，否则 launchd 拉不起来（2026-10-15 实测踩了两次）：
+        // 1. node_modules/.bin —— 裸名 `vite` 找不到，with-app-env.mjs 报
+        //    "spawn vite ENOENT"；npm run 会临时加这段，但 launchd 不会。
+        // 2. **node 自己所在的目录** —— launchd 的 PATH 只有 /usr/bin:/bin:/usr/sbin:/sbin，
+        //    用户的 node 在 ~/nodejs/bin，with-app-env.mjs 里的 `env node` 找不到它，
+        //    报 "env: node: No such file or directory"（退出码 127）。
+        //    这里用 dirname(process.execPath) 推，不硬编码路径（换 node 版本也不会失效）。
+        env: {
+          ...process.env,
+          PATH: [
+            join(process.cwd(), "node_modules", ".bin"),
+            dirname(process.execPath),
+            process.env.PATH ?? "",
+          ].join(":"),
+        },
       })
     : spawn(process.execPath, [entry], {
         stdio: "inherit",
