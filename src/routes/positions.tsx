@@ -34,6 +34,7 @@ import { PageTabs } from "@/components/page-tabs";
 import { usePaper, type PaperDay } from "@/lib/paper";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import type { Universe } from "@/lib/market/types";
+import { journalTradeIds, slimUniverse } from "@/lib/market/slim-universe";
 
 export const Route = createFileRoute("/positions")({
   loader: async () => {
@@ -45,7 +46,9 @@ export const Route = createFileRoute("/positions")({
       getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string> })),
     ]);
     return {
-      universe,
+      // 快照只留账本里出现过的股票（页面只用 byId 查持仓现价），
+      // 全量 ~5300 只进 SSR HTML 会让手机端卡死。
+      universe: slimUniverse(universe, journalTradeIds(journal)),
       journal,
       nav: nav.points,
       rules: DEFAULT_RULES,

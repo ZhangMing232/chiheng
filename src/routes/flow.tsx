@@ -17,7 +17,6 @@ import { PosterButton } from "@/components/screener/poster-button";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { INDEX_LABEL } from "@/components/screener/screener";
 import { fmtPrice, fmtWan, signedPct, toneClass } from "@/lib/market/format";
-import { limitTag } from "@/lib/market/model";
 import { drawFlowPoster } from "@/lib/market/flow-poster";
 import { getFlow, getHotMoney, getIndexFutures, getIndices, getMargin, getTrend, getUniverse } from "@/lib/market/quotes.functions";
 import { getCloseSnapshot } from "@/lib/market/tdx-daily.functions";
@@ -27,7 +26,8 @@ import type { HotBook } from "@/lib/market/hotmoney";
 import type { MarginRow } from "@/lib/market/margin";
 import { GapList } from "@/components/source-line";
 import type { FutBook } from "@/lib/market/index-futures";
-import type { IndexQuote, Quote, Trend } from "@/lib/market/types";
+import type { IndexQuote, Trend } from "@/lib/market/types";
+import { marketBreadth, type Breadth } from "@/lib/market/slim-universe";
 
 /** 两融快照的 loader 形状（getMargin 的返回）。rows 有全市场四千多只，页面只取头部。 */
 type MarginPayload = {
@@ -51,21 +51,24 @@ export const Route = createFileRoute("/flow")({
       getMargin().catch(() => null),
       getCloseSnapshot({ data: { limit: 20 } }).catch(() => null),
     ]);
-    const quotes = universe?.quotes ?? [];
+    // 涨跌家数/涨跌停在服务端算完再下发，全量快照不进 SSR HTML（~5300 只 1.2MB，手机会卡死）。
+    const breadth = marketBreadth(universe?.quotes ?? []);
+    const hasBreadth = (universe?.total ?? 0) > 0;
     if (book && typeof book === "object" && "error" in book) {
       return {
         book: null,
         hot: null as HotBook | null,
         futures: null as FutBook | null,
         indices,
-        quotes,
+        breadth,
+        hasBreadth,
         trend,
         margin,
         close,
         error: book.error instanceof Error ? book.error.message : "资金流向暂时拉不下来",
       };
     }
-    return { book, hot, futures, indices, quotes, trend, margin, close, error: null as string | null };
+    return { book, hot, futures, indices, breadth, hasBreadth, trend, margin, close, error: null as string | null };
   },
   component: FlowPage,
 });
@@ -236,18 +239,14 @@ function North({ legs }: { legs: NorthLeg[] }) {
 }
 
 /** 概览统计排，学财联社盯盘那排数字：涨跌家数、两市成交额、主力、北向。 */
-function Overview({ tape, parts, north, quotes }: { tape: { name: string; amount: number; prevAmount?: number | null }[]; parts: MarketPart[]; north: NorthLeg[]; quotes: Quote[] }) {
+function Overview({ tape, parts, north, breadth, hasBreadth }: { tape: { name: string; amount: number; prevAmount?: number | null }[]; parts: MarketPart[]; north: NorthLeg[]; breadth: Breadth; hasBreadth: boolean }) {
   const amount = tape.reduce((total, row) => total + row.amount, 0);
   const prevAmount = tape.every((row) => row.prevAmount != null) ? tape.reduce((total, row) => total + (row.prevAmount ?? 0), 0) : null;
   const delta = prevAmount == null ? null : amount - prevAmount;
   const main = parts.length > 0 ? parts.reduce((total, part) => total + part.main, 0) : null;
   const share = amount > 0 && main != null ? (main / amount) * 100 : null;
-  const up = quotes.filter((quote) => (quote.chg ?? 0) > 0).length;
-  const down = quotes.filter((quote) => (quote.chg ?? 0) < 0).length;
-  const limitUp = quotes.filter((quote) => limitTag(quote) === "涨停").length;
-  const limitDown = quotes.filter((quote) => limitTag(quote) === "跌停").length;
+  const { up, down, limitUp, limitDown } = breadth;
   const northTotal = north.reduce((sum, leg) => sum + leg.amount, 0);
-  const hasBreadth = quotes.length > 0;
   const tile = "bg-surface px-4 py-3.5";
   const label = "text-xs text-muted";
   const value = "mt-1.5 text-2xl font-medium tabular-nums leading-none";
@@ -595,7 +594,7 @@ function Futures({ book }: { book: FutBook | null }) {
 }
 
 function FlowPage() {
-  const { book, hot, futures, indices, quotes, trend, margin, close, error } = Route.useLoaderData();
+  const { book, hot, futures, indices, breadth, hasBreadth, trend, margin, close, error } = Route.useLoaderData();
 
   return (
     <Frame
@@ -619,7 +618,7 @@ function FlowPage() {
         {book ? (
           <>
             <PosterButton draw={() => drawFlowPoster(book)} />
-            <Overview tape={book.tape} parts={book.market} north={book.north} quotes={quotes} />
+            <Overview tape={book.tape} parts={book.market} north={book.north} breadth={breadth} hasBreadth={hasBreadth} />
             {trend ? <TrendChart trend={trend} sectors={book.sectorsIn} /> : null}
             <Market parts={book.market} />
           </>

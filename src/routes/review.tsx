@@ -20,8 +20,8 @@ import { CollapsibleSection } from "@/components/collapsible";
 import { StateBlock } from "@/components/state-block";
 import { Panel, Stat, pctClass } from "@/components/terminal";
 import { signedPct, fmtWan } from "@/lib/market/format";
-import { limitTag } from "@/lib/market/model";
 import { readMarket } from "@/lib/market/flow";
+import { journalTradeIds, marketBreadth, slimUniverse } from "@/lib/market/slim-universe";
 import { shanghaiDate } from "@/lib/market/session";
 import { getFlow, getIndices, getNews, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
 import { getLpr, getMacro, getPmi, getSocialFinancing } from "@/lib/market/macro.functions";
@@ -41,7 +41,14 @@ export const Route = createFileRoute("/review")({
       getLpr().catch(() => null),
       getSocialFinancing().catch(() => null),
     ]);
-    return { universe, indices, flow, news, journal, macro, pmi, lpr, social, date: shanghaiDate() };
+    // 涨跌家数/涨跌停在全量快照上算完再下发；快照本身只留持仓相关的几只。
+    // （全量 ~5300 只进 SSR HTML 有 1.2MB，手机端解析会卡死。）
+    const breadth = marketBreadth(universe?.quotes ?? []);
+    return {
+      universe: slimUniverse(universe, journalTradeIds(journal)),
+      breadth,
+      indices, flow, news, journal, macro, pmi, lpr, social, date: shanghaiDate(),
+    };
   },
   component: Review,
 });
@@ -53,25 +60,12 @@ const TONE_TEXT: Record<NewsTone, { label: string; className: string }> = {
 };
 
 function Review() {
-  const { universe, indices, flow, news, journal, macro, pmi, lpr, social, date } = Route.useLoaderData();
+  const { universe, breadth, indices, flow, news, journal, macro, pmi, lpr, social, date } = Route.useLoaderData();
 
-  // 涨跌家数和涨跌停统计：直接扫全市场快照。快照不完整（partial/stale）时下面标明。
+  // 涨跌家数和涨跌停统计在 loader 里扫全量快照算好了（快照本身只带持仓相关的几只，
+  // 见 slim-universe.ts）。快照不完整（partial/stale）时下面标明。
   const quotes = universe?.quotes ?? [];
-  let up = 0;
-  let down = 0;
-  let flat = 0;
-  let limitUp = 0;
-  let limitDown = 0;
-  for (const quote of quotes) {
-    const chg = quote.chg;
-    if (chg == null) continue;
-    if (chg > 0.001) up += 1;
-    else if (chg < -0.001) down += 1;
-    else flat += 1;
-    const tag = limitTag(quote);
-    if (tag === "涨停") limitUp += 1;
-    else if (tag === "跌停") limitDown += 1;
-  }
+  const { up, down, flat, limitUp, limitDown } = breadth;
   const known = up + down + flat;
 
   const tones = { good: 0, bad: 0, flat: 0 };

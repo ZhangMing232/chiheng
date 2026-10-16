@@ -15,6 +15,7 @@ import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YA
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, pctClass } from "@/components/terminal";
 import { sessionPhase } from "@/lib/market/session";
+import { journalTradeIds, slimUniverse as slimUniverseByIds } from "@/lib/market/slim-universe";
 import type { IndexQuote, Quote, SessionInfo } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
 import type { FlowBook } from "@/lib/market/flow";
@@ -42,7 +43,10 @@ export const Route = createFileRoute("/")({
       ? await getTrend({ data: { id: indices[0].id } }).catch(() => null)
       : null;
     const flow = await getFlow().catch(() => null as FlowBook | null);
-    return { phase, indices, journal, universe, recorder, trend, flow };
+    // 全市场快照 ~5300 只、进 SSR HTML 有 1.2MB，手机端解析时会卡到点不动。
+    // 首页只用持仓相关的几只（priceOf 按 id 查现价/涨跌），先按账本 id 瘦身再返回。
+    const slimUniverse = slimUniverseByIds(universe, journalTradeIds(journal));
+    return { phase, indices, journal, universe: slimUniverse, recorder, trend, flow };
   },
   component: Dashboard,
 });
