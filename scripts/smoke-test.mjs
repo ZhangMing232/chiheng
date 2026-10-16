@@ -1,0 +1,166 @@
+/**
+ * 这个文件是干什么的：
+ * 构建后的冒烟测试。用无头 Chrome 真实打开页面，抓控制台报错、模拟点击——
+ * 专门防「SSR 渲染正常、但客户端 JS 一启动就崩、全站按钮瘫痪」这类问题。
+ * 2026-10-16 实际发生过一次（node:path 顶层调用，瘫痪半个月没被测试发现）。
+ *
+ * 你需要知道的：
+ * - 跑之前服务要在 8787 端口起着（launchd 托管的 com.chiheng.serve）。
+ * - 退出码 0 = 全过；非 0 = 有项失败，失败明细打到 stdout。
+ * - 用法：node scripts/smoke-test.mjs [baseUrl]
+ */
+
+import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const BASE = process.argv[2] ?? "http://localhost:8787";
+const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const PAGES = ["/", "/screener", "/positions", "/review", "/flow", "/backtest", "/calendar", "/ai"];
+
+/** 等 fn 返回非 undefined 值，超时抛错 */
+async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {
+  const start = Date.now();
+  for (;;) {
+    const value = await fn();
+    if (value !== undefined && value !== null) return value;
+    if (Date.now() - start > timeoutMs) throw new Error("等待超时");
+    await new Promise((r) => setTimeout(r, stepMs));
+  }
+}
+
+async function main() {
+  const port = 9300 + Math.floor(Math.random() * 500);
+  const profile = mkdtempSync(join(tmpdir(), "chiheng-smoke-"));
+  const chrome = spawn(
+    CHROME,
+    [
+      "--headless=new",
+      `--remote-debugging-port=${port}`,
+      "--disable-gpu",
+      "--no-first-run",
+      `--user-data-dir=${profile}`,
+      "about:blank",
+    ],
+    { stdio: "ignore" },
+  );
+
+  const failures = [];
+  const pass = (name) => console.log(`  PASS  ${name}`);
+  const fail = (name, why) => {
+    failures.push(name);
+    console.log(`  FAIL  ${name} —— ${why}`);
+  };
+
+  try {
+    // 等调试端口起来（Chrome 冷启动可能要十几秒）
+    const targets = await waitFor(
+      async () => {
+        try {
+          const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+          return list.find((t) => t.type === "page") ?? null;
+        } catch {
+          return null;
+        }
+      },
+      { timeoutMs: 45000, stepMs: 500 },
+    );
+
+    const ws = new WebSocket(targets.webSocketDebuggerUrl);
+    await new Promise((res, rej) => {
+      ws.onopen = res;
+      ws.onerror = rej;
+    });
+
+    let msgId = 0;
+    const pending = new Map();
+    const consoleErrors = [];
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.id && pending.has(msg.id)) {
+        pending.get(msg.id)(msg);
+        pending.delete(msg.id);
+      } else if (msg.method === "Runtime.exceptionThrown") {
+        consoleErrors.push(msg.params.exceptionDetails?.exception?.description ?? "未知异常");
+      } else if (msg.method === "Runtime.consoleAPICalled" && msg.params.type === "error") {
+        consoleErrors.push(msg.params.args?.map((a) => a.value ?? a.description ?? "").join(" ") ?? "console.error");
+      }
+    };
+    const send = (method, params = {}) =>
+      new Promise((res) => {
+        const id = ++msgId;
+        pending.set(id, res);
+        ws.send(JSON.stringify({ id, method, params }));
+      });
+    const evalJs = async (expression) => {
+      const reply = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+      if (reply.result?.exceptionDetails) throw new Error(JSON.stringify(reply.result.exceptionDetails).slice(0, 300));
+      return reply.result?.result?.value;
+    };
+
+    await send("Runtime.enable");
+    await send("Page.enable");
+    console.log("  ..  Chrome 已连接，开始逐页检查");
+
+    // 1) 首页：JS 启动无异常 + 页面菜单按钮可点击展开
+    consoleErrors.length = 0;
+    const navReply = await send("Page.navigate", { url: BASE + "/" });
+    console.log("  ..  导航请求已发出", JSON.stringify(navReply.result ?? navReply.error ?? {}).slice(0, 120));
+    // 不等 load 事件（外部资源可能挂住），等关键按钮渲染出来即可
+    await waitFor(async () => {
+      const ready = await evalJs(
+        `document.readyState !== "loading" && document.querySelector('button[aria-label="页面菜单"]') ? "ok" : undefined`,
+      );
+      return ready;
+    });
+
+    // hydration 需要一点时间（等按钮挂上事件处理器）
+    await waitFor(async () => {
+      const expanded = await evalJs(`(async () => {
+        const btn = document.querySelector('button[aria-label="页面菜单"]');
+        if (!btn) return undefined;
+        btn.click();
+        await new Promise((r) => setTimeout(r, 300));
+        const menu = [...document.querySelectorAll("a")].some((a) => a.textContent.includes("复盘"));
+        btn.click();
+        return menu ? "ok" : undefined;
+      })()`);
+      return expanded;
+    }).then(
+      () => pass("首页：页面菜单按钮点击可展开"),
+      (e) => fail("首页：页面菜单按钮点击可展开", String(e.message ?? e)),
+    );
+
+    if (consoleErrors.length > 0) fail("首页：控制台无报错", consoleErrors[0].split("\n")[0]);
+    else pass("首页：控制台无报错");
+
+    // 2) 逐页扫一遍：HTTP 200 + 客户端无异常
+    for (const path of PAGES.slice(1)) {
+      consoleErrors.length = 0;
+      await send("Page.navigate", { url: BASE + path });
+      await waitFor(async () => {
+        const ready = await evalJs(`document.readyState !== "loading" ? "ok" : undefined`);
+        return ready;
+      }, { timeoutMs: 20000 });
+      // 给 hydration 两秒
+      await new Promise((r) => setTimeout(r, 2000));
+      if (consoleErrors.length > 0) fail(`${path}：客户端无异常`, consoleErrors[0].split("\n")[0]);
+      else pass(`${path}：客户端无异常`);
+    }
+
+    ws.close();
+  } catch (error) {
+    failures.push("smoke-runner");
+    console.log(`  FAIL  smoke-runner —— ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    chrome.kill("SIGKILL");
+    await new Promise((r) => setTimeout(r, 1500));
+    rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
+  }
+
+  console.log(failures.length === 0 ? "\n冒烟测试全过" : `\n${failures.length} 项失败`);
+  process.exit(failures.length === 0 ? 0 : 1);
+}
+
+main();

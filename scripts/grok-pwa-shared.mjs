@@ -234,17 +234,16 @@ export function grokXCreatorHeadTags(creator = readXCreator(), creatorId = readX
   ];
 }
 
-/** Platform "Created with Grok" banner — injected into every HTML document. */
+/** Platform "Created with Grok" banner — injected into every HTML document.
+ *  只在项目真的部署在 Grok 平台（有 project id）时才注入：脚本来自 grok.com 且是
+ *  defer 的，挂在外网时会堵住 DOMContentLoaded 之后的 hydration，自托管环境（本机/
+ *  Tailscale）纯受害——2026-10-16 实测 readyState 永远停在 interactive 就是它。 */
 export function grokExtensionsHeadTags(projectId = readGrokProjectId()) {
   const id = escapeHtml(projectId);
-  const tags = [];
-  if (projectId) {
-    tags.push(`<meta name="grok-project-id" content="${id}">`);
-  }
+  if (!projectId) return [];
+  const tags = [`<meta name="grok-project-id" content="${id}">`];
   tags.push(
-    `<script src="${GROK_EXTENSIONS_SCRIPT_SRC}"${
-      projectId ? ` data-project-id="${id}"` : ""
-    } defer></script>`,
+    `<script src="${GROK_EXTENSIONS_SCRIPT_SRC}" data-project-id="${id}" defer></script>`,
   );
   return tags;
 }
