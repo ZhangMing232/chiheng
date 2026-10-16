@@ -40,48 +40,57 @@ import {
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
 
 /**
- * 左侧分组导航。2026-10-13 对照 Vibe-Research 的 nav.ts 重构：
+ * 左侧分组导航。2026-10-16 按用户「页面太多」的反馈二次整合（此前 10-13 已学
+ * Vibe-Research 的 nav.ts 做过一轮）：
  *
- * 它的三条原则（原文）照搬：
- *   1. **最多两级**：一级栏目 + 二级页面；页面里自己的小分类只在页面里切，不占侧栏
- *   2. **顺序按炒股的人每天的先后**：先看自己的（主控台）→ 复盘和情报 →
- *      最后才是研究工具（它的原话：「先看自己的股票怎么样，再复盘，再看产业资讯，
- *      最后才是研究工具」）
- *   3. **接入 AI 固定在侧栏底部**（pinned），不混在研究组里
+ * 信息架构约定（三级）：
+ *   一级 = 侧边栏分组（5 组）· 二级 = 组内页面（共 19 项）· 三级 = 页内 tab
+ *   （首例：日历与事件页 ?tab=plan|events，原 /events 独立页并入）。
  *
- * 重构前的问题（用户 2026-10-13 指出）：
- *   - 「策略研究」组塞了 6 项（选股/因子/追踪/AI 管理/研判/辩论），AI 管理是设置性质
- *     却混在研究工具里；而且底部已有 pinned「接入 AI」，组里那个是重复入口
- *   - 顺序不是「每天先看什么」——研究工具排在最前面
+ * 这轮动了什么：
+ *   - 原 4 组 21 项 → 5 组 19 项；「市场情报」组太杂，按用途拆成「市场 / 实验室 / 研究」
+ *   - 「个股查询」从导航撤掉：顶栏 ⌘K 全局搜索就是干这个的，独立入口重复
+ *   - 「事件」页并入「日历与事件」页（页内 tab），/events 旧路由重定向不断链
+ *   - AI 入口仍 pinned 在侧栏底部（学 Vibe），不混进分组
+ *
+ * 保留 Vibe 的三条原则：
+ *   1. 最多两级（分组 + 页面）；第三级只许在页面里切，不占侧栏
+ *   2. 顺序按炒股的人每天的先后：先看主控台 → 看盘情报 → 实验 → 研究 → 我的
+ *   3. 接入 AI 固定在侧栏底部（pinned）
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/symbol" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/events" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
   {
-    label: "市场情报",
+    label: "市场",
     items: [
       { to: "/review", label: "每日复盘", icon: History },
+      { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/signals", label: "信号", icon: Flame },
-      { to: "/news", label: "消息追踪", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/sectors", label: "板块", icon: Grid2x2 },
       { to: "/overseas", label: "港美行情", icon: Globe },
-      { to: "/calendar", label: "日历", icon: CalendarDays },
-      { to: "/symbol", label: "个股查询", icon: Search },
+      { to: "/calendar", label: "日历与事件", icon: CalendarDays },
     ],
   },
   {
-    label: "策略研究",
+    label: "实验室",
+    items: [
+      { to: "/screener", label: "策略选股", icon: ListFilter },
+      { to: "/factors", label: "因子发掘", icon: FlaskConical },
+      { to: "/backtest", label: "回测", icon: LineChart },
+      { to: "/positions", label: "策略追踪", icon: TrendingUp },
+    ],
+  },
+  {
+    label: "研究",
     items: [
       { to: "/research", label: "个股研判", icon: FileSearch },
       { to: "/debate", label: "多空辩论", icon: Scale },
-      { to: "/screener", label: "策略选股", icon: ListFilter },
-      { to: "/positions", label: "策略追踪", icon: TrendingUp },
-      { to: "/factors", label: "因子发掘", icon: FlaskConical },
-      { to: "/backtest", label: "回测", icon: LineChart },
-      { to: "/events", label: "事件", icon: Bell },
+      { to: "/reports", label: "研报库", icon: FileText },
+      { to: "/notes", label: "笔记", icon: NotebookPen },
     ],
   },
   {
@@ -90,8 +99,6 @@ const SIDEBAR: {
       { to: "/my-stocks", label: "自选与持仓", icon: Star },
       { to: "/inbox", label: "提醒", icon: Bell },
       { to: "/settings", label: "设置与状态", icon: Settings },
-      { to: "/notes", label: "笔记", icon: NotebookPen },
-      { to: "/reports", label: "我的报告", icon: FileText },
     ],
   },
 ];

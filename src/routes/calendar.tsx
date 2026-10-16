@@ -16,20 +16,30 @@
  * 4. 只描述计划，不给买卖建议。
  */
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
 import { getCalendar, type CalendarPayload } from "@/lib/market/calendar.functions";
+import { getForecasts } from "@/lib/market/events.functions";
 import { getServerJournal } from "@/lib/market/quotes.functions";
 import { fmtPrice } from "@/lib/market/format";
+import { EventsPanel } from "@/routes/events";
 
 export const Route = createFileRoute("/calendar")({
+  // 页内 tab（三级导航）：plan = 持仓到期计划（默认），events = 业绩预告事件。
+  // /events 旧路由重定向到这里（2026-10-16 导航整合）。
+  validateSearch: (search: Record<string, unknown>): { tab: "plan" | "events" } => ({
+    tab: search.tab === "events" ? "events" : "plan",
+  }),
   loader: async () => {
     const journal = await getServerJournal().catch(() => ({ days: [] as never[] }));
-    const calendar: CalendarPayload | null = await getCalendar({ data: { days: journal.days as never[] } }).catch(() => null);
-    return { calendar };
+    const [calendar, forecasts] = await Promise.all([
+      getCalendar({ data: { days: journal.days as never[] } }).catch(() => null),
+      getForecasts({ data: { limit: 80 } }).catch(() => null),
+    ]);
+    return { calendar, forecasts };
   },
   component: CalendarPage,
 });
@@ -42,11 +52,46 @@ function weekday(date: string): string {
 }
 
 function CalendarPage() {
-  const { calendar } = Route.useLoaderData();
+  const { calendar, forecasts } = Route.useLoaderData();
+  const { tab } = Route.useSearch();
+
+  /** 页内三级导航：两个 tab 一条排，选中项用品牌色描边（和事件页的筛选按钮同语汇）。 */
+  const tabs = (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted">日历与事件</span>
+      {(
+        [
+          { key: "plan", label: "持仓到期" },
+          { key: "events", label: "业绩预告" },
+        ] as const
+      ).map((t) => (
+        <Link
+          key={t.key}
+          to="/calendar"
+          search={{ tab: t.key }}
+          aria-current={tab === t.key ? "page" : undefined}
+          className={
+            "rounded border px-2.5 py-1 text-xs transition " +
+            (tab === t.key ? "border-brand font-medium text-fg" : "border-line text-muted hover:text-fg")
+          }
+        >
+          {t.label}
+        </Link>
+      ))}
+    </div>
+  );
+
+  if (tab === "events") {
+    return (
+      <Frame aside={tabs}>
+        <EventsPanel data={forecasts} />
+      </Frame>
+    );
+  }
 
   if (!calendar) {
     return (
-      <Frame aside="日历">
+      <Frame aside={tabs}>
         <Panel title="日历" note="没读到">
           <StateBlock kind="empty" title="日历暂时打不开" hint="交易日历或服务端账本没读到。交易日历要跑 python3 scripts/fetch-calendar.py。" />
         </Panel>
@@ -58,7 +103,7 @@ function CalendarPage() {
   const total = view.events.length;
 
   return (
-    <Frame aside="日历">
+    <Frame aside={tabs}>
       <Panel
         title="日历"
         note={`${open} 笔在拿 · ${total} 笔排得上到期日${view.overdue.length > 0 ? ` · ${view.overdue.length} 笔该结没结` : ""}${view.rangeEnd ? ` · 日历给到 ${view.rangeEnd}` : ""}`}
