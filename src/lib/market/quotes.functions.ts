@@ -18,6 +18,7 @@ import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/facto
 import { systemRules } from "@/lib/market/system-rules";
 import { sanitizeParams } from "@/lib/market/factor-test-runner";
 import { aiStatus, readQueue, runFactorAILoop } from "@/lib/market/factor-queue";
+import { loadBacktestRuns } from "@/lib/market/backtest-runs";
 import { readAILog } from "@/lib/market/ai-log";
 import { profileStatus, readProfiles } from "@/lib/market/ai-profiles";
 import type { PaperDay } from "@/lib/paper";
@@ -278,6 +279,9 @@ export const getUniverse = createServerFn({ method: "GET" })
 
 /** 给页面用的指数行情。没有参数。 */
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
+
+/** 给页面用的回测运行记录。读本地 JSONL，只能在服务端跑（客户端导航时 loader 会在浏览器执行）。 */
+export const getBacktestRuns = createServerFn({ method: "GET" }).handler(async () => loadBacktestRuns());
 
 /** 给页面用的指数分时走势。id 限常用指数，例如 sh000001。 */
 export const getTrend = createServerFn({ method: "GET" })

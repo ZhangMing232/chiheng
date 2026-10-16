@@ -21,7 +21,8 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
-import { loadBacktestRuns, RUNS_PATH, type BacktestRun } from "@/lib/market/backtest-runs";
+import { RUNS_PATH, type BacktestRun } from "@/lib/market/backtest-runs";
+import { getBacktestRuns } from "@/lib/market/quotes.functions";
 import { envDiff, runSummary, styleRows, untested, type SortKey } from "@/lib/market/backtest-view";
 import { barsToShow, buildCurve, curveSummary, monthlyBars, yearlyBars } from "@/lib/market/backtest-curve";
 import { AreaChart, BarChart, LineChart } from "@/components/backtest-charts";
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/backtest")({
   }),
   loaderDeps: ({ search }) => ({ run: search.run }),
   loader: async ({ deps }) => {
-    const { runs, bad } = await loadBacktestRuns();
+    const { runs, bad } = await getBacktestRuns();
     const picked = runs.find((r) => r.ranAt === deps.run) ?? runs[0] ?? null;
     return { runs, bad, picked, badRows: bad };
   },

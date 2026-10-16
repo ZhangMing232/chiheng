@@ -153,6 +153,31 @@ async function main() {
       else pass(`${path}：客户端无异常`);
     }
 
+    // 3) 客户端导航扫一遍：整页加载抓不到「loader 在浏览器里跑崩」类问题
+    // （2026-10-17 /backtest 实例：loader 直接调 node 函数，SSR 正常、一点导航就整页报错）。
+    // 做法：从首页逐个点击导航链接走 SPA 路由，抓控制台异常。
+    for (const path of PAGES.slice(1)) {
+      consoleErrors.length = 0;
+      await send("Page.navigate", { url: BASE + "/" });
+      await waitFor(async () => {
+        const ready = await evalJs(`document.readyState !== "loading" ? "ok" : undefined`);
+        return ready;
+      }, { timeoutMs: 20000 });
+      // 移动端布局导航在「页面菜单」里，先展开（链接不在 DOM 就点不到）
+      await evalJs(`document.querySelector('button[aria-label="页面菜单"]')?.click()`);
+      await new Promise((r) => setTimeout(r, 400));
+      const clicked = await evalJs(
+        `(()=>{const a=[...document.querySelectorAll("a[href]")].find(x=>x.getAttribute("href")?.startsWith("${path}"));if(!a)return "missing";a.click();return "ok"})()`,
+      );
+      if (clicked !== "ok") {
+        fail(`${path}：客户端导航`, "导航里找不到链接（菜单没展开？）");
+        continue;
+      }
+      await new Promise((r) => setTimeout(r, 2500));
+      if (consoleErrors.length > 0) fail(`${path}：客户端导航无异常`, consoleErrors[0].split("\n")[0]);
+      else pass(`${path}：客户端导航无异常`);
+    }
+
     ws.close();
   } catch (error) {
     failures.push("smoke-runner");
