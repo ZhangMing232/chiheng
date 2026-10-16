@@ -39,6 +39,10 @@ async function main() {
       "--headless=new",
       `--remote-debugging-port=${port}`,
       "--disable-gpu",
+      // **必须绕代理**：本机 shell 里有 HTTP_PROXY（ agent 环境注入的），Chrome 会
+      // 继承它，于是访问 localhost:8787 全被送去代理、拿到假 502——smoke 就永远
+      // 「等待超时」。2026-10-16 实测踩到（curl 那边一直用 --noproxy，Chrome 忘了）。
+      "--no-proxy-server",
       "--no-first-run",
       `--user-data-dir=${profile}`,
       "about:blank",

@@ -91,7 +91,7 @@
 
 | 优先级 | 内容 | 状态 |
 |---|---|---|
-| P3-1 | 冒烟测试日常化——`npm run smoke` 已建好（无头 Chrome 逐页查客户端异常 + 真实点击）。当前只覆盖 8 页（scripts/smoke-test.mjs 的 PAGES：/ + screener/positions/review/flow/backtest/calendar/ai），**10-14/15 新加的 /signals /reports /sectors /overseas /notes /settings 不在里面，先补上再谈日常化**；之后每次 build 后跑一次，可选接进定时任务 | ⬜ |
+| P3-1 | 冒烟测试日常化——`npm run smoke` 已建好（无头 Chrome 逐页查客户端异常 + 真实点击）。**agent 沙箱里跑不了**（2026-10-16 实测：Chrome 调试端口 45 秒起不来、`--dump-dom` 直接崩退出码 133）——要在用户终端跑。当前只覆盖 8 页（PAGES：/ + screener/positions/review/flow/backtest/calendar/ai），**10-14/15/16 新加的 /signals /reports /sectors /overseas /notes /settings 不在里面，先补上再谈日常化** | ⬜ |
 | P3-2 | baseline 重跑——成本口径变了旧数字失效，用户说一声就跑（命令在 data/backtest/baseline 文件末尾） | ⬜ |
 | P3-3 | 移动端小屏完整走查——10-16 修完性能后没做：导航、表格、图表在手机上的排版逐页过 | ⬜ |
 | P3-4 | 域名 + 公网访问（meanwhy.top 候选）——等用户买域名；隧道方案已在 REMAINING.md 留档 | ⏸ 等用户 |

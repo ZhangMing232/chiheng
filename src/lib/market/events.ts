@@ -158,3 +158,226 @@ export function groupByCompany(rows: readonly ForecastRow[]): {
     }))
     .sort((a, b) => b.noticeDate.localeCompare(a.noticeDate) || a.code.localeCompare(b.code));
 }
+
+// ── 股东增减持（东财 RPT_SHARE_HOLDER_INCREASE）─────────────────────────
+//
+// 实测 2026-10-16：河钢资源（000923）河钢集团增持 34 万股、成交均价 14.7015、
+// 变动后持股 35.7%，方式「二级市场」。
+//
+// ⚠️ **`CHANGE_RATE` 不显示**：实测那条 DIRECTION=「增持」，CHANGE_NUM=+34（万股），
+// 但 CHANGE_RATE=-5.9361、CHANGE_FREE_RATIO=+0.05——**三个字段两个方向**，口径对不上
+// （不是简单反号）。这种字段摆上页面就是误导，所以只认 DIRECTION + CHANGE_NUM
+// + HOLD_RATIO（变动后持股）+ TRADE_AVERAGE_PRICE + MARKET（方式）。
+
+export type HolderTrade = {
+  id: string;
+  code: string;
+  name: string;
+  noticeDate: string;
+  /** 变动区间起/止 */
+  startDate: string;
+  endDate: string;
+  /** 增持 / 减持（东财原样） */
+  direction: string;
+  holder: string;
+  /** 变动股数（万股，正数；方向看 direction） */
+  shares: number | null;
+  /** 变动后持股比例 % */
+  holdRatio: number | null;
+  /** 公告披露的成交均价（元）；很多公告不披露 → null */
+  avgPrice: number | null;
+  /** 变动方式：二级市场 / 大宗交易 / 协议转让… */
+  channel: string | null;
+  closePrice: number | null;
+};
+
+/** 增减持方向倾向。只认「增持/减持」两个字，别的措辞不表态。 */
+export function holderTone(direction: string): "positive" | "negative" | null {
+  if (direction === "增持") return "positive";
+  if (direction === "减持") return "negative";
+  return null;
+}
+
+export function parseHolderTrades(rows: readonly Record<string, unknown>[]): {
+  rows: HolderTrade[];
+  bad: number;
+} {
+  const out: HolderTrade[] = [];
+  let bad = 0;
+  for (const raw of rows) {
+    const code = typeof raw.SECURITY_CODE === "string" ? raw.SECURITY_CODE.trim() : "";
+    const name = typeof raw.SECURITY_NAME_ABBR === "string" ? raw.SECURITY_NAME_ABBR.trim() : "";
+    if (!/^\d{6}$/.test(code) || !name) {
+      bad += 1;
+      continue;
+    }
+    const secucode = typeof raw.SECUCODE === "string" ? raw.SECUCODE : "";
+    const prefix = secucode.includes(".SZ") ? "sz" : secucode.includes(".BJ") ? "bj" : "sh";
+    out.push({
+      id: `${prefix}${code}`,
+      code,
+      name,
+      noticeDate: date(raw.NOTICE_DATE),
+      startDate: date(raw.START_DATE),
+      endDate: date(raw.END_DATE),
+      direction: typeof raw.DIRECTION === "string" && raw.DIRECTION ? raw.DIRECTION : "（方向未知）",
+      holder: typeof raw.HOLDER_NAME === "string" ? raw.HOLDER_NAME.trim() : "（股东未披露）",
+      shares: num(raw.CHANGE_NUM),
+      holdRatio: num(raw.HOLD_RATIO),
+      avgPrice: num(raw.TRADE_AVERAGE_PRICE) ?? num(raw.REAL_PRICE),
+      channel: typeof raw.MARKET === "string" && raw.MARKET ? raw.MARKET : null,
+      closePrice: num(raw.CLOSE_PRICE),
+    });
+  }
+  out.sort((a, b) => b.noticeDate.localeCompare(a.noticeDate) || a.code.localeCompare(b.code));
+  return { rows: out, bad };
+}
+
+// ── 机构调研（东财 RPT_ORG_SURVEYNEW，汇总模式）─────────────────────────
+//
+// 实测 2026-10-16：京东方A（000725）10-15 接待，特定对象调研+现场参观，
+// 接待对象南方基金等（SUM=3 家）。
+//
+// **汇总模式**：filter 带 (IS_SOURCE="1")(NUMBERNEW="1")，一次调研一行，
+// SUM 是参与机构家数。detail 模式（一家机构一行）没接——那一层要看原始记录表，
+// 而很多记录表不写机构类型和人名（skill 文档原文），接了也是半截数据。
+
+export type Survey = {
+  id: string;
+  code: string;
+  name: string;
+  noticeDate: string;
+  /** 实际接待日（通常早于公告日几天） */
+  receiveDate: string;
+  receiveEndDate: string;
+  /** 接待对象（第一家/汇总描述） */
+  object: string | null;
+  /** 参与机构家数 */
+  orgCount: number | null;
+  /** 调研方式：「特定对象调研,现场参观」 */
+  way: string | null;
+  place: string | null;
+};
+
+export function parseSurveys(rows: readonly Record<string, unknown>[]): { rows: Survey[]; bad: number } {
+  const out: Survey[] = [];
+  let bad = 0;
+  for (const raw of rows) {
+    const code = typeof raw.SECURITY_CODE === "string" ? raw.SECURITY_CODE.trim() : "";
+    const name = typeof raw.SECURITY_NAME_ABBR === "string" ? raw.SECURITY_NAME_ABBR.trim() : "";
+    if (!/^\d{6}$/.test(code) || !name) {
+      bad += 1;
+      continue;
+    }
+    const secucode = typeof raw.SECUCODE === "string" ? raw.SECUCODE : "";
+    const prefix = secucode.includes(".SZ") ? "sz" : secucode.includes(".BJ") ? "bj" : "sh";
+    out.push({
+      id: `${prefix}${code}`,
+      code,
+      name,
+      noticeDate: date(raw.NOTICE_DATE),
+      receiveDate: date(raw.RECEIVE_START_DATE),
+      receiveEndDate: date(raw.RECEIVE_END_DATE),
+      object: typeof raw.RECEIVE_OBJECT === "string" && raw.RECEIVE_OBJECT ? raw.RECEIVE_OBJECT.trim() : null,
+      orgCount: num(raw.SUM),
+      way: typeof raw.RECEIVE_WAY_EXPLAIN === "string" && raw.RECEIVE_WAY_EXPLAIN ? raw.RECEIVE_WAY_EXPLAIN.trim() : null,
+      place: typeof raw.RECEIVE_PLACE === "string" && raw.RECEIVE_PLACE ? raw.RECEIVE_PLACE.trim() : null,
+    });
+  }
+  out.sort((a, b) => b.noticeDate.localeCompare(a.noticeDate) || a.code.localeCompare(b.code));
+  return { rows: out, bad };
+}
+
+// ── 股票回购（东财 RPTA_WEB_GETHGLIST_NEW）─────────────────────────────
+//
+// 实测 2026-10-16：三花智控（002050）实施中，计划回购 2~4 亿元、334~668 万股，
+// 价格上限 59.88 元；已回购 581.3 万股 / 2.08 亿元（截至 09-22 公告）。
+//
+// ⚠️ **代码字段叫 DIM_SCODE 不叫 SECURITY_CODE**（这张表的命名和别的不一样）。
+// ⚠️ **进度码只映射实测确认的三个**（001 董事会预案 / 002 股东大会通过 /
+// 004 实施中），其余显示原码 + 「（码位未识别）」——skill 文档提到还有 007/008
+// 两个连东财自己页面都不显示名称的码，不猜。
+
+export type Buyback = {
+  id: string;
+  code: string;
+  name: string;
+  /** 进度码（东财原样，如 "004"） */
+  progressCode: string;
+  /** 进度中文名；认不出给 null（页面显示原码） */
+  progress: string | null;
+  planStart: string;
+  planEnd: string;
+  /** 价格上限（元） */
+  priceCap: number | null;
+  /** 计划回购股数区间（股） */
+  sharesLower: number | null;
+  sharesUpper: number | null;
+  /** 计划回购金额区间（元） */
+  amountLower: number | null;
+  amountUpper: number | null;
+  /** 已回购股数 / 金额（未开始实施为 null） */
+  doneShares: number | null;
+  doneAmount: number | null;
+  /** 已回购成交价区间（元） */
+  donePriceLow: number | null;
+  donePriceHigh: number | null;
+  /** 最新公告日 */
+  latestNotice: string;
+  objective: string | null;
+};
+
+const BUYBACK_PROGRESS: Record<string, string> = {
+  "001": "董事会预案",
+  "002": "股东大会通过",
+  "004": "实施中",
+};
+
+export function parseBuybacks(rows: readonly Record<string, unknown>[]): { rows: Buyback[]; bad: number } {
+  const out: Buyback[] = [];
+  let bad = 0;
+  for (const raw of rows) {
+    const code = typeof raw.DIM_SCODE === "string" ? raw.DIM_SCODE.trim() : "";
+    const name = typeof raw.SECURITYSHORTNAME === "string" ? raw.SECURITYSHORTNAME.trim() : "";
+    if (!/^\d{6}$/.test(code) || !name) {
+      bad += 1;
+      continue;
+    }
+    const secucode = typeof raw.SECUCODE === "string" ? raw.SECUCODE : "";
+    const prefix = secucode.includes(".SZ") ? "sz" : secucode.includes(".BJ") ? "bj" : "sh";
+    const progressCode = typeof raw.REPURPROGRESS === "string" ? raw.REPURPROGRESS : "";
+    out.push({
+      id: `${prefix}${code}`,
+      code,
+      name,
+      progressCode,
+      progress: BUYBACK_PROGRESS[progressCode] ?? null,
+      planStart: date(raw.REPURSTARTDATE),
+      planEnd: date(raw.REPURENDDATE),
+      priceCap: num(raw.REPURPRICECAP),
+      sharesLower: num(raw.REPURNUMLOWER),
+      sharesUpper: num(raw.REPURNUMCAP),
+      amountLower: num(raw.REPURAMOUNTLOWER),
+      amountUpper: num(raw.REPURAMOUNTLIMIT),
+      doneShares: num(raw.REPURNUM),
+      doneAmount: num(raw.REPURAMOUNT),
+      donePriceLow: num(raw.REPURPRICELOWER1),
+      donePriceHigh: num(raw.REPURPRICECAP1),
+      latestNotice: date(raw.UPDATEDATE) || date(raw.NOTICEDATE),
+      objective: typeof raw.REPUROBJECTIVE === "string" && raw.REPUROBJECTIVE.trim() ? raw.REPUROBJECTIVE.trim() : null,
+    });
+  }
+  out.sort((a, b) => b.latestNotice.localeCompare(a.latestNotice) || a.code.localeCompare(b.code));
+  return { rows: out, bad };
+}
+
+/**
+ * 回购进度倾向：完成/实施中是公司在买（偏正），停止实施/否决是黄了（偏负）。
+ * 004（实施中）是实测确认的；003/005/006 来自 skill 文档列的六个 progress 名
+ * （文档口径，未实测到样本）——所以倾向给了，中文名却不显示（没实测的不映射）。
+ */
+export function buybackTone(progressCode: string): "positive" | "negative" | null {
+  if (progressCode === "004" || progressCode === "006") return "positive";
+  if (progressCode === "003" || progressCode === "005") return "negative";
+  return null; // 001/002 只是流程节点，007/008 认不出
+}

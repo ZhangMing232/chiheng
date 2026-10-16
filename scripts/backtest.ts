@@ -56,7 +56,7 @@ import {
   diagnoseShrinkDays,
   diagnoseShrinkBull,
 } from "@/lib/market/factors";
-import type { FactorRun, DailyRow } from "@/lib/market/factors";
+import type { DailyRow } from "@/lib/market/factors";
 import { detectWyckoffSpring } from "@/lib/market/wyckoff-spring";
 import { decideGate, costDragRows, formatDragRow, klineRef } from "@/lib/market/backtest-gate";
 import { loadQueueFactors, applyVerdictsToQueue } from "@/lib/market/factor-queue";
@@ -1566,7 +1566,6 @@ async function main() {
           const s = diagDays.spreadSeries.slice(Math.max(0, k - win + 1), k + 1);
           return { date: dates[startIdx + x.idx], spread: s.reduce((a, y) => a + y.spread, 0) / s.length };
         });
-        const byDate = new Map(byDay.map((d) => [dates[startIdx + d.idx], d]));
         console.log("\n翻号段（5 日滚动 spread>0）里，止跌 vs 不止跌：");
         const flipSegments: { from: string; to: string; days: number; bull: number | null; bear: number | null }[] = [];
         let rs: number | null = null;

@@ -21,25 +21,31 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
-import { getCalendar, type CalendarPayload } from "@/lib/market/calendar.functions";
-import { getForecasts } from "@/lib/market/events.functions";
+import { getCalendar } from "@/lib/market/calendar.functions";
+import { getBuybacks, getForecasts, getHolderTrades, getSurveys } from "@/lib/market/events.functions";
 import { getServerJournal } from "@/lib/market/quotes.functions";
 import { fmtPrice } from "@/lib/market/format";
 import { EventsPanel } from "@/routes/events";
 
 export const Route = createFileRoute("/calendar")({
-  // 页内 tab（三级导航）：plan = 持仓到期计划（默认），events = 业绩预告事件。
+  // 页内 tab（三级导航）：plan = 持仓到期计划（默认），events = 公司事件
+  // （业绩预告/股东增减持/机构调研/股票回购四类，面板内还有二级 tab）。
   // /events 旧路由重定向到这里（2026-10-16 导航整合）。
   validateSearch: (search: Record<string, unknown>): { tab: "plan" | "events" } => ({
     tab: search.tab === "events" ? "events" : "plan",
   }),
   loader: async () => {
     const journal = await getServerJournal().catch(() => ({ days: [] as never[] }));
-    const [calendar, forecasts] = await Promise.all([
+    // 四类公司事件并发拉（2026-10-16 起了三类）。任何一类失败不影响别的——
+    // 页面按类各自显示「没拉到 + 原因」。
+    const [calendar, forecasts, holders, surveys, buybacks] = await Promise.all([
       getCalendar({ data: { days: journal.days as never[] } }).catch(() => null),
       getForecasts({ data: { limit: 80 } }).catch(() => null),
+      getHolderTrades({ data: { limit: 60 } }).catch(() => null),
+      getSurveys({ data: { limit: 60 } }).catch(() => null),
+      getBuybacks({ data: { limit: 60 } }).catch(() => null),
     ]);
-    return { calendar, forecasts };
+    return { calendar, forecasts, holders, surveys, buybacks };
   },
   component: CalendarPage,
 });
@@ -52,7 +58,7 @@ function weekday(date: string): string {
 }
 
 function CalendarPage() {
-  const { calendar, forecasts } = Route.useLoaderData();
+  const { calendar, forecasts, holders, surveys, buybacks } = Route.useLoaderData();
   const { tab } = Route.useSearch();
 
   /** 页内三级导航：两个 tab 一条排，选中项用品牌色描边（和事件页的筛选按钮同语汇）。 */
@@ -62,7 +68,7 @@ function CalendarPage() {
       {(
         [
           { key: "plan", label: "持仓到期" },
-          { key: "events", label: "业绩预告" },
+          { key: "events", label: "公司事件" },
         ] as const
       ).map((t) => (
         <Link
@@ -84,7 +90,7 @@ function CalendarPage() {
   if (tab === "events") {
     return (
       <Frame aside={tabs}>
-        <EventsPanel data={forecasts} />
+        <EventsPanel data={forecasts} holders={holders} surveys={surveys} buybacks={buybacks} />
       </Frame>
     );
   }
