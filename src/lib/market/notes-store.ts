@@ -14,13 +14,15 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { checkNote, sortNotes, type Note } from "./notes.ts";
 
-export const NOTES_PATH = join("data", "notes.json");
+// 必须在用到的时候才 join：本文件会进客户端 bundle（quotes.functions.ts 引用），
+// 浏览器里 node:path 是空壳，模块顶层调用 join 会让整站 JS 一启动就崩（2026-10-16 修过）。
+const NOTES_PATH = () => join("data", "notes.json");
 
 /** 读全部笔记。文件不存在 = 还没有笔记（返回空数组，不是错误）。 */
 export async function loadNotes(root = process.cwd()): Promise<Note[]> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(await readFile(join(root, NOTES_PATH), "utf-8"));
+    parsed = JSON.parse(await readFile(join(root, NOTES_PATH()), "utf-8"));
   } catch {
     return [];
   }
@@ -33,13 +35,13 @@ export async function loadNotes(root = process.cwd()): Promise<Note[]> {
     if (checked.ok) out.push(checked.note);
     else bad += 1;
   }
-  if (bad > 0) console.error(`[notes] ${NOTES_PATH} 有 ${bad} 条读不出来，已跳过`);
+  if (bad > 0) console.error(`[notes] ${NOTES_PATH()} 有 ${bad} 条读不出来，已跳过`);
   return sortNotes(out);
 }
 
 /** 存全部笔记。调用方负责先算好下一份（增删改的逻辑在 notes.ts 的纯函数里）。 */
 export async function saveNotes(notes: readonly Note[], root = process.cwd()): Promise<boolean> {
-  const path = join(root, NOTES_PATH);
+  const path = join(root, NOTES_PATH());
   const tmp = `${path}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   try {
     await writeFile(tmp, JSON.stringify(sortNotes(notes), null, 2), "utf-8");

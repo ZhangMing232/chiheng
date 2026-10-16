@@ -87,7 +87,10 @@ export type BacktestRun = {
   note: string | null;
 };
 
-export const RUNS_PATH = join("data", "backtest", "runs.jsonl");
+// 不能用 node:path 的 join：本文件会进客户端 bundle（回测页 import 了这个常量），
+// 浏览器里 node:path 是空壳，模块顶层调用 join 会让整站 JS 一启动就崩（2026-10-16 修过）。
+// 这就是个常量相对路径，纯字符串拼就够了。
+export const RUNS_PATH = "data/backtest/runs.jsonl";
 
 /** 校验一行。返回 null 表示这行不能用（调用方跳过并记日志）。 */
 export function checkBacktestRun(value: unknown): BacktestRun | null {

@@ -17,8 +17,10 @@ import type { BoardMonthly } from "./industry-chain.ts";
 import type { IndustryMonth } from "./industry-monthly.ts";
 import { ttlOf } from "./fetch-policy.ts";
 
-export const INDUSTRY_PATH = join("data", "backtest", "industry.json");
-export const MONTHLY_PATH = join("data", "backtest", "industry-monthly.json");
+// 必须在用到的时候才 join：本文件会进客户端 bundle（research 路由引用），
+// 浏览器里 node:path 是空壳，模块顶层调用 join 会让整站 JS 一启动就崩（2026-10-16 修过）。
+export const INDUSTRY_PATH = () => join("data", "backtest", "industry.json");
+export const MONTHLY_PATH = () => join("data", "backtest", "industry-monthly.json");
 
 const CACHE_MS = ttlOf("industry");
 
@@ -29,7 +31,7 @@ export async function loadIndustry(root = process.cwd()): Promise<IndustryIndex 
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.index;
   let raw: string;
   try {
-    raw = await readFile(join(root, INDUSTRY_PATH), "utf-8");
+    raw = await readFile(join(root, INDUSTRY_PATH()), "utf-8");
   } catch {
     return null;
   }
@@ -37,12 +39,12 @@ export async function loadIndustry(root = process.cwd()): Promise<IndustryIndex 
   try {
     parsed = JSON.parse(raw);
   } catch {
-    console.error(`[industry] ${INDUSTRY_PATH} 不是合法 JSON，按「没抓过」处理`);
+    console.error(`[industry] ${INDUSTRY_PATH()} 不是合法 JSON，按「没抓过」处理`);
     return null;
   }
   const checked = checkIndustryIndex(parsed);
   if (!checked.ok) {
-    console.error(`[industry] ${INDUSTRY_PATH} 结构不对：${checked.reason}`);
+    console.error(`[industry] ${INDUSTRY_PATH()} 结构不对：${checked.reason}`);
     return null;
   }
   cache = { at: Date.now(), index: checked.index };
@@ -54,7 +56,7 @@ export async function loadBoardMonthly(code: string | null, root = process.cwd()
   if (!code) return null;
   let raw: string;
   try {
-    raw = await readFile(join(root, MONTHLY_PATH), "utf-8");
+    raw = await readFile(join(root, MONTHLY_PATH()), "utf-8");
   } catch {
     return null;
   }
@@ -64,7 +66,7 @@ export async function loadBoardMonthly(code: string | null, root = process.cwd()
     if (!hit || !Array.isArray(hit.months)) return null;
     return { code, name: hit.name ?? code, months: hit.months };
   } catch {
-    console.error(`[industry] ${MONTHLY_PATH} 不是合法 JSON，按「没抓过」处理`);
+    console.error(`[industry] ${MONTHLY_PATH()} 不是合法 JSON，按「没抓过」处理`);
     return null;
   }
 }

@@ -16,7 +16,9 @@ import { HOLD_SESSIONS } from "./model.ts";
 import { STYLES } from "./strategies.ts";
 import type { PaperDay } from "@/lib/paper";
 
-const CALENDAR_PATH = join("data", "backtest", "calendar.json");
+// 纯字符串拼接，不用 node:path 的 join：本文件是 server fn 模块会进客户端 bundle，
+// 浏览器里 node:path 是空壳，模块顶层调用 join 会让整站 JS 一启动就崩（2026-10-16 修过）。
+const CALENDAR_PATH = "data/backtest/calendar.json";
 
 export type CalendarPayload = {
   view: CalendarView;

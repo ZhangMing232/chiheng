@@ -24,7 +24,9 @@ type Member = {
 };
 
 const cache = { at: 0, tailHalf: false, rows: [] as Listed[] };
-const freezePath = join(process.cwd(), "data", "relay-freeze.json");
+// 必须在用到的时候才 join：本文件会被客户端 bundle 打包（quotes.functions.ts 引用），
+// 浏览器里 node:path 是个空壳，模块顶层调用 join 会让整站 JS 一启动就崩（2026-10-16 修过）。
+const freezePath = () => join(process.cwd(), "data", "relay-freeze.json");
 
 function asQuote(member: Member): Quote {
   return {
@@ -199,7 +201,7 @@ async function rankRelay(tailHalf: boolean): Promise<Listed[]> {
 
 async function readFreeze(date: string): Promise<Listed[] | null> {
   try {
-    const raw = JSON.parse(await readFile(freezePath, "utf8")) as { date?: string; picks?: Listed[] };
+    const raw = JSON.parse(await readFile(freezePath(), "utf8")) as { date?: string; picks?: Listed[] };
     if (raw.date !== date || !Array.isArray(raw.picks)) return null;
     return raw.picks;
   } catch {
@@ -211,7 +213,7 @@ async function writeFreeze(date: string, picks: Listed[]): Promise<void> {
   const existing = await readFreeze(date);
   if (existing) return;
   await mkdir(join(process.cwd(), "data"), { recursive: true });
-  await writeFile(freezePath, JSON.stringify({ date, picks }, null, 2));
+  await writeFile(freezePath(), JSON.stringify({ date, picks }, null, 2));
 }
 
 async function livePrices(ids: string[]): Promise<Map<string, { price: number; chg: number }>> {

@@ -15,8 +15,10 @@ import { join } from "node:path";
 import { boardDetail, boardTable, type BoardDetail, type BoardTable, type MonthlyBook } from "./sectors-view.ts";
 import { checkIndustryIndex, type IndustryIndex } from "./industry.ts";
 
-const INDEX_PATH = join("data", "backtest", "industry.json");
-const MONTHLY_PATH = join("data", "backtest", "industry-monthly.json");
+// 必须在用到的时候才 join：本文件是 server fn 模块，同样会进客户端 bundle，
+// 浏览器里 node:path 是空壳，模块顶层调用 join 会让整站 JS 一启动就崩（2026-10-16 修过）。
+const INDEX_PATH = () => join("data", "backtest", "industry.json");
+const MONTHLY_PATH = () => join("data", "backtest", "industry-monthly.json");
 
 async function readJson(path: string): Promise<unknown> {
   try {
@@ -27,14 +29,14 @@ async function readJson(path: string): Promise<unknown> {
 }
 
 async function loadIndex(): Promise<IndustryIndex | null> {
-  const parsed = await readJson(INDEX_PATH);
+  const parsed = await readJson(INDEX_PATH());
   if (!parsed) return null;
   const checked = checkIndustryIndex(parsed);
   return checked.ok ? checked.index : null;
 }
 
 async function loadMonthly(): Promise<MonthlyBook | null> {
-  const parsed = await readJson(MONTHLY_PATH);
+  const parsed = await readJson(MONTHLY_PATH());
   if (!parsed || typeof parsed !== "object") return null;
   return parsed as MonthlyBook;
 }

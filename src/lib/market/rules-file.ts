@@ -10,12 +10,14 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DEFAULT_RULES, parseRules, sameSelection, type EarlyRules } from "@/lib/market/rules";
 
-const path = join(process.cwd(), "data", "rules.json");
+// 必须在用到的时候才 join：本文件会进客户端 bundle（quotes.functions.ts 引用），
+// 浏览器里 node:path 是空壳，模块顶层调用 join 会让整站 JS 一启动就崩（2026-10-16 修过）。
+const rulesPath = () => join(process.cwd(), "data", "rules.json");
 
 /** 读规则。文件不存在或内容不合法时返回默认规则。版本号至少是 1。 */
 export async function readRules(): Promise<EarlyRules> {
   try {
-    const raw = JSON.parse(await readFile(path, "utf8")) as { version?: unknown };
+    const raw = JSON.parse(await readFile(rulesPath(), "utf8")) as { version?: unknown };
     const parsed = parseRules(raw);
     if (!parsed) return DEFAULT_RULES;
     const version = Number(raw.version);
@@ -31,6 +33,6 @@ export async function writeRules(input: EarlyRules): Promise<EarlyRules> {
   const version = sameSelection(prev, input) ? prev.version : prev.version + 1;
   const next = { ...input, version };
   await mkdir(join(process.cwd(), "data"), { recursive: true });
-  await writeFile(path, JSON.stringify(next, null, 2));
+  await writeFile(rulesPath(), JSON.stringify(next, null, 2));
   return next;
 }
