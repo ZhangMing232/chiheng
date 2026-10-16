@@ -22,7 +22,7 @@ import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
 import { getCalendar } from "@/lib/market/calendar.functions";
-import { getBuybacks, getForecasts, getHolderTrades, getSurveys } from "@/lib/market/events.functions";
+import { getBuybacks, getForecasts, getHolderTrades, getIpos, getPledges, getSurveys } from "@/lib/market/events.functions";
 import { getServerJournal } from "@/lib/market/quotes.functions";
 import { fmtPrice } from "@/lib/market/format";
 import { EventsPanel } from "@/routes/events";
@@ -38,14 +38,16 @@ export const Route = createFileRoute("/calendar")({
     const journal = await getServerJournal().catch(() => ({ days: [] as never[] }));
     // 四类公司事件并发拉（2026-10-16 起了三类）。任何一类失败不影响别的——
     // 页面按类各自显示「没拉到 + 原因」。
-    const [calendar, forecasts, holders, surveys, buybacks] = await Promise.all([
+    const [calendar, forecasts, holders, surveys, buybacks, pledges, ipos] = await Promise.all([
       getCalendar({ data: { days: journal.days as never[] } }).catch(() => null),
       getForecasts({ data: { limit: 80 } }).catch(() => null),
       getHolderTrades({ data: { limit: 60 } }).catch(() => null),
       getSurveys({ data: { limit: 60 } }).catch(() => null),
       getBuybacks({ data: { limit: 60 } }).catch(() => null),
+      getPledges({ data: { limit: 80 } }).catch(() => null),
+      getIpos({ data: { limit: 40 } }).catch(() => null),
     ]);
-    return { calendar, forecasts, holders, surveys, buybacks };
+    return { calendar, forecasts, holders, surveys, buybacks, pledges, ipos };
   },
   component: CalendarPage,
 });
@@ -58,7 +60,7 @@ function weekday(date: string): string {
 }
 
 function CalendarPage() {
-  const { calendar, forecasts, holders, surveys, buybacks } = Route.useLoaderData();
+  const { calendar, forecasts, holders, surveys, buybacks, pledges, ipos } = Route.useLoaderData();
   const { tab } = Route.useSearch();
 
   /** 页内三级导航：两个 tab 一条排，选中项用品牌色描边（和事件页的筛选按钮同语汇）。 */
@@ -90,7 +92,14 @@ function CalendarPage() {
   if (tab === "events") {
     return (
       <Frame aside={tabs}>
-        <EventsPanel data={forecasts} holders={holders} surveys={surveys} buybacks={buybacks} />
+        <EventsPanel
+          data={forecasts}
+          holders={holders}
+          surveys={surveys}
+          buybacks={buybacks}
+          pledges={pledges}
+          ipos={ipos}
+        />
       </Frame>
     );
   }

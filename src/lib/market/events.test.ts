@@ -13,6 +13,8 @@ import {
   holderTone,
   parseBuybacks,
   parseHolderTrades,
+  parseIpos,
+  parsePledges,
   parseSurveys,
   parseForecast,
   yoyOf,
@@ -251,4 +253,99 @@ test("回购：未开始实施的 done 字段是 null 不是 0", () => {
   assert.equal(rows[0]!.doneShares, null, "0 股会被读成「回购了 0 股」，其实是没开始");
   assert.equal(rows[0]!.doneAmount, null);
   assert.equal(buybackTone("001"), null, "预案只是流程节点，不表态");
+});
+
+// ── 股权质押 ──────────────────────────────────────────────────────────
+
+/** 实测行：2026-10-09 统计日，信通电子 001388。 */
+const REAL_PLEDGE = {
+  SECUCODE: "001388.SZ",
+  SECURITY_CODE: "001388",
+  SECURITY_NAME_ABBR: "信通电子",
+  TRADE_DATE: "2026-10-09 00:00:00",
+  INDUSTRY: "通信设备",
+  PLEDGE_RATIO: 0.23,
+  PLEDGE_MARKET_CAP: 1063.26,
+  PLEDGE_DEAL_NUM: 3,
+};
+
+test("质押：解析真实行（信通电子，周频统计日 10-09）", () => {
+  const { rows, bad } = parsePledges([REAL_PLEDGE]);
+  assert.equal(bad, 0);
+  const r = rows[0]!;
+  assert.equal(r.code, "001388");
+  assert.equal(r.date, "2026-10-09", "**统计日是 TRADE_DATE 不是 NOTICE_DATE**");
+  assert.equal(r.pledgeRatio, 0.23);
+  assert.equal(r.pledgeMktCap, 1063.26);
+  assert.equal(r.industry, "通信设备");
+});
+
+test("质押：按质押比例降序（风险高的在前）", () => {
+  const low = { ...REAL_PLEDGE, SECURITY_CODE: "000001", SECURITY_NAME_ABBR: "A", PLEDGE_RATIO: 0.05 };
+  const high = { ...REAL_PLEDGE, SECURITY_CODE: "000002", SECURITY_NAME_ABBR: "B", PLEDGE_RATIO: 8.5 };
+  const { rows } = parsePledges([low, high]);
+  assert.deepEqual(rows.map((r) => r.code), ["000002", "000001"]);
+});
+
+test("质押：坏行跳过并计数", () => {
+  const { rows, bad } = parsePledges([REAL_PLEDGE, { SECURITY_CODE: "388", SECURITY_NAME_ABBR: "代码不对位" }]);
+  assert.equal(rows.length, 1);
+  assert.equal(bad, 1);
+});
+
+// ── 新股申购 ──────────────────────────────────────────────────────────
+
+/** 实测行：2026-10-16 皇冠新材，橡胶和塑料制品业。 */
+const REAL_IPO = {
+  SECUCODE: "001388.SZ",
+  SECURITY_CODE: "001388",
+  SECURITY_NAME: "皇冠新材",
+  APPLY_CODE: "001388",
+  MARKET: "深交所主板",
+  MARKET_TYPE_NEW: "深交所其他",
+  INDUSTRY_NAME: "橡胶和塑料制品业",
+  APPLY_DATE: "2026-10-16 00:00:00",
+  BALLOT_NUM_DATE: "2026-10-19 00:00:00",
+  BALLOT_PAY_DATE: "2026-10-20 00:00:00",
+  LISTING_DATE: null,
+  ISSUE_PRICE: 18.88,
+  AFTER_ISSUE_PE: 25.87,
+  INDUSTRY_PE: 27.65,
+  TOP_APPLY_MARKETCAP: 13.5,
+  ONLINE_ISSUE_LWR: null,
+};
+
+test("新股：解析真实行（皇冠新材，顶格需配 13.5 万市值）", () => {
+  const { rows, bad } = parseIpos([REAL_IPO]);
+  assert.equal(bad, 0);
+  const r = rows[0]!;
+  assert.equal(r.code, "001388");
+  assert.equal(r.name, "皇冠新材");
+  assert.equal(r.board, "深交所主板", "**MARKET 优先于 MARKET_TYPE_NEW**（后者把未上市标成「其他」）");
+  assert.equal(r.industry, "橡胶和塑料制品业");
+  assert.equal(r.applyDate, "2026-10-16");
+  assert.equal(r.ballotDate, "2026-10-19");
+  assert.equal(r.payDate, "2026-10-20");
+  assert.equal(r.issuePrice, 18.88);
+  assert.equal(r.issuePe, 25.87);
+  assert.equal(r.industryPe, 27.65);
+  assert.equal(r.topApplyMktCap, 13.5);
+  assert.equal(r.listingDate, "", "未上市 → 空串，页面显示「未上市」");
+  assert.equal(r.winRate, null, "中签率未公布 → null 不是 0");
+});
+
+test("新股：发行价 0 当没定价（0 不是「免费」）", () => {
+  const { rows } = parseIpos([{ ...REAL_IPO, ISSUE_PRICE: 0 }]);
+  assert.equal(rows[0]!.issuePrice, null, "定价前东财填 null 或 0，都当没定价");
+});
+
+test("新股：北交所只有 MARKET_TYPE_NEW 有值，回退取它", () => {
+  const { rows } = parseIpos([{ ...REAL_IPO, MARKET: null, MARKET_TYPE_NEW: "北交所" }]);
+  assert.equal(rows[0]!.board, "北交所", "北交所新股只有后者有值（skill 原文）");
+});
+
+test("新股：按申购日降序（最新的在前）", () => {
+  const older = { ...REAL_IPO, SECURITY_CODE: "000001", SECURITY_NAME: "A", APPLY_DATE: "2026-10-10 00:00:00" };
+  const { rows } = parseIpos([older, REAL_IPO]);
+  assert.deepEqual(rows.map((r) => r.code), ["001388", "000001"]);
 });

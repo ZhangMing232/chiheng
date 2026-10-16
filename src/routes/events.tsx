@@ -1,8 +1,9 @@
 /**
  * 这个文件是干什么的：
- * 「公司事件」面板 —— 公司层面的事件型数据清单。四类（2026-10-16 起了三类）：
- * 业绩预告（预期差的核心原料，催化剂 SOP 的兑现验证）、股东增减持、机构调研、
- * 股票回购。后三类是「谁在用真金白银投票」的信号。
+ * 「公司事件」面板 —— 公司层面的事件型数据清单。六类（东财 datacenter 这条线
+ * 到 2026-10-16 全部接完）：业绩预告（预期差的核心原料，催化剂 SOP 的兑现验证）、
+ * 股东增减持、机构调研、股票回购（这四类都是「谁在用真金白银投票」的信号）、
+ * 股权质押（风险指标，中国结算周频）、新股申购（打新日历）。
  *
  * 2026-10-16 整合导航：/events 不再是独立页面，本文件只导出 EventsPanel 组件，
  * 由 /calendar 页以「页内 tab（三级导航）」的方式挂进去；/events 路由保留但重定向到
@@ -24,7 +25,7 @@ import { Panel, Stat, Tag, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
 import { StockName } from "@/components/screener/stock-name";
-import { getBuybacks, getForecasts, getHolderTrades, getSurveys } from "@/lib/market/events.functions";
+import { getBuybacks, getForecasts, getHolderTrades, getIpos, getPledges, getSurveys } from "@/lib/market/events.functions";
 import { buybackTone, forecastTone, holderTone } from "@/lib/market/events";
 
 export const Route = createFileRoute("/events")({
@@ -38,6 +39,8 @@ export type ForecastsPayload = Awaited<ReturnType<typeof getForecasts>>;
 export type HolderTradesPayload = Awaited<ReturnType<typeof getHolderTrades>>;
 export type SurveysPayload = Awaited<ReturnType<typeof getSurveys>>;
 export type BuybacksPayload = Awaited<ReturnType<typeof getBuybacks>>;
+export type PledgesPayload = Awaited<ReturnType<typeof getPledges>>;
+export type IposPayload = Awaited<ReturnType<typeof getIpos>>;
 
 /**
  * 倾向 → 标签颜色。**null（不表态）走 muted**——不给颜色也是一种表态，
@@ -50,13 +53,15 @@ function kindToneOf(tone: "positive" | "negative" | null): "up" | "down" | "mute
 }
 
 /** 事件面板的二级分类（业绩预告 + 2026-10-16 新增三类）。 */
-type EventTab = "forecast" | "holder" | "survey" | "buyback";
+type EventTab = "forecast" | "holder" | "survey" | "buyback" | "pledge" | "ipo";
 
 const EVENT_TABS: { key: EventTab; label: string }[] = [
   { key: "forecast", label: "业绩预告" },
   { key: "holder", label: "股东增减持" },
   { key: "survey", label: "机构调研" },
   { key: "buyback", label: "股票回购" },
+  { key: "pledge", label: "股权质押" },
+  { key: "ipo", label: "新股申购" },
 ];
 
 /**
@@ -70,11 +75,15 @@ export function EventsPanel({
   holders,
   surveys,
   buybacks,
+  pledges,
+  ipos,
 }: {
   data: ForecastsPayload | null;
   holders?: HolderTradesPayload | null;
   surveys?: SurveysPayload | null;
   buybacks?: BuybacksPayload | null;
+  pledges?: PledgesPayload | null;
+  ipos?: IposPayload | null;
 }) {
   const [tab, setTab] = useState<EventTab>("forecast");
   const [onlyTone, setOnlyTone] = useState<"all" | "positive" | "negative">("all");
@@ -100,6 +109,8 @@ export function EventsPanel({
   if (tab === "holder") return <HolderTradesPanel data={holders ?? null} />;
   if (tab === "survey") return <SurveysPanel data={surveys ?? null} />;
   if (tab === "buyback") return <BuybacksPanel data={buybacks ?? null} />;
+  if (tab === "pledge") return <PledgesPanel data={pledges ?? null} />;
+  if (tab === "ipo") return <IposPanel data={ipos ?? null} />;
 
   if (!data) {
     return (
@@ -471,6 +482,159 @@ function BuybacksPanel({ data }: { data: BuybacksPayload | null }) {
                   {row.priceCap == null ? "—" : `${row.priceCap} 元`}
                 </td>
                 <td className={tdClass("text-left text-xs text-muted")}>{row.latestNotice || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {data.bad > 0 ? <GapList items={[`${data.bad} 行解析不出来，已跳过`]} /> : null}
+    </Panel>
+  );
+}
+
+/**
+ * 股权质押面板。
+ *
+ * 口径三条：
+ * 1. **中国结算周频**（通常周五），所以「数据截至」是上周某天，不是今天。
+ * 2. **只覆盖沪深**——北交所票不在这张表里，页面写明，别让人以为北交所没质押。
+ * 3. 按质押比例降序（风险高的在前）；比例为 null 的排最后，不拿 0 打头。
+ */
+function PledgesPanel({ data }: { data: PledgesPayload | null }) {
+  if (!data || data.why) {
+    return (
+      <Panel title="股权质押" note={data?.why ? "拉取失败" : "没拉到"}>
+        <StateBlock kind="empty" title="没拉到股权质押" hint={data?.why ?? "接口没响应，刷新重试。" } />
+      </Panel>
+    );
+  }
+  const rows = data.rows;
+  const highRisk = rows.filter((r) => (r.pledgeRatio ?? 0) >= 5).length;
+  return (
+    <Panel title="股权质押（中国结算 · 经东财）" note={`统计日 ${data.asOf ?? "?"} · ${rows.length} 只`}>
+      <div className="grid grid-cols-2 gap-3 px-3.5 py-3 sm:grid-cols-4">
+        <Stat label="覆盖股票" value={rows.length} hint="只含沪深" />
+        <Stat label="质押比例 ≥5%" value={highRisk} hint="比例越高风险越大" tone="text-down" />
+        <Stat
+          label="最高质押比例"
+          value={rows[0]?.pledgeRatio == null ? "—" : `${rows[0]!.pledgeRatio}%`}
+          hint="本表第一位"
+        />
+        <Stat label="发布频率" value="周频" hint="中国结算通常周五发布" />
+      </div>
+
+      <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+        <strong>周频数据</strong>——中国结算通常周五发布，所以「数据截至」是上周某天，不是今天。<br />
+        <strong>只覆盖沪深</strong>：北交所的票不在这张表里，不是「北交所没有质押」。<br />
+        质押比例 = 质押股数占总股本 %。<strong>比例高本身不是坏事，但连续大跌时是风险放大器</strong>——
+        这里只摆数字，判断留给你。
+      </p>
+
+      {rows.length === 0 ? (
+        <p className="px-3.5 py-6 text-sm text-muted">这个统计日没有数据。</p>
+      ) : (
+        <table className="w-full">
+          <caption className="sr-only">股权质押：名称、行业、质押比例、质押市值、质押笔数</caption>
+          <thead>
+            <tr className="border-t border-line text-xs text-muted">
+              <th className={thClass("text-left")}>名称</th>
+              <th className={thClass("text-left")}>行业</th>
+              <th className={thClass()}>质押比例</th>
+              <th className={thClass()}>质押市值（万元）</th>
+              <th className={thClass()}>质押笔数</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} className="border-t border-line/60">
+                <td className={tdClass("text-left")}>
+                  <StockName id={row.id} name={row.name} source="flow" />
+                  <div className="text-[10px] text-muted">{row.code}</div>
+                </td>
+                <td className={tdClass("text-left text-xs text-muted")}>{row.industry ?? "—"}</td>
+                <td className={tdClass("text-right tabular-nums " + ((row.pledgeRatio ?? 0) >= 5 ? "text-down" : ""))}>
+                  {row.pledgeRatio == null ? "—" : `${row.pledgeRatio}%`}
+                </td>
+                <td className={tdClass("text-right tabular-nums text-muted")}>
+                  {row.pledgeMktCap == null ? "—" : row.pledgeMktCap.toLocaleString("zh-CN")}
+                </td>
+                <td className={tdClass("text-right tabular-nums text-muted")}>{row.pledgeCount ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {data.bad > 0 ? <GapList items={[`${data.bad} 行解析不出来，已跳过`]} /> : null}
+    </Panel>
+  );
+}
+
+/**
+ * 新股申购面板。
+ *
+ * 口径三条：
+ * 1. **发行价定价前是 null**（东财填 null 或 0，0 不是「免费」）。
+ * 2. **板块取 MARKET，北交所新股只有 MARKET_TYPE_NEW 有值**——后者会把未上市的
+ *    标成「XX其他」，所以前者优先、后者兜底。
+ * 3. 中签率未公布是 null 不是 0；上市日未定显示「未上市」。
+ */
+function IposPanel({ data }: { data: IposPayload | null }) {
+  if (!data || data.why) {
+    return (
+      <Panel title="新股申购" note={data?.why ? "拉取失败" : "没拉到"}>
+        <StateBlock kind="empty" title="没拉到新股日历" hint={data?.why ?? "接口没响应，刷新重试。"} />
+      </Panel>
+    );
+  }
+  const rows = data.rows;
+  return (
+    <Panel title="新股申购日历（东财）" note={`${rows.length} 只（含未申购的排期）`}>
+      <p className="border-b border-line px-3.5 py-2 text-[11px] text-muted">
+        <strong>发行价「—」= 还没定价</strong>（不是免费）。板块优先取交易所准确分类，
+        北交所新股取的是兜底字段。中签率要申购结束后才公布。<strong>只列日历事实，
+        不打新建议</strong>——破发不破发谁说了都不算。
+      </p>
+
+      {rows.length === 0 ? (
+        <p className="px-3.5 py-6 text-sm text-muted">当前没有新股排期。</p>
+      ) : (
+        <table className="w-full">
+          <caption className="sr-only">新股申购：名称、板块、行业、申购日、发行价、市盈率、顶格市值、中签率</caption>
+          <thead>
+            <tr className="border-t border-line text-xs text-muted">
+              <th className={thClass("text-left")}>名称</th>
+              <th className={thClass("text-left")}>板块</th>
+              <th className={thClass("text-left")}>申购日</th>
+              <th className={thClass()}>发行价</th>
+              <th className={thClass()}>发行 PE</th>
+              <th className={thClass()}>顶格市值</th>
+              <th className={thClass()}>中签率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`${row.id}-${row.applyDate}`} className="border-t border-line/60">
+                <td className={tdClass("text-left")}>
+                  <StockName id={row.id} name={row.name} source="flow" />
+                  <div className="text-[10px] text-muted">{row.industry ?? "—"}</div>
+                </td>
+                <td className={tdClass("text-left text-xs text-muted")}>{row.board ?? "—"}</td>
+                <td className={tdClass("text-left text-muted")}>{row.applyDate || "—"}</td>
+                <td className={tdClass("text-right tabular-nums text-muted")}>
+                  {row.issuePrice == null ? "未定价" : `${row.issuePrice} 元`}
+                </td>
+                <td className={tdClass("text-right tabular-nums text-muted")}>
+                  {row.issuePe == null ? "—" : row.issuePe}
+                  {row.industryPe != null ? <span className="text-[10px]">（行业 {row.industryPe}）</span> : null}
+                </td>
+                <td className={tdClass("text-right tabular-nums text-muted")}>
+                  {row.topApplyMktCap == null ? "—" : `${row.topApplyMktCap} 万`}
+                </td>
+                <td className={tdClass("text-right tabular-nums text-muted")}>
+                  {row.winRate == null ? "未公布" : `${row.winRate}%`}
+                </td>
               </tr>
             ))}
           </tbody>

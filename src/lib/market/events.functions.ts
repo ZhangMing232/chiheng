@@ -18,6 +18,8 @@ import {
   parseBuybacks,
   parseForecast,
   parseHolderTrades,
+  parseIpos,
+  parsePledges,
   parseSurveys,
   type Buyback,
   type ForecastRow,
@@ -251,6 +253,70 @@ export const getBuybacks = createServerFn({ method: "GET" })
       });
       if (why) return { ...empty, why };
       const parsed = parseBuybacks(raw);
+      if (parsed.rows.length === 0) return { ...empty, why: `认出 0 行有效数据（${parsed.bad} 行坏行）` };
+      return { rows: parsed.rows, bad: parsed.bad, why: null };
+    } catch (error) {
+      return { ...empty, why: `没拉到：${error instanceof Error ? error.message : String(error)}` };
+    }
+  });
+
+/** 股权质押（中国结算每周统计，经东财；只覆盖沪深，**排序字段是 TRADE_DATE**）。 */
+export const getPledges = createServerFn({ method: "GET" })
+  .validator((input: unknown): { limit: number } => {
+    const v = (input ?? {}) as Record<string, unknown>;
+    const n = typeof v.limit === "number" ? v.limit : 80;
+    return { limit: Math.max(10, Math.min(300, Math.round(n))) };
+  })
+  .handler(async ({ data }): Promise<{
+    rows: import("./events.ts").Pledge[];
+    bad: number;
+    why: string | null;
+    /** 统计日（周频，全表同一个日期） */
+    asOf: string | null;
+  }> => {
+    const empty = { rows: [], bad: 0, why: null as string | null, asOf: null as string | null };
+    try {
+      // **排序字段必须是 TRADE_DATE**：这张表没有 NOTICE_DATE 字段，拿它排序东财
+      // 直接返回 9501「排序列不存在」（10-15 白探一轮就是这个原因）。
+      const { rows: raw, why } = await fetchEvent({
+        report: "RPT_CSDC_LIST",
+        sortColumns: "TRADE_DATE,SECURITY_CODE",
+        sortTypes: "-1,1",
+        limit: data.limit,
+      });
+      if (why) return { ...empty, why };
+      const parsed = parsePledges(raw);
+      if (parsed.rows.length === 0) return { ...empty, why: `认出 0 行有效数据（${parsed.bad} 行坏行）` };
+      return { rows: parsed.rows, bad: parsed.bad, why: null, asOf: parsed.rows[0]?.date ?? null };
+    } catch (error) {
+      return { ...empty, why: `没拉到：${error instanceof Error ? error.message : String(error)}` };
+    }
+  });
+
+/** 新股申购日历（沪深京，含尚未申购的排期）。 */
+export const getIpos = createServerFn({ method: "GET" })
+  .validator((input: unknown): { limit: number } => {
+    const v = (input ?? {}) as Record<string, unknown>;
+    const n = typeof v.limit === "number" ? v.limit : 40;
+    return { limit: Math.max(10, Math.min(200, Math.round(n))) };
+  })
+  .handler(async ({ data }): Promise<{
+    rows: import("./events.ts").IpoItem[];
+    bad: number;
+    why: string | null;
+  }> => {
+    const empty = { rows: [], bad: 0, why: null as string | null };
+    try {
+      // 排序两字段（申购日 + 代码）：一张表里同一证券可能出现多次（旧新股记录），
+      // 只按 APPLY_DATE 排会有并列——skill 原文的排序就是这两级。
+      const { rows: raw, why } = await fetchEvent({
+        report: "RPTA_APP_IPOAPPLY",
+        sortColumns: "APPLY_DATE,SECURITY_CODE",
+        sortTypes: "-1,-1",
+        limit: data.limit,
+      });
+      if (why) return { ...empty, why };
+      const parsed = parseIpos(raw);
       if (parsed.rows.length === 0) return { ...empty, why: `认出 0 行有效数据（${parsed.bad} 行坏行）` };
       return { rows: parsed.rows, bad: parsed.bad, why: null };
     } catch (error) {

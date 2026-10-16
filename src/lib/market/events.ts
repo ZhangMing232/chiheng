@@ -381,3 +381,137 @@ export function buybackTone(progressCode: string): "positive" | "negative" | nul
   if (progressCode === "003" || progressCode === "005") return "negative";
   return null; // 001/002 只是流程节点，007/008 认不出
 }
+
+// ── 股权质押（东财 RPT_CSDC_LIST，中国结算周频）────────────────────────
+//
+// 实测 2026-10-16：TRADE_DATE=2026-10-09（上周五，**周频**），信通电子（001388）
+// 质押比例 0.23%、质押市值 1063.26 万元。
+//
+// ⚠️ **排序字段是 TRADE_DATE 不是 NOTICE_DATE**——10-15 我拿 NOTICE_DATE 探，
+//    东财直接返回 9501「排序列不存在」，白探了一轮。
+// ⚠️ **只覆盖沪深**（skill 实测全市场 2212 条没有北交所），北交所票不会出现在
+//    这张表里——页面显示「只有沪深」而不是让人以为北交所没质押。
+
+export type Pledge = {
+  /** 统计日（中国结算按周发布，通常周五）YYYY-MM-DD */
+  date: string;
+  id: string;
+  code: string;
+  name: string;
+  /** 行业（东财行业分类） */
+  industry: string | null;
+  /** 质押股数占总股本 % */
+  pledgeRatio: number | null;
+  /** 质押市值（万元） */
+  pledgeMktCap: number | null;
+  /** 质押笔数 */
+  pledgeCount: number | null;
+};
+
+export function parsePledges(rows: readonly Record<string, unknown>[]): { rows: Pledge[]; bad: number } {
+  const out: Pledge[] = [];
+  let bad = 0;
+  for (const raw of rows) {
+    const code = typeof raw.SECURITY_CODE === "string" ? raw.SECURITY_CODE.trim() : "";
+    const name = typeof raw.SECURITY_NAME_ABBR === "string" ? raw.SECURITY_NAME_ABBR.trim() : "";
+    if (!/^\d{6}$/.test(code) || !name) {
+      bad += 1;
+      continue;
+    }
+    const secucode = typeof raw.SECUCODE === "string" ? raw.SECUCODE : "";
+    const prefix = secucode.includes(".SZ") ? "sz" : secucode.includes(".BJ") ? "bj" : "sh";
+    out.push({
+      date: date(raw.TRADE_DATE),
+      id: `${prefix}${code}`,
+      code,
+      name,
+      industry: typeof raw.INDUSTRY === "string" && raw.INDUSTRY ? raw.INDUSTRY : null,
+      pledgeRatio: num(raw.PLEDGE_RATIO),
+      pledgeMktCap: num(raw.PLEDGE_MARKET_CAP),
+      pledgeCount: num(raw.PLEDGE_DEAL_NUM),
+    });
+  }
+  // 质押比例降序（风险高的在前）。null 排最后——不拿 0 当「没质押」，也不拿它打头。
+  const ratio = (p: Pledge): number => p.pledgeRatio ?? -1;
+  out.sort((a, b) => ratio(b) - ratio(a) || a.code.localeCompare(b.code));
+  return { rows: out, bad };
+}
+
+// ── 新股申购日历（东财 RPTA_APP_IPOAPPLY）─────────────────────────────
+//
+// 实测 2026-10-16：皇冠新材，橡胶和塑料制品业，顶格申购需配市值 13.5 万元，
+// 发行市盈率 25.87 / 行业 27.65。
+//
+// ⚠️ **板块取 MARKET || MARKET_TYPE_NEW**：前者是「深交所主板/创业板」这类准确
+//    板块；后者会把未上市的标成「深交所其他」，**但北交所新股只有后者有值**
+//    （skill 原文，实测皇冠新材是深交所）。
+// ⚠️ **issue_price 定价前是 null 或 0**——0 不是「免费」，要当 null。
+
+export type IpoItem = {
+  id: string;
+  code: string;
+  name: string;
+  /** 申购代码（和证券代码不同） */
+  applyCode: string | null;
+  board: string | null;
+  industry: string | null;
+  applyDate: string;
+  /** 中签号公布日 */
+  ballotDate: string;
+  /** 缴款日 */
+  payDate: string;
+  /** 上市日（未上市为 null） */
+  listingDate: string;
+  /** 发行价（元）；定价前为 null */
+  issuePrice: number | null;
+  /** 发行市盈率 / 行业市盈率 */
+  issuePe: number | null;
+  industryPe: number | null;
+  /** 顶格申购需配市值（万元） */
+  topApplyMktCap: number | null;
+  /** 网上中签率 %（未公布为 null） */
+  winRate: number | null;
+};
+
+export function parseIpos(rows: readonly Record<string, unknown>[]): { rows: IpoItem[]; bad: number } {
+  const out: IpoItem[] = [];
+  let bad = 0;
+  for (const raw of rows) {
+    const code = typeof raw.SECURITY_CODE === "string" ? raw.SECURITY_CODE.trim() : "";
+    const name = typeof raw.SECURITY_NAME === "string" ? raw.SECURITY_NAME.trim() : "";
+    if (!/^\d{6}$/.test(code) || !name) {
+      bad += 1;
+      continue;
+    }
+    const secucode = typeof raw.SECUCODE === "string" ? raw.SECUCODE : "";
+    const prefix = secucode.includes(".SZ") ? "sz" : secucode.includes(".BJ") ? "bj" : "sh";
+    const price = num(raw.ISSUE_PRICE);
+    // MARKET（准确板块）优先；北交所新股只有 MARKET_TYPE_NEW 有值，回退取它。
+    // ⚠️ 不能写 `a ?? b` 直接嵌在对象字面量里和三目混用——node 的 strip-types
+    // 对 ?? 和三目/算术混用要求显式括号（2026-10-16 实测报
+    // "Nullish coalescing operator requires parens when mixing"）。
+    let board: string | null = null;
+    if (typeof raw.MARKET === "string" && raw.MARKET) board = raw.MARKET;
+    else if (typeof raw.MARKET_TYPE_NEW === "string" && raw.MARKET_TYPE_NEW) board = raw.MARKET_TYPE_NEW;
+    out.push({
+      id: `${prefix}${code}`,
+      code,
+      name,
+      applyCode: typeof raw.APPLY_CODE === "string" && raw.APPLY_CODE ? raw.APPLY_CODE : null,
+      board,
+      industry: typeof raw.INDUSTRY_NAME === "string" && raw.INDUSTRY_NAME ? raw.INDUSTRY_NAME : null,
+      applyDate: date(raw.APPLY_DATE),
+      ballotDate: date(raw.BALLOT_NUM_DATE),
+      payDate: date(raw.BALLOT_PAY_DATE),
+      listingDate: date(raw.LISTING_DATE),
+      // 0 不是「免费」：定价前东财填 null 或 0，都当没定价
+      issuePrice: price != null && price > 0 ? price : null,
+      issuePe: num(raw.AFTER_ISSUE_PE),
+      industryPe: num(raw.INDUSTRY_PE),
+      topApplyMktCap: num(raw.TOP_APPLY_MARKETCAP),
+      winRate: num(raw.ONLINE_ISSUE_LWR),
+    });
+  }
+  out.sort((a, b) => b.applyDate.localeCompare(a.applyDate) || a.code.localeCompare(b.code));
+  return { rows: out, bad };
+}
