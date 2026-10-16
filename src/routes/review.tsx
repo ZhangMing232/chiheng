@@ -16,6 +16,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { CollapsibleSection } from "@/components/collapsible";
 import { StateBlock } from "@/components/state-block";
 import { Panel, Stat, pctClass } from "@/components/terminal";
 import { signedPct, fmtWan } from "@/lib/market/format";
@@ -175,7 +176,23 @@ function Review() {
             <StateBlock kind="empty" title="资金数据暂时拉不到" hint="东财资金接口超时或限流，刷新重试。" />
           </Panel>
         )}
-        <MacroPanel macro={macro} pmi={pmi} lpr={lpr} social={social} />
+        {/* 宏观是月频慢数据，和每日复盘节奏不同——默认折起来，要看出处再点开。
+            2026-10-16 页面整理：慢数据不和每日数据混在同一屏。 */}
+        <CollapsibleSection
+          storageKey="ch-collapse-review-macro"
+          defaultOpen={false}
+          headerClassName="bg-surface-2"
+          header={
+            <>
+              <h2 className="text-sm font-medium">宏观水温（月频慢数据）</h2>
+              <p className="text-xs text-muted">国债收益率 · PMI · LPR · 社融 —— 不天天变，点开看</p>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3 px-3.5 py-3">
+            <MacroPanel macro={macro} pmi={pmi} lpr={lpr} social={social} />
+          </div>
+        </CollapsibleSection>
 
         {marketLines.length > 0 ? (
           <ul className="flex flex-col gap-1 rounded border border-line bg-surface px-3.5 py-2 text-xs leading-relaxed text-muted">

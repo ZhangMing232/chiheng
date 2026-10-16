@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { CollapsibleSection } from "@/components/collapsible";
 import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { knowledgeFromReport, runResearch, type StageResult } from "@/lib/market/research";
@@ -299,16 +300,19 @@ function ResearchPage() {
  */
 function StageCard({ stage, index, hidden }: { stage: StageResult; index: number; hidden: boolean }) {
   if (hidden) return null;
+  // 2026-10-16 用户要求页面可折叠：七个阶段默认只展开第一段，其余点开看。
+  // 折叠状态记在 localStorage，看过哪段保持哪段。
   return (
-    <Panel
-      id={`stage-${stage.id}`}
-      title={
-        <span className="flex items-baseline gap-2">
+    <CollapsibleSection
+      storageKey={`ch-collapse-research-${stage.id}`}
+      defaultOpen={index === 0}
+      header={
+        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="text-xs font-normal text-muted tabular-nums">{String(index + 1).padStart(2, "0")}</span>
-          {stage.title}
+          <span className="text-sm font-medium">{stage.title}</span>
+          <span className="text-xs text-muted">{stage.question}</span>
         </span>
       }
-      note={<span className="text-xs text-muted">{stage.question}</span>}
     >
       {stage.evidence.length > 0 ? (
         <Table caption={`${stage.title}阶段的证据`}>
@@ -371,6 +375,6 @@ function StageCard({ stage, index, hidden }: { stage: StageResult; index: number
           </ul>
         </div>
       ) : null}
-    </Panel>
+    </CollapsibleSection>
   );
 }

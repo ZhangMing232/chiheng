@@ -30,6 +30,7 @@ import { shanghaiDate } from "@/lib/market/session";
 import { getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
 import type { Challenger } from "@/lib/market/challenger";
 import { CollapsibleSection } from "@/components/collapsible";
+import { PageTabs } from "@/components/page-tabs";
 import { usePaper, type PaperDay } from "@/lib/paper";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import type { Universe } from "@/lib/market/types";
@@ -203,36 +204,54 @@ function ChallengerPanel({
 }) {
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
   const runningCount = list.filter((c) => c.status === "running").length;
+  // 失效的（已淘汰/停跑）不和在跑的混排——用户 2026-10-16：失效的东西单独放。
+  const alive = list.filter((c) => c.status === "running" || c.status === "promoted");
+  const dead = list.filter((c) => c.status === "rejected" || c.status === "inconclusive");
+  const renderRow = (c: Challenger) => {
+    const st = CHAL_STATUS[c.status];
+    const isChampion = champions[c.style] === c.id;
+    return (
+      <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+        <span className={`shrink-0 ${st.className}`}>{st.label}</span>
+        <span className="font-medium">
+          {c.name}
+          {isChampion ? <span className="ml-1 text-[10px] text-brand-text">现任冠军</span> : null}
+        </span>
+        <span className="text-muted">
+          {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
+          {c.targetPct ?? "沿用冠军"}%
+        </span>
+        {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
+      </li>
+    );
+  };
   return (
     <Panel
       title="冠军-挑战者"
       note={`${runningCount} 个在跑 · 转正要 Welch t ≥ 1.5（30 笔）`}
       bodyClassName="px-3 py-2"
     >
-      {list.length > 0 ? (
-        <ul className="space-y-1">
-          {list.map((c) => {
-            const st = CHAL_STATUS[c.status];
-            const isChampion = champions[c.style] === c.id;
-            return (
-              <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
-                <span className={`shrink-0 ${st.className}`}>{st.label}</span>
-                <span className="font-medium">
-                  {c.name}
-                  {isChampion ? <span className="ml-1 text-[10px] text-brand-text">现任冠军</span> : null}
-                </span>
-                <span className="text-muted">
-                  {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
-                  {c.targetPct ?? "沿用冠军"}%
-                </span>
-                {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
-              </li>
-            );
-          })}
-        </ul>
+      {alive.length > 0 ? (
+        <ul className="space-y-1">{alive.map(renderRow)}</ul>
       ) : (
-        <p className="text-xs text-muted">还没有挑战者。AI 可以读策略闸和判决记录后提名，也可以手工编辑 data/challengers.json。</p>
+        <p className="text-xs text-muted">还没有在跑的挑战者。AI 可以读策略闸和判决记录后提名，也可以手工编辑 data/challengers.json。</p>
       )}
+      {dead.length > 0 ? (
+        <CollapsibleSection
+          className="mt-2"
+          storageKey="ch-collapse-dead-challengers"
+          defaultOpen={false}
+          headerClassName="bg-surface-2"
+          header={
+            <>
+              <h2 className="text-xs font-medium">已出结果（不再在跑）</h2>
+              <p className="text-[11px] text-muted">{dead.length} 个 · 淘汰或停跑，记录保留</p>
+            </>
+          }
+        >
+          <ul className="space-y-1 px-3 py-2">{dead.map(renderRow)}</ul>
+        </CollapsibleSection>
+      ) : null}
       <p className="mt-2 border-t border-line pt-2 text-xs">
         <Link to="/ai" className="text-brand hover:underline">
           AI 提名挑战者、配接口 → AI 管理页
@@ -397,19 +416,8 @@ function Positions() {
     });
   }, [scored]);
 
-  return (
-    <Frame
-      wide
-      aside={
-        <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
-          <span className="text-fg">持仓</span>
-          <span className="tabular-nums">{date}</span>
-          <AccountStatus personal={journal.personal} why={journal.why} />
-          <DataStatusBadge universe={universe} now={now} onRefresh={() => window.location.reload()} />
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-2">
+  const holdTab = (
+    <div className="flex flex-col gap-2">
         {/* 合计用一格一格的排法：分隔线是 1px 的 gap 垫出来的（gap-px + bg-line），
             不加阴影。和「资金」页概览、策略卡同一套版式。 */}
         <Panel
@@ -446,70 +454,6 @@ function Positions() {
             className="bg-surface"
           />
         </Panel>
-
-        <ChallengerPanel list={chal} champions={champions} />
-
-        {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
-            不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}
-        {nav.length >= 2 ? (
-          <Panel
-            title="净值曲线"
-            note={
-              <span className="flex items-center gap-3">
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-fg" aria-hidden /> 策略净值</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-muted" aria-hidden /> 沪深300</span>
-              </span>
-            }
-            bodyClassName="px-3 py-3"
-          >
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={nav} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10, fill: "var(--color-muted)" }}
-                    tickLine={false}
-                    axisLine={false}
-                    minTickGap={48}
-                    tickFormatter={(d: string) => d.slice(5)}
-                  />
-                  <YAxis
-                    domain={["dataMin", "dataMax"]}
-                    tick={{ fontSize: 10, fill: "var(--color-muted)" }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={48}
-                    tickFormatter={(v: number) => `${((v - 1) * 100).toFixed(1)}%`}
-                  />
-                  <Tooltip
-                    contentStyle={{ background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: 6, fontSize: 12 }}
-                    labelStyle={{ color: "var(--color-muted)" }}
-                    formatter={(value, name) => [
-                      typeof value === "number" ? `${((value - 1) * 100).toFixed(2)}%` : "—",
-                      name,
-                    ]}
-                  />
-                  <Line type="monotone" dataKey="nav" name="策略净值" stroke="var(--color-fg)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="benchmark" name="沪深300" stroke="var(--color-muted)" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="border-t border-line pt-2 text-xs leading-relaxed text-muted">
-              策略净值 = 1 + 全部逐笔收益的平均（已平仓按卖出价、持仓按收盘现价）；沪深300 对首个记录交易日归一。每个收盘记一个点，由记账进程写入。
-            </p>
-          </Panel>
-        ) : (
-          <Panel title="净值曲线">
-            <StateBlock
-              kind="empty"
-              title="净值曲线从今天开始沉淀"
-              hint="每个收盘记一个点：策略净值是全部逐笔收益的平均，对照沪深300。攒够两个交易日自动出图，数据由记账进程写入，这里不估算。"
-            />
-          </Panel>
-        )}
-
-        {/* 体检图放在净值曲线下面：先看见「跑得怎么样」，再展开看「为什么」。 */}
-        <XrayPanel groups={sortedGroups} openRows={rows.filter((row) => row.exit == null)} />
 
         {urgent.length > 0 ? (          <Panel
             title={
@@ -613,7 +557,81 @@ function Positions() {
             交易日（signalTime ≥ 15:00），按口径整天不进统计。持仓列表照常显示它们的盈亏。
           </p>
         ) : null}
+    </div>
+  );
 
+  {/* 体检 tab：当前状态——挑战者赛马、净值曲线、持仓结构。 */}
+  const checkTab = (
+    <div className="flex flex-col gap-2">
+        <ChallengerPanel list={chal} champions={champions} />
+
+        {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
+            不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}
+        {nav.length >= 2 ? (
+          <Panel
+            title="净值曲线"
+            note={
+              <span className="flex items-center gap-3">
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-fg" aria-hidden /> 策略净值</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-muted" aria-hidden /> 沪深300</span>
+              </span>
+            }
+            bodyClassName="px-3 py-3"
+          >
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={nav} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={48}
+                    tickFormatter={(d: string) => d.slice(5)}
+                  />
+                  <YAxis
+                    domain={["dataMin", "dataMax"]}
+                    tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    tickFormatter={(v: number) => `${((v - 1) * 100).toFixed(1)}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: 6, fontSize: 12 }}
+                    labelStyle={{ color: "var(--color-muted)" }}
+                    formatter={(value, name) => [
+                      typeof value === "number" ? `${((value - 1) * 100).toFixed(2)}%` : "—",
+                      name,
+                    ]}
+                  />
+                  <Line type="monotone" dataKey="nav" name="策略净值" stroke="var(--color-fg)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="benchmark" name="沪深300" stroke="var(--color-muted)" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="border-t border-line pt-2 text-xs leading-relaxed text-muted">
+              策略净值 = 1 + 全部逐笔收益的平均（已平仓按卖出价、持仓按收盘现价）；沪深300 对首个记录交易日归一。每个收盘记一个点，由记账进程写入。
+            </p>
+          </Panel>
+        ) : (
+          <Panel title="净值曲线">
+            <StateBlock
+              kind="empty"
+              title="净值曲线从今天开始沉淀"
+              hint="每个收盘记一个点：策略净值是全部逐笔收益的平均，对照沪深300。攒够两个交易日自动出图，数据由记账进程写入，这里不估算。"
+            />
+          </Panel>
+        )}
+
+        {/* 体检图放在净值曲线下面：先看见「跑得怎么样」，再展开看「为什么」。 */}
+        <XrayPanel groups={sortedGroups} openRows={rows.filter((row) => row.exit == null)} />
+    </div>
+  );
+
+  {/* 战绩 tab：回头看的统计——历史战绩、按策略归因、口径说明。 */}
+  const recordTab = (
+    <div className="flex flex-col gap-2">
         <Panel title="历史战绩" note={<span>{closed.length === 0 ? "还没有卖出" : `${closed.length} 笔已卖`}</span>}>
           <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
             <Stat
@@ -683,7 +701,33 @@ function Positions() {
           金额是名义金额：这套模拟盘不记仓位大小、每笔按满仓记，所以这里按每笔一手（100 股）折算，不是投入的钱。
           收益率已扣佣金和印花税，汇总是每笔收益率相加，不是按金额加权。
         </p>
-      </div>
+    </div>
+  );
+
+  return (
+    <Frame
+      wide
+      aside={
+        <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
+          <span className="text-fg">持仓</span>
+          <span className="tabular-nums">{date}</span>
+          <AccountStatus personal={journal.personal} why={journal.why} />
+          <DataStatusBadge universe={universe} now={now} onRefresh={() => window.location.reload()} />
+        </div>
+      }
+    >
+      <PageTabs
+        storageKey="chiheng-pos-tab"
+        tabs={[
+          {
+            key: "hold",
+            label: urgent.length > 0 ? `持仓 · 需处理 ${urgent.length}` : "持仓",
+            content: holdTab,
+          },
+          { key: "check", label: "体检", content: checkTab },
+          { key: "record", label: "战绩", content: recordTab },
+        ]}
+      />
     </Frame>
   );
 }
