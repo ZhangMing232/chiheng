@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   LineChart,
   ListFilter,
+  Menu,
   Newspaper,
   NotebookPen,
   RefreshCw,
@@ -593,29 +594,64 @@ function AlertBell() {
   );
 }
 
-/** 窄屏用的页签条。桌面端主导航在左侧边栏，这个只在 768px 以下出现。 */
-export function TopNav() {
+/** 窄屏主导航：一个「当前页 ▾」按钮，点开是和桌面侧边栏**同一组数据**的分组菜单
+ *  （2026-10-16 用户反馈：原来摊平成一排 19 个页签，又占地方又看不出层级）。
+ *  换页自动收起；数据直接复用 SIDEBAR，两处永不打架。 */
+export function MobileNav() {
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const items = SIDEBAR.flatMap((group) => group.items);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(false);
+  }, [path]);
+  const hit = navHit(path);
   return (
-    <nav className="flex w-full gap-0.5 overflow-x-auto scroll-slim px-3 pb-2" aria-label="页面">
-      {items.map((link) => (
-        <Link
-          key={link.to}
-          to={link.to}
-          className={
-            "nav-tab inline-flex shrink-0 items-center rounded text-sm " +
-            // aria-current 给读屏器；视觉上靠 surface-2 那块垫底
-            (path === link.to
-              ? "bg-surface-2 font-medium text-fg"
-              : "text-muted hover:bg-surface-2 hover:text-fg")
-          }
-          aria-current={path === link.to ? "page" : undefined}
-        >
-          {link.label}
-        </Link>
-      ))}
-    </nav>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="页面菜单"
+        className="nav-tab inline-flex items-center gap-1.5 rounded text-sm"
+      >
+        <Menu className="size-3.5" aria-hidden />
+        <span className="font-medium">{hit?.label ?? "菜单"}</span>
+        <ChevronDown className={"size-3 transition-transform " + (open ? "" : "-rotate-90")} aria-hidden />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-40 mt-1 max-h-[70vh] w-60 overflow-y-auto scroll-slim rounded border border-line bg-surface shadow-pop">
+          {SIDEBAR.map((group) => (
+            <div key={group.label} className="border-b border-line/60 last:border-0">
+              <p className="px-3 pt-2.5 pb-0.5 text-[10px] tracking-widest text-muted">{group.label}</p>
+              {group.items.map((item) => {
+                const active = path === item.to;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    aria-current={active ? "page" : undefined}
+                    className={
+                      "flex items-center gap-2 px-3 py-2 text-sm " +
+                      (active ? "bg-brand-soft font-medium text-brand-text" : "text-muted hover:bg-surface-2 hover:text-fg")
+                    }
+                  >
+                    <Icon className="size-3.5 shrink-0" aria-hidden />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+          <Link
+            to="/ai"
+            className="flex items-center gap-2 bg-brand-soft px-3 py-2.5 text-sm font-medium text-brand-text"
+          >
+            <Sparkles className="size-3.5 shrink-0" aria-hidden />
+            接入 AI
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -682,8 +718,8 @@ export function Frame({
               </details>
             </div>
           </div>
-          <div className="md:hidden">
-            <TopNav />
+          <div className="px-3 pb-2 md:hidden">
+            <MobileNav />
           </div>
           {aside || extra ? (
             <div className="px-3 pb-2 md:px-4">
