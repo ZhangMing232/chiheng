@@ -9,6 +9,7 @@
  * - 用环境变量 CHIHENG_GATE_PASS 启用：**不设 = 完全不启用**（本机现状不变）。
  *   设置后所有非回环（127.0.0.1 / ::1）请求都要先过闸门。
  * - 回环请求豁免：本机脚本、冒烟测试（scripts/smoke-test.mjs）不受影响。
+ *   注意 Cloudflare Tunnel 的回环连接会带 cf-connecting-ip，按真实访客 IP 判，不豁免。
  * - Cookie 值 = 签发时间戳 + HMAC-SHA256，HMAC 密钥派生自口令本身；
  *   不保存口令明文，改口令即刻全部门禁失效。恒时比较防时序探测。
  * - 登录页完全自包含（内联样式、零外链资源），静态资源也一道闸门挡着，
@@ -59,7 +60,11 @@ function cookieValid(value: string | undefined, pass: string): boolean {
 }
 
 function isLoopback(event: GateEvent): boolean {
-  const ip = event.node?.req?.socket?.remoteAddress ?? "";
+  // Cloudflare Tunnel 场景：cloudflared 从本机回环转发请求，socket 上的 remoteAddress
+  // 是 127.0.0.1，但会原样带上 cf-connecting-ip（真实访客 IP）。此时必须按 cf-connecting-ip
+  // 判定，否则走隧道的公网请求会被误豁免、口令形同虚设。
+  const cfIp = event.req.headers.get("cf-connecting-ip");
+  const ip = (cfIp ?? event.node?.req?.socket?.remoteAddress ?? "").trim();
   return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip.endsWith("127.0.0.1");
 }
 
