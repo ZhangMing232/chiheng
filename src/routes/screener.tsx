@@ -10,17 +10,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Screener } from "@/components/screener/screener";
 import { sessionPhase } from "@/lib/market/session";
 import type { IndexQuote } from "@/lib/market/types";
-import { getIndices, getPrefs, getRecorder, getRules, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
+import { getIndices, getPrefs, getRecorder, getRules, getServerJournal } from "@/lib/market/quotes.functions";
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import { DEFAULT_PREFS } from "@/lib/market/prefs";
 
-/** 首页路由。进页面之前把选股要的数据一次取好；失败就用空数据加一句说明。 */
+/** 首页路由。进页面之前把选股要的数据一次取好；失败就用空数据加一句说明。
+ *  注意：全市场快照（~5300 只、1.2MB）刻意不进 SSR——手机端解析会卡死主线程。
+ *  首屏先渲染外壳，universe 由组件挂载后客户端拉（screener.tsx 的 refresh）。 */
 export const Route = createFileRoute("/screener")({
   loader: async () => {
     const phase = sessionPhase();
     try {
-      const [universe, indices, journal, rules, prefs, recorder] = await Promise.all([
-        getUniverse({ data: { refresh: false } }),
+      const [indices, journal, rules, prefs, recorder] = await Promise.all([
         getIndices(),
         getServerJournal(),
         getRules(),
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/screener")({
         getRecorder(),
       ]);
       return {
-        universe,
+        universe: null,
         indices,
         journal: journal.days,
         personal: journal.personal,
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/screener")({
         rules,
         prefs,
         recorder,
-        error: universe.stale ? "行情源不稳定，先显示上一轮数据" : null,
+        error: null,
         phase,
       };
     } catch (error) {

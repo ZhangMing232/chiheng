@@ -95,6 +95,12 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     }
   }, []);
 
+  // universe 刻意不走 SSR（全量 ~1.2MB 会把手机端卡死，见 routes/screener.tsx），
+  // 挂载后客户端拉：外壳先出来，名单到了再填。
+  useEffect(() => {
+    if (initial.universe == null) void refresh(false);
+  }, [initial.universe, refresh]);
+
   useEffect(() => {
     const timer = window.setInterval(() => {
       setPhase(sessionPhase());
