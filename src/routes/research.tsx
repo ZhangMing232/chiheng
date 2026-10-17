@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { Frame } from "@/components/screener/nav";
 import { CollapsibleSection } from "@/components/collapsible";
 import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
@@ -44,46 +45,45 @@ import type { StockArticle } from "@/lib/market/news";
  * **AI 挂了不影响这一页**——runAiSynthesis 自己降级成 failed 并带上原因，
  * 七阶段的规则结论照常显示。
  */
-export const Route = createFileRoute("/research")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: typeof search.q === "string" ? search.q.trim().slice(0, 20) : "",
-  }),
-  loaderDeps: ({ search }) => ({ q: search.q }),
-  loader: async ({ deps }) => {
-    if (!deps.q) {
+/**
+ * 研判页数据组装。**只能在服务端跑**（读落盘数据、调 AI、写档案），
+ * 客户端导航时经 RPC 到服务端执行——2026-10-17 之前写在 loader 里，
+ * SPA 导航会让它在浏览器里跑、fs 一调就整页报错（同 /backtest 的教训）。
+ */
+const runResearchPage = createServerFn({ method: "GET" })
+  .validator((q: unknown) => (typeof q === "string" ? q.trim().slice(0, 20) : ""))
+  .handler(async ({ data: q }) => {
+    if (!q) {
       return { q: "", quote: null, articles: [] as StockArticle[], valuation: null, why: null as string | null, ai: null };
     }
     const [news, uni] = await Promise.all([
-      getSymbolNews({ data: { q: deps.q } }).catch(() => null),
+      getSymbolNews({ data: { q } }).catch(() => null),
       getUniverse({ data: { refresh: false } }).catch(() => null),
     ]);
     if (!news) {
-      return { q: deps.q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来", ai: null };
+      return { q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来", ai: null };
     }
     const quote: Quote | null = uni?.quotes.find((row) => row.id === news.picked?.id) ?? null;
+    // 各数据源互不依赖，一次并发全拉上（原来逐个串行 await，每多一个源多一次往返）。
     // 估值历史（PE/PB 分位）来自 baostock 离线脚本，没跑过就是没有——
     // 页面会把它写成「缺口」，不用当日 PE 反推一个假的。
-    const history = quote ? await loadValuationHistory(quote.code).catch(() => null) : null;
+    // 财报比率传 quote.id（sh600519 这种带市场前缀），fundamentals.json 的 byCode 键就是这个格式。
+    const [history, earnings, financials, consensusReports, knowledge, klines, indexKlines, industry] =
+      await Promise.all([
+        quote ? loadValuationHistory(quote.code).catch(() => null) : Promise.resolve(null),
+        quote ? loadEarnings(quote.id).catch(() => null) : Promise.resolve(null),
+        quote ? loadFinancials(quote.id).catch(() => null) : Promise.resolve(null),
+        quote ? fetchConsensusReports(quote.code).catch(() => null) : Promise.resolve(null),
+        quote ? loadKnowledge(quote.id).catch(() => null) : Promise.resolve(null),
+        quote ? loadKlines(quote.id).catch(() => null) : Promise.resolve(null),
+        quote ? loadKlines("sh000300").catch(() => null) : Promise.resolve(null),
+        quote ? loadIndustry().catch(() => null) : Promise.resolve(null),
+      ]);
     const valuation = valuationPosition(history);
-
-    // 财报比率（akshare 落盘的 fundamentals.json）。没跑过脚本就是没有，催化剂阶段写缺口。
-    // 注意传 quote.id（sh600519 这种带市场前缀），fundamentals.json 的 byCode 键就是这个格式
-    const earnings = quote ? await loadEarnings(quote.id).catch(() => null) : null;
-    const financials = quote ? await loadFinancials(quote.id).catch(() => null) : null;
     // 一致预期（D1）：东财研报接口直连，失败/没有就降级成 null，估值阶段写缺口
-    const consensus = quote
-      ? await fetchConsensusReports(quote.code)
-          .then((rs) => (rs ? aggregateConsensus(rs) : null))
-          .catch(() => null)
-      : null;
-    // 旧档案（A5）：研判前读，本次先核对上次的预警；旧结论只当待验证项
-    const knowledge = quote ? await loadKnowledge(quote.id).catch(() => null) : null;
-    const klines = quote ? await loadKlines(quote.id).catch(() => null) : null;
-    // 沪深300日线：事件研究的对照指数（单独一份，不在个股 K 线里）
-    const indexKlines = quote ? await loadKlines("sh000300").catch(() => null) : null;
+    const consensus = consensusReports ? aggregateConsensus(consensusReports) : null;
     // 行业与产业链（D6 分类 + D5 月度温度计）。分类拿不到就只给分类缺口，
     // 月度拿不到就只给月度缺口——两件事分开写，别混成一句「行业数据缺失」。
-    const industry = quote ? await loadIndustry().catch(() => null) : null;
     const boardCode = quote && industry ? finestIndustry(industry, quote.id)[0]?.code ?? null : null;
     const boardMonthly = boardCode ? await loadBoardMonthly(boardCode).catch(() => null) : null;
     const report = runResearch({
@@ -112,8 +112,15 @@ export const Route = createFileRoute("/research")({
       return callAI(cfg, prompt, { layer: "research", trigger: "manual" });
     }, evidenceIds);
 
-    return { q: deps.q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照", report, ai };
-  },
+    return { q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照", report, ai };
+  });
+
+export const Route = createFileRoute("/research")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q.trim().slice(0, 20) : "",
+  }),
+  loaderDeps: ({ search }) => ({ q: search.q }),
+  loader: async ({ deps }) => runResearchPage({ data: deps.q }),
   component: ResearchPage,
 });
 

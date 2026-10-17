@@ -12,5 +12,13 @@ import { routeTree } from "./routeTree.gen";
 
 /** 创建一个路由器。某个页面抛错时，用统一的错误组件显示。 */
 export function getRouter() {
-  return createRouter({ routeTree, defaultErrorComponent: AppErrorComponent });
+  return createRouter({
+    routeTree,
+    defaultErrorComponent: AppErrorComponent,
+    // 30 秒内返回刚看过的页面直接用缓存，不重新拉数据（公网隧道往返贵，反复点来回页面不该每次等）。
+    defaultStaleTime: 30_000,
+    // 手指碰到/鼠标悬停导航链接就预取该页数据，点击时数据已经在了。
+    // 走 Cloudflare Tunnel 时每次往返约 300ms+，预取能把这段时间藏起来。
+    defaultPreload: "intent",
+  });
 }

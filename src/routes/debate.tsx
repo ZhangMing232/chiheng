@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -18,7 +19,7 @@ import { runResearch } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
 import { runDebate, type DebateSide } from "@/lib/market/debate";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
-import { getSymbolNews, loadUniverse } from "@/lib/market/quotes.functions";
+import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 
 export const Route = createFileRoute("/debate")({
@@ -26,15 +27,26 @@ export const Route = createFileRoute("/debate")({
     q: typeof search.q === "string" ? search.q.trim().slice(0, 20) : "",
   }),
   loaderDeps: ({ search }) => ({ q: search.q }),
-  loader: async ({ deps }) => {
+  loader: async ({ deps }) => runDebatePage({ data: deps.q }),
+  component: DebatePage,
+});
+
+/**
+ * 多空辩论数据组装。**只能在服务端跑**（读落盘数据、调 AI），
+ * 客户端导航时经 RPC 到服务端执行——2026-10-17 之前写在 loader 里，
+ * SPA 导航会让它在浏览器里跑、fs 一调就整页报错（同 /backtest 的教训）。
+ */
+const runDebatePage = createServerFn({ method: "GET" })
+  .validator((q: unknown) => (typeof q === "string" ? q.trim().slice(0, 20) : ""))
+  .handler(async ({ data: q }) => {
     // 统一返回形状：每个分支都带 q/sides/evidenceCount/name/why，
     // 不然组件的 data.q 会掉进联合类型的缝隙里。
-    const empty = { q: deps.q, sides: [] as DebateSide[], evidenceCount: 0, name: "", why: null as string | null };
-    if (!deps.q) return { ...empty, q: "" };
+    const empty = { q, sides: [] as DebateSide[], evidenceCount: 0, name: "", why: null as string | null };
+    if (!q) return { ...empty, q: "" };
 
     const [news, uni] = await Promise.all([
-      getSymbolNews({ data: { q: deps.q } }).catch(() => null),
-      loadUniverse(false).catch(() => null),
+      getSymbolNews({ data: { q } }).catch(() => null),
+      getUniverse({ data: { refresh: false } }).catch(() => null),
     ]);
     if (!news?.picked) return { ...empty, why: "没找到这只票" };
 
@@ -52,10 +64,8 @@ export const Route = createFileRoute("/debate")({
       return callAI(cfg, prompt, { layer: "debate", trigger: "manual" });
     };
     const debate = await runDebate(report.stages, report.symbol, report.name, caller, evidenceIds);
-    return { q: deps.q, ...debate, name: report.name, why: null };
-  },
-  component: DebatePage,
-});
+    return { q, ...debate, name: report.name, why: null };
+  });
 
 function SideCard({ side }: { side: DebateSide }) {
   const tone = side.role === "bull" ? "text-up" : "text-down";

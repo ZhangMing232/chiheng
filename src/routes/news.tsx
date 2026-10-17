@@ -50,13 +50,13 @@ function tally(items: NewsItem[], tone: NewsTone) {
 /** 消息页路由。先拉快讯和持仓，再给精选里的股票做标记；已持仓的不再标成精选。 */
 export const Route = createFileRoute("/news")({
   loader: async () => {
-    const [news, universe, journal, rules] = await Promise.all([
+    const [news, universe, journal, rules, relay] = await Promise.all([
       getNews().catch(() => [] as NewsItem[]),
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getServerJournal().catch(() => ({ days: [] })),
       getRules().catch(() => DEFAULT_RULES),
+      getRelay().catch(() => []),
     ]);
-    const relay = await getRelay().catch(() => []);
     const held = new Set<string>();
     for (const day of journal.days) {
       for (const trade of day.trades) {

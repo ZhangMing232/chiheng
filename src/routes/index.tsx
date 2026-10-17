@@ -32,17 +32,17 @@ import {
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder] = await Promise.all([
+    const [indices, journal, universe, recorder, flow] = await Promise.all([
       getIndices().catch(() => [] as IndexQuote[]),
       getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getRecorder().catch(() => ({ at: null, ok: false })),
+      getFlow().catch(() => null as FlowBook | null),
     ]);
     // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
     const trend = indices[0]
       ? await getTrend({ data: { id: indices[0].id } }).catch(() => null)
       : null;
-    const flow = await getFlow().catch(() => null as FlowBook | null);
     // 全市场快照 ~5300 只、进 SSR HTML 有 1.2MB，手机端解析时会卡到点不动。
     // 首页只用持仓相关的几只（priceOf 按 id 查现价/涨跌），先按账本 id 瘦身再返回。
     const slimUniverse = slimUniverseByIds(universe, journalTradeIds(journal));

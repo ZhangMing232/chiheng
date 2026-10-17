@@ -16,7 +16,7 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Table, Tag, pctClass, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getWatchlistFn, addWatchFn, removeWatchFn } from "@/lib/market/watchlist.functions";
-import { loadUniverse } from "@/lib/market/quotes.functions";
+import { getUniverse } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/my-stocks")({
   loader: () => getWatchlistFn(),
@@ -42,7 +42,7 @@ function MyStocksPage() {
     setHint(null);
     try {
       // 在全市场快照里找这只票：不让用户手打 id，打错一个字符就加到不存在的票
-      const uni = await loadUniverse(false);
+      const uni = await getUniverse({ data: { refresh: false } });
       const hit = uni?.quotes.find((row) => row.code === term || row.name === term || row.id === term) ?? null;
       if (!hit) {
         setHint(`没找到「${term}」。填六位代码或完整名称，例如 600519 或 贵州茅台`);
