@@ -31,10 +31,12 @@ function MyStocksPage() {
   const { data, isFetching } = useQuery({
     queryKey: ["watchlist"],
     queryFn: () => getWatchlistFn(),
-    initialData: rows,
     staleTime: 30_000,
   });
-  const items = data?.items ?? [];
+  // 首次渲染（SSR 和水合）直接用 loader 数据，两边保证一致；
+  // useQuery 拿到新数据后再切换过去。不能用 initialData——SSR 阶段它不生效，
+  // 服务端画「空名单」、客户端画真数据，水合直接炸 React #418（2026-10-17 实测）。
+  const items = (data ?? rows)?.items ?? [];
 
   async function add() {
     const term = q.trim();
