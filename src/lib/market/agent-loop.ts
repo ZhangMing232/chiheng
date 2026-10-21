@@ -27,10 +27,11 @@ import { appendAILog, evolveStats, readAILog } from "./ai-log.ts";
 import { necropsyLines } from "./factor-necropsy.ts";
 import { readFactorRuns, type FactorRunRow } from "./factor-runs-file.ts";
 import { readTombstones } from "./factor-tombstones.ts";
-import { readChallengers, readChampions } from "./challenger.ts";
+import { readChallengers, readChampions, CHALLENGER_RULE } from "./challenger.ts";
 import { readStrategyGates } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
+import { listUserIds, readUserBook } from "./book-file.ts";
 
 // ── 账本快照（observe） ─────────────────────────────────────────
 
@@ -49,6 +50,8 @@ export type LedgerSnapshot = {
   championLines: string[];
   /** 策略层：挑战者名单与状态。 */
   chalLines: string[];
+  /** 策略层：挑战者纸面样本进度（账本 variant 行数，已平仓/持仓/最近建仓）。 */
+  chalSampleLines: string[];
   /** 策略层：策略闸状态。 */
   gateLines: string[];
   /** AI 自身：近几轮两层进化的成败史。 */
@@ -96,6 +99,28 @@ export function summarizeQueue(entries: { status: string }[]): string[] {
   ];
 }
 
+/**
+ * 挑战者纸面样本 → 每挑战者一行进度（已平仓/持仓/最近建仓/距 Welch 差几笔）。
+ * 纯函数：账本行由调用方收齐传入。诊断之前看不到这块，会把「攒样本速度」
+ * 说成「无法核实」——账本里明明有 variant 行，喂给它。
+ */
+export function summarizeChallengerSamples(
+  challengers: { id: string; name: string }[],
+  variantTrades: { variant: string; exit: number | null; date: string }[],
+): string[] {
+  return challengers.slice(-20).map((c) => {
+    const mine = variantTrades.filter((t) => t.variant === c.id);
+    if (mine.length === 0) {
+      return `- ${c.name}（${c.id}）：账本里还看不到它的纸面样本（开跑以来可能没有成交过）`;
+    }
+    const closed = mine.filter((t) => t.exit != null).length;
+    const open = mine.length - closed;
+    const last = mine.reduce((a, t) => (t.date > a ? t.date : a), "");
+    const need = CHALLENGER_RULE.minTrades;
+    return `- ${c.name}（${c.id}）：纸面样本 ${mine.length} 笔（已平仓 ${closed} / 持仓 ${open}），最近建仓 ${last}，Welch 判决要 ${need} 笔已平仓${closed >= need ? "，已够格" : `，还差 ${need - closed} 笔`}`;
+  });
+}
+
 // ── 诊断 prompt（纯函数） ───────────────────────────────────────
 
 /** 把账本快照组装成诊断 prompt。只陈述事实 + 要 JSON，不诱导结论。 */
@@ -119,6 +144,9 @@ export function buildDiagnosisPrompt(snap: LedgerSnapshot): string {
     "",
     "【策略层：挑战者（纸面攒样本中）】",
     snap.chalLines.join("\n") || "- （没有在跑的挑战者）",
+    ...(snap.chalSampleLines.length > 0
+      ? ["", "挑战者纸面样本进度（账本 variant 行数，攒够才能 Welch 判决）：", ...snap.chalSampleLines]
+      : []),
     "",
     "【策略层：策略闸】",
     snap.gateLines.join("\n"),
@@ -249,6 +277,26 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     .slice(-20)
     .map((c) => `- ${c.name}（${c.id}）：挑战「${styleName(c.style)}」，状态 ${c.status}，${c.since} 开跑${c.source === "ai" ? "，AI 提名" : ""}`);
 
+  // 挑战者纸面样本：全用户账本里 variant=挑战者id 的行。账本读失败降级为空——
+  // 诊断不能因为一块挂了而跑不了，只是这条进度行缺位。
+  let chalSamples: { variant: string; exit: number | null; date: string }[] = [];
+  try {
+    type BookTrade = { variant?: string; exit?: number | null };
+    type BookDay = { date?: string; trades?: BookTrade[] };
+    for (const uid of await listUserIds()) {
+      const book = await readUserBook<BookDay>(uid);
+      for (const day of book.days ?? []) {
+        for (const t of day.trades ?? []) {
+          if (typeof t.variant !== "string" || t.variant.length === 0) continue;
+          chalSamples.push({ variant: t.variant, exit: t.exit ?? null, date: day.date ?? "" });
+        }
+      }
+    }
+  } catch {
+    chalSamples = [];
+  }
+  const chalSampleLines = summarizeChallengerSamples(chalFile.list, chalSamples);
+
   const gates = await readStrategyGates();
   const gateLines = Object.entries(gates).map(([style, g]) =>
     `- ${styleName(style)}：${g.state === "disabled" ? `停用中（第 ${g.strikes} 次，冷却 ${g.cooldownDays} 交易日）` : "假释观察中"}，${g.reason}`,
@@ -279,6 +327,7 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     necropsy: necropsyLines(await readTombstones()),
     championLines,
     chalLines,
+    chalSampleLines,
     gateLines,
     selfHistory,
     marketEvidence,

@@ -13,6 +13,7 @@ import {
   evidenceOf,
   extractJson,
   parseDiagnosis,
+  summarizeChallengerSamples,
   summarizeMarketRow,
   summarizeQueue,
   summarizeRunRow,
@@ -27,6 +28,7 @@ const SNAP: LedgerSnapshot = {
   necropsy: ["- 死因统计："],
   championLines: ["- 测试策略：代码默认参数（持有10天）"],
   chalLines: ["- 挑战者A（c_a）：挑战「测试策略」，状态 running，2026-10-21 开跑，AI 提名"],
+  chalSampleLines: ["- 挑战者A（c_a）：纸面样本 5 笔（已平仓 2 / 持仓 3），最近建仓 2026-10-21，Welch 判决要 30 笔已平仓，还差 28 笔"],
   gateLines: ["- 测试策略：假释观察中，正常"],
   selfHistory: ["- 因子层进化 10 轮，策略层 10 轮"],
   marketEvidence: ["920296 N文峰 217.03% · 成交 7.6 亿"],
@@ -64,6 +66,7 @@ test("buildDiagnosisPrompt：账本各块都在，且声明只诊断不行动", 
   const p = buildDiagnosisPrompt(SNAP);
   for (const fact of [
     "测试因子（test_f）", "队列共 46 条", "死因统计", "挑战者A",
+    "纸面样本 5 笔", "Welch 判决要 30 笔已平仓",
     "规则变更请求", "ruleChangeRequests", "你的任务是诊断，不是行动",
     "N文峰", "当日市场证据",
   ]) {
@@ -106,4 +109,32 @@ test("parseDiagnosis：合法 JSON 收齐五字段；字段缺失补默认；非
   assert.deepEqual(mixed?.suggestions, ["ok"]);
   assert.equal(parseDiagnosis("完全不是 json"), null);
   assert.equal(parseDiagnosis('{"summary":123}')?.summary, "");
+});
+
+test("summarizeChallengerSamples：已平仓/持仓/最近建仓/距 Welch 差几笔", () => {
+  const chals = [
+    { id: "c_a", name: "挑战者A" },
+    { id: "c_b", name: "挑战者B" },
+  ];
+  const trades = [
+    { variant: "c_a", exit: 10.5, date: "2026-10-01" },
+    { variant: "c_a", exit: null, date: "2026-10-21" },
+    { variant: "c_a", exit: 11.0, date: "2026-10-10" },
+    { variant: "c_b", exit: null, date: "2026-10-20" },
+  ];
+  const lines = summarizeChallengerSamples(chals, trades);
+  assert.match(lines[0], /挑战者A（c_a）：纸面样本 3 笔（已平仓 2 \/ 持仓 1）/);
+  assert.match(lines[0], /最近建仓 2026-10-21/);
+  assert.match(lines[0], /还差 28 笔/);
+  assert.match(lines[1], /挑战者B（c_b）：纸面样本 1 笔（已平仓 0 \/ 持仓 1）/);
+  assert.match(lines[1], /还差 30 笔/);
+  // 账本里一行都没有的挑战者如实说看不到，不编数
+  const none = summarizeChallengerSamples([{ id: "c_c", name: "挑战者C" }], trades);
+  assert.match(none[0], /还看不到它的纸面样本/);
+  // 攒够 30 笔已平仓 → 已够格
+  const full = summarizeChallengerSamples(
+    [{ id: "c_d", name: "挑战者D" }],
+    Array.from({ length: 30 }, (_, i) => ({ variant: "c_d", exit: 10 + i, date: "2026-10-21" })),
+  );
+  assert.match(full[0], /已够格/);
 });
