@@ -118,8 +118,14 @@
 
 1. **A 的 observe/diagnose**：agent-loop.ts 骨架 + 诊断 prompt 模板
    （读账本 → 输出诊断报告，先只展示不行动）——改动小、立刻有体感 ✅
-2. **B 的 MCP 探针**：本地起 vibe-trading MCP，赤轨加 client，
-   /ai 页显示「VT 工具在线 + 工具清单」——探针 ✅，client 未写
+2. **B 的 MCP 探针 + client**：本地起 vibe-trading MCP，赤轨加 client，
+   /ai 页显示「VT 工具在线 + 工具清单」——✅（2026-10-21，dbf626d）：
+   `src/lib/market/vt-tools.ts` stdio JSON-RPC client（懒 spawn venv python →
+   initialize → tools/list/call，闲置 5 分钟回收，env 可覆盖
+   CHIHENG_VT_MCP_HOME/PY/SCRIPT）；源码归位 `vendor/vt-mcp/Vibe-Trading/`，
+   venv 固定 `~/.chiheng/vt-venv/`；实测探针 1.6s 报 74 工具在线，
+   `screen_market` 出证喂 evidenceOf 格式正确（change_pct 为百分数×100，
+   amount 为元，渲染 217.03%/成交 7.6 亿正常）；7 条单测钉死。
 3. **A 的 plan/act**：诊断接上现有提议通道（因子层先通，策略层后通）
    ✅（2026-10-21）：诊断 suggestions 经 fetchDiagnosisHints 自动进因子层和策略层的
    提议 prompt（plan 层接线，建议性不强制）；规则变更仍只生成人工请求，判决规则不动。
