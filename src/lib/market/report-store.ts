@@ -10,17 +10,35 @@
  * 2. **缺口必须原样进报告**。被删掉的缺口等于伪造「都查到了」。
  * 3. 索引是 JSONL 追加，不覆盖。改历史报告 = 再造一份新的，旧的留着。
  * 4. `data/` 不在 git 里，所以读不到就是没有，页面要照实说。
+ * 5. **每人一份报告**（`data/reports/<userId>/`）。开放注册后别人的研判存档
+ *    不能出现在「我的报告」里。旧的全局文件只迁给 dev-user（直接搬进他的
+ *    目录），新用户从空列表开始。用户 id 白名单与 book-file.ts safeUserId
+ *    同规则；不 import 是为了不让 node:fs 链路有进客户端 bundle 的机会。
  */
 
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchReport } from "./research.ts";
 import type { AiSynthesis } from "./research-ai.ts";
 import { RESEARCH_TIERS } from "./research.ts";
 import { contentHash } from "./evidence.ts";
 
-/** 报告目录。data 不在 git，换机器必然读不到——这是预期不是错误。 */
-export function reportDir(root = process.cwd()): string {
+/** 未开登录时的本机主人，和 book-file.ts 的 OWNER_ID 同值（不 import，见文件头第 5 条）。 */
+const LEGACY_OWNER_ID = "dev-user";
+
+/** 用户 id 只允许字母、数字、下划线和减号（与 book-file.ts safeUserId 同规则）。 */
+function safeUserId(id: string): string {
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new Error("无效的用户");
+  return id;
+}
+
+/** 某人的报告目录。data 不在 git，换机器必然读不到——这是预期不是错误。 */
+export function reportDir(userId: string, root = process.cwd()): string {
+  return join(root, "data", "reports", safeUserId(userId));
+}
+
+/** 注册开放前的旧全局报告目录（data/reports/ 顶层）。只用于一次性迁移。 */
+function legacyDir(root: string): string {
   return join(root, "data", "reports");
 }
 
@@ -130,11 +148,12 @@ export function renderReport(report: ResearchReport, ai: AiSynthesis | null): st
 export async function saveReport(
   report: ResearchReport,
   ai: AiSynthesis | null,
+  userId: string,
   root = process.cwd(),
 ): Promise<{ id: string; path: string }> {
   const at = new Date();
   const id = reportId(report, at);
-  const dir = reportDir(root);
+  const dir = reportDir(userId, root);
   await mkdir(dir, { recursive: true });
   const file = join(dir, `${slug(id)}.md`);
   const md = renderReport(report, ai);
@@ -155,39 +174,76 @@ export async function saveReport(
   return { id, path: file };
 }
 
-/** 读索引。新的在前。文件不在（没存过 / 换了机器）= 空数组，不报错。 */
-export async function listReports(root = process.cwd()): Promise<ReportIndexRow[]> {
+/**
+ * 旧全局报告 → 主人（dev-user）的一次性迁移：把 data/reports/ 顶层的
+ * index.jsonl 和 *.md 直接搬进 data/reports/dev-user/。
+ * 只迁给主人：新注册用户不该看到这台机器上已有的研判存档。
+ * 搬不动就下次再试（rename 是原子的，不会留半截）。
+ */
+async function migrateLegacy(userId: string, root: string): Promise<void> {
+  if (userId !== LEGACY_OWNER_ID) return;
+  const legacy = legacyDir(root);
+  const target = reportDir(userId, root);
+  let names: string[];
   try {
-    const raw = await readFile(join(reportDir(root), "index.jsonl"), "utf-8");
-    const rows = raw
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => {
-        try {
-          return JSON.parse(line) as ReportIndexRow;
-        } catch {
-          return null; // 半行（写一半断电）不算一条，静默跳过
-        }
-      })
-      .filter((row): row is ReportIndexRow => row != null);
-    return rows.reverse();
+    names = await readdir(legacy);
   } catch {
-    return [];
+    return;
+  }
+  const files = names.filter((n) => n === "index.jsonl" || n.endsWith(".md"));
+  if (files.length === 0) return;
+  try {
+    await mkdir(target, { recursive: true });
+    for (const name of files) {
+      await rename(join(legacy, name), join(target, name));
+    }
+  } catch {
+    /* 下次再试 */
+  }
+}
+
+function parseIndex(raw: string): ReportIndexRow[] {
+  return raw
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => {
+      try {
+        return JSON.parse(line) as ReportIndexRow;
+      } catch {
+        return null; // 半行（写一半断电）不算一条，静默跳过
+      }
+    })
+    .filter((row): row is ReportIndexRow => row != null)
+    .reverse();
+}
+
+/** 读某人的索引。新的在前。文件不在（没存过 / 换了机器）= 空数组，不报错。 */
+export async function listReports(userId: string, root = process.cwd()): Promise<ReportIndexRow[]> {
+  const id = safeUserId(userId);
+  try {
+    return parseIndex(await readFile(join(reportDir(id, root), "index.jsonl"), "utf-8"));
+  } catch {
+    await migrateLegacy(id, root);
+    try {
+      return parseIndex(await readFile(join(reportDir(id, root), "index.jsonl"), "utf-8"));
+    } catch {
+      return [];
+    }
   }
 }
 
 /**
- * 按 id 读一份报告的 markdown 原文。
+ * 按 id 读一份报告的 markdown 原文（只在此人的索引里找）。
  *
  * id 带时间戳和后缀，直接拼文件名不可靠（slug 化过），所以在索引里反查。
  * 找不到返回 null——调用方要区分「没有这一份」和「这一份是空的」。
  */
-export async function readReport(id: string, root = process.cwd()): Promise<string | null> {
-  const rows = await listReports(root);
+export async function readReport(id: string, userId: string, root = process.cwd()): Promise<string | null> {
+  const rows = await listReports(userId, root);
   const hit = rows.find((row) => row.id === id);
   if (!hit) return null;
   try {
-    return await readFile(join(reportDir(root), `${slug(hit.id)}.md`), "utf-8");
+    return await readFile(join(reportDir(userId, root), `${slug(hit.id)}.md`), "utf-8");
   } catch {
     return null;
   }

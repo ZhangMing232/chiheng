@@ -3,8 +3,9 @@
  * 「我的报告」页。列出这台机器上存过的研判报告，点开能看原文。
  *
  * 你需要知道的：
- * - 报告在 `data/reports/`，**data 不在 git 里**。换机器、或者从来没存过，
- *   这一页就是空的——空态要说清「去哪存」（/research 页研判完点「存成报告」）。
+ * - 报告按人落在 `data/reports/<userId>/`，**data 不在 git 里**。换机器、
+ *   或者从来没存过，这一页就是空的——空态要说清「去哪存」（/research 页
+ *   研判完点「存成报告」）。别人的报告永远不会出现在这一页。
  * - 每一行都带 AI 状态：ok = 有 AI 综合；failed/skipped = 只有规则结论。
  *   不许让读者以为每份都有 AI 参与。
  */
@@ -45,7 +46,7 @@ function ReportsPage() {
 
   return (
     <Frame>
-      <Panel title="我的报告" note={<span className="text-xs text-muted">每次研判可存一份 · 存在本机 data/reports/</span>}>
+      <Panel title="我的报告" note={<span className="text-xs text-muted">每次研判可存一份 · 按账号存在本机</span>}>
         {rows.length === 0 ? (
           <StateBlock
             kind="empty"
