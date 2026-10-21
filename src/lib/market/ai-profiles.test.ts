@@ -31,7 +31,7 @@ import {
 const NOW = "2026-10-09T08:00:00.000Z";
 const EMPTY: AIProfilesFile = { activeId: null, profiles: [] };
 
-function input(partial: Partial<{ id: string; name: string; baseUrl: string; apiKey: string; model: string }> = {}) {
+function input(partial: Partial<{ id: string; name: string; baseUrl: string; apiKey: string; model: string; pricePromptPerM: string; priceCompletionPerM: string }> = {}) {
   return { id: undefined as string | undefined, name: "测试", baseUrl: "https://api.example.com/v1", apiKey: "sk-test", model: "m1", ...partial };
 }
 
@@ -167,4 +167,40 @@ test("计价：单价可选、校验非负、编辑时预填留空会清除", ()
   if (!cleared.ok) return;
   assert.equal(cleared.profile.pricePromptPerM, null);
   assert.equal(cleared.profile.priceCompletionPerM, null);
+});
+
+
+// ── 参考价自动填入（ai-prices.ts，2026-10 起「只填 API key 就搞定」）─────────
+
+test("建档单价留空：模型在参考价目表里就自动填入，不在就留 null 不瞎编", () => {
+  const withRef = upsertProfile(EMPTY, input({ model: "deepseek-flash" }), NOW);
+  assert.equal(withRef.ok, true);
+  if (withRef.ok) {
+    assert.equal(withRef.profile.pricePromptPerM, 1.1);
+    assert.equal(withRef.profile.priceCompletionPerM, 4.3);
+  }
+  const noRef = upsertProfile(EMPTY, input({ model: "some-local-model" }), NOW);
+  assert.equal(noRef.ok, true);
+  if (noRef.ok) {
+    assert.equal(noRef.profile.pricePromptPerM, null);
+    assert.equal(noRef.profile.priceCompletionPerM, null);
+  }
+});
+
+test("显式填价优先于参考价；编辑时清不掉自动价（留空=沿用参考价而非清 null）", () => {
+  const explicit = upsertProfile(EMPTY, input({ model: "deepseek-flash", pricePromptPerM: "9", priceCompletionPerM: "9" }), NOW);
+  assert.equal(explicit.ok, true);
+  if (explicit.ok) assert.equal(explicit.profile.pricePromptPerM, 9);
+
+  const created = upsertProfile(EMPTY, input({ model: "deepseek-flash" }), NOW);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  // 编辑时单价留空：自动价被沿用（重新查表），而不是清成 null——用户改个别的地方时
+  // 费用统计不会悄悄哑掉。
+  const edited = upsertProfile(created.file, { ...input({ id: created.profile.id, name: "改名", model: "deepseek-flash", pricePromptPerM: "", priceCompletionPerM: "" }), id: created.profile.id }, NOW);
+  assert.equal(edited.ok, true);
+  if (edited.ok) {
+    assert.equal(edited.profile.pricePromptPerM, 1.1);
+    assert.equal(edited.profile.priceCompletionPerM, 4.3);
+  }
 });

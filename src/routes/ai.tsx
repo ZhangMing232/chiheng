@@ -278,7 +278,8 @@ function ProfileModal({ editing, onClose }: { editing: ProfileStatus | null; onC
             </label>
           </div>
           <p className="text-[11px] text-muted">
-            单价按各家官网核对后填（占位提示只是参考价）；调用发生时快照当时的价，以后改价不影响历史账。
+            单价留空会自动按内置参考价填入（2026-10 核对的官方价，元/百万 tokens），和你的套餐不一致就在上面改；
+            调用发生时快照当时的价，以后改价不影响历史账。没进参考表的模型不填价就只统计 tokens 不算钱。
           </p>
           {message ? <p className="text-xs text-muted">{message}</p> : null}
         </div>
@@ -426,9 +427,14 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
           { label: "总 tokens", value: fmt(s.totalTokens), sub: "按接口报数" },
           { label: "平均耗时", value: `${Math.round(s.totalMs / Math.max(s.totalCalls, 1))}ms`, sub: "单次调用" },
           {
-            label: "费用合计",
-            value: s.pricedCalls > 0 ? fmtCost(s.totalCost) : "未计价",
-            sub: s.pricedCalls > 0 ? `${s.pricedCalls} 次有单价快照` : "在档案弹窗填单价才算",
+            label: "费用合计（已计价）",
+            value: s.pricedCalls > 0 ? fmtCost(s.totalCost) : "无快照",
+            sub: s.pricedCalls > 0 ? `${s.pricedCalls} 次调用时填了价` : "历史调用都没填价",
+          },
+          {
+            label: "估算合计（按现价）",
+            value: s.estCalls > 0 ? `≈${fmtCost(s.estCost)}` : "—",
+            sub: s.estCalls > 0 ? `${s.estCalls} 次历史账按现行参考价补算` : "无可估算项",
           },
         ].map((c) => (
           <div key={c.label} className="bg-surface px-3.5 py-2.5">
@@ -457,7 +463,10 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
               <li key={model} className="flex flex-wrap gap-x-3">
                 <span className="font-mono">{model}</span>
                 <span className="text-muted">
-                  {m.calls} 次 · {fmt(m.tokens)} tokens{m.cost > 0 ? ` · ${fmtCost(m.cost)}` : ""} · 平均 {Math.round(m.ms / Math.max(m.calls, 1))}ms
+                  {m.calls} 次 · {fmt(m.tokens)} tokens
+                  {m.cost > 0 ? ` · ${fmtCost(m.cost)}` : ""}
+                  {m.estCost > 0 ? ` · 估算 ≈${fmtCost(m.estCost)}` : ""}
+                  {" "}· 平均 {Math.round(m.ms / Math.max(m.calls, 1))}ms
                 </span>
               </li>
             ))}
@@ -510,7 +519,10 @@ function UsageSection({ usage }: { usage: Loader["usage"] }) {
             ))}
           </tbody>
         </Table>
-        <p className="mt-1.5 text-[11px] text-muted">费用 = 调用时档案里的单价快照 × 实际 tokens；改价只影响之后的新账，历史账不改口径。没填价的调用只统计 tokens 不算钱。</p>
+        <p className="mt-1.5 text-[11px] text-muted">
+          已计价 = 调用时档案里的单价快照 × 实际 tokens，历史账永不改口径；估算 = 没快照的历史账按现行参考价（ai-prices，2026-10 核对的官方价）补算，仅供参考。
+          DeepSeek 高峰时段（北京时间工作日 09:00-12:00、14:00-18:00）实付为估算的 2 倍，命中缓存会更便宜——表按保守口径（全量 miss + 谷时价）计。
+        </p>
       </div>
     </div>
   );

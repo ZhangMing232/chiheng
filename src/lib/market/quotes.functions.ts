@@ -929,10 +929,24 @@ export const getAIUsage = createServerFn({ method: "GET" }).handler(async () => 
   const { requireUserId } = await import("@/lib/auth/verify.server");
   const { OWNER_ID } = await import("@/lib/market/book-file");
   const { readAIUsage, usageStats } = await import("@/lib/market/ai-usage");
+  const { readProfiles } = await import("@/lib/market/ai-profiles");
+  const { referencePriceOf } = await import("@/lib/market/ai-prices");
   const userId = await requireUserId();
   if (userId !== OWNER_ID) return { allowed: false as const, entries: [], stats: null };
   const entries = await readAIUsage();
-  return { allowed: true as const, entries, stats: usageStats(entries, new Date().toISOString().slice(0, 10)) };
+  // 历史未计价条目的现价估算：先按条目记的 profileId 找档案现价（模型名对得上
+  // 才用——换过模型的档案，旧模型的账不能套新价），对不上再查内置参考价目表。
+  const profiles = (await readProfiles().catch(() => ({ activeId: null, profiles: [] as never[] }))).profiles as {
+    id: string; model: string; pricePromptPerM: number | null; priceCompletionPerM: number | null;
+  }[];
+  const stats = usageStats(entries, new Date().toISOString().slice(0, 10), (entry) => {
+    const profile = profiles.find((p) => p.id === entry.profileId);
+    if (profile && profile.model === entry.model && (profile.pricePromptPerM != null || profile.priceCompletionPerM != null)) {
+      return { prompt: profile.pricePromptPerM ?? 0, completion: profile.priceCompletionPerM ?? 0 };
+    }
+    return referencePriceOf(entry.model);
+  });
+  return { allowed: true as const, entries, stats };
 });
 
 /** 决策者记分牌（decision-ledger.ts）：AI 提议 vs 人工登记的过关/淘汰对照。 */

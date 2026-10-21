@@ -8,7 +8,8 @@
  * 1. 记录发生在 callAI（factor-queue.ts）内部——所有调用都逃不掉这张账，
  *    新增调用方不用记得手动记。
  * 2. 有些接口不返回 usage（字段缺失），记 0 不瞎编；估算列只展示真实报数。
- * 3. **不算钱**：各家的计价不同且常变，展示 token 数，单价你自己乘。
+ * 3. **费用两条口径**：调用时有单价快照的按快照算（cost，入账）；历史没快照的
+ *    由页面按现行参考价补估算（estCost，只展示、标注「估算」）。两条永不混加。
  * 4. 账本最多 2000 条，满了丢最旧的；data/ 在 .gitignore 里。
  * 5. 纯函数（统计聚合）不依赖 fs，直接单测。
  */
@@ -117,14 +118,26 @@ export type UsageStats = {
   totalCost: number;
   /** 有费用记录的条目数（没填价的调用不进均价）。 */
   pricedCalls: number;
-  /** 按模型分桶：调用数 + token 数 + 费用。 */
-  byModel: Record<string, { calls: number; ok: number; tokens: number; ms: number; cost: number }>;
+  /**
+   * 未计价条目的估算费用（元）：调用时没单价快照的历史账，按 resolveEstimate
+   * 给的现行价补算，**只是估算**——页面上必须和「已计价」分开标注。
+   * resolveEstimate 没给（或查不到价）就是 0。
+   */
+  estCost: number;
+  /** 有估算的条目数。 */
+  estCalls: number;
+  /** 按模型分桶：调用数 + token 数 + 费用（cost=快照价，estCost=估算）。 */
+  byModel: Record<string, { calls: number; ok: number; tokens: number; ms: number; cost: number; estCost: number }>;
   /** 最近 7 天（含今天）每天的 token + 费用汇总，给趋势用。 */
   last7Days: { date: string; tokens: number; calls: number; cost: number }[];
 };
 
-/** 从用量账算统计。数字全是直接求和，不加工；不过滤失败调用（失败的调用也烧了 prompt token）。 */
-export function usageStats(entries: AIUsageEntry[], today: string): UsageStats {
+/** 历史未计价条目的现价估算器：按条目查现行价，查不到返回 null（不瞎编）。 */
+export type EstimateResolver = (entry: AIUsageEntry) => { prompt: number; completion: number } | null;
+
+/** 从用量账算统计。数字全是直接求和，不加工；不过滤失败调用（失败的调用也烧了 prompt token）。
+ *  resolveEstimate 可选：给了就对没价快照的旧账按现价补估算（estCost，仅供展示）。 */
+export function usageStats(entries: AIUsageEntry[], today: string, resolveEstimate?: EstimateResolver): UsageStats {
   const stats: UsageStats = {
     totalCalls: entries.length,
     okCalls: entries.filter((e) => e.ok).length,
@@ -135,6 +148,8 @@ export function usageStats(entries: AIUsageEntry[], today: string): UsageStats {
     totalMs: 0,
     totalCost: 0,
     pricedCalls: 0,
+    estCost: 0,
+    estCalls: 0,
     byModel: {},
     last7Days: [],
   };
@@ -145,12 +160,22 @@ export function usageStats(entries: AIUsageEntry[], today: string): UsageStats {
     stats.totalMs += e.ms;
     stats.totalCost += e.cost;
     if (e.pricePromptPerM != null || e.priceCompletionPerM != null) stats.pricedCalls += 1;
-    const bucket = (stats.byModel[e.model] ??= { calls: 0, ok: 0, tokens: 0, ms: 0, cost: 0 });
+    const bucket = (stats.byModel[e.model] ??= { calls: 0, ok: 0, tokens: 0, ms: 0, cost: 0, estCost: 0 });
     bucket.calls += 1;
     if (e.ok) bucket.ok += 1;
     bucket.tokens += e.totalTokens;
     bucket.ms += e.ms;
     bucket.cost += e.cost;
+    // 没价快照的历史账：按现行参考价/档案价补估算。已有快照的不重复估。
+    if ((e.pricePromptPerM == null && e.priceCompletionPerM == null) && resolveEstimate) {
+      const price = resolveEstimate(e);
+      if (price) {
+        const est = costOfTokens(e.promptTokens, e.completionTokens, price.prompt, price.completion);
+        stats.estCost += est;
+        stats.estCalls += 1;
+        bucket.estCost += est;
+      }
+    }
   }
   const days: { date: string; tokens: number; calls: number; cost: number }[] = [];
   for (let i = 6; i >= 0; i--) {

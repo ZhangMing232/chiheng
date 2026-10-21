@@ -145,3 +145,31 @@ test("costOfTokens：分开计价、缺一记 0、 rounding 到分后 6 位", as
   // 小数千分位：1000 prompt @2元 = 0.002
   assert.equal(costOfTokens(1000, 0, 2, 8), 0.002);
 });
+
+
+// ── 历史估算（estCost，2026-10-21 起）────────────────────────────────────────
+// 没单价快照的旧账按现行参考价补算，只展示、标注「估算」；有快照的永不重复估。
+
+test("未计价条目按现价补估算；有快照的条目不重复估；两条口径互不污染", () => {
+  const unpriced = entry({ pricePromptPerM: null, priceCompletionPerM: null, cost: 0, promptTokens: 1_000_000, completionTokens: 1_000_000, model: "deepseek-flash" });
+  const priced = entry({ pricePromptPerM: 2, priceCompletionPerM: 8, cost: 0.0036, promptTokens: 1000, completionTokens: 200, model: "deepseek-chat" });
+  const stats = usageStats([unpriced, priced], "2026-10-09", () => ({ prompt: 1.1, completion: 4.3 }));
+  // 估算只算未计价那条：1M×1.1 + 1M×4.3 = 5.4 元
+  assert.equal(stats.estCost, 5.4);
+  assert.equal(stats.estCalls, 1);
+  // 已计价口径只含有快照那条
+  assert.equal(stats.totalCost, 0.0036);
+  assert.equal(stats.pricedCalls, 1);
+  assert.equal(stats.byModel["deepseek-flash"].estCost, 5.4);
+  assert.equal(stats.byModel["deepseek-chat"].estCost, 0);
+});
+
+test("没给估算器（或查不到价）时 estCost 为 0——不瞎编分支", () => {
+  const unpriced = entry({ pricePromptPerM: null, priceCompletionPerM: null, cost: 0 });
+  const noResolver = usageStats([unpriced], "2026-10-09");
+  assert.equal(noResolver.estCost, 0);
+  assert.equal(noResolver.estCalls, 0);
+  const missResolver = usageStats([unpriced], "2026-10-09", () => null);
+  assert.equal(missResolver.estCost, 0);
+  assert.equal(missResolver.estCalls, 0);
+});

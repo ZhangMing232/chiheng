@@ -17,6 +17,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { referencePriceOf } from "./ai-prices.ts";
 import type { AIConfig } from "./factor-queue.ts";
 
 // ── 数据结构 ────────────────────────────────────────────────────
@@ -96,6 +97,13 @@ export function upsertProfile(file: AIProfilesFile, input: ProfileInput, now: st
   const invalid = validateInput({ ...input, name, baseUrl, model }, file.profiles);
   if (invalid) return { ok: false, error: invalid };
 
+  // 单价留空 → 按内置参考价目表自动填入（ai-prices.ts，2026-10 核对的官方价）。
+  // 「只填 API key 就搞定」：价是可改的默认值，不是系统替你定价——用户随时
+  // 能在弹窗里改成自己套餐的实际价。
+  const ref = referencePriceOf(model);
+  const pricePrompt = (parsePrice(input.pricePromptPerM) as number | null) ?? ref?.prompt ?? null;
+  const priceCompletion = (parsePrice(input.priceCompletionPerM) as number | null) ?? ref?.completion ?? null;
+
   if (input.id) {
     const existing = file.profiles.find((p) => p.id === input.id);
     if (!existing) return { ok: false, error: `档案「${input.id}」不存在` };
@@ -105,8 +113,8 @@ export function upsertProfile(file: AIProfilesFile, input: ProfileInput, now: st
       baseUrl,
       model,
       apiKey: input.apiKey.trim() || existing.apiKey,
-      pricePromptPerM: parsePrice(input.pricePromptPerM) as number | null,
-      priceCompletionPerM: parsePrice(input.priceCompletionPerM) as number | null,
+      pricePromptPerM: pricePrompt,
+      priceCompletionPerM: priceCompletion,
       updatedAt: now,
     };
     return {
@@ -124,8 +132,8 @@ export function upsertProfile(file: AIProfilesFile, input: ProfileInput, now: st
     baseUrl,
     apiKey: input.apiKey.trim(),
     model,
-    pricePromptPerM: parsePrice(input.pricePromptPerM) as number | null,
-    priceCompletionPerM: parsePrice(input.priceCompletionPerM) as number | null,
+    pricePromptPerM: pricePrompt,
+    priceCompletionPerM: priceCompletion,
     updatedAt: now,
   };
   return {
