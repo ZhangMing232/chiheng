@@ -36,6 +36,7 @@ import {
   Sparkles,
   Star,
   TrendingUp,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
@@ -61,9 +62,9 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/desk" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
 }[] = [
-  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }] },
+  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/desk", label: "合成台", icon: Workflow }] },
   {
     label: "市场",
     items: [
