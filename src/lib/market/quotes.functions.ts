@@ -927,7 +927,7 @@ export const runStrategyAI = createServerFn({ method: "POST" }).handler(async ()
   return runStrategyAILoop();
 });
 
-/** 一键完整进化：因子层 → 策略层各跑一轮，两层各自记账（ai-log）。 */
+/** 一键完整进化：全局诊断（观察）→ 因子层 → 策略层，各层各自记账（ai-log）。诊断的建议本轮就进两层 prompt。 */
 export const runEvolve = createServerFn({ method: "POST" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { userId, isOwner } = await requirePrincipal();

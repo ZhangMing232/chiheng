@@ -14,7 +14,7 @@ import { runEvolveLoop } from "@/lib/market/evolve";
 import { FACTORS } from "@/lib/market/factors";
 import { readFactorRuns } from "@/lib/market/factor-runs-file";
 
-const { factor, strategy } = await runEvolveLoop({
+const { agent, factor, strategy } = await runEvolveLoop({
   readRows: readFactorRuns,
   existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })),
 });
@@ -23,5 +23,6 @@ const line = (label: string, r: { ok: boolean; proposed: number; rejected: numbe
   `${label}：${r.ok ? "ok" : "失败"}｜提议 ${r.proposed}｜拒 ${r.rejected}${r.error ? `｜${r.error}` : ""}` +
   (r.rejectReasons.length > 0 ? `\n  拒绝原因：${r.rejectReasons.join("；")}` : "");
 
+console.log(agent ? `诊断：${agent.ok ? "ok" : `失败（${agent.error ?? "?"}）`}` : "诊断：这轮没跑成（挂了不连坐，见 ai-log）");
 console.log(line("因子层", factor));
 console.log(line("策略层", strategy));

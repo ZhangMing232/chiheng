@@ -57,7 +57,7 @@ function AIConsolePage() {
     }
   };
 
-  /** 一键完整进化：因子层 → 策略层，两层各自记账，结果拼一句汇报。 */
+  /** 一键完整进化：全局诊断（观察）→ 因子层 → 策略层，各层各自记账，结果拼一句汇报。 */
   const runEvolveOnce = async () => {
     setBusy("evolve");
     setEvolveMsg(null);
@@ -65,7 +65,8 @@ function AIConsolePage() {
       const res = await runEvolve();
       const part = (label: string, r: { ok: boolean; proposed: number; error?: string }): string =>
         `${label} ${r.ok ? `进 ${r.proposed} 个` : `没跑成（${r.error ?? "?"}）`}`;
-      setEvolveMsg(`${part("因子层", res.factor)} · ${part("策略层", res.strategy)}。下一轮 prompt 会读到这两轮的下场，据此自我纠错。`);
+      const diag = res.agent ? (res.agent.ok ? `诊断 ok（${res.agent.diagnosis?.summary ?? ""}）` : `诊断没跑成（${res.agent.error ?? "?"}）`) : "诊断缺席";
+      setEvolveMsg(`${diag} · ${part("因子层", res.factor)} · ${part("策略层", res.strategy)}。诊断的建议本轮就进了两层 prompt；两层的下场下一轮自己读账纠错。`);
       await router.invalidate();
     } catch (err) {
       setEvolveMsg(err instanceof Error ? err.message : "运行失败");
@@ -90,7 +91,7 @@ function AIConsolePage() {
       <Section
         id="ai-console"
         title="进化控制台"
-        hint="自我迭代的闭环：AI 每轮提议都进账本，下一轮 prompt 会读到这些提议的下场（过没过 6 关、转正还是淘汰），据此纠错。开自动进化后，收盘后每天自己跑一轮。AI 能做什么、不能碰什么，全文见 AI-BOUNDARY.md。"
+        hint="自我迭代的闭环：先全局诊断（观察），再因子层、策略层提议（行动）——诊断的建议当天就进两层 prompt。每轮提议都进账本，下一轮读到这些提议的下场（过没过 6 关、转正还是淘汰），据此纠错。开自动进化后，收盘后每天自己跑一轮（诊断先行）。AI 能做什么、不能碰什么，全文见 AI-BOUNDARY.md。"
       >
         <div className="border-b border-line px-3.5 py-2">
           {ai.allowed ? (
@@ -236,7 +237,7 @@ function AIConsolePage() {
               ) : null}
             </div>
           ) : (
-            <StateBlock kind="empty" title="还没有诊断报告" hint="点上面的「跑一轮全局诊断」；开自动进化后，收盘后进化完自动补一份。" />
+            <StateBlock kind="empty" title="还没有诊断报告" hint="点上面的「跑一轮全局诊断」；开自动进化后，收盘后每轮自动进化都是诊断先行，报告落在这里。" />
           )}
         </div>
       </Section>

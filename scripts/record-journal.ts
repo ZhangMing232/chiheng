@@ -735,6 +735,16 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
       if (breaker.trippedAt) {
         console.log(`${time} AI 自动进化已熔断（${breaker.trippedAt}），跳过。去 /ai 页重新打开开关恢复`);
       } else {
+        // ① 观察：全局诊断先行——建议落 agent-diagnosis.json，本轮两层提议的
+        // prompt 经 fetchDiagnosisHints 就能读到（observe → plan → act）。
+        // 只诊断不行动；挂了记 ai-log，不连坐下面的提议层。
+        try {
+          const { runAgentDiagnosis } = await import("../src/lib/market/agent-loop.ts");
+          const diag = await runAgentDiagnosis("auto");
+          console.log(`${time} AI 全局诊断：${diag.ok ? diag.diagnosis?.summary ?? "ok" : `没跑成（${diag.error ?? "?"}）`}`);
+        } catch (diagError) {
+          console.error(`${time} AI 全局诊断失败（不影响提议）:`, diagError);
+        }
         console.log(`${time} AI 自动进化开始`);
         const factor = await runFactorAILoop(
           { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
@@ -756,14 +766,7 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
           );
           console.error(`${time} AI 自动进化熔断：${next.trippedReason}`);
         }
-        // 大脑诊断：进化完补一份全局诊断（只诊断不行动；挂了不连坐记账）。
-        try {
-          const { runAgentDiagnosis } = await import("../src/lib/market/agent-loop.ts");
-          const diag = await runAgentDiagnosis("auto");
-          console.log(`${time} AI 全局诊断：${diag.ok ? diag.diagnosis?.summary ?? "ok" : `没跑成（${diag.error ?? "?"}）`}`);
-        } catch (diagError) {
-          console.error(`${time} AI 全局诊断失败（不影响记账）:`, diagError);
-        }
+        // 诊断已前移到提议之前（observe → plan → act），这里不再补跑。
       }
     }
   } catch (error) {
