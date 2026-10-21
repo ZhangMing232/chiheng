@@ -192,3 +192,18 @@ test("buildStrategyPrompt：给了当日市场快照就追加证据段，没给�
   const bare = buildStrategyPrompt(base);
   assert.doesNotMatch(bare, /当日 A 股头部快照/);
 });
+
+test("buildStrategyPrompt：给了诊断建议就追加 plan 层段，没给不追加", () => {
+  const base = {
+    challengers: [],
+    gates: {},
+    logTail: [],
+    passedFactors: [],
+    champions: [],
+  };
+  const withHints = buildStrategyPrompt({ ...base, diagnosisHints: ["- 给 breakout 提一个更紧止损的变体（诊断 2026-10-21）"] });
+  assert.match(withHints, /AI 管家的诊断建议/);
+  assert.match(withHints, /更紧止损/);
+  const bare = buildStrategyPrompt(base);
+  assert.doesNotMatch(bare, /AI 管家的诊断建议/);
+});

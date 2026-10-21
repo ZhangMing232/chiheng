@@ -310,7 +310,7 @@ export function parseAIProposals(
 /** 把最新一批判决压成给 AI 的败因摘要。数字原样来自日志，不加工。
  *  history = AI 自己之前提议的下场（factorSelfHistory 产物），给了就加一段
  *  自我反馈——自我进化的核心：让它读到自己的历史成败再提下一轮。 */
-export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[], marketEvidence?: string[]): string {
+export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[], marketEvidence?: string[], diagnosisHints?: string[]): string {
   const lines = rows.map((r) => {
     const failed = GATE_KEYS.filter((k) => r.gates[k] === false).map((k) => k.toUpperCase());
     const buckets = r.bucketMeans.map((v) => `${(v * 100).toFixed(2)}%`).join(" → ");
@@ -343,6 +343,13 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?:
           "",
           "当日 A 股头部快照（Vibe-Trading 工具拉的实时截面：涨跌幅 / 成交额。只用来校准「现在市场在奖励什么风格」，不要当成历史规律；提因子仍以经济逻辑 + 死因档案为主）：",
           ...marketEvidence,
+        ]
+      : []),
+    ...(diagnosisHints && diagnosisHints.length > 0
+      ? [
+          "",
+          "AI 管家的诊断建议（最近一次全局诊断的 plan 层产物，供参考不强制；和死因档案/铁律冲突时以后者为准）：",
+          ...diagnosisHints,
         ]
       : []),
     "",
@@ -620,9 +627,18 @@ export async function runFactorAILoop(
   } catch {
     marketEvidence = [];
   }
+  // 诊断建议（plan 层接线）：最近一次全局诊断的 suggestions 直接进本轮提议 prompt。
+  // 诊断没跑过/读不到就当没有——增强项不是依赖项。
+  let diagnosisHints: string[] = [];
+  try {
+    const { fetchDiagnosisHints } = await import("./agent-loop.ts");
+    diagnosisHints = await fetchDiagnosisHints();
+  } catch {
+    diagnosisHints = [];
+  }
   let raw: string;
   try {
-    raw = await callAIWithFallback(buildPrompt(runs.batch.rows, history, necropsy, marketEvidence), { layer: "factor", trigger });
+    raw = await callAIWithFallback(buildPrompt(runs.batch.rows, history, necropsy, marketEvidence, diagnosisHints), { layer: "factor", trigger });
   } catch (error) {
     const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });

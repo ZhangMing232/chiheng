@@ -206,6 +206,23 @@ export async function readAgentDiagnosis(): Promise<(AgentDiagnosis & { at: stri
   return null;
 }
 
+/**
+ * 最近一次诊断的 suggestions，给因子/策略提议 prompt 当 plan 层输入——
+ * 诊断（observe）→ 建议（plan）→ 提议通道（act）的自动接线，不用人逐条手抄。
+ * 读不到/没有建议返回 []：诊断是增强项不是依赖项，提议照跑。
+ * 每条带诊断日期，免得模型把陈旧建议当当下指令。
+ */
+export async function fetchDiagnosisHints(): Promise<string[]> {
+  try {
+    const diag = await readAgentDiagnosis();
+    if (!diag || diag.suggestions.length === 0) return [];
+    const day = diag.at.slice(0, 10);
+    return diag.suggestions.map((s) => `- ${s}（诊断 ${day}）`);
+  } catch {
+    return [];
+  }
+}
+
 /** 把整个账本读成快照。任何一块读失败都降级为空（诊断不能因为一块挂了而跑不了）。 */
 export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
   const runs = await readFactorRuns();

@@ -152,6 +152,8 @@ export type StrategyAIContext = {
   champions: { style: string; source: string; params: string }[];
   /** 当日市场头部快照（VT 工具拉的实时截面），校准当前市场风格，辅助判断出场节奏。 */
   marketEvidence?: string[];
+  /** AI 管家最近一次诊断的 suggestions（plan 层产物），供调参参考不强制。 */
+  diagnosisHints?: string[];
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -206,6 +208,13 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
           "",
           "当日 A 股头部快照（Vibe-Trading 工具拉的实时截面：涨跌幅 / 成交额。只用来校准「现在市场在奖励什么风格」，帮助判断出场节奏与参数方向；不要当成历史规律，调参仍以冠军-挑战者判决和自我历史为主）：",
           ...ctx.marketEvidence,
+        ]
+      : []),
+    ...(ctx.diagnosisHints && ctx.diagnosisHints.length > 0
+      ? [
+          "",
+          "AI 管家的诊断建议（最近一次全局诊断的 plan 层产物，供参考不强制；和判决规则/铁律冲突时以后者为准）：",
+          ...ctx.diagnosisHints,
         ]
       : []),
     ...(ctx.selfHistory && ctx.selfHistory.length > 0
@@ -291,6 +300,14 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   } catch {
     marketEvidence = [];
   }
+  // 诊断建议（plan 层接线）：与因子层同款，最近一次全局诊断的 suggestions 进本轮 prompt。
+  let diagnosisHints: string[] = [];
+  try {
+    const { fetchDiagnosisHints } = await import("./agent-loop.ts");
+    diagnosisHints = await fetchDiagnosisHints();
+  } catch {
+    diagnosisHints = [];
+  }
   const ctx: StrategyAIContext = {
     challengers: chalFile.list,
     gates: await readStrategyGates(),
@@ -299,6 +316,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     selfHistory: strategySelfHistory(await readAILog(), chalFile.list),
     champions: championInfos,
     marketEvidence,
+    diagnosisHints,
   };
   let raw: string;
   try {

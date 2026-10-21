@@ -221,6 +221,17 @@ test("buildPrompt：给了当日市场快照就追加证据段，没给不追加
   assert.doesNotMatch(bare, /当日 A 股头部快照/);
 });
 
+test("buildPrompt：给了诊断建议就追加 plan 层段，没给不追加", () => {
+  const rows: FactorRunRow[] = [];
+  const hints = ["- 提议一个低波动因子（诊断 2026-10-21）"];
+  const withHints = buildPrompt(rows, [], [], [], hints);
+  assert.match(withHints, /AI 管家的诊断建议/);
+  assert.match(withHints, /提议一个低波动因子/);
+  assert.match(withHints, /以后者为准/);
+  const bare = buildPrompt(rows);
+  assert.doesNotMatch(bare, /AI 管家的诊断建议/);
+});
+
 test("buildPrompt：判决行带样本量，老批次没记显示 ?——AI 能分辨证据强度", () => {
   const row = (universe?: number): FactorRunRow => ({
     at: "2026-10-09T13:00:00.000Z",
