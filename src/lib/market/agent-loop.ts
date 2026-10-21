@@ -251,10 +251,10 @@ function dataDir(): string {
 export const agentDiagnosisPath = () => join(dataDir(), "agent-diagnosis.json");
 
 /** 读最近一次诊断报告（文件没有/坏了 → null）。给页面用。 */
-export async function readAgentDiagnosis(): Promise<(AgentDiagnosis & { at: string }) | null> {
+export async function readAgentDiagnosis(): Promise<(AgentDiagnosis & { at: string; numberCheck?: DiagnosisNumberCheck | null }) | null> {
   try {
-    const parsed = JSON.parse(await readFile(agentDiagnosisPath(), "utf8")) as AgentDiagnosis & { at?: unknown };
-    if (typeof parsed.summary === "string" && typeof parsed.at === "string") return parsed as AgentDiagnosis & { at: string };
+    const parsed = JSON.parse(await readFile(agentDiagnosisPath(), "utf8")) as AgentDiagnosis & { at?: unknown; numberCheck?: DiagnosisNumberCheck | null };
+    if (typeof parsed.summary === "string" && typeof parsed.at === "string") return parsed as AgentDiagnosis & { at: string; numberCheck?: DiagnosisNumberCheck | null };
   } catch {
     // 还没诊断过，正常。
   }

@@ -219,6 +219,21 @@ function AIConsolePage() {
                   </ul>
                 </div>
               ) : null}
+              {diagnosis.numberCheck ? (
+                diagnosis.numberCheck.ungrounded.length > 0 ? (
+                  <div className="rounded border border-warn bg-warn-soft px-2.5 py-2">
+                    <p className="mb-0.5 font-medium text-warn">
+                      数字核验：{diagnosis.numberCheck.ungrounded.length} 个数在本轮账本快照里找不到出处
+                    </p>
+                    <p className="text-muted">
+                      以下数字是模型自己说的，账本里没有——引用它们下结论前先核实：
+                      {diagnosis.numberCheck.ungrounded.join("、")}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted">数字核验通过：报告引用的数字全部能在本轮账本快照里找到出处。</p>
+                )
+              ) : null}
             </div>
           ) : (
             <StateBlock kind="empty" title="还没有诊断报告" hint="点上面的「跑一轮全局诊断」；开自动进化后，收盘后进化完自动补一份。" />
