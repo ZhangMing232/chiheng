@@ -33,6 +33,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as StrategiesRouteImport } from './routes/strategies'
 import { Route as SymbolRouteImport } from './routes/symbol'
+import { Route as FlowIndexRouteImport } from './routes/flow/index'
+import { Route as FlowSectorsRouteImport } from './routes/flow/sectors'
 import { Route as ReviewIndexRouteImport } from './routes/review/index'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
@@ -159,6 +161,16 @@ const SymbolRoute = SymbolRouteImport.update({
   path: '/symbol',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FlowIndexRoute = FlowIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowSectorsRoute = FlowSectorsRouteImport.update({
+  id: '/sectors',
+  path: '/sectors',
+  getParentRoute: () => FlowRoute,
+} as any)
 const ReviewIndexRoute = ReviewIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -194,7 +206,7 @@ export interface FileRoutesByFullPath {
   '/desk': typeof DeskRoute
   '/events': typeof EventsRoute
   '/factors': typeof FactorsRoute
-  '/flow': typeof FlowRoute
+  '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
@@ -210,10 +222,12 @@ export interface FileRoutesByFullPath {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/flow/sectors': typeof FlowSectorsRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/flow/': typeof FlowIndexRoute
   '/review/': typeof ReviewIndexRoute
 }
 export interface FileRoutesByTo {
@@ -225,7 +239,6 @@ export interface FileRoutesByTo {
   '/desk': typeof DeskRoute
   '/events': typeof EventsRoute
   '/factors': typeof FactorsRoute
-  '/flow': typeof FlowRoute
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
@@ -240,10 +253,12 @@ export interface FileRoutesByTo {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/flow/sectors': typeof FlowSectorsRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/flow': typeof FlowIndexRoute
   '/review': typeof ReviewIndexRoute
 }
 export interface FileRoutesById {
@@ -256,7 +271,7 @@ export interface FileRoutesById {
   '/desk': typeof DeskRoute
   '/events': typeof EventsRoute
   '/factors': typeof FactorsRoute
-  '/flow': typeof FlowRoute
+  '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
@@ -272,10 +287,12 @@ export interface FileRoutesById {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/flow/sectors': typeof FlowSectorsRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/flow/': typeof FlowIndexRoute
   '/review/': typeof ReviewIndexRoute
 }
 export interface FileRouteTypes {
@@ -305,10 +322,12 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/flow/sectors'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/flow/'
     | '/review/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -320,7 +339,6 @@ export interface FileRouteTypes {
     | '/desk'
     | '/events'
     | '/factors'
-    | '/flow'
     | '/inbox'
     | '/my-stocks'
     | '/news'
@@ -335,10 +353,12 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/flow/sectors'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/flow'
     | '/review'
   id:
     | '__root__'
@@ -366,10 +386,12 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/flow/sectors'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/flow/'
     | '/review/'
   fileRoutesById: FileRoutesById
 }
@@ -382,7 +404,7 @@ export interface RootRouteChildren {
   DeskRoute: typeof DeskRoute
   EventsRoute: typeof EventsRoute
   FactorsRoute: typeof FactorsRoute
-  FlowRoute: typeof FlowRoute
+  FlowRoute: typeof FlowRouteWithChildren
   InboxRoute: typeof InboxRoute
   MyStocksRoute: typeof MyStocksRoute
   NewsRoute: typeof NewsRoute
@@ -570,6 +592,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SymbolRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/flow/': {
+      id: '/flow/'
+      path: '/'
+      fullPath: '/flow/'
+      preLoaderRoute: typeof FlowIndexRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/sectors': {
+      id: '/flow/sectors'
+      path: '/sectors'
+      fullPath: '/flow/sectors'
+      preLoaderRoute: typeof FlowSectorsRouteImport
+      parentRoute: typeof FlowRoute
+    }
     '/review/': {
       id: '/review/'
       path: '/'
@@ -607,6 +643,18 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface FlowRouteChildren {
+  FlowSectorsRoute: typeof FlowSectorsRoute
+  FlowIndexRoute: typeof FlowIndexRoute
+}
+
+const FlowRouteChildren: FlowRouteChildren = {
+  FlowSectorsRoute: FlowSectorsRoute,
+  FlowIndexRoute: FlowIndexRoute,
+}
+
+const FlowRouteWithChildren = FlowRoute._addFileChildren(FlowRouteChildren)
 
 interface ReviewRouteChildren {
   ReviewEventsRoute: typeof ReviewEventsRoute
@@ -646,7 +694,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeskRoute: DeskRoute,
   EventsRoute: EventsRoute,
   FactorsRoute: FactorsRoute,
-  FlowRoute: FlowRoute,
+  FlowRoute: FlowRouteWithChildren,
   InboxRoute: InboxRoute,
   MyStocksRoute: MyStocksRoute,
   NewsRoute: NewsRoute,

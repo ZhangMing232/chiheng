@@ -18,7 +18,7 @@ export type DeskHref =
   | "/debate"
   | "/reports"
   | "/flow"
-  | "/sectors"
+  | "/flow/sectors"
   | "/overseas"
   | "/strategies/screener"
   | "/backtest"
@@ -51,7 +51,7 @@ export const DESK_TOOLS: DeskTool[] = [
   { id: "reports", side: "research", title: "研报库", does: "已导入的 PDF 或 Word，引用能回查原文。", to: "/reports", keys: ["研报", "pdf", "PDF"] },
   { id: "review-events", side: "research", title: "公司事件", does: "业绩预告、增减持、调研、回购、质押、申购。公司措辞原样显示。", to: "/review/events", keys: ["事件", "预告", "增减持", "回购", "调研", "质押", "申购"] },
   { id: "flow", side: "research", title: "资金流向", does: "大盘资金、北向披露和龙虎榜席位。没有的就写没有。", to: "/flow", keys: ["资金", "北向", "龙虎榜", "主力"] },
-  { id: "sectors", side: "research", title: "板块", does: "东财行业的涨跌和资金。这不是景气度。", to: "/sectors", keys: ["板块", "行业"] },
+  { id: "sectors", side: "research", title: "板块", does: "东财行业的涨跌和资金。这不是景气度。", to: "/flow/sectors", keys: ["板块", "行业"] },
   { id: "overseas", side: "research", title: "港美行情", does: "只看报价和 K 线，不进选股，也不进账。", to: "/overseas", keys: ["港股", "美股", "恒生", "纳指"] },
   { id: "screener", side: "trading", title: "策略选股", does: "六套写死的规则。现价打到买入价才记，不到券商。", to: "/strategies/screener", keys: ["选股", "策略", "买入价", "启动", "补涨"] },
   { id: "backtest", side: "trading", title: "回测", does: "无前视回测。要看超额和 t 值，前后半段翻号就不能用。", to: "/backtest", keys: ["回测", "超额", "胜率", "样本"] },

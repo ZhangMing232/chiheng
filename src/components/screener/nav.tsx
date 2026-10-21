@@ -19,7 +19,6 @@ import {
   FileText,
   FlaskConical,
   Globe,
-  Grid2x2,
   History,
   LayoutDashboard,
   LineChart,
@@ -43,7 +42,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  * Vibe-Research 的 nav.ts 做过一轮）：
  *
  * 信息架构约定（三级）：
- *   一级 = 侧边栏分组（5 组）· 二级 = 组内页面（共 19 项）· 三级 = 页内 tab
+ *   一级 = 侧边栏分组（5 组）· 二级 = 组内页面（共 18 项）· 三级 = 页内 tab
  *   （首例：日历与事件页 ?tab=plan|events，原 /events 独立页并入）。
  *
  * 这轮动了什么：
@@ -52,6 +51,10 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  *   - 「事件」页并入「日历与事件」页（页内 tab），/events 旧路由重定向不断链
  *   - AI 入口仍 pinned 在侧栏底部（学 Vibe），不混进分组
  *
+ * 2026-10-21 又两轮：复盘区整合（/review 下每日复盘+信号+公司事件）、策略区整合
+ * （/strategies 下选股+追踪）、日历页撤销、板块并入资金流向（/flow 下两个子页），
+ * 二级项 19 → 18；旧路由（/sectors 等）都留重定向文件，书签不断链。
+ *
  * 保留 Vibe 的三条原则：
  *   1. 最多两级（分组 + 页面）；第三级只许在页面里切，不占侧栏
  *   2. 顺序按炒股的人每天的先后：先看主控台 → 看盘情报 → 实验 → 研究 → 我的
@@ -59,7 +62,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/sectors" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/desk", label: "合成台", icon: Workflow }] },
   {
@@ -68,7 +71,6 @@ const SIDEBAR: {
       { to: "/review", label: "每日复盘", icon: History },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
-      { to: "/sectors", label: "板块", icon: Grid2x2 },
       { to: "/overseas", label: "港美行情", icon: Globe },
     ],
   },

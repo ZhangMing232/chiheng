@@ -17,9 +17,9 @@ import { join } from "node:path";
 
 const BASE = process.argv[2] ?? "http://localhost:8787";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-// 2026-10-21 整合后：选股+追踪在 /strategies 下，复盘+信号在 /review 下；
-// 末尾三个旧地址是重定向页，留着验证旧书签不断链。
-const PAGES = ["/", "/strategies/screener", "/strategies/positions", "/review", "/review/signals", "/review/events", "/flow", "/backtest", "/ai", "/screener", "/positions", "/signals", "/calendar", "/events"];
+// 2026-10-21 整合后：选股+追踪在 /strategies 下，复盘+信号在 /review 下，
+// 板块在 /flow 下；末尾几个旧地址是重定向页，留着验证旧书签不断链。
+const PAGES = ["/", "/strategies/screener", "/strategies/positions", "/review", "/review/signals", "/review/events", "/flow", "/flow/sectors", "/backtest", "/ai", "/screener", "/positions", "/signals", "/calendar", "/events", "/sectors"];
 // 步骤 3 是「从首页点导航链接走 SPA 路由」——只能点侧栏里真实存在的入口；
 // 重定向页（/screener 等）和二级子页（/strategies/positions、/review/signals、
 // /review/events）不在侧栏里，靠子页面内的 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
