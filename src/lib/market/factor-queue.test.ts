@@ -199,6 +199,16 @@ test("buildPrompt：给了自我历史就追加反馈段，没给不追加", () 
   assert.doesNotMatch(bare, /你自己之前几轮提议的下场/);
 });
 
+test("buildPrompt：给了当日市场快照就追加证据段，没给不追加", () => {
+  const rows: FactorRunRow[] = [];
+  const withEvidence = buildPrompt(rows, [], [], ["920296 N文峰 217.03% · 成交 7.6 亿"]);
+  assert.match(withEvidence, /当日 A 股头部快照/);
+  assert.match(withEvidence, /N文峰/);
+  assert.match(withEvidence, /不要当成历史规律/);
+  const bare = buildPrompt(rows);
+  assert.doesNotMatch(bare, /当日 A 股头部快照/);
+});
+
 test("buildPrompt：判决行带样本量，老批次没记显示 ?——AI 能分辨证据强度", () => {
   const row = (universe?: number): FactorRunRow => ({
     at: "2026-10-09T13:00:00.000Z",

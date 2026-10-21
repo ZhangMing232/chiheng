@@ -296,7 +296,7 @@ export function parseAIProposals(
 /** 把最新一批判决压成给 AI 的败因摘要。数字原样来自日志，不加工。
  *  history = AI 自己之前提议的下场（factorSelfHistory 产物），给了就加一段
  *  自我反馈——自我进化的核心：让它读到自己的历史成败再提下一轮。 */
-export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[]): string {
+export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[], marketEvidence?: string[]): string {
   const lines = rows.map((r) => {
     const failed = GATE_KEYS.filter((k) => r.gates[k] === false).map((k) => k.toUpperCase());
     const buckets = r.bucketMeans.map((v) => `${(v * 100).toFixed(2)}%`).join(" → ");
@@ -323,6 +323,13 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?:
       : []),
     ...(necropsy && necropsy.length > 0
       ? ["", "已被证伪方向的完整死因档案（换皮重提 = 浪费一轮检验；真想复活某个方向，先回答它当初死于哪关、这次的表达式怎么不一样）：", ...necropsy]
+      : []),
+    ...(marketEvidence && marketEvidence.length > 0
+      ? [
+          "",
+          "当日 A 股头部快照（Vibe-Trading 工具拉的实时截面：涨跌幅 / 成交额。只用来校准「现在市场在奖励什么风格」，不要当成历史规律；提因子仍以经济逻辑 + 死因档案为主）：",
+          ...marketEvidence,
+        ]
       : []),
     "",
     "只输出 JSON 数组，不要输出任何别的文字。",
@@ -589,9 +596,19 @@ export async function runFactorAILoop(
   const history = factorSelfHistory(await readAILog(), entries);
   // 死因档案喂给下一轮：26 个死因子躺在档案里，不读就是每轮从零猜。
   const necropsy = necropsyLines(await readTombstones());
+  // 当日市场快照（增强项）：VT 工具矿山拉头部涨跌/成交。离线/超时降级为空，
+  // 提议照常跑——证据是校准项不是依赖项。
+  let marketEvidence: string[] = [];
+  try {
+    const { callVTTool } = await import("./vt-tools.ts");
+    const { evidenceOf } = await import("./agent-loop.ts");
+    marketEvidence = evidenceOf(await callVTTool("screen_market", { market: "a", top_n: 10 }, 60_000));
+  } catch {
+    marketEvidence = [];
+  }
   let raw: string;
   try {
-    raw = await callAIWithFallback(buildPrompt(runs.batch.rows, history, necropsy), { layer: "factor", trigger });
+    raw = await callAIWithFallback(buildPrompt(runs.batch.rows, history, necropsy, marketEvidence), { layer: "factor", trigger });
   } catch (error) {
     const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });
