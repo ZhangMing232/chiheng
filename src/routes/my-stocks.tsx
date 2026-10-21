@@ -156,7 +156,7 @@ function MyStocksPage() {
         ) : null}
       </Panel>
 
-      <Panel title="账上持仓" note={<Link to="/positions" className="text-xs text-accent hover:underline">去策略追踪 →</Link>}>
+      <Panel title="账上持仓" note={<Link to="/strategies/positions" className="text-xs text-accent hover:underline">去策略追踪 →</Link>}>
         <div className="px-3 py-2 text-xs leading-relaxed text-muted">
           持仓是记账进程按策略信号真实成交的那些，带买入价、止损空间和盈亏。它和自选是两本账：
           <Tag tone="brand">自选</Tag> 是我感兴趣的，

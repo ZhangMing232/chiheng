@@ -17,7 +17,13 @@ import { join } from "node:path";
 
 const BASE = process.argv[2] ?? "http://localhost:8787";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const PAGES = ["/", "/screener", "/positions", "/review", "/flow", "/backtest", "/calendar", "/ai"];
+// 2026-10-21 整合后：选股+追踪在 /strategies 下，复盘+信号在 /review 下；
+// 末尾三个旧地址是重定向页，留着验证旧书签不断链。
+const PAGES = ["/", "/strategies/screener", "/strategies/positions", "/review", "/review/signals", "/flow", "/backtest", "/calendar", "/ai", "/screener", "/positions", "/signals"];
+// 步骤 3 是「从首页点导航链接走 SPA 路由」——只能点侧栏里真实存在的入口；
+// 重定向页（/screener 等）和二级子页（/strategies/positions、/review/signals）
+// 不在侧栏里，靠子页面内的 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
+const NAV_PAGES = ["/strategies/screener", "/review", "/flow", "/backtest", "/calendar", "/ai"];
 
 /** 等 fn 返回非 undefined 值，超时抛错 */
 async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {
@@ -155,8 +161,8 @@ async function main() {
 
     // 3) 客户端导航扫一遍：整页加载抓不到「loader 在浏览器里跑崩」类问题
     // （2026-10-17 /backtest 实例：loader 直接调 node 函数，SSR 正常、一点导航就整页报错）。
-    // 做法：从首页逐个点击导航链接走 SPA 路由，抓控制台异常。
-    for (const path of PAGES.slice(1)) {
+    // 做法：从首页逐个点击导航链接走 SPA 路由，抓控制台异常。只扫侧栏真实存在的入口。
+    for (const path of NAV_PAGES) {
       consoleErrors.length = 0;
       await send("Page.navigate", { url: BASE + "/" });
       await waitFor(async () => {

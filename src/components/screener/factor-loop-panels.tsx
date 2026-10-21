@@ -302,7 +302,7 @@ export function FactorLoopPanels() {
             <StateBlock kind="empty" title="还没有挑战者" hint="点上面的「让 AI 提名挑战者」，或手工编辑 data/challengers.json（README 有模板）。" />
           )}
           <p className="mt-2 text-[11px] text-muted">
-            当前 {runningCount} 个在跑 · <Link to="/positions" className="hover:text-fg hover:underline">去策略追踪看持仓明细 →</Link>
+            当前 {runningCount} 个在跑 · <Link to="/strategies/positions" className="hover:text-fg hover:underline">去策略追踪看持仓明细 →</Link>
           </p>
         </div>
       </Section>

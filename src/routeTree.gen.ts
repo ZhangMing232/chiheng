@@ -31,7 +31,12 @@ import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as SectorsRouteImport } from './routes/sectors'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignalsRouteImport } from './routes/signals'
+import { Route as StrategiesRouteImport } from './routes/strategies'
 import { Route as SymbolRouteImport } from './routes/symbol'
+import { Route as ReviewIndexRouteImport } from './routes/review/index'
+import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
+import { Route as StrategiesPositionsRouteImport } from './routes/strategies/positions'
+import { Route as StrategiesScreenerRouteImport } from './routes/strategies/screener'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -143,10 +148,35 @@ const SignalsRoute = SignalsRouteImport.update({
   path: '/signals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StrategiesRoute = StrategiesRouteImport.update({
+  id: '/strategies',
+  path: '/strategies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewIndexRoute = ReviewIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ReviewRoute,
+} as any)
+const ReviewSignalsRoute = ReviewSignalsRouteImport.update({
+  id: '/signals',
+  path: '/signals',
+  getParentRoute: () => ReviewRoute,
+} as any)
+const StrategiesPositionsRoute = StrategiesPositionsRouteImport.update({
+  id: '/positions',
+  path: '/positions',
+  getParentRoute: () => StrategiesRoute,
+} as any)
+const StrategiesScreenerRoute = StrategiesScreenerRouteImport.update({
+  id: '/screener',
+  path: '/screener',
+  getParentRoute: () => StrategiesRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -167,12 +197,17 @@ export interface FileRoutesByFullPath {
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
-  '/review': typeof ReviewRoute
+  '/review': typeof ReviewRouteWithChildren
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
+  '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/review/signals': typeof ReviewSignalsRoute
+  '/strategies/positions': typeof StrategiesPositionsRoute
+  '/strategies/screener': typeof StrategiesScreenerRoute
+  '/review/': typeof ReviewIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -192,12 +227,16 @@ export interface FileRoutesByTo {
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
-  '/review': typeof ReviewRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
+  '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/review/signals': typeof ReviewSignalsRoute
+  '/strategies/positions': typeof StrategiesPositionsRoute
+  '/strategies/screener': typeof StrategiesScreenerRoute
+  '/review': typeof ReviewIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -218,12 +257,17 @@ export interface FileRoutesById {
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
-  '/review': typeof ReviewRoute
+  '/review': typeof ReviewRouteWithChildren
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
+  '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/review/signals': typeof ReviewSignalsRoute
+  '/strategies/positions': typeof StrategiesPositionsRoute
+  '/strategies/screener': typeof StrategiesScreenerRoute
+  '/review/': typeof ReviewIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -250,7 +294,12 @@ export interface FileRouteTypes {
     | '/sectors'
     | '/settings'
     | '/signals'
+    | '/strategies'
     | '/symbol'
+    | '/review/signals'
+    | '/strategies/positions'
+    | '/strategies/screener'
+    | '/review/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -270,12 +319,16 @@ export interface FileRouteTypes {
     | '/positions'
     | '/reports'
     | '/research'
-    | '/review'
     | '/screener'
     | '/sectors'
     | '/settings'
     | '/signals'
+    | '/strategies'
     | '/symbol'
+    | '/review/signals'
+    | '/strategies/positions'
+    | '/strategies/screener'
+    | '/review'
   id:
     | '__root__'
     | '/'
@@ -300,7 +353,12 @@ export interface FileRouteTypes {
     | '/sectors'
     | '/settings'
     | '/signals'
+    | '/strategies'
     | '/symbol'
+    | '/review/signals'
+    | '/strategies/positions'
+    | '/strategies/screener'
+    | '/review/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -321,11 +379,12 @@ export interface RootRouteChildren {
   PositionsRoute: typeof PositionsRoute
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRoute
-  ReviewRoute: typeof ReviewRoute
+  ReviewRoute: typeof ReviewRouteWithChildren
   ScreenerRoute: typeof ScreenerRoute
   SectorsRoute: typeof SectorsRoute
   SettingsRoute: typeof SettingsRoute
   SignalsRoute: typeof SignalsRoute
+  StrategiesRoute: typeof StrategiesRouteWithChildren
   SymbolRoute: typeof SymbolRoute
 }
 
@@ -485,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/strategies': {
+      id: '/strategies'
+      path: '/strategies'
+      fullPath: '/strategies'
+      preLoaderRoute: typeof StrategiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symbol': {
       id: '/symbol'
       path: '/symbol'
@@ -492,8 +558,63 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SymbolRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/review/': {
+      id: '/review/'
+      path: '/'
+      fullPath: '/review/'
+      preLoaderRoute: typeof ReviewIndexRouteImport
+      parentRoute: typeof ReviewRoute
+    }
+    '/review/signals': {
+      id: '/review/signals'
+      path: '/signals'
+      fullPath: '/review/signals'
+      preLoaderRoute: typeof ReviewSignalsRouteImport
+      parentRoute: typeof ReviewRoute
+    }
+    '/strategies/positions': {
+      id: '/strategies/positions'
+      path: '/positions'
+      fullPath: '/strategies/positions'
+      preLoaderRoute: typeof StrategiesPositionsRouteImport
+      parentRoute: typeof StrategiesRoute
+    }
+    '/strategies/screener': {
+      id: '/strategies/screener'
+      path: '/screener'
+      fullPath: '/strategies/screener'
+      preLoaderRoute: typeof StrategiesScreenerRouteImport
+      parentRoute: typeof StrategiesRoute
+    }
   }
 }
+
+interface ReviewRouteChildren {
+  ReviewSignalsRoute: typeof ReviewSignalsRoute
+  ReviewIndexRoute: typeof ReviewIndexRoute
+}
+
+const ReviewRouteChildren: ReviewRouteChildren = {
+  ReviewSignalsRoute: ReviewSignalsRoute,
+  ReviewIndexRoute: ReviewIndexRoute,
+}
+
+const ReviewRouteWithChildren =
+  ReviewRoute._addFileChildren(ReviewRouteChildren)
+
+interface StrategiesRouteChildren {
+  StrategiesPositionsRoute: typeof StrategiesPositionsRoute
+  StrategiesScreenerRoute: typeof StrategiesScreenerRoute
+}
+
+const StrategiesRouteChildren: StrategiesRouteChildren = {
+  StrategiesPositionsRoute: StrategiesPositionsRoute,
+  StrategiesScreenerRoute: StrategiesScreenerRoute,
+}
+
+const StrategiesRouteWithChildren = StrategiesRoute._addFileChildren(
+  StrategiesRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -513,11 +634,12 @@ const rootRouteChildren: RootRouteChildren = {
   PositionsRoute: PositionsRoute,
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRoute,
-  ReviewRoute: ReviewRoute,
+  ReviewRoute: ReviewRouteWithChildren,
   ScreenerRoute: ScreenerRoute,
   SectorsRoute: SectorsRoute,
   SettingsRoute: SettingsRoute,
   SignalsRoute: SignalsRoute,
+  StrategiesRoute: StrategiesRouteWithChildren,
   SymbolRoute: SymbolRoute,
 }
 export const routeTree = rootRouteImport

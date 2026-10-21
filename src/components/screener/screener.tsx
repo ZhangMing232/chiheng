@@ -16,6 +16,7 @@ import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
 import { cycleTheme } from "@/components/screener/nav";
+import { SectionTabs } from "@/components/section-tabs";
 import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { buildLabReport } from "@/lib/market/lab";
@@ -95,7 +96,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     }
   }, []);
 
-  // universe 刻意不走 SSR（全量 ~1.2MB 会把手机端卡死，见 routes/screener.tsx），
+  // universe 刻意不走 SSR（全量 ~1.2MB 会把手机端卡死，见 routes/strategies/screener.tsx），
   // 挂载后客户端拉：外壳先出来，名单到了再填。
   useEffect(() => {
     if (initial.universe == null) void refresh(false);
@@ -198,6 +199,15 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         ) : null
       }
     >
+        {/* 2026-10-21 整合：选股和追踪同属「策略」区（/strategies 下两个子页面），
+            顶部给二级 tab，和追踪页是同一组。 */}
+        <SectionTabs
+          ariaLabel="策略"
+          tabs={[
+            { to: "/strategies/screener", label: "策略选股" },
+            { to: "/strategies/positions", label: "策略追踪" },
+          ]}
+        />
         <LabPanel report={labReport} />
         <Journal
           quotes={quotes}

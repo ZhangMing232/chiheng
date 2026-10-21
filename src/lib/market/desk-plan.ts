@@ -20,10 +20,10 @@ export type DeskHref =
   | "/flow"
   | "/sectors"
   | "/overseas"
-  | "/screener"
+  | "/strategies/screener"
   | "/backtest"
   | "/factors"
-  | "/positions";
+  | "/strategies/positions";
 
 export type DeskTool = {
   id: string;
@@ -53,10 +53,10 @@ export const DESK_TOOLS: DeskTool[] = [
   { id: "flow", side: "research", title: "资金流向", does: "大盘资金、北向披露和龙虎榜席位。没有的就写没有。", to: "/flow", keys: ["资金", "北向", "龙虎榜", "主力"] },
   { id: "sectors", side: "research", title: "板块", does: "东财行业的涨跌和资金。这不是景气度。", to: "/sectors", keys: ["板块", "行业"] },
   { id: "overseas", side: "research", title: "港美行情", does: "只看报价和 K 线，不进选股，也不进账。", to: "/overseas", keys: ["港股", "美股", "恒生", "纳指"] },
-  { id: "screener", side: "trading", title: "策略选股", does: "六套写死的规则。现价打到买入价才记，不到券商。", to: "/screener", keys: ["选股", "策略", "买入价", "启动", "补涨"] },
+  { id: "screener", side: "trading", title: "策略选股", does: "六套写死的规则。现价打到买入价才记，不到券商。", to: "/strategies/screener", keys: ["选股", "策略", "买入价", "启动", "补涨"] },
   { id: "backtest", side: "trading", title: "回测", does: "无前视回测。要看超额和 t 值，前后半段翻号就不能用。", to: "/backtest", keys: ["回测", "超额", "胜率", "样本"] },
   { id: "factors", side: "trading", title: "因子发掘", does: "AI 只能提议因子。过不了预先登记的检验，不能进选股。", to: "/factors", keys: ["因子", "检验", "过拟合"] },
-  { id: "positions", side: "trading", title: "策略追踪", does: "模拟账。打到卖出价或止损价才卖，买入当天不能卖。", to: "/positions", keys: ["持仓", "账", "止损", "模拟"] },
+  { id: "positions", side: "trading", title: "策略追踪", does: "模拟账。打到卖出价或止损价才卖，买入当天不能卖。", to: "/strategies/positions", keys: ["持仓", "账", "止损", "模拟"] },
 ];
 
 const REFUSALS: { keys: string[]; why: string }[] = [

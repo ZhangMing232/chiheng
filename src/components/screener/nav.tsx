@@ -22,7 +22,6 @@ import {
   Globe,
   Grid2x2,
   History,
-  Flame,
   LayoutDashboard,
   LineChart,
   ListFilter,
@@ -35,7 +34,6 @@ import {
   Settings,
   Sparkles,
   Star,
-  TrendingUp,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -62,7 +60,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/desk" | "/screener" | "/factors" | "/positions" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas" | "/signals"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/desk", label: "合成台", icon: Workflow }] },
   {
@@ -70,7 +68,6 @@ const SIDEBAR: {
     items: [
       { to: "/review", label: "每日复盘", icon: History },
       { to: "/news", label: "快讯", icon: Newspaper },
-      { to: "/signals", label: "信号", icon: Flame },
       { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/sectors", label: "板块", icon: Grid2x2 },
       { to: "/overseas", label: "港美行情", icon: Globe },
@@ -80,10 +77,9 @@ const SIDEBAR: {
   {
     label: "实验室",
     items: [
-      { to: "/screener", label: "策略选股", icon: ListFilter },
+      { to: "/strategies/screener", label: "策略", icon: ListFilter },
       { to: "/factors", label: "因子发掘", icon: FlaskConical },
       { to: "/backtest", label: "回测", icon: LineChart },
-      { to: "/positions", label: "策略追踪", icon: TrendingUp },
     ],
   },
   {
@@ -109,6 +105,12 @@ const SIDEBAR: {
 function navHit(path: string) {
   for (const group of SIDEBAR) {
     const item = group.items.find((entry) => entry.to === path);
+    if (item) return { group: group.label, ...item };
+  }
+  // 子页面（/strategies/positions、/review/signals 这类）归到所属的一级入口，
+  // 顶栏页面名和侧栏激活组才不会丢。「/」是所有路径的前缀，不能参与前缀匹配。
+  for (const group of SIDEBAR) {
+    const item = group.items.find((entry) => entry.to !== "/" && path.startsWith(entry.to + "/"));
     if (item) return { group: group.label, ...item };
   }
   return null;
@@ -565,7 +567,7 @@ function AlertBell() {
               )))}
           </div>
           <Link
-            to="/positions"
+            to="/strategies/positions"
             className="block border-t border-line px-3 py-2 text-center text-xs text-accent hover:bg-surface-2"
           >
             去策略追踪看持仓 →
@@ -579,7 +581,7 @@ function AlertBell() {
           onClick={() => {
             markAllRead();
             setToast(null);
-            void navigate({ to: "/positions" });
+            void navigate({ to: "/strategies/positions" });
           }}
           className="fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-0.5 rounded border border-warn/60 bg-surface px-3 py-2.5 text-left shadow-pop"
         >

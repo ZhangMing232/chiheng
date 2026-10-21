@@ -296,7 +296,7 @@ export function Picks({
           </span>
         }
         note={
-          <Link to="/positions" className="hover:text-fg hover:underline">
+          <Link to="/strategies/positions" className="hover:text-fg hover:underline">
             当前持有 {open.length} 只 · 全部持仓 →
           </Link>
         }

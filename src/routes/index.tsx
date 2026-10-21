@@ -137,7 +137,7 @@ function Dashboard() {
           )}
         </Panel>
 
-        <Panel title="今日信号" note={<Link to="/positions" className="text-accent hover:underline">全部持仓 →</Link>}>
+        <Panel title="今日信号" note={<Link to="/strategies/positions" className="text-accent hover:underline">全部持仓 →</Link>}>
           <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto scroll-slim p-2">
             {sellsToday.map((trade) => (
               <SignalRow key={`s-${trade.id}`} name={trade.name} side="卖出" price={trade.exit} pnl={(trade.exit! / trade.entry - 1) * 100} />
@@ -165,7 +165,7 @@ function Dashboard() {
 
       {/* 第三行：策略表现（左）+ 行业资金（右） */}
       <div className="grid gap-2 lg:grid-cols-2">
-        <Panel title="追踪中策略" note={<Link to="/positions" className="text-accent hover:underline">策略追踪 →</Link>}>
+        <Panel title="追踪中策略" note={<Link to="/strategies/positions" className="text-accent hover:underline">策略追踪 →</Link>}>
           <table className="w-full text-sm">
             <caption className="sr-only">各策略持仓与今日新进</caption>
             <thead>
