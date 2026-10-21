@@ -66,8 +66,8 @@ type Loader = {
   queue: QueuePayload;
   ai: { allowed: boolean; configured: boolean };
   chal: Challenger[];
-  /** 在跑挑战者攒到的已平仓样本数（判决要 30 笔），id → {n, target}。 */
-  samples: Record<string, { n: number; target: number }>;
+  /** 在跑挑战者攒到的已平仓样本数（判决双方各要 30 笔），id → {n, target, champN}。 */
+  samples: Record<string, { n: number; target: number; champN: number }>;
   ledger: { allowed: boolean; ledger: DecisionLedger | null };
 };
 
@@ -299,7 +299,7 @@ export function FactorLoopPanels() {
                     </span>
                     {samples[c.id] ? (
                       <span className="tabular-nums text-muted">
-                        样本 {samples[c.id].n}/{samples[c.id].target}
+                        样本 {samples[c.id].n}/{samples[c.id].target} · 冠军 {samples[c.id].champN}/{samples[c.id].target}
                       </span>
                     ) : null}
                     {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}

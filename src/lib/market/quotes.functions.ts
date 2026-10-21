@@ -898,17 +898,22 @@ export const getChallengers = createServerFn({ method: "GET" }).handler(async ()
   return { list: chal.list, champions };
 });
 
-/** 在跑挑战者各自攒到的已平仓样本数（判决要 30 笔）。和记账进程同一个分桶口径。 */
+/** 在跑挑战者各自攒到的已平仓样本数（判决要 30 笔，冠军那边也要 30 笔）。和记账进程同一个分桶口径。 */
 export const getChallengerSamples = createServerFn({ method: "GET" }).handler(async () => {
   const { OWNER_ID, readUserBook } = await import("@/lib/market/book-file");
   const { bucketReturns, CHALLENGER_RULE, readChallengers } = await import("@/lib/market/challenger");
   const book = await readUserBook<{ signalTime?: string; trades: { entry?: number; exit?: number | null; style?: string; variant?: string }[] }>(OWNER_ID).catch(() => null);
   const buckets = bucketReturns(book?.days ?? []);
   const { list } = await readChallengers();
-  const counts: Record<string, { n: number; target: number }> = {};
+  const counts: Record<string, { n: number; target: number; champN: number }> = {};
   for (const c of list) {
     if (c.status !== "running") continue;
-    counts[c.id] = { n: (buckets.get(`${c.style}:${c.id}`) ?? []).length, target: CHALLENGER_RULE.minTrades };
+    counts[c.id] = {
+      n: (buckets.get(`${c.style}:${c.id}`) ?? []).length,
+      target: CHALLENGER_RULE.minTrades,
+      // Welch 判决是双样本检验：挑战者和冠军两边各攒够 minTrades 才判，单边够数不算数
+      champN: (buckets.get(`${c.style}:champion`) ?? []).length,
+    };
   }
   return counts;
 });

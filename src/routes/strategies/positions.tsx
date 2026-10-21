@@ -45,7 +45,7 @@ export const Route = createFileRoute("/strategies/positions")({
       // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
       getNavHistory().catch(() => ({ points: [] as NavPoint[] })),
       getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string> })),
-      getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number }>),
+      getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
     ]);
     return {
       // 快照只留账本里出现过的股票（页面只用 byId 查持仓现价），
@@ -208,7 +208,7 @@ function ChallengerPanel({
 }: {
   list: Challenger[];
   champions: Record<string, string>;
-  samples: Record<string, { n: number; target: number }>;
+  samples: Record<string, { n: number; target: number; champN: number }>;
 }) {
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
   const runningCount = list.filter((c) => c.status === "running").length;
@@ -232,7 +232,7 @@ function ChallengerPanel({
         </span>
         {sample ? (
           <span className="tabular-nums text-muted">
-            样本 {sample.n}/{sample.target}
+            样本 {sample.n}/{sample.target} · 冠军 {sample.champN}/{sample.target}
           </span>
         ) : null}
         {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
