@@ -60,6 +60,7 @@ import type { DailyRow } from "@/lib/market/factors";
 import { detectWyckoffSpring } from "@/lib/market/wyckoff-spring";
 import { decideGate, costDragRows, formatDragRow, klineRef } from "@/lib/market/backtest-gate";
 import { loadQueueFactors, applyVerdictsToQueue } from "@/lib/market/factor-queue";
+import { dsr as dsrOf, perPeriodSharpe, std as trialStd } from "@/lib/market/robustness";
 import { pitValue, recordsOf } from "@/lib/market/fundamentals";
 import type { FundamentalFile } from "@/lib/market/fundamentals";
 
@@ -1371,6 +1372,23 @@ async function main() {
 
     const nTested = factorCount;
     const totalDays = full.reduce((s, r) => Math.max(s, r.nDays), 0);
+    /**
+     * DSR（学 Vibe-Trading 的 deflated sharpe）：把「试了 nTested 个因子、运气最好
+     * 的那个该有多显著」当基准线，回答「这个 t 值是不是搜出来的」。
+     * 每个因子的 per-period 夏普由 t/√nDays 还原（robustness.perPeriodSharpe），
+     * 全体因子的夏普散布 = trial_sharpe_std。只记进账本展示，不改 6 关判决。
+     */
+    const perPeriodAll = full.map((r) => perPeriodSharpe(r.t, r.nDays));
+    const trialSharpeStd = trialStd(perPeriodAll);
+    const dsrOfFactor = (r: (typeof full)[number]): { value: number; expectedMax: number; survives: boolean; nTrials: number } | null => {
+      if (r.nDays < 20 || trialSharpeStd <= 0) return null;
+      try {
+        const out = dsrOf(perPeriodSharpe(r.t, r.nDays), nTested, r.nDays, trialSharpeStd, r.spreadSkew ?? 0, r.spreadKurt ?? 3);
+        return { value: out.dsr, expectedMax: out.expectedMaxSharpe, survives: out.survives, nTrials };
+      } catch {
+        return null;
+      }
+    };
     console.log(
       `因子检验：${totalDays} 个交易日 · ${factorCount} 个因子 · 持有 ${N} 天 · ${buckets} 档` +
         `${offsetVal ? ` · 换样本 offset=${offsetVal}` : ""}\n` +
@@ -1385,6 +1403,7 @@ async function main() {
     for (let f = 0; f < factorCount; f += 1) {
       const factor = factors[f];
       const run = full[f];
+      const dsrInfo = dsrOfFactor(run);
       const g1 = gateMonotonic(run.bucketMeans, factor.direction);
       const g2 = gateT(run.t);
       const g3 = gateHalves(first[f], second[f]);
@@ -1435,6 +1454,10 @@ async function main() {
           },
           gates: { g1: g1.pass, g2: g2.pass, g3: g3.pass, g4: g4.pass, g5: g5.pass, g6: g6.pass },
           nTested,
+          /** spread 分布形状 + 运气线校正（Vibe-Trading DSR）。旧批次没有。 */
+          spreadSkew: run.spreadSkew,
+          spreadKurt: run.spreadKurt,
+          dsr: dsrInfo,
         }),
       );
       // 队列因子（f 排在注册表后面）记下判决，整轮跑完一起回写队列状态。
@@ -1445,10 +1468,22 @@ async function main() {
           at,
           // 死因档案用：败在哪几关。过关的为空数组（不是没测，是 6 关全过）。
           failedGates: [g1, g2, g3, g4, g5, g6].flatMap((g, i) => (g.pass ? [] : [`g${i + 1}`])),
+          // DSR 是展示层证据，过关失败都存档——回答「这个因子是不是搜出来的」。
+          dsr: dsrInfo ?? undefined,
         });
       }
     }
     console.log("-".repeat(92));
+    {
+      const judged = full.map((r, i) => ({ i, d: dsrOfFactor(r) })).filter((x) => x.d);
+      if (judged.length > 0) {
+        const surviveN = judged.filter((x) => x.d!.survives).length;
+        console.log(
+          `DSR（运气线校正，试 ${nTested} 个）：${surviveN}/${judged.length} 个因子的显著性过了「运气最好」这道线` +
+            `——没过的不是没用，是这点样本分不清它和搜出来的运气。`,
+        );
+      }
+    }
 
     // 分档均值明细（全区间），看单调形状
     console.log("\n分档均值（全区间，从最低档到最高档）：");

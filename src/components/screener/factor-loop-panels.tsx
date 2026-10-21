@@ -220,6 +220,7 @@ export function FactorLoopPanels() {
                   <th className={thClass("text-left")}>表达式</th>
                   <th className={thClass("text-left")}>经济逻辑</th>
                   <th className={thClass()}>跑过/失败</th>
+                  <th className={thClass()}>运气线 DSR</th>
                 </tr>
               </thead>
               <tbody>
@@ -246,6 +247,20 @@ export function FactorLoopPanels() {
                       </td>
                       <td data-l="跑过/失败" className="px-2.5 py-1.5 text-[11px] text-muted">
                         {e.runs} 次{e.failCount > 0 ? ` · 连续失败 ${e.failCount}` : ""}
+                      </td>
+                      <td
+                        data-l="运气线 DSR"
+                        className="px-2.5 py-1.5 text-[11px]"
+                        title="试 N 个因子时运气最好的显著性基准线：per-period 夏普高过这条线=不像是搜出来的。只展示，不改 6 关判决。"
+                      >
+                        {e.lastDsr ? (
+                          <span className={e.lastDsr.survives ? "text-emerald-500" : "text-amber-500"}>
+                            {(e.lastDsr.value * 100).toFixed(0)}%{e.lastDsr.survives ? " ✓" : ""}
+                            <span className="ml-1 text-muted">线 {(e.lastDsr.expectedMax * 100).toFixed(0)}% · N={e.lastDsr.nTrials}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
                       </td>
                     </tr>
                   );

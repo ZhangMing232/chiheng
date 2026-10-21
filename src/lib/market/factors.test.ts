@@ -21,7 +21,7 @@ import {
 } from "@/lib/market/factors";
 
 function run(meanSpread: number, t: number, bucketMeans = [0, 0, 0, 0, 0]): FactorRun {
-  return { bucketMeans, meanSpread, t, nDays: 200, topBlockedRatio: 0 };
+  return { bucketMeans, meanSpread, t, nDays: 200, topBlockedRatio: 0, spreadSkew: null, spreadKurt: null };
 }
 
 test("因子注册表：每个因子都有方向假设和经济逻辑（预注册）", () => {

@@ -78,6 +78,12 @@ export type QueueEntry = {
     signals: DecaySignal[];
     status: DecayStatus;
   };
+  /**
+   * 最近一轮判决的 DSR（deflated sharpe，学 Vibe-Trading）：把「试了 nTrials 个
+   * 因子、运气最好的那个该有多显著」当基准线，看这个因子是不是搜出来的。
+   * survives=true 表示过了运气线。只展示不改判决；老条目没有这个字段。
+   */
+  lastDsr?: { value: number; expectedMax: number; survives: boolean; nTrials: number; at: string } | null;
 };
 
 /** 只保留最近这么多轮的信号。多了没用，连续判定只看尾部。 */
@@ -100,6 +106,11 @@ export type QueueVerdict = {
    * 过关或衰减路径可以为空——空 = 不是 6 关打死的，别读成「全过」。
    */
   failedGates?: string[];
+  /**
+   * 这一轮的 DSR（运气线校正，学 Vibe-Trading）。展示层证据，只进 lastDsr 存档，
+   * 不参与过关/淘汰判定——判决仍只认 6 关。
+   */
+  dsr?: { value: number; expectedMax: number; survives: boolean; nTrials: number };
 };
 
 /** 连续几次没过 6 关就淘汰。2 = 给「换行情环境再确认一次」的机会，也是上限。 */
@@ -182,8 +193,10 @@ export function updateQueueAfterRun(queue: QueueEntry[], verdicts: QueueVerdict[
   return queue.map((e) => {
     const v = byId.get(e.id);
     if (!v) return e;
+    // DSR 是展示层证据，过关失败都记——失败因子下次再判会覆盖。
+    const lastDsr = v.dsr ? { ...v.dsr, at: v.at } : e.lastDsr;
     if (v.passed) {
-      return { ...e, ...applyDecay(e, v), status: queueStatusOf(e, v), failCount: 0, runs: e.runs + 1, lastRunAt: v.at };
+      return { ...e, ...applyDecay(e, v), status: queueStatusOf(e, v), failCount: 0, runs: e.runs + 1, lastRunAt: v.at, lastDsr };
     }
     const failCount = e.failCount + 1;
     const tombstone = failCount >= TOMBSTONE_AFTER;
@@ -193,6 +206,7 @@ export function updateQueueAfterRun(queue: QueueEntry[], verdicts: QueueVerdict[
       failCount,
       runs: e.runs + 1,
       lastRunAt: v.at,
+      lastDsr,
       note: tombstone ? `连续 ${TOMBSTONE_AFTER} 次未过 6 关，自动淘汰` : e.note,
     };
   });

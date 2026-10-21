@@ -1,3 +1,5 @@
+import { kurtosisOf, skewness } from "./robustness.ts";
+
 /**
  * 因子注册表 + 6 关防过拟合判决。
  *
@@ -231,6 +233,13 @@ export type FactorRun = {
   nDays: number;
   /** 顶档票里被可交易闸（低价/市值/涨跌停）挡掉的比例，G6 用。 */
   topBlockedRatio: number;
+  /**
+   * 日度 spread 序列的偏度/峰度（非超额，正态=3），DSR/PSR 用：
+   * 负偏厚尾会让同样的 t 值更不可信。样本不足或 spread 无波动时为 null。
+   * 学 Vibe-Trading 的 multipletesting.py——显著性校正要看收益分布形状，不能只看 t。
+   */
+  spreadSkew: number | null;
+  spreadKurt: number | null;
 };
 
 export type DailyRow = { vals: (number | null)[]; ex: number; tradable?: boolean };
@@ -279,6 +288,8 @@ export function analyzeFactors(daily: DailyRow[][], factorCount: number, buckets
       t,
       nDays: days,
       topBlockedRatio: topTotal > 0 ? topBlocked / topTotal : 1,
+      spreadSkew: sd > 0 && spreads.length >= 4 ? skewness(spreads) : null,
+      spreadKurt: sd > 0 && spreads.length >= 4 ? kurtosisOf(spreads) : null,
     });
   }
   return out;

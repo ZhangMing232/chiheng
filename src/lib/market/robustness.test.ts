@@ -16,6 +16,7 @@ import {
   normalCdf,
   normalPpf,
   paramSensitivity,
+  perPeriodSharpe,
   psr,
   sharpe,
   skewness,
@@ -182,6 +183,12 @@ test("paramSensitivity：邻域变号 → 脆弱", () => {
   const flat = paramSensitivity({ x: 10 }, [{ x: 9 }, { x: 11 }], () => 0.5);
   assert.ok(!flat.fragile);
   assert.equal(flat.results.length, 2);
+});
+
+test("perPeriodSharpe：t/√n，n=0 不爆炸", () => {
+  assert.ok(Math.abs(perPeriodSharpe(2, 100) - 0.2) < 1e-12);
+  assert.equal(perPeriodSharpe(2, 0), 0);
+  assert.equal(perPeriodSharpe(-3, 9), -1);
 });
 
 test("mean/std 基础行为", () => {

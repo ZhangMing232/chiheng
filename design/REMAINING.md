@@ -183,7 +183,7 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 | # | 项 | 学什么 | 状态 |
 |---|---|---|---|
 | VT1 | 回测稳健性三件套 | walkForward 滚动分段一致性 + bootstrap 夏普 CI + PSR（偏度峰度调整），算法逐行移植 `robustness.ts`；/backtest 页曲线下方已展示 | ✅ 完成（2026-10-21，15 单测） |
-| VT2 | DSR 进因子层 | deflated_sharpe_ratio：把「试 N 个因子运气最好的夏普」当基准线，函数+测试已在 robustness.ts，接进因子页/evolve 提示 | ⬜ |
+| VT2 | DSR 进因子层 | deflated_sharpe_ratio：把「试 N 个因子运气最好的夏普」当基准线，函数+测试已在 robustness.ts，接进因子页/evolve 提示 | ✅ 完成（2026-10-21，4 单测）：因子 runs 落 spreadSkew/Kurt + dsr，队列 lastDsr 沿账，因子闭环面板加「运气线 DSR」列（只展示不改判决） |
 | VT3 | 挑战者邻近参数敏感度 | paramSensitivity（robustness.ts 已有）：挑战者转正判决时给参数邻域 ±20% 网格，参数是悬崖不是平台就标脆弱 | ⬜ |
 | VT4 | 因子 IC/ICIR | Vibe Alpha Zoo 的因子评价维度（因子值 vs 次日收益的秩相关序列），补进 6 关判决的展示侧 | ⬜ |
 | VT5 | PBO（回测过拟合概率） | CSCV 组合对称交叉验证，回答「这套参数是不是过拟合」 | ⬜ 低优先 |

@@ -54,6 +54,15 @@ export type FactorRunRow = {
   nTested: number;
   /** 回测抽样的股票池规模（如 296/500）。**旧批次没有**——读不到显示「没记」，不能编。 */
   universe?: number;
+  /** spread 序列的偏度/峰度，DSR（运气线校正）的输入。**旧批次没有**——读不到显示「没记」。 */
+  spreadSkew?: number | null;
+  spreadKurt?: number | null;
+  /**
+   * 运气线校正：本轮共试 nTrials 个因子时，运气最好那个的显著性基准线。
+   * survives=true 表示该因子的 per-period 夏普高过这条线，不像纯搜出来的。
+   * **只存档展示，不进 6 关判决**（判决规则改动必须用户拍板）。**旧批次没有**。
+   */
+  dsr?: { value: number; expectedMax: number; survives: boolean; nTrials: number } | null;
 };
 
 export type GateKey = "g1" | "g2" | "g3" | "g4" | "g5" | "g6";

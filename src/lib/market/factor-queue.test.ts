@@ -78,6 +78,15 @@ test("没出现在 verdicts 里的条目原样保留", () => {
   assert.equal(out[1], other);
 });
 
+test("DSR 运气线随判决落账：本轮有 dsr 记本轮，没有则沿用上轮", () => {
+  const dsrInfo = { value: 0.31, expectedMax: 0.28, survives: true, nTrials: 8 };
+  const out = updateQueueAfterRun([entry({})], [{ id: "q_test", passed: true, at: "t1", dsr: dsrInfo }]);
+  assert.deepEqual(out[0].lastDsr, { ...dsrInfo, at: "t1" });
+  // 下一轮判决没算 dsr（比如重跑老批次），lastDsr 不能丢
+  const out2 = updateQueueAfterRun(out, [{ id: "q_test", passed: false, at: "t2" }]);
+  assert.deepEqual(out2[0].lastDsr, { ...dsrInfo, at: "t1" });
+});
+
 // ── parseAIProposals ────────────────────────────────────────────
 
 // 每次调用拿一份新的——parseAIProposals 会往里 add 已接受的 id/name，
