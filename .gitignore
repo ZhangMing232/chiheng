@@ -19,3 +19,6 @@ scripts/app-icon.png
 # Python 缓存（baostock 抓取脚本产生的）
 __pycache__/
 *.pyc
+
+# Vibe-Trading MCP server 源码（vendored，许可证随包）；venv 在 ~/.chiheng/vt-venv 不进库
+vendor/

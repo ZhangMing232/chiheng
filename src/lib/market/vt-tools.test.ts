@@ -1,64 +1,77 @@
 /**
- * 这个文件是干什么的：
- * 钉住 vt-tools 的纯函数口径——JSON-RPC 组包、握手消息形状、响应判定。
- * 协议层错一个字段，子进程就挂在那里等超时，这些必须钉死。
+ * 钉死 VT 工具矿山 client 的离线口径——venv/script 缺失时状态为什么是、绝不抛；
+ * 环境变量覆盖路径生效（CHIHENG_VT_MCP_PY / CHIHENG_VT_MCP_SCRIPT）；
+ * probeVtTools 的返回形状是 /ai 页面板写死的那份。
+ * 真实 stdio 握手走手动冒烟（依赖 venv，不进单测）。
  */
 
-import test from "node:test";
 import assert from "node:assert/strict";
+import { test } from "node:test";
+import { invokeVtTool, probeVtTools, shutdownVtTools, vtToolsPrerequisite } from "@/lib/market/vt-tools";
 
-import {
-  buildCallTool,
-  buildInitialize,
-  buildInitializedNotification,
-  buildListTools,
-  frameMsg,
-  isResponse,
-  resultOf,
-} from "@/lib/market/vt-tools";
+function withEnv(key: string, value: string | undefined, fn: () => Promise<void>): Promise<void> {
+  const old = process.env[key];
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+  return fn().finally(() => {
+    if (old === undefined) delete process.env[key];
+    else process.env[key] = old;
+  });
+}
 
-test("frameMsg：单行 JSON + 换行", () => {
-  assert.equal(frameMsg({ a: 1 }), '{"a":1}\n');
-  assert.equal(frameMsg({}), '{}\n');
+test("vtToolsPrerequisite：默认路径在项目根下可探到文件", () => {
+  // 本机 vendor/ 已就位时 ok；不存在时 why 非空——两种都合法，只钉「不抛 + 布尔与 why 一致」。
+  const pre = vtToolsPrerequisite();
+  assert.equal(typeof pre.ok, "boolean");
+  assert.equal(pre.ok, pre.why === null);
 });
 
-test("buildInitialize：协议版本 / clientInfo / jsonrpc 2.0", () => {
-  const m = buildInitialize(7);
-  assert.equal(m.jsonrpc, "2.0");
-  assert.equal(m.id, 7);
-  assert.equal(m.method, "initialize");
-  const p = m.params as { protocolVersion: string; clientInfo: { name: string } };
-  assert.equal(p.protocolVersion, "2025-03-26");
-  assert.equal(p.clientInfo.name, "chiheng-vt-tools");
+test("vtToolsPrerequisite：python 路径不存在时给出直说 why", async () => {
+  await withEnv("CHIHENG_VT_MCP_PY", "/nonexistent/bin/python", async () => {
+    const pre = vtToolsPrerequisite();
+    assert.equal(pre.ok, false);
+    assert.match(pre.why ?? "", /python 不存在/);
+  });
 });
 
-test("buildInitializedNotification：无 id 的通知", () => {
-  const m = buildInitializedNotification();
-  assert.equal(m.method, "notifications/initialized");
-  assert.ok(!("id" in m), "通知不许带 id");
+test("vtToolsPrerequisite：script 路径不存在时给出直说 why", async () => {
+  await withEnv("CHIHENG_VT_MCP_PY", "/bin/echo", async () => {
+    await withEnv("CHIHENG_VT_MCP_SCRIPT", "/nonexistent/mcp_server.py", async () => {
+      const pre = vtToolsPrerequisite();
+      assert.equal(pre.ok, false);
+      assert.match(pre.why ?? "", /mcp_server\.py 不存在/);
+    });
+  });
 });
 
-test("buildListTools / buildCallTool：方法名与参数形状", () => {
-  assert.equal(buildListTools(3).method, "tools/list");
-  const call = buildCallTool(4, "screen_market", { market: "a", top_n: 3 });
-  assert.equal(call.method, "tools/call");
-  const p = call.params as { name: string; arguments: Record<string, unknown> };
-  assert.equal(p.name, "screen_market");
-  assert.deepEqual(p.arguments, { market: "a", top_n: 3 });
+test("probeVtTools：前置不满足时离线、toolCount 0、checkedAt 非空、不抛", async () => {
+  await withEnv("CHIHENG_VT_MCP_PY", "/nonexistent/bin/python", async () => {
+    shutdownVtTools(); // 清掉缓存，确保真探
+    const status = await probeVtTools(true);
+    assert.equal(status.online, false);
+    assert.equal(status.toolCount, 0);
+    assert.deepEqual(status.tools, []);
+    assert.ok(status.checkedAt);
+    assert.ok(status.error);
+  });
 });
 
-test("isResponse：有数字 id + result/error 才算响应", () => {
-  assert.ok(isResponse('{"jsonrpc":"2.0","id":1,"result":{}}'));
-  assert.ok(isResponse('{"jsonrpc":"2.0","id":2,"error":{"code":-32601}}'));
-  // 通知（无 id）不是响应
-  assert.ok(!isResponse('{"jsonrpc":"2.0","method":"notifications/progress"}'));
-  // server->client 请求（有 method）不是响应
-  assert.ok(!isResponse('{"jsonrpc":"2.0","id":9,"method":"ping"}'));
-  // 坏行不是响应
-  assert.ok(!isResponse("not json"));
+test("probeVtTools：有缓存时不重复探测（返回同一份 report 对象）", async () => {
+  await withEnv("CHIHENG_VT_MCP_PY", "/nonexistent/bin/python", async () => {
+    shutdownVtTools();
+    const first = await probeVtTools(true);
+    const second = await probeVtTools(); // 走缓存
+    assert.equal(second, first);
+  });
 });
 
-test("resultOf：取 result；error 响应抛错带 message", () => {
-  assert.deepEqual(resultOf('{"id":1,"result":{"tools":[]}}'), { tools: [] });
-  assert.throws(() => resultOf('{"id":1,"error":{"code":-32602,"message":"bad args"}}'), /bad args/);
+test("invokeVtTool：前置不满足时抛错、消息直说", async () => {
+  await withEnv("CHIHENG_VT_MCP_PY", "/nonexistent/bin/python", async () => {
+    await assert.rejects(() => invokeVtTool("list_skills", {}), /python 不存在/);
+  });
+});
+
+test("shutdownVtTools：空跑不抛", () => {
+  shutdownVtTools();
+  assert.ok(true);
 });

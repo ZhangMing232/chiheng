@@ -637,9 +637,9 @@ export async function runFactorAILoop(
   // 提议照常跑——证据是校准项不是依赖项。
   let marketEvidence: string[] = [];
   try {
-    const { callVTTool } = await import("./vt-tools.ts");
+    const { invokeVtTool } = await import("./vt-tools.ts");
     const { evidenceOf } = await import("./agent-loop.ts");
-    marketEvidence = evidenceOf(await callVTTool("screen_market", { market: "a", top_n: 10 }, 60_000));
+    marketEvidence = evidenceOf(await invokeVtTool("screen_market", { market: "a", top_n: 10 }, 60_000));
   } catch {
     marketEvidence = [];
   }

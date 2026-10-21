@@ -992,8 +992,8 @@ export const getVTToolsStatus = createServerFn({ method: "GET" }).handler(async 
   const { OWNER_ID } = await import("@/lib/market/book-file");
   const userId = await requireUserId();
   if (userId !== OWNER_ID) return { allowed: false as const };
-  const { checkVTTools } = await import("@/lib/market/vt-tools");
-  return { allowed: true as const, status: await checkVTTools() };
+  const { probeVtTools } = await import("./vt-tools.ts");
+  return { allowed: true as const, status: await probeVtTools() };
 });
 
 /** token 用量账（监控控制台）。非主人只回 allowed: false。 */

@@ -1,248 +1,237 @@
 /**
  * 这个文件是干什么的：
- * Vibe-Trading MCP 工具矿山的赤轨侧 client（design/AI-BRAIN.md 方案 B）。
- * VT 的 mcp_server.py 暴露 74 个只读/研究类工具（A 股资金流、全市场筛选、
- * 研报检索、回测分析……），这里用 stdio 子进程的方式随用随起——不常驻端口、
- * 不引新 npm 依赖（MCP stdio 就是换行分隔的 JSON-RPC，直接手写）。
+ * Vibe-Trading MCP server 的 chiheng 侧 client（「工具矿山」的接入层，design/AI-BRAIN.md 方案 B）。
  *
- * 你需要知道的（纪律）：
- * 1. **只读工具面**：VT 侧 shell 工具默认就不注册（我们从不传
- *    --enable-shell-tools），74 个工具全是研究类。这层仍然只许「读」，
- *    产出喂给 AI 的 prompt 当证据，AI 的执行边界不变。
- * 2. **随用随起**：每次调用 spawn 一个 python 子进程，握手 → 调用 → 杀掉。
- *    进程活在一次调用的几十秒内，不占内存不常驻。状态检查带 5 分钟内存缓存，
- *    页面反复导航不会反复 spawn。
- * 3. venv 不能挪到外置卷 /Volumes/colorful（venv 里的符号链接在 exFAT 上会坏），
- *    所以默认路径指向本机工作区副本，可用 CHIHENG_VT_MCP_HOME 环境变量覆盖；
- *    部署到别的机器时设这个变量即可。
- * 4. 纯函数（消息组包/解析）不碰子进程，直接单测。
+ * 为什么要有它：Vibe-Trading 自带 74 个只读/研究类 MCP 工具（资金流/龙虎榜/北向/研报检索/
+ * 问财/回测分析……，探针记录见 AI-BRAIN.md）。赤轨的 AI 提议层（agent-loop 诊断、
+ * 因子层/策略层 prompt 的市场证据）经这里调工具拿证据，提议从「拍脑袋」变「有数据支撑」。
+ *
+ * 你需要知道的：
+ * - 只走 **stdio 子进程**（赤轨 spawn，不常驻端口，原样保留 VT 的默认安全值：
+ *   shell 工具默认关、无网络暴露面）。
+ * - 资产位置：源码 vendored 在 vendor/vt-mcp/Vibe-Trading（不进 git），venv 在
+ *   ~/.chiheng/vt-venv（exFAT 卷不能放 venv）。环境变量覆盖：
+ *   CHIHENG_VT_MCP_HOME（venv 根目录）、CHIHENG_VT_MCP_PY（python 直路径）、
+ *   CHIHENG_VT_MCP_SCRIPT（mcp_server.py 直路径）。
+ * - 进程生命周期：懒 spawn → initialize 握手 → tools/list / tools/call → 闲置回收
+ *   （IDLE_KILL_MS）。任何一步失败都返回带 why/error 的离线状态或抛错，**绝不拖垮主流程**
+ *   ——所有调用点（agent-loop / strategy-ai）都 try/catch 降级为空证据。
+ * - 纪律：这些工具全是只读/研究类（VT 默认 shell 关闭），AI 只拿证据不碰执行；
+ *   判决规则写死，本文件不在 prompt 层做任何放行。
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
-// ── 纯函数：MCP stdio 消息组包/解析 ────────────────────────────
+/** tools/list 里的单个工具（只取展示和调度要用的字段，schema 原样透传）。 */
+export type VtTool = { name: string; description: string };
 
-/** JSON-RPC 请求组包（MCP stdio = 单行 JSON + \n）。 */
-export function frameMsg(obj: unknown): string {
-  return `${JSON.stringify(obj)}\n`;
-}
-
-/** 初始化握手请求（协议版本用 mcp<1.30 系都认的 2025-03-26）。 */
-export function buildInitialize(id: number): Record<string, unknown> {
-  return {
-    jsonrpc: "2.0",
-    id,
-    method: "initialize",
-    params: {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "chiheng-vt-tools", version: "0.1.0" },
-    },
-  };
-}
-
-/** initialized 通知（握手后发，不发的话 server 不响应 tools/list）。 */
-export function buildInitializedNotification(): Record<string, unknown> {
-  return { jsonrpc: "2.0", method: "notifications/initialized" };
-}
-
-export function buildListTools(id: number): Record<string, unknown> {
-  return { jsonrpc: "2.0", id, method: "tools/list", params: {} };
-}
-
-export function buildCallTool(id: number, name: string, args: Record<string, unknown>): Record<string, unknown> {
-  return { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } };
-}
-
-/** 这一行是不是 JSON-RPC 响应（有 id + result/error）。 */
-export function isResponse(line: string): boolean {
-  try {
-    const m = JSON.parse(line) as { id?: unknown; result?: unknown; error?: unknown };
-    return typeof m.id === "number" && ("result" in m || "error" in m);
-  } catch {
-    return false;
-  }
-}
-
-/** 从响应行里取 result；error 响应抛错。 */
-export function resultOf(line: string): unknown {
-  const m = JSON.parse(line) as { id?: number; result?: unknown; error?: { code?: number; message?: string } };
-  if (m.error) throw new Error(`MCP error ${m.error.code ?? "?"}：${m.error.message ?? "未知"}`);
-  return m.result;
-}
-
-// ── stdio 会话（server-only：spawn 子进程） ─────────────────────
-
-export type VTToolInfo = { name: string; description: string };
-
-export type VTToolsStatus = {
+/** probeVtTools() 的返回：/ai 页「VT 工具矿山」面板的形状（调用方已按此写死）。 */
+export type VtToolsReport = {
   online: boolean;
   toolCount: number;
-  tools: VTToolInfo[];
-  error: string | null;
+  tools: VtTool[];
+  /** 最近一次检测完成时刻（ISO）。 */
   checkedAt: string;
+  error: string | null;
 };
 
-/** VT MCP 的家：venv + 解包源码。默认本机工作区副本，可用环境变量覆盖。 */
-export function vtMcpHome(): string {
-  return (
-    process.env.CHIHENG_VT_MCP_HOME ??
-    "/Users/zhangweimin/Documents/kimi/tasks/2026-09-30/11-14-40-0dc258a"
-  );
+const DEFAULT_HOME = join(homedir(), ".chiheng", "vt-venv");
+const DEFAULT_SCRIPT = join(process.cwd(), "vendor", "vt-mcp", "Vibe-Trading", "mcp_server.py");
+
+/** 闲置超过这么久就杀掉子进程（下次调用重新 spawn；省着常驻吃内存）。 */
+const IDLE_KILL_MS = 5 * 60 * 1000;
+/** 单次工具调用的默认超时（VT 里 iwencai/东财类工具要爬数据，给宽一点）。 */
+const DEFAULT_CALL_TIMEOUT_MS = 60_000;
+/** 进程起来到 initialize 完成的超时。 */
+const INIT_TIMEOUT_MS = 30_000;
+/** probeVtTools 的结果缓存：5 分钟内不重复 spawn 探测（/ai 页反复看不该每次都起进程）。 */
+const STATUS_CACHE_MS = 5 * 60 * 1000;
+
+function pyPath(): string {
+  if (process.env.CHIHENG_VT_MCP_PY) return process.env.CHIHENG_VT_MCP_PY;
+  return join(process.env.CHIHENG_VT_MCP_HOME ?? DEFAULT_HOME, "bin", "python");
+}
+function scriptPath(): string {
+  return process.env.CHIHENG_VT_MCP_SCRIPT ?? DEFAULT_SCRIPT;
 }
 
-export function vtMcpCommand(): { python: string; script: string; env: NodeJS.ProcessEnv } {
-  const home = vtMcpHome();
-  return {
-    python: join(home, "vt-venv/bin/python"),
-    script: join(home, "Vibe-Trading/mcp_server.py"),
-    env: { ...process.env, PYTHONPATH: join(home, "Vibe-Trading") },
-  };
+/** 静态体检：python 和脚本在不在。不在就不用 spawn 了，why 直说。 */
+export function vtToolsPrerequisite(): { ok: boolean; why: string | null } {
+  if (!existsSync(pyPath())) return { ok: false, why: `python 不存在：${pyPath()}（venv 未装？见 design/AI-BRAIN.md）` };
+  if (!existsSync(scriptPath())) return { ok: false, why: `mcp_server.py 不存在：${scriptPath()}（vendor 未拉？）` };
+  return { ok: true, why: null };
 }
 
-/** 一次 stdio 会话：spawn → 握手 → 收发 JSON-RPC → 结束杀掉。 */
-class VTSession {
-  private child: ChildProcess;
+// ── stdio JSON-RPC ─────────────────────────────────────────────
+
+type JsonRpcMessage = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: number; message: string } };
+
+class VtMcpProcess {
+  private child: ChildProcess | null = null;
   private buffer = "";
-  private nextId = 1;
-  private pending = new Map<number, { resolve: (line: string) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>();
-  private stderrTail = "";
-  private dead = false;
+  private nextId = 0;
+  private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>();
+  private idleTimer: NodeJS.Timeout | null = null;
 
-  constructor(timeoutMs: number) {
-    const { python, script, env } = vtMcpCommand();
-    this.child = spawn(python, [script], { env, stdio: ["pipe", "pipe", "pipe"] });
-    this.child.stderr?.on("data", (d: Buffer) => {
-      this.stderrTail = (this.stderrTail + d.toString()).slice(-2000);
-    });
-    this.child.stdout?.on("data", (d: Buffer) => {
-      this.buffer += d.toString();
-      let idx: number;
-      while ((idx = this.buffer.indexOf("\n")) >= 0) {
-        const line = this.buffer.slice(0, idx).trim();
-        this.buffer = this.buffer.slice(idx + 1);
-        if (!line) continue;
-        this.onLine(line);
-      }
-    });
-    this.child.on("exit", () => {
-      this.dead = true;
-      for (const p of this.pending.values()) {
-        clearTimeout(p.timer);
-        p.reject(new Error(`VT MCP 子进程退出（stderr 尾部：${this.stderrTail.slice(-200) || "空"}）`));
-      }
-      this.pending.clear();
-    });
-    void timeoutMs;
+  /** 惰性单例：进程死了或没有就重新 spawn + initialize 握手。 */
+  async ensure(): Promise<void> {
+    if (this.child && this.child.exitCode === null) return;
+    this.kill();
+    this.child = spawn(pyPath(), [scriptPath()], { stdio: ["pipe", "pipe", "pipe"] });
+    this.child.stdout!.setEncoding("utf8");
+    this.child.stdout!.on("data", (chunk: string) => this.onData(chunk));
+    this.child.stderr!.on("data", () => void 0); // stderr 是 VT 的日志，不进协议流
+    this.child.on("exit", () => this.failAll(new Error("VT MCP 进程退出")));
+    await this.request("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "chiheng", version: "1.0" },
+    }, INIT_TIMEOUT_MS);
+    await this.notify("notifications/initialized", {});
   }
 
-  private onLine(line: string): void {
-    // server 可能反向 ping（server->client request）：回个空 result 再继续。
-    try {
-      const m = JSON.parse(line) as { id?: number; method?: string };
-      if (typeof m.id === "number" && m.method) {
-        this.send({ jsonrpc: "2.0", id: m.id, result: {} });
-        return;
+  private onData(chunk: string): void {
+    this.buffer += chunk;
+    for (;;) {
+      const nl = this.buffer.indexOf("\n");
+      if (nl < 0) return;
+      const line = this.buffer.slice(0, nl).trim();
+      this.buffer = this.buffer.slice(nl + 1);
+      if (!line) continue;
+      let msg: JsonRpcMessage;
+      try {
+        msg = JSON.parse(line) as JsonRpcMessage;
+      } catch {
+        continue; // VT 的杂散日志行，跳过
       }
-    } catch {
-      // 不是 JSON 的行忽略（server 日志混进来的容错）。
+      if (typeof msg.id !== "number") continue;
+      const slot = this.pending.get(msg.id);
+      if (!slot) continue;
+      clearTimeout(slot.timer);
+      this.pending.delete(msg.id);
+      if (msg.error) slot.reject(new Error(`MCP ${msg.error.code}: ${msg.error.message}`));
+      else slot.resolve(msg.result);
     }
-    if (!isResponse(line)) return;
-    const id = (JSON.parse(line) as { id: number }).id;
-    const p = this.pending.get(id);
-    if (!p) return;
-    clearTimeout(p.timer);
-    this.pending.delete(id);
-    p.resolve(line);
   }
 
-  private send(obj: unknown): void {
-    this.child.stdin?.write(frameMsg(obj));
+  private failAll(error: Error): void {
+    for (const slot of this.pending.values()) {
+      clearTimeout(slot.timer);
+      slot.reject(error);
+    }
+    this.pending.clear();
   }
 
-  /** 发一个请求等响应，带超时。 */
-  request(obj: Record<string, unknown>, timeoutMs: number): Promise<string> {
-    if (this.dead) return Promise.reject(new Error("VT MCP 子进程已退出"));
-    const id = this.nextId++;
+  private notify(method: string, params: unknown): void {
+    this.child!.stdin!.write(JSON.stringify({ jsonrpc: "2.0", method, params }) + "\n");
+  }
+
+  request(method: string, params: unknown, timeoutMs = DEFAULT_CALL_TIMEOUT_MS): Promise<unknown> {
+    const child = this.child;
+    if (!child || child.exitCode !== null) return Promise.reject(new Error("VT MCP 进程未启动"));
+    const id = ++this.nextId;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`VT MCP 请求超时（${timeoutMs / 1000}s）：${String(obj.method)}`));
+        reject(new Error(`MCP ${method} 超时（${timeoutMs}ms）`));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      this.send({ ...obj, id });
+      child.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
     });
   }
 
-  /** 完整握手：initialize → initialized 通知。 */
-  async handshake(timeoutMs: number): Promise<void> {
-    await this.request(buildInitialize(this.nextId), timeoutMs);
-    this.send(buildInitializedNotification());
+  touch(): void {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => this.kill(), IDLE_KILL_MS);
   }
 
-  async listTools(timeoutMs: number): Promise<VTToolInfo[]> {
-    const line = await this.request(buildListTools(this.nextId), timeoutMs);
-    const result = resultOf(line) as { tools?: { name?: string; description?: string }[] };
-    return (result.tools ?? []).map((t) => ({ name: t.name ?? "?", description: (t.description ?? "").slice(0, 120) }));
-  }
-
-  async callTool(name: string, args: Record<string, unknown>, timeoutMs: number): Promise<string> {
-    const line = await this.request(buildCallTool(this.nextId, name, args), timeoutMs);
-    const result = resultOf(line) as { content?: { type?: string; text?: string }[] };
-    return (result.content ?? []).map((c) => c.text ?? "").join("\n");
-  }
-
-  close(): void {
-    for (const p of this.pending.values()) clearTimeout(p.timer);
-    this.pending.clear();
-    this.child.kill("SIGKILL");
+  kill(): void {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+    if (this.child) {
+      this.child.kill("SIGKILL");
+      this.child = null;
+    }
+    this.buffer = "";
+    this.failAll(new Error("VT MCP 进程已回收"));
   }
 }
 
-/** 状态检查（5 分钟内存缓存，避免页面导航反复 spawn）。 */
-let statusCache: { at: number; status: VTToolsStatus } | null = null;
-const STATUS_TTL = 5 * 60_000;
+const processRef: { current: VtMcpProcess | null } = { current: null };
+function proc(): VtMcpProcess {
+  if (!processRef.current) processRef.current = new VtMcpProcess();
+  return processRef.current;
+}
 
-export async function checkVTTools(timeoutMs = 20_000): Promise<VTToolsStatus> {
-  if (statusCache && Date.now() - statusCache.at < STATUS_TTL) return statusCache.status;
-  const started = Date.now();
-  let session: VTSession | null = null;
+// ── 对外接口 ──────────────────────────────────────────────────
+
+/** /ai 页状态面板用：在线 + 工具数 + 清单，带 5 分钟缓存。 */
+export async function probeVtTools(force = false): Promise<VtToolsReport> {
+  const now = Date.now();
+  if (!force && now - statusCache.at < STATUS_CACHE_MS) return statusCache.report;
+  const pre = vtToolsPrerequisite();
+  const report: VtToolsReport = pre.ok
+    ? await probeLive()
+    : { online: false, toolCount: 0, tools: [], checkedAt: new Date().toISOString(), error: pre.why };
+  statusCache.at = now;
+  statusCache.report = report;
+  return report;
+}
+
+const statusCache: { at: number; report: VtToolsReport } = { at: -Infinity, report: { online: false, toolCount: 0, tools: [], checkedAt: "", error: null } };
+
+async function probeLive(): Promise<VtToolsReport> {
   try {
-    session = new VTSession(timeoutMs);
-    await session.handshake(timeoutMs);
-    const tools = await session.listTools(timeoutMs);
-    const status: VTToolsStatus = {
-      online: true,
-      toolCount: tools.length,
-      tools: tools.slice(0, 200),
-      error: null,
-      checkedAt: new Date().toISOString(),
-    };
-    statusCache = { at: started, status };
-    return status;
+    const p = proc();
+    await p.ensure();
+    const result = (await p.request("tools/list", {}, INIT_TIMEOUT_MS)) as { tools?: { name?: unknown; description?: unknown }[] };
+    p.touch();
+    const tools = (result.tools ?? [])
+      .filter((t): t is { name: string; description?: unknown } => typeof t?.name === "string")
+      .map((t) => ({ name: t.name, description: typeof t.description === "string" ? t.description : "" }));
+    return { online: true, toolCount: tools.length, tools, checkedAt: new Date().toISOString(), error: null };
   } catch (error) {
-    const status: VTToolsStatus = {
-      online: false,
-      toolCount: 0,
-      tools: [],
-      error: error instanceof Error ? error.message : String(error),
-      checkedAt: new Date().toISOString(),
-    };
-    statusCache = { at: started, status };
-    return status;
-  } finally {
-    session?.close();
+    // 探活失败把进程杀掉，下次重来（可能是 venv 坏了或 VT 升级了协议）。
+    try {
+      proc().kill();
+    } catch {
+      /* 杀不掉就算了 */
+    }
+    return { online: false, toolCount: 0, tools: [], checkedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error) };
   }
 }
 
-/** 调一个 VT 工具（随用随起一个新会话）。给 AI 喂证据用。 */
-export async function callVTTool(name: string, args: Record<string, unknown>, timeoutMs = 60_000): Promise<string> {
-  const session = new VTSession(timeoutMs);
+/**
+ * 调一个工具。返回**原始文本**（调用方 evidenceOf 自己解析 JSON，解析口径归它管）；
+ * 参数原样透传（schema 由 VT 侧校验）。超时/离线都抛——调用方（agent-loop /
+ * strategy-ai）自己 try/catch 降级，这里不做重试。
+ */
+export async function invokeVtTool(name: string, args: Record<string, unknown>, timeoutMs = DEFAULT_CALL_TIMEOUT_MS): Promise<string> {
+  const pre = vtToolsPrerequisite();
+  if (!pre.ok) throw new Error(pre.why ?? "VT MCP 未就绪");
+  const p = proc();
+  await p.ensure();
+  const result = (await p.request("tools/call", { name, arguments: args }, timeoutMs)) as { content?: { type?: string; text?: string }[]; isError?: boolean };
+  p.touch();
+  const text = (result.content ?? [])
+    .filter((c) => c?.type === "text" && typeof c.text === "string")
+    .map((c) => c.text as string)
+    .join("\n");
+  if (result.isError) throw new Error(`VT 工具 ${name} 报错：${text.slice(0, 200)}`);
+  return text;
+}
+
+/** 测试和关服用：清缓存 + 立刻杀掉子进程。 */
+export function shutdownVtTools(): void {
+  statusCache.at = -Infinity;
+  statusCache.report = { online: false, toolCount: 0, tools: [], checkedAt: "", error: null };
   try {
-    await session.handshake(Math.min(timeoutMs, 20_000));
-    return await session.callTool(name, args, timeoutMs);
-  } finally {
-    session.close();
+    processRef.current?.kill();
+  } catch {
+    /* 忽略 */
   }
+  processRef.current = null;
 }

@@ -330,8 +330,8 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
   // 都降级为空数组——诊断不能因为工具矿山塌了而缺席。
   let marketEvidence: string[] = [];
   try {
-    const { callVTTool } = await import("./vt-tools.ts");
-    const raw = await callVTTool("screen_market", { market: "a", top_n: 10 }, 60_000);
+    const { invokeVtTool } = await import("./vt-tools.ts");
+    const raw = await invokeVtTool("screen_market", { market: "a", top_n: 10 }, 60_000);
     marketEvidence = evidenceOf(raw);
   } catch {
     marketEvidence = [];
