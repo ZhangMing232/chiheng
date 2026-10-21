@@ -866,11 +866,24 @@ export const testAIProfile = createServerFn({ method: "POST" })
     }
   });
 
+/**
+ * AI 额度闸（design/MEMBERSHIP.md §四）：非主人按 plan 限每日次数，过闸先记账再跑。
+ * 计数按上海自然日；失败的调用也计（刷重试不免费）。主人（admin）无限、不计。
+ */
+async function aiGate(user: { userId: string; isOwner: boolean; plan: string | null }, kind: "evolve" | "diagnose"): Promise<void> {
+  if (user.isOwner) return;
+  const { assertAIQuota, bumpAIQuota } = await import("@/lib/auth/quota");
+  const { shanghaiDate } = await import("@/lib/market/session");
+  const today = shanghaiDate();
+  await assertAIQuota(user, kind, today);
+  await bumpAIQuota(user.userId, kind, today);
+}
+
 /** 让 AI 跑一轮闭环：读最近判决 → 提议新因子 → 校验后进队列。 */
 export const runFactorAI = createServerFn({ method: "POST" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
-  const { userId, isOwner } = await requirePrincipal();
-  if (!isOwner) throw new Error("只有主人账号能跑 AI 闭环");
+  const { userId, isOwner, plan } = await requirePrincipal();
+  await aiGate({ userId, isOwner, plan }, "evolve");
   const { FACTORS } = await import("@/lib/market/factors");
   return runFactorAILoop({
     readRows: readFactorRuns,
@@ -921,8 +934,8 @@ export const getChallengerRobustness = createServerFn({ method: "GET" }).handler
 /** 让 AI 提名一轮挑战者：校验通过的直接 running，记账进程当天开始并行攒样本。 */
 export const runStrategyAI = createServerFn({ method: "POST" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
-  const { userId, isOwner } = await requirePrincipal();
-  if (!isOwner) throw new Error("只有主人账号能跑 AI 闭环");
+  const { userId, isOwner, plan } = await requirePrincipal();
+  await aiGate({ userId, isOwner, plan }, "evolve");
   const { runStrategyAILoop } = await import("@/lib/market/strategy-ai");
   return runStrategyAILoop();
 });
@@ -930,8 +943,8 @@ export const runStrategyAI = createServerFn({ method: "POST" }).handler(async ()
 /** 一键完整进化：全局诊断（观察）→ 因子层 → 策略层，各层各自记账（ai-log）。诊断的建议本轮就进两层 prompt。 */
 export const runEvolve = createServerFn({ method: "POST" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
-  const { userId, isOwner } = await requirePrincipal();
-  if (!isOwner) throw new Error("只有主人账号能跑 AI 进化");
+  const { userId, isOwner, plan } = await requirePrincipal();
+  await aiGate({ userId, isOwner, plan }, "evolve");
   const { runEvolveLoop } = await import("@/lib/market/evolve");
   const { FACTORS } = await import("@/lib/market/factors");
   return runEvolveLoop({
@@ -963,8 +976,8 @@ export const getAgentDiagnosis = createServerFn({ method: "GET" }).handler(async
 /** 手动跑一轮全局诊断：结果落 agent-diagnosis.json + ai-log（layer=agent）。 */
 export const runAgentDiagnose = createServerFn({ method: "POST" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
-  const { userId, isOwner } = await requirePrincipal();
-  if (!isOwner) throw new Error("只有主人账号能跑 AI 诊断");
+  const { userId, isOwner, plan } = await requirePrincipal();
+  await aiGate({ userId, isOwner, plan }, "diagnose");
   const { runAgentDiagnosis } = await import("@/lib/market/agent-loop");
   return runAgentDiagnosis("manual");
 });

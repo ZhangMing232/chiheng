@@ -1,8 +1,8 @@
 /**
  * 这个文件是干什么的：
  * 钉住会员定价（pricing.ts）的口径——档位齐全、free/admin 无档位、
- * 人工授予文案在位。价格是「锁定价」的诚实口径：v1 没有硬权益闸，
- * blurb 不许把还没做的额度闸写成在售权益。
+ * 人工授予文案在位。额度闸已上线（quota.ts）：blurb 里的额度数字必须和
+ * AI_QUOTA 一致，这组用例就是防两边漂移的锁。
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -39,8 +39,12 @@ test("人工授予流程三步都在，占位文案明说渠道未定（不装�
   assert.match(PAYMENT_CHANNEL_NOTE, /渠道待定/);
 });
 
-test("blurb 诚实口径：没把「额度闸」写成已在售的权益", () => {
+test("blurb 额度 = AI_QUOTA 真实数字（防 pricing 和 quota 漂移）", async () => {
+  const { AI_QUOTA } = await import("@/lib/auth/quota");
   for (const tier of TIERS) {
-    assert.doesNotMatch(tier.blurb, /已包含.*额度|立即解锁/);
+    const quota = AI_QUOTA[tier.plan];
+    assert.match(tier.blurb, new RegExp(`进化 ${quota.evolve} 轮`), `${tier.plan} blurb 没写真实进化额度`);
+    assert.match(tier.blurb, new RegExp(`诊断 ${quota.diagnose} 次`), `${tier.plan} blurb 没写真实诊断额度`);
   }
+  assert.doesNotMatch(TIERS.map((t) => t.blurb).join(" "), /已包含.*额度|立即解锁/);
 });

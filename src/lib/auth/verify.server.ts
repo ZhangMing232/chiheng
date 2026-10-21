@@ -131,7 +131,7 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
  * 哪个账号就是主人，本机 dev 和线上真实账号同一套判定。
  * 唯一例外：没有真实库的 dev 回落（和 requireUserId 同一条路），dev-user 天然是主人。
  */
-export type Principal = { userId: string; isOwner: boolean };
+export type Principal = { userId: string; isOwner: boolean; /** 会员档位（session user.plan，dev 回落 = "admin"）；额度闸按它限流 */ plan: string | null };
 
 export async function requirePrincipal(bearerToken?: string): Promise<Principal> {
   if (!authConfigured && !gateIdentityEnabled()) {
@@ -141,7 +141,7 @@ export async function requirePrincipal(bearerToken?: string): Promise<Principal>
           "refusing to fall back to the shared dev user against a real database.",
       );
     }
-    return { userId: DEV_USER_ID, isOwner: true };
+    return { userId: DEV_USER_ID, isOwner: true, plan: "admin" };
   }
   let user: VerifiedUser | null = null;
   try {
@@ -149,9 +149,9 @@ export async function requirePrincipal(bearerToken?: string): Promise<Principal>
   } catch {
     user = null;
   }
-  if (user) return { userId: user.id, isOwner: isAdmin(user.plan) };
+  if (user) return { userId: user.id, isOwner: isAdmin(user.plan), plan: user.plan };
   if (mayUseDevUser({ databaseConfigured, hasRealIdentity: false })) {
-    return { userId: DEV_USER_ID, isOwner: true };
+    return { userId: DEV_USER_ID, isOwner: true, plan: "admin" };
   }
   throw new UnauthorizedError();
 }

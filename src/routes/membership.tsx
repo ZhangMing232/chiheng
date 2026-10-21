@@ -7,15 +7,18 @@
  *
  * 你需要知道的：
  * 1. 定价只从 @/lib/auth/pricing 读，这里不手写数字——改价改那一处。
- * 2. v1 没有硬权益闸：付费当下买到的是「支持项目 + 锁定价 + 硬权益上线后自动
- *    拥有」。这句诚实口径写在页面上，不许把还没做的额度闸包装成在售权益。
+ * 2. AI 额度闸已上线（quota.ts）：付费当下买到的是真实权益——每日 AI 进化 /
+ *    诊断额度（数字 = AI_QUOTA，pricing.test.ts 钉住两边同步）。「当前档位」
+ *    面板用 getAIQuotaStatus 展示今日已用/上限。
  * 3. 「当前档位」对已付费用户标出 tierOf(plan)，对 admin 显示管理员（不出价格）。
  */
 
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { isAdmin, isPaidPlan, planLabel } from "@/lib/auth/plan";
+import { getAIQuotaStatus } from "@/lib/auth/quota.functions";
 import { GRANT_FLOW_LINES, PAYMENT_CHANNEL_NOTE, TIERS, tierOf } from "@/lib/auth/pricing";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
@@ -25,10 +28,23 @@ export const Route = createFileRoute("/membership")({
 
 function MembershipPage() {
   const { user, isPending } = useCurrentUserState();
+  // 今日额度：登录才查（未登录服务端回 null），额度闸上线后的权益可视（quota.ts）
+  const quota = useQuery({
+    queryKey: ["ai-quota-status"],
+    queryFn: () => getAIQuotaStatus(),
+    enabled: !!user,
+    staleTime: 15_000,
+  });
   if (isPending) return null;
 
   const plan = user?.plan ?? "free";
   const currentTier = tierOf(plan);
+  const quotaLine = (() => {
+    const q = quota.data;
+    if (!q) return null;
+    const fmt = (used: number, limit: number | null) => `${used}/${limit === null ? "∞" : limit}`;
+    return `今日额度：AI 进化 ${fmt(q.used.evolve, q.limit.evolve)} · 全局诊断 ${fmt(q.used.diagnose, q.limit.diagnose)}`;
+  })();
 
   return (
     <Frame aside="会员">
@@ -49,6 +65,7 @@ function MembershipPage() {
                 {isPaidPlan(plan) ? "档位已在词表外（数据异常，找店主）" : "免费版——下方升级支持项目开发"}
               </span>
             )}
+            {quotaLine ? <span className="w-full text-xs tabular-nums text-muted">{quotaLine}</span> : null}
           </div>
         ) : (
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
@@ -119,7 +136,7 @@ function MembershipPage() {
           </p>
         ) : null}
         <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
-          v1 没有硬权益闸：付费当下买到的是「支持项目持续开发 + 锁定当前价 + 硬权益（AI 额度闸等）上线后自动拥有」。权益清单和闸的实现进度见 design/MEMBERSHIP.md。
+          AI 额度闸已上线：付费档位立即获得每日 AI 进化 / 诊断额度（当前档位面板可见今日已用）。更多硬权益（工具矿山、自选股上限等）的上线进度见 design/MEMBERSHIP.md。
         </p>
       </Panel>
     </Frame>
