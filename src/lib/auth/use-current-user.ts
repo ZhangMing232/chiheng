@@ -13,7 +13,10 @@ export type AppUser = {
   id: string;
   displayName: string | null;
   primaryEmail: string | null;
-  profileImageUrl: string | null;
+  profileImageUrl: null | string;
+  /** 会员档位（design/MEMBERSHIP.md）：free / pro-monthly / pro-yearly / lifetime / admin。
+   *  dev 兜底用户恒为 "admin"。 auth 关闭时字段不存在 → null。 */
+  plan: string | null;
   /** True when this is the sandbox/dev fallback (auth not configured). */
   isDevFallback: boolean;
 };
@@ -30,6 +33,7 @@ export const DEV_USER: AppUser = {
   displayName: "Dev User",
   primaryEmail: "dev@example.com",
   profileImageUrl: null,
+  plan: "admin",
   isDevFallback: true,
 };
 
@@ -74,6 +78,8 @@ export function useCurrentUserState(): CurrentUserState {
           displayName: user.name ?? null,
           primaryEmail: user.email ?? null,
           profileImageUrl: user.image ?? null,
+          // additionalFields（server.ts）透传：会话里的 user 直接带 plan。
+          plan: typeof (user as unknown as { plan?: unknown }).plan === "string" ? (user as unknown as { plan: string }).plan : "free",
           isDevFallback: false,
         }
       : null,

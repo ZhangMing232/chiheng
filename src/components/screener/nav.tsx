@@ -36,6 +36,42 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
+import { isPaidPlan, planLabel } from "@/lib/auth/plan";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+
+/** 顶栏账号入口：已登录显示邮箱（或名字）+ 付费档位徽章，点进 /login 管理；
+ *  未登录显示「登录」。会话解析中渲染空，不闪。 */
+function AccountChip() {
+  const { user, isPending } = useCurrentUserState();
+  if (isPending) return null;
+  if (!user) {
+    return (
+      <Link
+        to="/login"
+        className="inline-flex h-8 shrink-0 items-center rounded border border-line bg-surface px-3 text-sm text-muted hover:bg-surface-2 hover:text-fg"
+      >
+        登录
+      </Link>
+    );
+  }
+  const label = user.primaryEmail ?? user.displayName ?? user.id;
+  const short = label.length > 14 ? `${label.slice(0, 13)}…` : label;
+  return (
+    <Link
+      to="/login"
+      title={`${label} · ${planLabel(user.plan)}`}
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded border border-line bg-surface px-3 text-sm text-muted hover:bg-surface-2 hover:text-fg"
+    >
+      <span className="max-w-36 truncate">{short}</span>
+      {isPaidPlan(user.plan) && (
+        <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand-text">
+          {planLabel(user.plan)}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 
 /**
  * 左侧分组导航。2026-10-16 按用户「页面太多」的反馈二次整合（此前 10-13 已学
@@ -702,6 +738,7 @@ export function Frame({
             <PageTitle />
             <QuickSearch />
             <div className="ml-auto flex shrink-0 items-center gap-2">
+              <AccountChip />
               <AlertBell />
               <button
                 type="button"

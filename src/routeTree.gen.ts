@@ -18,6 +18,7 @@ import { Route as DeskRouteImport } from './routes/desk'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MyStocksRouteImport } from './routes/my-stocks'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as NotesRouteImport } from './routes/notes'
@@ -102,6 +103,11 @@ const FlowRoute = FlowRouteImport.update({
 const InboxRoute = InboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MyStocksRoute = MyStocksRouteImport.update({
@@ -315,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
@@ -364,6 +371,7 @@ export interface FileRoutesByTo {
   '/desk': typeof DeskRoute
   '/events': typeof EventsRoute
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
   '/notes': typeof NotesRoute
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/flow'
     | '/inbox'
+    | '/login'
     | '/my-stocks'
     | '/news'
     | '/notes'
@@ -517,6 +527,7 @@ export interface FileRouteTypes {
     | '/desk'
     | '/events'
     | '/inbox'
+    | '/login'
     | '/my-stocks'
     | '/news'
     | '/notes'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/flow'
     | '/inbox'
+    | '/login'
     | '/my-stocks'
     | '/news'
     | '/notes'
@@ -619,6 +631,7 @@ export interface RootRouteChildren {
   EventsRoute: typeof EventsRoute
   FlowRoute: typeof FlowRouteWithChildren
   InboxRoute: typeof InboxRoute
+  LoginRoute: typeof LoginRoute
   MyStocksRoute: typeof MyStocksRoute
   NewsRoute: typeof NewsRoute
   NotesRoute: typeof NotesRoute
@@ -704,6 +717,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox'
       preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-stocks': {
@@ -1074,6 +1094,7 @@ const rootRouteChildren: RootRouteChildren = {
   EventsRoute: EventsRoute,
   FlowRoute: FlowRouteWithChildren,
   InboxRoute: InboxRoute,
+  LoginRoute: LoginRoute,
   MyStocksRoute: MyStocksRoute,
   NewsRoute: NewsRoute,
   NotesRoute: NotesRoute,

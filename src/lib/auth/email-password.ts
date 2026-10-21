@@ -9,10 +9,10 @@
 /**
  * Local email/password sign-in (this app's Better Auth DB — not the broker).
  *
- * Off by default. To enable: set `emailAndPasswordEnabled` to `true` below,
- * then build sign-up / sign-in forms with `authClient.signUp.email` /
- * `authClient.signIn.email` from `@/lib/auth/client` (see the auth skill).
+ * 赤轨自用：2026-10-21 起常开（design/MEMBERSHIP.md 会员体系的基础——
+ * 注册登录是收会员费的前提）。注册/登录表单见 /login 页，
+ * 调 authClient.signUp.email / authClient.signIn.email（@/lib/auth/client）。
  *
  * Do NOT edit `server.ts` for this — that file is frozen pre-wired config.
  */
-export const emailAndPasswordEnabled = false;
+export const emailAndPasswordEnabled = true;

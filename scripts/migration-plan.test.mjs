@@ -56,9 +56,15 @@ test("non-.sql entries are dropped (readdir also yields the auth/ directory)", (
   assert.deepEqual(pendingMigrations(["auth", "README.md"], []), []);
 });
 
-test("the auth schema ships outside the globbed directory", () => {
+test("auth schema copy + membership migration ship inside the globbed directory", () => {
+  // 赤轨 2026-10-21 起注册登录常开（design/MEMBERSHIP.md）：0001_auth.sql 的副本
+  // 和 0002_membership.sql 都该在 migrations/ 顶层等 glob 收编，启动即自动应用。
   const migrationsDir = join(projectRoot(), "migrations");
-  assert.deepEqual(pendingMigrations(readdirSync(migrationsDir), []), []);
+  const pending = pendingMigrations(readdirSync(migrationsDir), []);
+  assert.deepEqual(
+    pending.map((p) => p.name),
+    ["0001_auth.sql", "0002_membership.sql"],
+  );
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
 });
 

@@ -221,6 +221,16 @@ export const auth = betterAuth({
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
 
+  // 会员体系（design/MEMBERSHIP.md）：user 表加 plan 字段，与 0002_membership.sql
+  // 同词表（free / pro-monthly / pro-yearly / lifetime / admin）。input:false =
+  // 注册/改资料时客户端写不进来，只有服务端脚本（scripts/grant-plan.ts）和
+  // 未来的支付回调能改——用户自己提不了权。
+  user: {
+    additionalFields: {
+      plan: { type: "string", defaultValue: "free", input: false },
+    },
+  },
+
   // `__Host-` prefixed cookies: the browser REFUSES any same-named cookie that
   // carries a `Domain` attribute, so a sibling `*.grok.me` app cannot "toss" a
   // `Domain=.grok.me` session cookie onto this app. `__Host-` requires Secure +
