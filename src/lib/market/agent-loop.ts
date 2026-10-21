@@ -1,0 +1,275 @@
+/**
+ * 这个文件是干什么的：
+ * AI 大脑的「观察 + 诊断」层（design/AI-BRAIN.md 方案 A 的第一步）。
+ * 之前的两层闭环（factor-queue / strategy-ai）是「单轮提议」——AI 每轮只看
+ * 一层自己的上下文，提完就走。这里把**整个账本**摊给它：因子判决史 + 队列 +
+ * 死因档案 + 挑战者纸面 + 策略闸 + AI 自身进化史，让它先「看懂全局」再说话。
+ *
+ * 你需要知道的（纪律，和两层闭环同规矩）：
+ * 1. **这轮只诊断，不行动**。输出是一份诊断报告（总评 / 因子层 / 策略层 /
+ *    建议 / 规则变更请求），原样落 data/agent-diagnosis.json 展示给人看。
+ *    建议项要真行动，得走已有的提议通道（parseAIProposals / 挑战者提名），
+ *    那是下一步（plan/act）的事。
+ * 2. **规则变更请求只展示**。AI 觉得「6 关太严 / Welch 阈值不对」，只能写进
+ *    ruleChangeRequests 给人拍板——判决规则写死在代码里，AI 没有任何代码路径
+ *    碰得到（和 VT1/VT2 的边界同一条）。
+ * 3. 纯函数（buildDiagnosisPrompt / parseDiagnosis / extractJson）不碰 fs/fetch，
+ *    直接单测；collect/run 是 server-only。
+ * 4. 诊断也记 ai-log（layer="agent"）：跑了没产出、配置失效、接口欠费，都要
+ *    能在账本里看到，不能静默。token 走 callAIWithFallback 同一本账。
+ */
+
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
+import { callAIWithFallback, readAIConfig, readQueue } from "./factor-queue.ts";
+import { appendAILog, evolveStats, readAILog } from "./ai-log.ts";
+import { necropsyLines } from "./factor-necropsy.ts";
+import { readFactorRuns, type FactorRunRow } from "./factor-runs-file.ts";
+import { readTombstones } from "./factor-tombstones.ts";
+import { readChallengers, readChampions } from "./challenger.ts";
+import { readStrategyGates } from "./strategy-gate.ts";
+import { ACTIVE_STYLES, STYLES, holdOf } from "./strategies.ts";
+import { RED_LINE_PROMPT } from "./red-line.ts";
+
+// ── 账本快照（observe） ─────────────────────────────────────────
+
+/** 一次诊断吃的全部上下文。字段都是「展示原文」，数字原样来自文件，不加工。 */
+export type LedgerSnapshot = {
+  at: string;
+  /** 因子层：最近一批判决，每因子一行。 */
+  factorLines: string[];
+  /** 因子层：批次数 / 最近批日期 / 样本天数。 */
+  factorMeta: string;
+  /** 队列现状统计（活因子/待验/已过/坟墓各几个）。 */
+  queueLines: string[];
+  /** 死因档案聚合（necropsyLines 输出）。 */
+  necropsy: string[];
+  /** 策略层：冠军参数。 */
+  championLines: string[];
+  /** 策略层：挑战者名单与状态。 */
+  chalLines: string[];
+  /** 策略层：策略闸状态。 */
+  gateLines: string[];
+  /** AI 自身：近几轮两层进化的成败史。 */
+  selfHistory: string[];
+};
+
+/** 一条因子判决 → 一行摘要（t 值、过几关、DSR 运气线）。 */
+export function summarizeRunRow(r: FactorRunRow): string {
+  const gates = Object.values(r.gates).filter(Boolean).length;
+  const dsr = r.dsr ? `，DSR ${(r.dsr.value * 100).toFixed(0)}%${r.dsr.survives ? "（过运气线）" : `（运气线 ${(r.dsr.expectedMax * 100).toFixed(0)}% 未过）`}` : "";
+  return `- ${r.name}（${r.factor}）：t=${r.t.toFixed(2)}，6 关过 ${gates}/6${dsr}`;
+}
+
+/** 队列统计 → 几行中文。 */
+export function summarizeQueue(entries: { status: string }[]): string[] {
+  const count = (s: string) => entries.filter((e) => e.status === s).length;
+  const alive = entries.length - count("tombstone");
+  return [
+    `- 队列共 ${entries.length} 条，活着 ${alive}（待验 ${count("pending")} / 测过 ${count("tested")} / 已过 6 关 ${count("passed")}），坟墓 ${count("tombstone")}`,
+  ];
+}
+
+// ── 诊断 prompt（纯函数） ───────────────────────────────────────
+
+/** 把账本快照组装成诊断 prompt。只陈述事实 + 要 JSON，不诱导结论。 */
+export function buildDiagnosisPrompt(snap: LedgerSnapshot): string {
+  return [
+    "你是这个 A 股量化系统的 AI 管家。下面是整个系统的最新账本。你的任务是诊断，不是行动——输出一份诊断报告，人类会读它并决定下一步。",
+    "",
+    "【因子层：最近一批 6 关判决】",
+    snap.factorLines.join("\n") || "- （还没有判决数据）",
+    "",
+    `【因子层：历史规模】${snap.factorMeta}`,
+    "",
+    "【待验队列现状】",
+    snap.queueLines.join("\n"),
+    "",
+    "【死因档案（被淘汰因子的败因）】",
+    snap.necropsy.join("\n") || "- （档案是空的）",
+    "",
+    "【策略层：实盘冠军参数】",
+    snap.championLines.join("\n"),
+    "",
+    "【策略层：挑战者（纸面攒样本中）】",
+    snap.chalLines.join("\n") || "- （没有在跑的挑战者）",
+    "",
+    "【策略层：策略闸】",
+    snap.gateLines.join("\n"),
+    "",
+    "【AI 自身：近几轮进化成败】",
+    snap.selfHistory.join("\n") || "- （还没有记录）",
+    "",
+    "输出要求：只输出一个 JSON 对象，不要输出任何别的文字。结构：",
+    '{',
+    '  "summary": "一句话总评：整个系统现在最该关注的一件事",',
+    '  "factorLayer": "因子层诊断：哪类因子在失效/生效，死因档案里有没有共性，队列是不是健康",',
+    '  "strategyLayer": "策略层诊断：挑战者攒样本速度、冠军参数有没有该警惕的迹象、策略闸状态",',
+    '  "suggestions": ["建议动作，1~3 条，每条一句。只能是「提议新因子/提名挑战者/请求人工检查」这类不碰判决规则的动作"],',
+    '  "ruleChangeRequests": ["规则变更请求：如果你觉得某条判决规则（6 关阈值/Welch t 值/淘汰次数）不合理，写在这里并给理由；没有就空数组。注意：你只能请求，人类批了才生效"]',
+    '}',
+    "",
+    "铁律：1) 所有判断必须引用账本里的具体数字，不许泛泛而谈；2) 不许给出任何具体股票的买卖建议；3) 不许假设账本里没有的数据。",
+    RED_LINE_PROMPT,
+  ].join("\n");
+}
+
+// ── 诊断报告解析（纯函数） ─────────────────────────────────────
+
+export type AgentDiagnosis = {
+  summary: string;
+  factorLayer: string;
+  strategyLayer: string;
+  suggestions: string[];
+  ruleChangeRequests: string[];
+};
+
+/** 从模型输出里抠 JSON：找第一个 { 到最后一个 }，解析失败返回 null。 */
+export function extractJson(raw: string): string | null {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  return raw.slice(start, end + 1);
+}
+
+/**
+ * 校验诊断 JSON：五个字段类型对就收（缺的补默认），完全不是对象返回 null。
+ * 宽松校验——这是展示层不是判决层，人读的时候会自己判断成色。
+ */
+export function parseDiagnosis(raw: string): AgentDiagnosis | null {
+  const text = extractJson(raw);
+  if (!text) return null;
+  try {
+    const d = JSON.parse(text) as Record<string, unknown>;
+    if (typeof d !== "object" || d === null) return null;
+    const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+    const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+    return {
+      summary: str(d.summary),
+      factorLayer: str(d.factorLayer),
+      strategyLayer: str(d.strategyLayer),
+      suggestions: arr(d.suggestions),
+      ruleChangeRequests: arr(d.ruleChangeRequests),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── 收集 + 运行（server-only：fs + fetch） ──────────────────────
+
+function dataDir(): string {
+  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+}
+
+export const agentDiagnosisPath = () => join(dataDir(), "agent-diagnosis.json");
+
+/** 读最近一次诊断报告（文件没有/坏了 → null）。给页面用。 */
+export async function readAgentDiagnosis(): Promise<(AgentDiagnosis & { at: string }) | null> {
+  try {
+    const parsed = JSON.parse(await readFile(agentDiagnosisPath(), "utf8")) as AgentDiagnosis & { at?: unknown };
+    if (typeof parsed.summary === "string" && typeof parsed.at === "string") return parsed as AgentDiagnosis & { at: string };
+  } catch {
+    // 还没诊断过，正常。
+  }
+  return null;
+}
+
+/** 把整个账本读成快照。任何一块读失败都降级为空（诊断不能因为一块挂了而跑不了）。 */
+export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
+  const runs = await readFactorRuns();
+  const { entries } = await readQueue();
+  const chalFile = await readChallengers();
+  const champions = await readChampions();
+  const log = await readAILog();
+  const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
+
+  const batch = runs.batch;
+  const factorMeta = batch
+    ? `共 ${runs.batches.length} 批判决；最近一批 ${batch.at.slice(0, 10)}，${batch.rows.length} 个因子，样本 ${batch.nDays} 个交易日`
+    : "还没有判决数据";
+
+  const championLines = ACTIVE_STYLES.map((style) => {
+    const version = champions[style];
+    if (!version) return `- ${styleName(style)}：代码默认参数（持有${holdOf(style)}天）`;
+    const promoted = chalFile.list.find((c) => c.id === version);
+    if (!promoted) return `- ${styleName(style)}：参数版本「${version}」找不到记录，按默认对待`;
+    return `- ${styleName(style)}：${promoted.name}（持有${promoted.holdDays ?? holdOf(style)}天 / 止损${promoted.stopPct ?? "内置"}% / 目标${promoted.targetPct ?? "内置"}%）`;
+  });
+
+  const chalLines = chalFile.list
+    .slice(-20)
+    .map((c) => `- ${c.name}（${c.id}）：挑战「${styleName(c.style)}」，状态 ${c.status}，${c.since} 开跑${c.source === "ai" ? "，AI 提名" : ""}`);
+
+  const gates = await readStrategyGates();
+  const gateLines = Object.entries(gates).map(([style, g]) =>
+    `- ${styleName(style)}：${g.state === "disabled" ? `停用中（第 ${g.strikes} 次，冷却 ${g.cooldownDays} 交易日）` : "假释观察中"}，${g.reason}`,
+  );
+
+  const stats = evolveStats(log, entries, chalFile.list);
+  const selfHistory = [
+    `- 因子层进化 ${stats.factorRounds} 轮，策略层 ${stats.strategyRounds} 轮（账本前 ${Math.min(log.length, 8)} 条）`,
+    ...log.slice(-8).map((e) => `- ${e.at.slice(0, 16).replace("T", " ")} ${e.layer} ${e.trigger}：${e.ok ? "ok" : `失败（${e.error ?? "未知"}）`}，提议 ${e.proposed.length}`),
+  ];
+
+  return {
+    at: new Date().toISOString(),
+    factorLines: (batch?.rows ?? []).map(summarizeRunRow),
+    factorMeta,
+    queueLines: summarizeQueue(entries),
+    necropsy: necropsyLines(await readTombstones()),
+    championLines,
+    chalLines,
+    gateLines,
+    selfHistory,
+  };
+}
+
+export type AgentLoopResult = {
+  ok: boolean;
+  diagnosis: AgentDiagnosis | null;
+  error?: string;
+};
+
+/**
+ * 跑一轮诊断：收集账本 → 组 prompt → 调 AI → 校验 JSON → 落报告 + 记账。
+ * 只诊断不行动；失败也记 ai-log（layer=agent），静默缺席比诊断不出更害人。
+ */
+export async function runAgentDiagnosis(trigger: "manual" | "auto" = "manual"): Promise<AgentLoopResult> {
+  const at = new Date().toISOString();
+  const logFail = async (error: string): Promise<AgentLoopResult> => {
+    const result: AgentLoopResult = { ok: false, diagnosis: null, error };
+    await appendAILog({ at, layer: "agent", trigger, ok: false, proposed: [], rejected: [], error });
+    return result;
+  };
+
+  const config = await readAIConfig();
+  if (!config) return logFail("AI 接口还没配置（/ai 页填 baseUrl / apiKey / model）");
+
+  const snap = await collectLedgerSnapshot();
+  let raw: string;
+  try {
+    raw = await callAIWithFallback(buildDiagnosisPrompt(snap), { layer: "agent", trigger });
+  } catch (error) {
+    return logFail(error instanceof Error ? error.message : String(error));
+  }
+
+  const diagnosis = parseDiagnosis(raw);
+  if (!diagnosis) {
+    return logFail(`AI 返回不是合法诊断 JSON（原文前 200 字：${raw.trim().slice(0, 200) || "空白"}）`);
+  }
+
+  await mkdir(dirname(agentDiagnosisPath()), { recursive: true });
+  await writeFile(agentDiagnosisPath(), JSON.stringify({ at, ...diagnosis }, null, 2));
+  await appendAILog({
+    at,
+    layer: "agent",
+    trigger,
+    ok: true,
+    proposed: [],
+    rejected: [],
+    note: diagnosis.summary,
+  });
+  return { ok: true, diagnosis };
+}
