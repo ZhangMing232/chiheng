@@ -15,6 +15,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
+import { qParam } from "@/lib/search-params";
 import { runResearch } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
 import { runDebate, type DebateSide } from "@/lib/market/debate";
@@ -23,11 +24,18 @@ import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 
 export const Route = createFileRoute("/debate")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: typeof search.q === "string" ? search.q.trim().slice(0, 20) : "",
-  }),
+  validateSearch: (search: Record<string, unknown>) => ({ q: qParam(search) }),
   loaderDeps: ({ search }) => ({ q: search.q }),
   loader: async ({ deps }) => runDebatePage({ data: deps.q }),
+  // loader 要调两轮 AI（正反双方各一次），真实耗时 1-2 分钟。
+  // 不给 pending 态的话，点「开始辩论」后页面纹丝不动，像没反应（2026-10-21 用户实测反馈）。
+  pendingComponent: () => (
+    <Frame wide>
+      <Panel title="多空辩论">
+        <StateBlock kind="loading" title="双方正在读证据、写裁决点" hint="真实耗时约 1-2 分钟（正反双方各调一次 AI），请留在本页等结果。" />
+      </Panel>
+    </Frame>
+  ),
   component: DebatePage,
 });
 

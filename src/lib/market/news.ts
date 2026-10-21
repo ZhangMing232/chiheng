@@ -194,7 +194,9 @@ function emMarketCode(id: string): string | null {
 
 /** 按代码或名称找 A 股。 */
 export async function searchStocks(keyword: string): Promise<StockHit[]> {
-  const q = keyword.trim().slice(0, 20);
+  // 持仓/自选列表里点「研判」「辩论」带的是完整 id（sh600519），这里剥掉市场前缀再搜——
+  // 2026-10-21 实测带前缀搜东方财富联想接口返回空，个股页直接「没有找到」。
+  const q = keyword.trim().replace(/^(sh|sz|bj)/i, "").slice(0, 20);
   if (!q) return [];
   const raw = await getText(
     `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(q)}&type=14&count=8`,

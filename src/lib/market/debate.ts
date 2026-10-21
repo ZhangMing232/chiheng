@@ -95,15 +95,35 @@ export async function runDebate(
 
     let refs: string[] = [];
     let text = raw.trim();
-    const s = raw.indexOf("{");
-    const e = raw.lastIndexOf("}");
-    if (s >= 0 && e > s) {
+    // 模型有时不守「单个对象」约定、返回 [{refs,text},...] 数组——逐条收编拼接；
+    // 不收编的话 first{..last} 切片拼不出合法 JSON，整段原始 JSON 会糊在页面上（2026-10-21 实测）。
+    if (text.startsWith("[")) {
       try {
-        const obj = JSON.parse(raw.slice(s, e + 1)) as { refs?: unknown; text?: unknown };
-        if (Array.isArray(obj.refs)) refs = obj.refs.filter((r): r is string => typeof r === "string");
-        if (typeof obj.text === "string") text = obj.text;
+        const arr = JSON.parse(text) as unknown;
+        if (Array.isArray(arr)) {
+          const texts: string[] = [];
+          for (const item of arr) {
+            if (typeof item !== "object" || item === null) continue;
+            const o = item as { refs?: unknown; text?: unknown };
+            if (Array.isArray(o.refs)) refs.push(...o.refs.filter((r): r is string => typeof r === "string"));
+            if (typeof o.text === "string" && o.text.trim()) texts.push(o.text.trim());
+          }
+          if (texts.length > 0) text = texts.join("\n");
+        }
       } catch {
         /* 解析不了就整段当正文 */
+      }
+    } else {
+      const s = raw.indexOf("{");
+      const e = raw.lastIndexOf("}");
+      if (s >= 0 && e > s) {
+        try {
+          const obj = JSON.parse(raw.slice(s, e + 1)) as { refs?: unknown; text?: unknown };
+          if (Array.isArray(obj.refs)) refs = obj.refs.filter((r): r is string => typeof r === "string");
+          if (typeof obj.text === "string") text = obj.text;
+        } catch {
+          /* 解析不了就整段当正文 */
+        }
       }
     }
     if (!text) return { ...base, status: "failed", text: null, why: "AI 返回了空内容", ms };

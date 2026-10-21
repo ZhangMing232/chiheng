@@ -64,10 +64,13 @@ export function messageOf(error: unknown): string {
 export const RERUN_HINT =
   "在项目根目录跑：BT_FACTOR=1 BT_N=10 node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts";
 
-/** 批次搜索参数校验：地址栏可直达、可刷新保持。0=最旧，不传=最新。 */
-export function parseBatch(search: Record<string, unknown>): number {
-  return typeof search.batch === "string" && /^\d+$/.test(search.batch) ? Number(search.batch) : -1;
-}
+/**
+ * 批次搜索参数校验（实现在 src/lib/search-params.ts，此处转发保持旧导入路径可用）。
+ * 地址栏可直达、可刷新保持。0=最旧，不传=最新。
+ * 注意：路由器默认把纯数字参数 JSON 解析成 number（?batch=5 → 5），只认 string 会
+ * 退回 -1、307 清回 ?batch=-1（2026-10-21 与辩论页 q 吞参同根因）。
+ */
+export { parseBatch } from "@/lib/search-params";
 
 /**
  * 批次选择器：同一个因子在「持有 3 天」和「持有 20 天」下可能是两个结论，

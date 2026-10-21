@@ -17,6 +17,7 @@ import { signedPct, toneClass } from "@/lib/market/format";
 import { articleLine, drawSymbolPoster } from "@/lib/market/page-posters";
 import { shanghaiDate } from "@/lib/market/session";
 import { getKline, getSymbolNews } from "@/lib/market/quotes.functions";
+import { qParam } from "@/lib/search-params";
 import type { NewsTone, StockArticle } from "@/lib/market/news";
 
 const TONE_LABEL: Record<NewsTone, string> = { good: "利好", bad: "利空", flat: "未表态" };
@@ -32,9 +33,7 @@ function tally(articles: StockArticle[]) {
 
 /** 个股页路由。地址栏里的 q 是搜索词，进来就按它拉资讯和公告。 */
 export const Route = createFileRoute("/symbol")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: typeof search.q === "string" ? search.q.trim().slice(0, 20) : "",
-  }),
+  validateSearch: (search: Record<string, unknown>) => ({ q: qParam(search) }),
   loaderDeps: ({ search }) => ({ q: search.q }),
   loader: ({ deps }) => getSymbolNews({ data: { q: deps.q } }),
   component: SymbolPage,

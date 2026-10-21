@@ -31,6 +31,7 @@ import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { saveResearchReport } from "@/lib/market/reports.functions";
 import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
+import { qParam } from "@/lib/search-params";
 import type { Quote } from "@/lib/market/types";
 import type { StockArticle } from "@/lib/market/news";
 
@@ -116,11 +117,17 @@ const runResearchPage = createServerFn({ method: "GET" })
   });
 
 export const Route = createFileRoute("/research")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: typeof search.q === "string" ? search.q.trim().slice(0, 20) : "",
-  }),
+  validateSearch: (search: Record<string, unknown>) => ({ q: qParam(search) }),
   loaderDeps: ({ search }) => ({ q: search.q }),
   loader: async ({ deps }) => runResearchPage({ data: deps.q }),
+  // 七阶段 + AI 综合真实耗时 1-2 分钟（2026-10-21 实测 118 秒），同样要给 pending 态。
+  pendingComponent: () => (
+    <Frame wide>
+      <Panel title="个股研判">
+        <StateBlock kind="loading" title="七阶段流水线跑证据中" hint="真实耗时约 1-2 分钟，请留在本页等结果。" />
+      </Panel>
+    </Frame>
+  ),
   component: ResearchPage,
 });
 
