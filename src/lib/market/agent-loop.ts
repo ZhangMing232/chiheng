@@ -84,6 +84,80 @@ export function evidenceOf(raw: string, maxRows = 10): string[] {
   }
 }
 
+/**
+ * 行业板块排行（get_sector_info mode=ranking）→ 行。change_pct 已是百分数，不除 100。
+ * 解析失败/ok:false → 空数组。
+ */
+export function sectorEvidenceOf(raw: string, maxRows = 8): string[] {
+  try {
+    const parsed = JSON.parse(raw) as { ok?: boolean; data?: { boards?: Record<string, unknown>[] } };
+    if (parsed.ok === false || !Array.isArray(parsed.data?.boards)) return [];
+    return parsed.data.boards.slice(0, maxRows).map((b) => {
+      const name = String(b.board_name ?? "?");
+      const pct = typeof b.change_pct === "number" ? b.change_pct.toFixed(2) : "?";
+      const up = typeof b.up_count === "number" ? b.up_count : "?";
+      const down = typeof b.down_count === "number" ? b.down_count : "?";
+      return `${name} ${pct}%（${up}涨/${down}跌）`;
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 龙虎榜（get_dragon_tiger）→ 按净买额排序取前列。net_buy 单位元 → 亿。
+ * 解析失败/ok:false → 空数组。
+ */
+export function dragonTigerEvidenceOf(raw: string, maxRows = 5): string[] {
+  try {
+    const parsed = JSON.parse(raw) as { ok?: boolean; data?: { appearances?: Record<string, unknown>[] } };
+    if (parsed.ok === false || !Array.isArray(parsed.data?.appearances)) return [];
+    return [...parsed.data.appearances]
+      .sort((a, b) => Number(b.net_buy ?? 0) - Number(a.net_buy ?? 0))
+      .slice(0, maxRows)
+      .map((a) => {
+        const name = String(a.name ?? a.code ?? "?");
+        const pct = typeof a.change_pct === "number" ? a.change_pct.toFixed(2) : "?";
+        const netYi = typeof a.net_buy === "number" ? (a.net_buy / 1e8).toFixed(1) : "?";
+        return `${name} ${pct}% · 净买 ${netYi} 亿`;
+      });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 三源并发取当日市场证据：头部个股截面 + 行业板块强弱 + 龙虎榜热钱方向。
+ * 每源独立容错——任何一路挂了只少一段，不拖死整轮提议；
+ * 全部离线时返回空数组，提议照常跑（证据是校准项不是依赖项）。
+ *
+ * 三路**串行**而不是并发：实测并发会在东财侧触发 IP 限流（Connection
+ * aborted / RemoteDisconnected），证据全灭。每路之间让 VT 自己的
+ * per-host 节流先冷却一下，慢几秒换稳定拿全。
+ */
+export async function gatherVtEvidence(): Promise<string[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { invokeVtTool } = await import("./vt-tools.ts");
+  const settle = async <T,>(p: Promise<T>): Promise<[string | null, T | null]> => {
+    try {
+      return [null, await p];
+    } catch (e) {
+      return [e instanceof Error ? e.message : String(e), null];
+    }
+  };
+  const out: string[] = [];
+  const [, screenRaw] = await settle(invokeVtTool("screen_market", { market: "a", top_n: 10 }, 60_000));
+  const s = screenRaw ? evidenceOf(screenRaw, 10) : [];
+  if (s.length > 0) out.push("【头部个股截面】", ...s);
+  const [, sectorRaw] = await settle(invokeVtTool("get_sector_info", { mode: "ranking", limit: 8 }, 60_000));
+  const b = sectorRaw ? sectorEvidenceOf(sectorRaw, 8) : [];
+  if (b.length > 0) out.push("【行业板块今日强弱】", ...b);
+  const [, dtRaw] = await settle(invokeVtTool("get_dragon_tiger", { date: today }, 60_000));
+  const d = dtRaw ? dragonTigerEvidenceOf(dtRaw, 5) : [];
+  if (d.length > 0) out.push("【龙虎榜净买前列】", ...d);
+  return out;
+}
+
 /** 一条因子判决 → 一行摘要（t 值、过几关、DSR 运气线）。 */
 export function summarizeRunRow(r: FactorRunRow): string {
   const gates = Object.values(r.gates).filter(Boolean).length;

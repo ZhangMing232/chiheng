@@ -206,22 +206,43 @@ async function probeLive(): Promise<VtToolsReport> {
 
 /**
  * 调一个工具。返回**原始文本**（调用方 evidenceOf 自己解析 JSON，解析口径归它管）；
- * 参数原样透传（schema 由 VT 侧校验）。超时/离线都抛——调用方（agent-loop /
- * strategy-ai）自己 try/catch 降级，这里不做重试。
+ * 参数原样透传（schema 由 VT 侧校验）。
+ *
+ * 传输层抖动重试一次：实测东财系接口会对突发 IP 限流（Connection aborted /
+ * RemoteDisconnected），这类失败等 3 秒重试一次往往就过；工具业务报错
+ * （isError / ok:false 但不是网络字样）不重试。超时/离线都抛——调用方
+ * （agent-loop / strategy-ai）自己 try/catch 降级。
  */
 export async function invokeVtTool(name: string, args: Record<string, unknown>, timeoutMs = DEFAULT_CALL_TIMEOUT_MS): Promise<string> {
   const pre = vtToolsPrerequisite();
   if (!pre.ok) throw new Error(pre.why ?? "VT MCP 未就绪");
-  const p = proc();
-  await p.ensure();
-  const result = (await p.request("tools/call", { name, arguments: args }, timeoutMs)) as { content?: { type?: string; text?: string }[]; isError?: boolean };
-  p.touch();
-  const text = (result.content ?? [])
-    .filter((c) => c?.type === "text" && typeof c.text === "string")
-    .map((c) => c.text as string)
-    .join("\n");
-  if (result.isError) throw new Error(`VT 工具 ${name} 报错：${text.slice(0, 200)}`);
-  return text;
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 3_000));
+      const p = proc();
+      await p.ensure();
+      const result = (await p.request("tools/call", { name, arguments: args }, timeoutMs)) as { content?: { type?: string; text?: string }[]; isError?: boolean };
+      p.touch();
+      const text = (result.content ?? [])
+        .filter((c) => c?.type === "text" && typeof c.text === "string")
+        .map((c) => c.text as string)
+        .join("\n");
+      if (result.isError) throw new Error(`VT 工具 ${name} 报错：${text.slice(0, 200)}`);
+      // ok:false 且是网络字样 → 算传输抖动，进入重试；别种 ok:false 是业务结果，原样返回。
+      if (!isTransientVtError(text)) return text;
+      lastErr = new Error(`VT 工具 ${name} 网络抖动：${text.slice(0, 160)}`);
+    } catch (e) {
+      lastErr = e;
+      if (!isTransientVtError(String(e))) throw e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+/** 东财系限流/断连的典型字样（VT 把传输异常包在 ok:false 或抛错文本里）。 */
+function isTransientVtError(text: string): boolean {
+  return /Connection aborted|RemoteDisconnected|Connection reset|timed out|Timeout|ReadTimeout|Max retries|超时/i.test(text);
 }
 
 /** 测试和关服用：清缓存 + 立刻杀掉子进程。 */

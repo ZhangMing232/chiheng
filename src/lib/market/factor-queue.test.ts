@@ -214,11 +214,11 @@ test("buildPrompt：给了自我历史就追加反馈段，没给不追加", () 
 test("buildPrompt：给了当日市场快照就追加证据段，没给不追加", () => {
   const rows: FactorRunRow[] = [];
   const withEvidence = buildPrompt(rows, [], [], ["920296 N文峰 217.03% · 成交 7.6 亿"]);
-  assert.match(withEvidence, /当日 A 股头部快照/);
+  assert.match(withEvidence, /当日市场证据/);
   assert.match(withEvidence, /N文峰/);
   assert.match(withEvidence, /不要当成历史规律/);
   const bare = buildPrompt(rows);
-  assert.doesNotMatch(bare, /当日 A 股头部快照/);
+  assert.doesNotMatch(bare, /当日市场证据/);
 });
 
 test("buildPrompt：给了诊断建议就追加 plan 层段，没给不追加", () => {

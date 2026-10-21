@@ -10,9 +10,11 @@ import assert from "node:assert/strict";
 
 import {
   buildDiagnosisPrompt,
+  dragonTigerEvidenceOf,
   evidenceOf,
   extractJson,
   parseDiagnosis,
+  sectorEvidenceOf,
   summarizeChallengerSamples,
   summarizeMarketRow,
   summarizeQueue,
@@ -168,4 +170,47 @@ test("verifyDiagnosisNumbers：快照里有的数字放行，没出处的数字�
   const mixedCheck = verifyDiagnosisNumbers(mixed, SNAP);
   assert.ok(!mixedCheck.ungrounded.includes("247"));
   assert.ok(mixedCheck.ungrounded.includes("888"));
+});
+
+// ── 三源证据格式化（VT 工具矿山接进提议 prompt 的证据层）────────────
+
+test("sectorEvidenceOf：boards 正常成行，change_pct 不再除 100", () => {
+  const raw = JSON.stringify({
+    ok: true,
+    data: { boards: [
+      { board_name: "广告媒体", change_pct: 6.85, up_count: 2, down_count: 1 },
+      { board_name: "生猪养殖", change_pct: 3.79, up_count: 10, down_count: 0 },
+    ] },
+  });
+  const lines = sectorEvidenceOf(raw, 8);
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].includes("广告媒体 6.85%"));
+  assert.ok(lines[0].includes("2涨/1跌"));
+});
+
+test("sectorEvidenceOf：ok:false / 坏 JSON / 无 boards → 空数组不抛", () => {
+  assert.deepEqual(sectorEvidenceOf(JSON.stringify({ ok: false }), 8), []);
+  assert.deepEqual(sectorEvidenceOf("not json", 8), []);
+  assert.deepEqual(sectorEvidenceOf(JSON.stringify({ ok: true, data: {} }), 8), []);
+});
+
+test("dragonTigerEvidenceOf：按净买额降序取前列，元转亿", () => {
+  const raw = JSON.stringify({
+    ok: true,
+    data: { appearances: [
+      { code: "000001", name: "甲", change_pct: 10.01, net_buy: 2e8 },
+      { code: "000002", name: "乙", change_pct: 5.0, net_buy: 3.75e8 },
+      { code: "000003", name: "丙", change_pct: -2.0, net_buy: 1e7 },
+    ] },
+  });
+  const lines = dragonTigerEvidenceOf(raw, 5);
+  assert.equal(lines.length, 3);
+  assert.ok(lines[0].startsWith("乙"), "净买最大的应排第一");
+  assert.ok(lines[0].includes("净买 3.8 亿"));
+  assert.ok(lines[2].includes("净买 0.1 亿"));
+});
+
+test("dragonTigerEvidenceOf：ok:false / 坏 JSON → 空数组不抛", () => {
+  assert.deepEqual(dragonTigerEvidenceOf(JSON.stringify({ ok: false }), 5), []);
+  assert.deepEqual(dragonTigerEvidenceOf("{oops", 5), []);
 });

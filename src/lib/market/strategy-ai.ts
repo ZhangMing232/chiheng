@@ -212,7 +212,7 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     ...(ctx.marketEvidence && ctx.marketEvidence.length > 0
       ? [
           "",
-          "当日 A 股头部快照（Vibe-Trading 工具拉的实时截面：涨跌幅 / 成交额。只用来校准「现在市场在奖励什么风格」，帮助判断出场节奏与参数方向；不要当成历史规律，调参仍以冠军-挑战者判决和自我历史为主）：",
+          "当日市场证据（Vibe-Trading 工具矿山三路并发：头部个股截面 / 行业板块强弱 / 龙虎榜热钱方向。只用来校准「现在市场在奖励什么风格」，帮助判断出场节奏与参数方向；不要当成历史规律，调参仍以冠军-挑战者判决和自我历史为主）：",
           ...ctx.marketEvidence,
         ]
       : []),
@@ -296,13 +296,13 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
       params: [`持有${promoted.holdDays ?? holdOf(style)}天`, `止损${promoted.stopPct ?? "内置公式"}%`, `目标${promoted.targetPct ?? "内置公式"}%`].join(" / "),
     };
   });
-  // 当日市场快照（与因子层同款）：VT 工具矿山拉头部涨跌/成交。离线/超时降级为空，
+  // 当日市场证据（与因子层同款）：VT 工具矿山三路并发——头部个股截面 + 行业板块
+  // 强弱 + 龙虎榜热钱方向。离线/超时/单源失败降级为剩下几路，全挂为空，
   // 策略提议照常跑——证据是校准项不是依赖项。
   let marketEvidence: string[] = [];
   try {
-    const { invokeVtTool } = await import("./vt-tools.ts");
-    const { evidenceOf } = await import("./agent-loop.ts");
-    marketEvidence = evidenceOf(await invokeVtTool("screen_market", { market: "a", top_n: 10 }, 60_000));
+    const { gatherVtEvidence } = await import("./agent-loop.ts");
+    marketEvidence = await gatherVtEvidence();
   } catch {
     marketEvidence = [];
   }
