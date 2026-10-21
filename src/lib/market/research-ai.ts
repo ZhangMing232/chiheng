@@ -90,7 +90,7 @@ export function buildResearchPrompt(stages: readonly StageResult[], symbol: stri
     ``,
     `要求：`,
     `1. 只根据上面的证据写一段不超过 ${AI_SUMMARY_MAX_CHARS} 字的综合观察`,
-    `2. 引用证据时写明它的 id；引用不到的结论不要写`,
+    `2. 引用证据时写明它的 id，关键结论后面直接标注 id（如「PE 处于历史低位(ev-xxx)」）；引用不到的结论不要写`,
     `3. 数字只能来自证据，不许自己编；材料里没有的数就不要提`,
     `4. 不许给买卖建议、目标价、止损位、仓位建议`,
     `5. 只输出 JSON，不要别的内容：{"refs": ["ev-xxx"], "text": "..."}`,

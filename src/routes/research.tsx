@@ -19,6 +19,7 @@ import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { knowledgeFromReport, runResearch, type StageResult } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
+import { linkifyEvidenceText } from "@/lib/market/evidence";
 import { loadEarnings } from "@/lib/market/earnings-store";
 import { loadFinancials } from "@/lib/market/financials-store";
 import { fetchConsensusReports } from "@/lib/market/consensus-store";
@@ -144,6 +145,8 @@ function ResearchPage() {
   // 报告在 loader 里算好（那里还要顺手跑 AI 综合）。q 为空时没有报告。
   const report = data.report ?? runResearch({ quote: data.quote, articles: data.articles, valuation: data.valuation });
   const ai = data.ai;
+  // AI 正文里出现的证据 id 只有在账本里真实存在才可点（linkify 内部也校验，双保险）。
+  const knownEvidenceIds = new Set(collectEvidence(report.stages).map((e) => e.id));
 
   async function save() {
     setSaving(true);
@@ -268,14 +271,23 @@ function ResearchPage() {
           </div>
           {ai.status === "ok" ? (
             <>
-              <p className="mt-1.5 text-sm leading-relaxed">{ai.text}</p>
+              <p className="mt-1.5 text-sm leading-relaxed">
+                <LinkifiedText text={ai.text ?? ""} knownIds={knownEvidenceIds} />
+              </p>
               <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] text-muted">
                 {ai.chain ? <code className="font-mono">{ai.chain}</code> : null}
                 {ai.numbersReplaced > 0 ? (
                   <span className="text-warn">{ai.numbersReplaced} 个数字在证据里找不到出处，已换成（略※）</span>
                 ) : null}
-                {ai.refs.length > 0 ? <span>引用 {ai.refs.length} 条证据</span> : null}
               </div>
+              {ai.refs.length > 0 ? (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  <span className="text-[10px] text-muted">引用证据：</span>
+                  {ai.refs.map((id) => (
+                    <EvidenceRefChip key={id} id={id} />
+                  ))}
+                </div>
+              ) : null}
             </>
           ) : (
             <p className={"mt-1.5 text-xs leading-relaxed " + (ai.status === "refused" ? "text-warn" : "text-muted")}>
@@ -302,6 +314,57 @@ function ResearchPage() {
         判据都是固定规则，不是模型即兴发挥；它们描述的是过去和现在，不代表未来会重复。
       </p>
     </Frame>
+  );
+}
+
+/**
+ * 跳回证据表里那一行。学 Vibe-Research 的证据回查交互：
+ * 正文里的引用不是装饰，点了要落到证据行上。
+ * 页面上每个证据行都带同名 id 锚点（见 StageCard 的证据表）。
+ */
+function scrollToEvidence(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/** 一个可点的证据引用 chip。 */
+function EvidenceRefChip({ id }: { id: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => scrollToEvidence(id)}
+      className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-accent transition hover:border-accent hover:bg-brand-soft"
+      title="跳到这条证据"
+    >
+      {id}
+    </button>
+  );
+}
+
+/**
+ * AI 正文渲染：把出现的证据 id 切成文本段和引用段，
+ * 引用段渲染成可点的小 chip，点回证据表对应行。
+ * 未知 id 保持纯文本——不替 AI 伪造可查性。
+ */
+function LinkifiedText({ text, knownIds }: { text: string; knownIds: ReadonlySet<string> }) {
+  const segments = linkifyEvidenceText(text, knownIds);
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.kind === "text" ? (
+          <span key={i}>{seg.text}</span>
+        ) : (
+          <button
+            key={i}
+            type="button"
+            onClick={() => scrollToEvidence(seg.id)}
+            className="rounded border border-line bg-surface px-1 py-px font-mono text-[11px] text-accent transition hover:border-accent hover:bg-brand-soft"
+            title="跳到这条证据"
+          >
+            {seg.id}
+          </button>
+        ),
+      )}
+    </>
   );
 }
 
@@ -339,7 +402,9 @@ function StageCard({ stage, index, hidden }: { stage: StageResult; index: number
           </thead>
           <tbody>
             {stage.evidence.map((row, i) => (
-              <tr key={`${row.label}-${i}`} className="border-t border-line">
+              // id 与 collectEvidence（research-ai.ts）给 AI 的行内 id 同格式：
+              // AI 正文里引用 ev-xxx 时才能跳回这一行。
+              <tr key={`${row.label}-${i}`} id={`ev-${stage.id}-${row.label}`} className="border-t border-line scroll-mt-16">
                 <td className={tdClass("text-left text-muted")}>{row.label}</td>
                 <td className={tdClass("text-left text-fg")}>{row.value}</td>
                 <td className={tdClass("text-left text-xs text-muted")}>{row.source}</td>
@@ -364,7 +429,7 @@ function StageCard({ stage, index, hidden }: { stage: StageResult; index: number
       {stage.derived.length > 0 ? (
         <div className="flex flex-col gap-2 border-t border-line px-3 py-2">
           {stage.derived.map((d) => (
-            <div key={d.calcId} className="flex flex-col gap-0.5">
+            <div key={d.calcId} id={d.evidenceId} className="flex flex-col gap-0.5 scroll-mt-16">
               <div className="flex items-baseline gap-2 text-sm">
                 <span className="h-3 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
                 <span className="shrink-0 text-muted">{d.label}</span>

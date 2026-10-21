@@ -122,6 +122,37 @@ export function verifyChain(items: readonly { id: string; inputsRefs?: string[] 
   return { dangling, duplicated };
 }
 
+/** linkifyEvidenceText 切出的一段：纯文本，或一个可回查的证据/计算 id。 */
+export type EvidenceTextSegment =
+  | { kind: "text"; text: string }
+  | { kind: "ref"; id: string };
+
+/**
+ * 把一段含证据 id 的正文切成「文本 / 引用」交替的段。
+ *
+ * 学 Vibe-Research 的核心交互：正文里出现的证据编号要能点回去。
+ * 只有 knownIds 里确实存在的 id 才成 ref 段——AI 随口编的 id 不许变成可点的链接，
+ * 那样反而替它伪造了可查性。未知 id 按普通文本原样保留。
+ */
+export function linkifyEvidenceText(text: string, knownIds: ReadonlySet<string>): EvidenceTextSegment[] {
+  if (knownIds.size === 0) return [{ kind: "text", text }];
+  // id 的两种形态：账本哈希（ev-a1b2c3，纯 base36）和 prompt 里的行内 id
+  // （ev-identity-收盘价，标签部分含中文）。按「非空白非标点」贪心切，
+  // 是否成链接只看 knownIds——AI 随口编的 id 永远不会在集合里。
+  const re = /(?:ev|calc)-[^\s,，.。、;；:：?!?（）()\[\]{}<>"'“”‘’—–]+/g;
+  const out: EvidenceTextSegment[] = [];
+  let last = 0;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    const id = m[0];
+    if (!knownIds.has(id)) continue;
+    if (m.index > last) out.push({ kind: "text", text: text.slice(last, m.index) });
+    out.push({ kind: "ref", id });
+    last = m.index + id.length;
+  }
+  if (last < text.length) out.push({ kind: "text", text: text.slice(last) });
+  return out.length > 0 ? out : [{ kind: "text", text }];
+}
+
 /** 给人看的一行引用路径，复核时用。 */
 export function formatChain(calc: Calculation): string {
   const refs = calc.inputsRefs.length > 0 ? calc.inputsRefs.join(", ") : "（无上游）";
