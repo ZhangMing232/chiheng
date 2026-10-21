@@ -306,6 +306,25 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
   // 而每分钟全量拉 5200 多只股票会把腾讯接口顶到 WAF（K 线返回 501，结算就卡住）。
   const needFresh = phase.entry !== "none" || phase.tailHalf;
   universe = await loadUniverse(needFresh);
+  // 腾讯源挂了就只能新浪顶着——新浪缺近 5/20/60 日涨幅和量比，在跑的两套策略
+  // 出不了新票。这种降级不打断记账（结算照跑），但主人不在电脑前时只看到
+  // 「今天没开仓」会误判成市场问题，所以每个交易日最多推一条微信说清原因。
+  if (universe.source === "sina" && phase.date) {
+    const stampPath = join(process.cwd(), "data", ".source-degrade-push.json");
+    let notified = "";
+    try {
+      notified = (JSON.parse(await readFile(stampPath, "utf8")) as { date?: string }).date ?? "";
+    } catch {
+      // 没推过，正常
+    }
+    if (notified !== phase.date) {
+      await writeFile(stampPath, JSON.stringify({ date: phase.date }));
+      void sendPushPlus(
+        "赤轨行情源降级",
+        [`腾讯行情接口不可用，已切换新浪财经源。`, `新浪缺近 5/20/60 日涨幅和量比：放量突破、中期反转今天不出新票（不是选不出票）；持仓结算照常。`, `时间：${time}`].join("\n"),
+      );
+    }
+  }
   const indices = await loadIndices();
   const index = indices.find((item) => item.id === "sh000300");
   indexPrice = index && index.price > 0 ? index.price : null;
