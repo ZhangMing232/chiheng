@@ -24,6 +24,7 @@ import { GapList } from "@/components/source-line";
 import { RUNS_PATH, type BacktestRun } from "@/lib/market/backtest-runs";
 import { getBacktestRuns } from "@/lib/market/quotes.functions";
 import { envDiff, runSummary, styleRows, untested, type SortKey } from "@/lib/market/backtest-view";
+import { auditRun, type AuditFinding } from "@/lib/market/strategy-audit";
 import { barsToShow, buildCurve, curveSummary, monthlyBars, yearlyBars } from "@/lib/market/backtest-curve";
 import { bootstrapSharpeCI, kurtosisOf, psr, sharpe, skewness, walkForward } from "@/lib/market/robustness";
 import { AreaChart, BarChart, LineChart } from "@/components/backtest-charts";
@@ -43,6 +44,13 @@ export const Route = createFileRoute("/backtest")({
 });
 
 const SORT_LABEL: Record<SortKey, string> = { alpha: "超额", tStat: "t 值", trades: "笔数", winRate: "胜率" };
+
+/** 审计发现的级别标签：和持仓页组合体检同一套色（warn/brand/muted）。 */
+function AuditLevelTag({ level }: { level: AuditFinding["level"] }) {
+  const map = { ok: { tone: "muted" as const, label: "正常" }, info: { tone: "brand" as const, label: "留意" }, warn: { tone: "warn" as const, label: "注意" } };
+  const item = map[level];
+  return <Tag tone={item.tone}>{item.label}</Tag>;
+}
 
 function BacktestPage() {
   const { runs, picked, bad } = Route.useLoaderData();
@@ -67,6 +75,8 @@ function BacktestPage() {
   }
 
   const weak = untested(picked);
+  // 策略审计（学 VT 自查）：对选中那次运行跑横切检查——共线/覆盖/样本/回撤/撮合口径。
+  const auditFindings = useMemo(() => auditRun(picked), [picked]);
 
   return (
     <Frame aside="回测">
@@ -116,6 +126,26 @@ function BacktestPage() {
           </tbody>
         </table>
         {bad > 0 ? <GapList items={[`${RUNS_PATH} 有 ${bad} 行读不出来（某次运行崩了会这样），已跳过`]}/> : null}
+      </Panel>
+
+      <Panel
+        title="策略审计"
+        note={<span>学 VT 的 AI 自查 · 全确定性规则，对选中那次运行横切检查</span>}
+        bodyClassName="px-3.5 py-3"
+      >
+        <ul className="flex flex-col gap-1.5">
+          {auditFindings.map((finding: AuditFinding) => (
+            <li key={`${finding.area}-${finding.title}`} className="flex items-baseline gap-2 text-xs">
+              <Tag tone="muted">{finding.area}</Tag>
+              <AuditLevelTag level={finding.level} />
+              <span className="shrink-0 font-medium">{finding.title}</span>
+              <span className="text-muted">{finding.detail}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
+          过拟合的量化（PBO、参数敏感度）在「策略追踪 → 体检」的挑战者面板里。审计只摆事实，阈值可在 strategy-audit.ts 调。
+        </p>
       </Panel>
 
       <Panel
