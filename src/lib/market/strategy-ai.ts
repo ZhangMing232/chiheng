@@ -290,7 +290,32 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     return result;
   }
   const { accepted, rejected } = parseAIChallengerProposals(raw, chalFile.list);
-  if (accepted.length > 0) {
+  // 冷启动播种：模型这轮空返回、且某套在跑策略一个挑战者都没有时，由代码按
+  // 白名单旋钮确定性提一个保守变体。这不是绕过 AI——挑战者和 AI 提名走同一条
+  // Welch 判决、同样只许三个旋钮，只是把「攒第一批样本」从模型的悟性里解耦出来。
+  // AI 恢复提案后这里自然不触发（accepted 非空就跳过）。
+  const seeded: Challenger[] = [];
+  if (accepted.length === 0) {
+    const existingIds = new Set(chalFile.list.map((c) => c.id));
+    const today = new Date().toISOString().slice(0, 10);
+    for (const style of ACTIVE_STYLES) {
+      const running = chalFile.list.filter((c) => c.style === style && c.status === "running").length;
+      if (running > 0) continue;
+      const id = `cold-${style}-v1`;
+      if (existingIds.has(id)) continue; // 上一任被判决掉了，不重复用同一个 id
+      seeded.push({
+        id,
+        style,
+        name: "冷启动播种·标准变体",
+        note: "AI 本轮空返回，代码按白名单旋钮确定性播种（stopPct=10 / targetPct=25，持有沿用冠军），与 AI 提名同标准过 Welch 判决",
+        stopPct: 10,
+        targetPct: 25,
+        status: "running",
+        since: today,
+      });
+    }
+  }
+  if (accepted.length > 0 || seeded.length > 0) {
     const today = new Date().toISOString().slice(0, 10);
     await writeChallengers({
       list: [
@@ -307,10 +332,11 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
           since: today,
           source: "ai" as const,
         })),
+        ...seeded,
       ],
     });
   }
-  const result: StrategyAILoopResult = { ok: true, proposed: accepted.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
+  const result: StrategyAILoopResult = { ok: true, proposed: accepted.length + seeded.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
   // 空返回（accepted/rejected 都是 0）多半是模型没提案就返回了 []——把原始响应
   // 摘要记进账本，不然 ai-log 里只有光秃秃的 0，没法诊断模型为什么不提。
   const silentEmpty = accepted.length === 0 && rejected.length === 0;
@@ -322,7 +348,12 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     proposed: accepted.map((a) => ({ id: a.id, name: a.name })),
     rejected: result.rejectReasons,
     ...(silentEmpty
-      ? { note: `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——按冷启动铁律第 6 条，这视为本轮失职` }
+      ? {
+          note:
+            seeded.length > 0
+              ? `AI 返回空数组，已确定性播种 ${seeded.length} 个冷启动挑战者（${seeded.map((s) => `${s.style}:${s.id}`).join("、")}）——同样过 Welch 判决`
+              : `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——按冷启动铁律第 6 条，这视为本轮失职`,
+        }
       : {}),
   });
   return result;
