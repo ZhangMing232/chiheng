@@ -37,6 +37,10 @@ import { usePaper, type PaperDay } from "@/lib/paper";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import type { Universe } from "@/lib/market/types";
 import { journalTradeIds, slimUniverse } from "@/lib/market/slim-universe";
+import { loadIndustry } from "@/lib/market/industry-store";
+import { finestIndustry } from "@/lib/market/industry";
+import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
+import { healthChecks } from "@/lib/market/portfolio-health";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
@@ -49,6 +53,18 @@ export const Route = createFileRoute("/strategies/positions")({
       getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
       getChallengerRobustness().catch(() => ({}) as Record<string, ChallengerRobustReport>),
     ]);
+    // 组合体检（portfolio-health.ts）要行业归属和 PE 分位：只对未平仓的票查，
+    // 数量很小（盯盘上限 10 只），逐只读文件可接受；查不到就 null，检查项如实降级。
+    const openTrades = journal.days.flatMap((day) => day.trades).filter((trade) => trade.exit == null);
+    const [industry, ...valuationHistories] = await Promise.all([
+      loadIndustry().catch(() => null),
+      ...openTrades.map((trade) => loadValuationHistory(trade.code).catch(() => null)),
+    ]);
+    const peRanks: Record<string, number> = {};
+    openTrades.forEach((trade, index) => {
+      const position = valuationPosition(valuationHistories[index] ?? null);
+      if (position?.peRank != null) peRanks[trade.id] = position.peRank;
+    });
     return {
       // 快照只留账本里出现过的股票（页面只用 byId 查持仓现价），
       // 全量 ~5300 只进 SSR HTML 会让手机端卡死。
@@ -61,6 +77,8 @@ export const Route = createFileRoute("/strategies/positions")({
       champions: chal.champions,
       samples,
       robust,
+      industry,
+      peRanks,
     };
   },
   component: Positions,
@@ -303,10 +321,11 @@ function ChallengerPanel({
 }
 
 /**
- * 持仓体检（X-ray）：两个图把「钱在哪、哪天赚的」一眼铺开（学 Vibe-Research
+ * 持仓结构（X-ray）：两个图把「钱在哪、哪天赚的」一眼铺开（学 Vibe-Research
  * 的 portfolio X-ray 思路，图表用本页已有的 recharts）。
  * ① 每日盈亏柱：按开仓日分组的总收益率，红赚绿亏。
  * ② 未平仓按策略分布：只数笔数——这套模拟盘不记仓位大小，按金额分是假精确。
+ * 规则层面的组合风险看上面的「组合体检」面板，这个面板只看结构。
  */
 function XrayPanel({ groups, openRows }: { groups: ReturnType<typeof groupByDay>; openRows: PositionRow[] }) {
   const daily = groups
@@ -331,8 +350,8 @@ function XrayPanel({ groups, openRows }: { groups: ReturnType<typeof groupByDay>
 
   return (
     <Panel
-      title="持仓体检"
-      note={<span>每天盈亏 + 未平仓结构 · 口径和上面分组一致</span>}
+      title="持仓结构"
+      note={<span>每天盈亏 + 未平仓策略分布 · 口径和上面分组一致</span>}
       bodyClassName="px-3.5 py-3"
     >
       {daily.length >= 2 ? (
@@ -394,8 +413,64 @@ function XrayPanel({ groups, openRows }: { groups: ReturnType<typeof groupByDay>
   );
 }
 
-/** 收益归因的一行。现役表和「已下线」折叠区共用同一渲染，口径不可能跑偏。 */
-type AttrRow = {
+/**
+ * 组合体检（学 Vibe-Research 的 portfolio health check）：六条规则检查持仓组合——
+ * 只数、集中度、行业暴露、行情缺口、估值分位、连亏。全是确定性规则，不依赖 AI；
+ * 口径和 positions.ts 一致（每笔按一手 100 股折算名义金额，不是投入的真钱）。
+ * 放在「体检」tab 最上面：先读文字结论，再展开下面的图看细节。
+ */
+function HealthPanel({
+  rows,
+  priceOf,
+  industry,
+  peRanks,
+  dayNet,
+}: {
+  rows: PositionRow[];
+  priceOf: (id: string) => number | null;
+  industry: import("@/lib/market/industry").IndustryIndex | null;
+  peRanks: Record<string, number>;
+  /** 按开仓日先后排的合计盈亏（已实现+浮动），旧在前。null 的天被调用方剔掉。 */
+  dayNet: number[];
+}) {
+  const checks = useMemo(
+    () =>
+      healthChecks({
+        rows,
+        priceOf,
+        // 行业/估值查不到就传 undefined——对应检查项安静跳过，不装成「查过了」。
+        industryNameOf: industry ? (id) => finestIndustry(industry, id)[0]?.name ?? null : undefined,
+        peRankOf: Object.keys(peRanks).length > 0 ? (id) => peRanks[id] ?? null : undefined,
+        dayNet,
+      }),
+    [rows, priceOf, industry, peRanks, dayNet],
+  );
+  const toneOf = { ok: "muted", info: "brand", warn: "warn" } as const;
+  const labelOf = { ok: "正常", info: "留意", warn: "注意" } as const;
+  return (
+    <Panel
+      title="组合体检"
+      note={<span>六条规则 · 全确定性，不依赖 AI · 阈值可在 portfolio-health.ts 调</span>}
+      bodyClassName="px-3.5 py-3"
+    >
+      <ul className="flex flex-col gap-1.5">
+        {checks.map((check) => (
+          <li key={check.title} className="flex items-baseline gap-2 text-xs">
+            <Tag tone={toneOf[check.level]}>{labelOf[check.level]}</Tag>
+            <span className="shrink-0 font-medium">{check.title}</span>
+            <span className="text-muted">{check.detail}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
+        占比用的是名义金额：这套模拟盘不记仓位大小，每笔按一手（100 股）折算，不是投入的钱。
+        「连亏」按开仓日算，不是日历日。规则只摆事实，不给买卖建议。
+      </p>
+    </Panel>
+  );
+}
+
+/** 收益归因的一行。现役表和「已下线」折叠区共用同一渲染，口径不可能跑偏。 */type AttrRow = {
   style: string;
   name: string;
   count: number;
@@ -419,7 +494,7 @@ function attrRow(row: AttrRow) {
 }
 
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions, samples, robust } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -443,6 +518,16 @@ function Positions() {
     [groups],
   );
   const now = Date.now();
+
+  // 组合体检的输入：现价查询、按开仓日排的合计盈亏（null 天剔除，旧在前）。
+  const priceOf = useMemo(() => {
+    const byId = new Map((universe?.quotes ?? []).map((quote) => [quote.id, quote]));
+    return (id: string) => byId.get(id)?.price ?? null;
+  }, [universe]);
+  const dayNet = useMemo(
+    () => groups.map((group) => group.total).filter((value): value is number => value != null).reverse(),
+    [groups],
+  );
 
   // 历史战绩：收盘后补记的那天不算成绩（价格是拿休市后的快照倒推的）。
   // 持仓列表照常显示——那几笔确实拿着，只是不进统计。
@@ -694,6 +779,15 @@ function Positions() {
             />
           </Panel>
         )}
+
+        {/* 规则体检放最前：先读六条结论，再展开图看细节。 */}
+        <HealthPanel
+          rows={rows}
+          priceOf={priceOf}
+          industry={industry}
+          peRanks={peRanks}
+          dayNet={dayNet}
+        />
 
         {/* 体检图放在净值曲线下面：先看见「跑得怎么样」，再展开看「为什么」。 */}
         <XrayPanel groups={sortedGroups} openRows={rows.filter((row) => row.exit == null)} />
