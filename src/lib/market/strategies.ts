@@ -386,6 +386,25 @@ export function takeBuys(
     .slice(0, daySlotsLeft(dayTrades, style));
 }
 
+/**
+ * 挑战者的建仓选择：过滤口径和 takeBuys 完全一致（不双押已持仓、去重、不追涨停），
+ * 但**不占冠军每天 10 个的名额**——预登记规则是「每天限 1 只和冠军并行」，
+ * 它的 1 只配额是自己的，不是从冠军碗里抢的。曾用 takeBuys(...)[0] 实现，
+ * 冠军先买完 10 个名额后 slotsLeft=0，挑战者从 10-09 上线起一只都没买过。
+ */
+export function takeChallengerBuy(
+  list: Listed[],
+  held: { id: string; style?: string; exit: number | null }[],
+): Listed | null {
+  const openIds = new Set(held.filter((trade) => trade.exit == null).map((trade) => trade.id));
+  const seen = new Set<string>();
+  const row = list
+    .filter((r) => r.hit && limitTag(r.quote) !== "涨停" && !openIds.has(r.quote.id))
+    .filter((r) => (seen.has(r.quote.id) ? false : (seen.add(r.quote.id), true)))
+    .slice(0, 1)[0];
+  return row ?? null;
+}
+
 /** 已持仓同时打到止损时，占这套 10 个名额的比例。空着的名额不算。 */
 export function bookRisk(trades: { style?: string; exit: number | null; entry: number; stop?: number }[], style: StyleId): number | null {
   let sum = 0;

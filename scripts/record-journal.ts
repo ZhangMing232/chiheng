@@ -38,7 +38,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
-import { ACTIVE_STYLES, holdOf, STYLES, styleOf, takeBuys, watchList } from "../src/lib/market/strategies.ts";
+import { ACTIVE_STYLES, holdOf, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 import { intradayFill } from "../src/lib/market/intraday-fill.ts";
@@ -439,10 +439,10 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
       }
 
       // 挑战者：同一份名单、不同的出场参数，每天限 1 只和冠军并行。
-      // takeBuys 会避开冠军刚买的票（held/todayTrades 已更新），不会同票双押。
+      // takeChallengerBuy 不占冠军名额（预登记：配额是自己的），但同样避开已持仓的票。
       for (const chal of runningChallengers) {
         if (chal.style !== style) continue;
-        const row = takeBuys(list, held, style, todayTrades)[0];
+        const row = takeChallengerBuy(list, held);
         if (!row) continue;
         const trade: Trade = {
           id: row.quote.id,

@@ -150,3 +150,22 @@ test("中期反转：涨过的票不进", () => {
   // 排名靠后而已，不是不能进；真正挡住它的是分数排序和每天十个名额
   assert.ok(picks([{ ...quote("sz0001"), d60: 8 }])[0].score < picks([{ ...quote("sz0002"), d60: -20 }])[0].score);
 });
+
+test("takeChallengerBuy：冠军名额买满后挑战者仍能拿 1 只，但已持仓的双押不拿", async () => {
+  const { takeChallengerBuy } = await import("@/lib/market/strategies");
+  // 冠军今天已买满 10 只（takeBuys 在这种情况下返回 0）——挑战者照拿自己的 1 只
+  const today = Array.from({ length: MAX_POSITIONS }, (_, i) => trade(`sz1111${i}`, "breakout"));
+  assert.equal(takeBuys(series("sz2222", 5), [], "breakout", today).length, 0);
+  const got = takeChallengerBuy(series("sz2222", 5), today);
+  assert.ok(got);
+  assert.equal(got.quote.id, "sz22220");
+  // 已持仓的票不双押：sz22220 持仓中就跳过它，拿下一个候选 sz22221
+  const skip = takeChallengerBuy(series("sz2222", 5), [...today, trade("sz22220", "breakout")]);
+  assert.ok(skip);
+  assert.equal(skip.quote.id, "sz22221");
+  // 全部候选都已持仓 → 无票可拿
+  assert.equal(
+    takeChallengerBuy(series("sz2222", 5), [...today, ...Array.from({ length: 5 }, (_, i) => trade(`sz2222${i}`, "breakout"))]),
+    null,
+  );
+});
