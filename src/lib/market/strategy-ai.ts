@@ -390,8 +390,11 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     });
   }
   const result: StrategyAILoopResult = { ok: true, proposed: accepted.length + seeded.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
-  // 空返回（accepted/rejected 都是 0）多半是模型没提案就返回了 []——把原始响应
-  // 摘要记进账本，不然 ai-log 里只有光秃秃的 0，没法诊断模型为什么不提。
+  // 空返回（accepted/rejected 都是 0）先分清是「失职」还是「名额满，本来就该空」：
+  // 每套在跑策略的挑战者名额都占满时，按铁律 2 本轮不提名是守规矩，不是摸鱼。
+  const slotsFull = ACTIVE_STYLES.every(
+    (style) => chalFile.list.filter((c) => c.style === style && c.status === "running").length >= MAX_RUNNING_PER_STYLE,
+  );
   const silentEmpty = accepted.length === 0 && rejected.length === 0;
   await appendAILog({
     at: new Date().toISOString(),
@@ -405,7 +408,9 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
           note:
             seeded.length > 0
               ? `AI 返回空数组，已确定性播种 ${seeded.length} 个冷启动挑战者（${seeded.map((s) => `${s.style}:${s.id}`).join("、")}）——同样过 Welch 判决`
-              : `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——按冷启动铁律第 6 条，这视为本轮失职`,
+              : slotsFull
+                ? "AI 返回空数组——每套在跑策略的挑战者名额都已占满，按铁律 2 本轮不该提名，合理空转（等 Welch 判决腾出名额）"
+                : `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——按冷启动铁律第 6 条，这视为本轮失职`,
         }
       : {}),
   });
