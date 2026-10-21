@@ -8,10 +8,10 @@
 
 ## 0. 今天到哪了（一句话）
 
-护栏齐了、研究流水线跑通、SOP 4/6、8 个新页面（含 /research 个股研判、/debate、
-/my-stocks、/reports）、数据 D2+D1 落地。545 测试全绿。Vibe-Research 对齐完成两轮：
-回测闸口三件套（Plan/Refusal + 费用 drag + raw_ref）+ UI-STANDARD v1.1（U1-U5）+
-外壳（边栏图标/折叠分组）+ /research 六阶段。但**全在本地 main 没 push（140 个提交）**。
+护栏齐了、研究流水线跑通、SOP 6/6、新页面全部落地、数据 D1-D6 落地、港美行情接入、
+GitHub 已同步。908 测试全绿。Vibe-Research 对齐两轮（回测闸口三件套 + UI 标准 + 外壳 +
+/research 六阶段 + 知识档案），Vibe-Trading 融合 VT1-VT7 全部完成（VT6 暂缓）。
+**待拍板**：design/DECISIONS.md 四件事（Welch 提前否决 / g5 换 DSR / 同日样本去留 / 名单饱和观察）。
 
 ---
 
