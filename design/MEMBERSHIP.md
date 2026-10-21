@@ -75,6 +75,9 @@ v1 不做硬闸（产品还在快速迭代，先攒付费用户心智），只�
       不认 server.handler，走了 Nitro 的框架级扫描才通；实测注册/会话全链路 200）
 - [x] `plan` 字段 + 人工授予脚本（scripts/grant-plan.ts，仅 DATABASE_URL 形态）
 - [x] 顶栏账号入口 + plan 徽章（AccountChip，未登录显示「登录」）
+- [x] 会员页 /membership：定价（¥29/月 ¥299/年 ¥999 终身，pricing.ts 单一事实来源）
+      + 人工授予开通流程 + 诚实口径（v1 无硬闸，付费 = 支持 + 锁定价 + 硬权益
+      上线后自动拥有）；账号徽章点进会员页，登录页回链
 - [ ] 已知限制：本机 serve 的 PGLite 是内存库，注册的用户重启即失——
       会员体系要真用，部署必须挂 Neon（DATABASE_URL）
 - [ ] 收款渠道拍板 → 支付回调接 plan（等老板）

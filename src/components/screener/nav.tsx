@@ -39,7 +39,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
 import { isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
-/** 顶栏账号入口：已登录显示邮箱（或名字）+ 付费档位徽章，点进 /login 管理；
+/** 顶栏账号入口：已登录显示邮箱（或名字）+ 付费档位徽章，点进 /membership 看档位与定价；
  *  未登录显示「登录」。会话解析中渲染空，不闪。 */
 function AccountChip() {
   const { user, isPending } = useCurrentUserState();
@@ -58,7 +58,7 @@ function AccountChip() {
   const short = label.length > 14 ? `${label.slice(0, 13)}…` : label;
   return (
     <Link
-      to="/login"
+      to="/membership"
       title={`${label} · ${planLabel(user.plan)}`}
       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded border border-line bg-surface px-3 text-sm text-muted hover:bg-surface-2 hover:text-fg"
     >

@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { authClient, signOut } from "@/lib/auth/client";
@@ -44,6 +44,13 @@ function LoginPage() {
             <p>
               <span className="text-muted">账号：</span>
               {user.primaryEmail ?? user.displayName ?? user.id}
+            </p>
+            <p className="text-xs text-muted">
+              想升级或看定价？去{" "}
+              <Link to="/membership" className="text-brand hover:underline">
+                会员页
+              </Link>
+              。
             </p>
             <button
               type="button"
