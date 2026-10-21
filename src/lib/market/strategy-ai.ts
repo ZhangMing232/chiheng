@@ -26,6 +26,7 @@ import { readChallengers, readChampions, writeChallengers, championLogPath, type
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, STYLE_IDS, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
+import { readMarketDegraded } from "./providers/index.ts";
 
 // ── 旋钮白名单 ──────────────────────────────────────────────────
 
@@ -395,6 +396,9 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   const slotsFull = ACTIVE_STYLES.every(
     (style) => chalFile.list.filter((c) => c.style === style && c.status === "running").length >= MAX_RUNNING_PER_STYLE,
   );
+  // 行情源降级（腾讯失败退回新浪）会让依赖近 5/20/60 日涨幅、量比的策略名单为空，
+  // 这种空返回是系统性原因，不是 AI 摸鱼——读降级状态文件做归因展示。
+  const degraded = await readMarketDegraded();
   const silentEmpty = accepted.length === 0 && rejected.length === 0;
   await appendAILog({
     at: new Date().toISOString(),
@@ -410,7 +414,9 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
               ? `AI 返回空数组，已确定性播种 ${seeded.length} 个冷启动挑战者（${seeded.map((s) => `${s.style}:${s.id}`).join("、")}）——同样过 Welch 判决`
               : slotsFull
                 ? "AI 返回空数组——每套在跑策略的挑战者名额都已占满，按铁律 2 本轮不该提名，合理空转（等 Welch 判决腾出名额）"
-                : `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——按冷启动铁律第 6 条，这视为本轮失职`,
+                : degraded
+                  ? `AI 返回空数组——行情源降级（${degraded.source}：${degraded.impact}），依赖这些字段的策略名单为空，合理空转不记失职`
+                  : `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——按冷启动铁律第 6 条，这视为本轮失职`,
         }
       : {}),
   });

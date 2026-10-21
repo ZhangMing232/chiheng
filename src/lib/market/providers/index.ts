@@ -10,6 +10,9 @@
  * 页面和记账代码不用动。
  */
 
+import { unlink, writeFile, readFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
+
 import type { IndexQuote, Universe } from "@/lib/market/types";
 import { fetchTencentIndices, fetchTencentUniverse } from "@/lib/market/providers/tencent";
 import { fetchSinaUniverse } from "@/lib/market/providers/sina";
@@ -64,9 +67,51 @@ function universeOf(quotes: Universe["quotes"], source: Universe["source"]): Uni
  *   次日补涨 走板块接口，不看这些字段   —— 照常
  * 页面上看不出来是「今天没有符合条件的票」还是「源换了没数据」，所以打一条日志。
  */
+const DEGRADED_IMPACT = "缺近5/20/60日涨幅和量比：放量突破、中期反转两套停摆";
+
+/** 降级状态落盘路径（data/market-degraded.json）。 */
+const degradedPath = () => join(process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data"), "market-degraded.json");
+
+/** 降级状态 24 小时内视为「当前正处于降级」。 */
+const DEGRADED_TTL_MS = 24 * 60 * 60 * 1000;
+
+export type MarketDegraded = { at: string; source: string; impact: string };
+
+async function writeDegraded(source: string): Promise<void> {
+  try {
+    await mkdir(join(degradedPath(), ".."), { recursive: true });
+    await writeFile(degradedPath(), JSON.stringify({ at: new Date().toISOString(), source, impact: DEGRADED_IMPACT }));
+  } catch {
+    // 状态文件是增强项，写失败不影响拉取本身。
+  }
+}
+
+async function clearDegraded(): Promise<void> {
+  try {
+    await unlink(degradedPath());
+  } catch {
+    // 没有文件可删，正常。
+  }
+}
+
+/**
+ * 当前是否处于行情降级（供策略层 AI 空返回归因：降级导致名单为空 ≠ AI 失职）。
+ * 读不到/坏了/超过 24h 都返回 null——宁可不归因，不拿陈旧状态冤枉一轮。
+ */
+export async function readMarketDegraded(): Promise<MarketDegraded | null> {
+  try {
+    const parsed = JSON.parse(await readFile(degradedPath(), "utf8")) as MarketDegraded;
+    if (typeof parsed.at !== "string" || typeof parsed.source !== "string") return null;
+    if (Date.now() - Date.parse(parsed.at) > DEGRADED_TTL_MS) return null;
+    return { at: parsed.at, source: parsed.source, impact: typeof parsed.impact === "string" ? parsed.impact : DEGRADED_IMPACT };
+  } catch {
+    return null;
+  }
+}
+
 function warnIfDegraded(source: Universe["source"]): void {
   if (source !== "sina") return;
-  console.warn("[行情] 新浪源没有近 5/20/60 日涨幅和量比：放量突破、中期反转这两套今天不会出票，不是选不出票。");
+  console.warn(`[行情] ${DEGRADED_IMPACT}，不是选不出票。`);
 }
 
 /** 拉全市场 A 股报价。先腾讯，失败后新浪，两个都失败才报错。 */
@@ -74,6 +119,7 @@ export async function fetchUniverse(): Promise<Universe> {
   try {
     const t = await fetchTencentUniverse();
     if (t.quotes.length < MIN_UNIVERSE) throw new Error(`名单不全：只有 ${t.quotes.length} 只`);
+    await clearDegraded();
     return { ...universeOf(t.quotes, "tencent"), partial: t.partial };
   } catch (error) {
     console.warn(`[行情] 腾讯源失败（${messageOf(error)}），改用新浪财经`);
@@ -82,6 +128,7 @@ export async function fetchUniverse(): Promise<Universe> {
   if (s.quotes.length < MIN_UNIVERSE) throw new Error(`新浪名单不全：只有 ${s.quotes.length} 只`);
   console.warn(`[行情] 已切换到新浪财经源，共 ${s.quotes.length} 只`);
   warnIfDegraded("sina");
+  await writeDegraded("sina");
   return { ...universeOf(s.quotes, "sina"), partial: s.partial };
 }
 
