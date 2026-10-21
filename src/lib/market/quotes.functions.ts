@@ -918,6 +918,15 @@ export const getChallengerSamples = createServerFn({ method: "GET" }).handler(as
   return counts;
 });
 
+/** 挑战者参数敏感度报告（VT3 判决旁路评估）：按 id 索引，判决落地时由记账进程写入。 */
+export const getChallengerRobustness = createServerFn({ method: "GET" }).handler(async () => {
+  const { readRobustness } = await import("@/lib/market/challenger-robust");
+  const { list } = await readRobustness();
+  const byId: Record<string, (typeof list)[number]> = {};
+  for (const r of list) byId[r.id] = r;
+  return byId;
+});
+
 /** 让 AI 提名一轮挑战者：校验通过的直接 running，记账进程当天开始并行攒样本。 */
 export const runStrategyAI = createServerFn({ method: "POST" }).handler(async () => {
   const { requireUserId } = await import("@/lib/auth/verify.server");

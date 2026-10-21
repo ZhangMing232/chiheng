@@ -48,6 +48,7 @@ import { readAILog } from "../src/lib/market/ai-log.ts";
 import { readFactorRuns } from "../src/lib/market/factor-runs-file.ts";
 import { readAIConfig, runFactorAILoop } from "../src/lib/market/factor-queue.ts";
 import { runStrategyAILoop } from "../src/lib/market/strategy-ai.ts";
+import { robustnessReport, writeRobustness } from "../src/lib/market/challenger-robust.ts";
 import { FACTORS } from "../src/lib/market/factors.ts";
 
 type Trade = {
@@ -285,9 +286,34 @@ if (phase.date) {
           : decision.action === "reject"
             ? `挑战者淘汰：${chal.name}`
             : `挑战者停跑：${chal.name}`;
+      // VT3：判决落地时做参数邻域敏感度评估（悬崖/平台）——只标注不改判决，
+      // promote/reject 由上面的 judgeChallenger 单独决定。评估失败不吞判决。
+      let robustNote = "";
+      try {
+        const closedTrades = ownerBook.days
+          .filter((day) => dayReliable(day))
+          .flatMap((day) =>
+            day.trades
+              .filter((t) => t.variant === chal.id && t.exit != null && typeof t.entry === "number")
+              .map((t) => ({ id: t.id, entryDate: day.date, entry: t.entry, stop: t.stop, target: t.target })),
+          );
+        const report = await robustnessReport({
+          chal,
+          verdict: decision.action,
+          trades: closedTrades,
+          barsOf: async (id) => (await kline(id)).bars,
+        });
+        if (report) {
+          await writeRobustness(report);
+          robustNote = `\n${report.note}`;
+          console.log(`challenger-robust ${chal.id}: fragile=${report.fragile} (${report.simulated} simulated, ${report.skipped} skipped)`);
+        }
+      } catch (error) {
+        console.error(`challenger-robust ${chal.id} 评估失败（不影响判决）:`, error);
+      }
       console.log(`challenger ${chal.id} ${decision.action}: ${decision.reason}`);
-      notify(`${label}：${decision.reason}`);
-      void sendPushPlus("赤轨挑战者", `${label}\n${decision.reason}\n时间：${time}`);
+      notify(`${label}：${decision.reason}${robustNote}`);
+      void sendPushPlus("赤轨挑战者", `${label}\n${decision.reason}${robustNote}\n时间：${time}`);
     }
     if (chalChanged) {
       await writeChallengers(chalFile);

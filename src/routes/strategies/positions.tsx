@@ -28,8 +28,9 @@ import { ACTIVE_STYLES, STYLES, styleOf } from "@/lib/market/strategies";
 import { SectionTabs } from "@/components/section-tabs";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
+import { getChallengerRobustness, getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
 import type { Challenger } from "@/lib/market/challenger";
+import type { ChallengerRobustReport } from "@/lib/market/challenger-robust";
 import { CollapsibleSection } from "@/components/collapsible";
 import { PageTabs } from "@/components/page-tabs";
 import { usePaper, type PaperDay } from "@/lib/paper";
@@ -39,13 +40,14 @@ import { journalTradeIds, slimUniverse } from "@/lib/market/slim-universe";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
-    const [universe, journal, nav, chal, samples] = await Promise.all([
+    const [universe, journal, nav, chal, samples, robust] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getServerJournal(),
       // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
       getNavHistory().catch(() => ({ points: [] as NavPoint[] })),
       getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string> })),
       getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
+      getChallengerRobustness().catch(() => ({}) as Record<string, ChallengerRobustReport>),
     ]);
     return {
       // 快照只留账本里出现过的股票（页面只用 byId 查持仓现价），
@@ -58,6 +60,7 @@ export const Route = createFileRoute("/strategies/positions")({
       chal: chal.list,
       champions: chal.champions,
       samples,
+      robust,
     };
   },
   component: Positions,
@@ -205,10 +208,13 @@ function ChallengerPanel({
   list,
   champions,
   samples,
+  robust,
 }: {
   list: Challenger[];
   champions: Record<string, string>;
   samples: Record<string, { n: number; target: number; champN: number }>;
+  /** VT3 判决旁路的参数敏感度报告（按挑战者 id），没有评估过的就没有 entry。 */
+  robust: Record<string, ChallengerRobustReport>;
 }) {
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
   const runningCount = list.filter((c) => c.status === "running").length;
@@ -233,6 +239,20 @@ function ChallengerPanel({
         {sample ? (
           <span className="tabular-nums text-muted">
             样本 {sample.n}/{sample.target} · 冠军 {sample.champN}/{sample.target}
+          </span>
+        ) : null}
+        {robust[c.id] ? (
+          <span
+            className={
+              robust[c.id].fragile === true
+                ? "text-amber-600 dark:text-amber-400"
+                : robust[c.id].fragile === false
+                  ? "text-muted"
+                  : "text-muted"
+            }
+            title={robust[c.id].note}
+          >
+            {robust[c.id].fragile === true ? "⚠️ 参数悬崖" : robust[c.id].fragile === false ? "参数平台" : "敏感度样本不足"}
           </span>
         ) : null}
         {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
@@ -392,7 +412,7 @@ function attrRow(row: AttrRow) {
 }
 
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions, samples } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, samples, robust } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -607,7 +627,7 @@ function Positions() {
   {/* 体检 tab：当前状态——挑战者赛马、净值曲线、持仓结构。 */}
   const checkTab = (
     <div className="flex flex-col gap-2">
-        <ChallengerPanel list={chal} champions={champions} samples={samples} />
+        <ChallengerPanel list={chal} champions={champions} samples={samples} robust={robust} />
 
         {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
             不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}
