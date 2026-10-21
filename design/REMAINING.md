@@ -1,6 +1,6 @@
 # 剩余工作清单（REMAINING）
 
-> 2026-10-12 收尾时整理。这是**活文档**——每完成一项就改状态，别让它过期。
+> 2026-10-12 收尾时整理，2026-10-21 加第 11 节 Vibe-Trading 融合清单。这是**活文档**——每完成一项就改状态，别让它过期。
 > 状态图例：✅ 完成 · 🔄 进行中 · ⬜ 待做 · ⏸ 暂停 · ❓ 待拍板
 >
 > 配套文档：`GAP-REPORT.md`（对标缺口专项，数据/市场/实现/工程四类逐条）、
@@ -170,3 +170,22 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 5. 之后按需：多市场、产业链、图片识别
 
 **2026-10-12 已全部拍板**：S1-S4 接受、E2 跑、E4 不做、多市场先美港（M3 不做）。按建议顺序推：D3 → D4 → T1 → M1+M2。
+
+---
+
+## 11. Vibe-Trading 融合清单（2026-10-21 起，用户拍板「两个 Vibe 都融进来」）
+
+> 参照物：HKUDS/Vibe-Trading v0.1.16（36k star，Python，源码经 PyPI wheel 拿到本地
+> `~/Documents/kimi/tasks/2026-09-30/11-14-40-0dc258a/Vibe-Trading/`）。
+> Vibe-Research 侧的融合见上文 GAP-REPORT（研究流水线六阶段、外壳、回测闸口三件套已对齐）。
+> 纪律：**融合只加展示层和提议层，6 关判决 / Welch / 策略闸预先登记在代码里，改规则必须主人拍板。**
+
+| # | 项 | 学什么 | 状态 |
+|---|---|---|---|
+| VT1 | 回测稳健性三件套 | walkForward 滚动分段一致性 + bootstrap 夏普 CI + PSR（偏度峰度调整），算法逐行移植 `robustness.ts`；/backtest 页曲线下方已展示 | ✅ 完成（2026-10-21，15 单测） |
+| VT2 | DSR 进因子层 | deflated_sharpe_ratio：把「试 N 个因子运气最好的夏普」当基准线，函数+测试已在 robustness.ts，接进因子页/evolve 提示 | ⬜ |
+| VT3 | 挑战者邻近参数敏感度 | paramSensitivity（robustness.ts 已有）：挑战者转正判决时给参数邻域 ±20% 网格，参数是悬崖不是平台就标脆弱 | ⬜ |
+| VT4 | 因子 IC/ICIR | Vibe Alpha Zoo 的因子评价维度（因子值 vs 次日收益的秩相关序列），补进 6 关判决的展示侧 | ⬜ |
+| VT5 | PBO（回测过拟合概率） | CSCV 组合对称交叉验证，回答「这套参数是不是过拟合」 | ⬜ 低优先 |
+| VT6 | 组合权重优化（HRP/风险平价） | Vibe backtest/optimizers；赤轨现单票账本优先级低 | ⏸ 暂缓 |
+| VT7 | 数字声明角色核验升级 | Vibe 的 grounding 闸门（observed/derived/proposed/cited/count 声明式核验）；赤轨已有 number-gate，看值不值得换 | ❓ 待评估 |

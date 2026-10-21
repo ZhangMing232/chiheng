@@ -25,6 +25,7 @@ import { RUNS_PATH, type BacktestRun } from "@/lib/market/backtest-runs";
 import { getBacktestRuns } from "@/lib/market/quotes.functions";
 import { envDiff, runSummary, styleRows, untested, type SortKey } from "@/lib/market/backtest-view";
 import { barsToShow, buildCurve, curveSummary, monthlyBars, yearlyBars } from "@/lib/market/backtest-curve";
+import { bootstrapSharpeCI, kurtosisOf, psr, sharpe, skewness, walkForward } from "@/lib/market/robustness";
 import { AreaChart, BarChart, LineChart } from "@/components/backtest-charts";
 import { toneClass } from "@/lib/market/format";
 
@@ -312,7 +313,68 @@ function BacktestCharts({ picked }: { picked: BacktestRun }) {
           <BarChart labels={yearly.map((b) => b.key)} data={yearly.map((b) => b.ret)} />
         </div>
       </div>
+
+      <RobustnessBlock daily={row.daily} />
     </Panel>
+  );
+}
+
+/**
+ * 稳健性面板（算法移植自 Vibe-Trading v0.1.16，MIT）：
+ * 回答「这套的好成绩是不是只靠某一段行情 / 运气好」——
+ *   - Walk-Forward：日度序列切 5 段，看几段赚钱（一致性），赚钱靠的是全程还是一段暴走
+ *   - Bootstrap 夏普 CI：日收益有放回重采样 1000 次，给夏普的 95% 置信区间
+ *   - PSR：考虑偏度/峰度后「真夏普 > 0」的概率（负偏厚尾会让同样的夏普更不可信）
+ * 只展示不动判决：6 关判决和挑战者 Welch 的规则一条没改。
+ */
+function RobustnessBlock({ daily }: { daily: { date: string; ret: number }[] }) {
+  const wf = useMemo(() => walkForward(daily, 5), [daily]);
+  const boot = useMemo(() => bootstrapSharpeCI(daily.map((d) => d.ret), { draws: 1000, seed: 42 }), [daily]);
+  const psrValue = useMemo(() => {
+    const rets = daily.map((d) => d.ret);
+    if (rets.length < 20) return null;
+    try {
+      // per-period（日频）夏普喂给 PSR，年化会在 PSR 内部被样本量错误放大
+      return psr(sharpe(rets, 1), rets.length, 0, skewness(rets), kurtosisOf(rets));
+    } catch {
+      return null;
+    }
+  }, [daily]);
+
+  return (
+    <div className="px-3.5 py-2 text-[11px] text-muted">
+      <p className="py-1 text-xs text-fg">稳健性（Vibe-Trading 同款算法，只展示不改判决）</p>
+      {"error" in wf ? (
+        <p className="py-1">Walk-Forward 切不了段：{wf.error}</p>
+      ) : (
+        <p className="py-1">
+          Walk-Forward 5 段：盈利 {wf.profitableWindows}/5 段（一致性 {(wf.consistencyRate * 100).toFixed(0)}%）
+          ｜各段{" "}
+          {wf.windows.map((w) => `${w.start.slice(5)}~${w.end.slice(5)}:${(w.ret * 100).toFixed(1)}%`).join("、")}
+          {" "}｜段间收益标准差 {(wf.retStd * 100).toFixed(2)} 个百分点——靠一段暴走的策略这个数字会很大。
+        </p>
+      )}
+      {"error" in boot ? (
+        <p className="py-1">Bootstrap：{boot.error}</p>
+      ) : (
+        <p className="py-1">
+          Bootstrap 夏普（年化、等权口径）：观察值 {boot.observedSharpe.toFixed(2)}，95% 置信区间 [
+          {boot.ciLow.toFixed(2)}, {boot.ciHigh.toFixed(2)}]，P(夏普&gt;0) = {(boot.probPositive * 100).toFixed(0)}%
+          ——区间跨 0 说明这点样本说不清好坏。
+        </p>
+      )}
+      {psrValue !== null ? (
+        <p className="py-1">
+          PSR（把偏度 {skewness(daily.map((d) => d.ret)).toFixed(2)}、峰度{" "}
+          {kurtosisOf(daily.map((d) => d.ret)).toFixed(1)} 算进去，「真夏普&gt;0」的概率）=
+          {(psrValue * 100).toFixed(0)}%。
+        </p>
+      ) : null}
+      <p className="py-1">
+        口径提醒：这里用的是<strong>按天等权累加</strong>的日收益（和上面曲线同口径），夏普是日频年化，
+        和复利净值口径的夏普数字不能直接比；抽样 300 只的结论外推到全市场要谨慎。
+      </p>
+    </div>
   );
 }
 
