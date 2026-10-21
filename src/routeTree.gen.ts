@@ -16,7 +16,6 @@ import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DebateRouteImport } from './routes/debate'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as EventsRouteImport } from './routes/events'
-import { Route as FactorsRouteImport } from './routes/factors'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as MyStocksRouteImport } from './routes/my-stocks'
@@ -33,6 +32,16 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as StrategiesRouteImport } from './routes/strategies'
 import { Route as SymbolRouteImport } from './routes/symbol'
+import { Route as AiIndexRouteImport } from './routes/ai/index'
+import { Route as AiConfigRouteImport } from './routes/ai/config'
+import { Route as AiRulesRouteImport } from './routes/ai/rules'
+import { Route as AiUsageRouteImport } from './routes/ai/usage'
+import { Route as FactorsIndexRouteImport } from './routes/factors/index'
+import { Route as FactorsAttribRouteImport } from './routes/factors/attrib'
+import { Route as FactorsBaselineRouteImport } from './routes/factors/baseline'
+import { Route as FactorsBucketsRouteImport } from './routes/factors/buckets'
+import { Route as FactorsFlowRouteImport } from './routes/factors/flow'
+import { Route as FactorsGatesRouteImport } from './routes/factors/gates'
 import { Route as FlowIndexRouteImport } from './routes/flow/index'
 import { Route as FlowCloseRouteImport } from './routes/flow/close'
 import { Route as FlowFuturesRouteImport } from './routes/flow/futures'
@@ -83,11 +92,6 @@ const DeskRoute = DeskRouteImport.update({
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FactorsRoute = FactorsRouteImport.update({
-  id: '/factors',
-  path: '/factors',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FlowRoute = FlowRouteImport.update({
@@ -168,6 +172,56 @@ const StrategiesRoute = StrategiesRouteImport.update({
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiIndexRoute = AiIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AiRoute,
+} as any)
+const AiConfigRoute = AiConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
+  getParentRoute: () => AiRoute,
+} as any)
+const AiRulesRoute = AiRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => AiRoute,
+} as any)
+const AiUsageRoute = AiUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => AiRoute,
+} as any)
+const FactorsIndexRoute = FactorsIndexRouteImport.update({
+  id: '/factors/',
+  path: '/factors/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FactorsAttribRoute = FactorsAttribRouteImport.update({
+  id: '/factors/attrib',
+  path: '/factors/attrib',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FactorsBaselineRoute = FactorsBaselineRouteImport.update({
+  id: '/factors/baseline',
+  path: '/factors/baseline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FactorsBucketsRoute = FactorsBucketsRouteImport.update({
+  id: '/factors/buckets',
+  path: '/factors/buckets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FactorsFlowRoute = FactorsFlowRouteImport.update({
+  id: '/factors/flow',
+  path: '/factors/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FactorsGatesRoute = FactorsGatesRouteImport.update({
+  id: '/factors/gates',
+  path: '/factors/gates',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FlowIndexRoute = FlowIndexRouteImport.update({
@@ -253,13 +307,12 @@ const StrategiesScreenerRoute = StrategiesScreenerRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/desk': typeof DeskRoute
   '/events': typeof EventsRoute
-  '/factors': typeof FactorsRoute
   '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
@@ -276,6 +329,14 @@ export interface FileRoutesByFullPath {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/ai/config': typeof AiConfigRoute
+  '/ai/rules': typeof AiRulesRoute
+  '/ai/usage': typeof AiUsageRoute
+  '/factors/attrib': typeof FactorsAttribRoute
+  '/factors/baseline': typeof FactorsBaselineRoute
+  '/factors/buckets': typeof FactorsBucketsRoute
+  '/factors/flow': typeof FactorsFlowRoute
+  '/factors/gates': typeof FactorsGatesRoute
   '/flow/close': typeof FlowCloseRoute
   '/flow/futures': typeof FlowFuturesRoute
   '/flow/hot': typeof FlowHotRoute
@@ -290,18 +351,18 @@ export interface FileRoutesByFullPath {
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/ai/': typeof AiIndexRoute
+  '/factors/': typeof FactorsIndexRoute
   '/flow/': typeof FlowIndexRoute
   '/review/': typeof ReviewIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/ai': typeof AiRoute
   '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/desk': typeof DeskRoute
   '/events': typeof EventsRoute
-  '/factors': typeof FactorsRoute
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
   '/news': typeof NewsRoute
@@ -316,6 +377,14 @@ export interface FileRoutesByTo {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/ai/config': typeof AiConfigRoute
+  '/ai/rules': typeof AiRulesRoute
+  '/ai/usage': typeof AiUsageRoute
+  '/factors/attrib': typeof FactorsAttribRoute
+  '/factors/baseline': typeof FactorsBaselineRoute
+  '/factors/buckets': typeof FactorsBucketsRoute
+  '/factors/flow': typeof FactorsFlowRoute
+  '/factors/gates': typeof FactorsGatesRoute
   '/flow/close': typeof FlowCloseRoute
   '/flow/futures': typeof FlowFuturesRoute
   '/flow/hot': typeof FlowHotRoute
@@ -330,19 +399,20 @@ export interface FileRoutesByTo {
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/ai': typeof AiIndexRoute
+  '/factors': typeof FactorsIndexRoute
   '/flow': typeof FlowIndexRoute
   '/review': typeof ReviewIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/desk': typeof DeskRoute
   '/events': typeof EventsRoute
-  '/factors': typeof FactorsRoute
   '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
   '/my-stocks': typeof MyStocksRoute
@@ -359,6 +429,14 @@ export interface FileRoutesById {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/ai/config': typeof AiConfigRoute
+  '/ai/rules': typeof AiRulesRoute
+  '/ai/usage': typeof AiUsageRoute
+  '/factors/attrib': typeof FactorsAttribRoute
+  '/factors/baseline': typeof FactorsBaselineRoute
+  '/factors/buckets': typeof FactorsBucketsRoute
+  '/factors/flow': typeof FactorsFlowRoute
+  '/factors/gates': typeof FactorsGatesRoute
   '/flow/close': typeof FlowCloseRoute
   '/flow/futures': typeof FlowFuturesRoute
   '/flow/hot': typeof FlowHotRoute
@@ -373,6 +451,8 @@ export interface FileRoutesById {
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/ai/': typeof AiIndexRoute
+  '/factors/': typeof FactorsIndexRoute
   '/flow/': typeof FlowIndexRoute
   '/review/': typeof ReviewIndexRoute
 }
@@ -386,7 +466,6 @@ export interface FileRouteTypes {
     | '/debate'
     | '/desk'
     | '/events'
-    | '/factors'
     | '/flow'
     | '/inbox'
     | '/my-stocks'
@@ -403,6 +482,14 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/ai/config'
+    | '/ai/rules'
+    | '/ai/usage'
+    | '/factors/attrib'
+    | '/factors/baseline'
+    | '/factors/buckets'
+    | '/factors/flow'
+    | '/factors/gates'
     | '/flow/close'
     | '/flow/futures'
     | '/flow/hot'
@@ -417,18 +504,18 @@ export interface FileRouteTypes {
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/ai/'
+    | '/factors/'
     | '/flow/'
     | '/review/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/ai'
     | '/backtest'
     | '/calendar'
     | '/debate'
     | '/desk'
     | '/events'
-    | '/factors'
     | '/inbox'
     | '/my-stocks'
     | '/news'
@@ -443,6 +530,14 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/ai/config'
+    | '/ai/rules'
+    | '/ai/usage'
+    | '/factors/attrib'
+    | '/factors/baseline'
+    | '/factors/buckets'
+    | '/factors/flow'
+    | '/factors/gates'
     | '/flow/close'
     | '/flow/futures'
     | '/flow/hot'
@@ -457,6 +552,8 @@ export interface FileRouteTypes {
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/ai'
+    | '/factors'
     | '/flow'
     | '/review'
   id:
@@ -468,7 +565,6 @@ export interface FileRouteTypes {
     | '/debate'
     | '/desk'
     | '/events'
-    | '/factors'
     | '/flow'
     | '/inbox'
     | '/my-stocks'
@@ -485,6 +581,14 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/ai/config'
+    | '/ai/rules'
+    | '/ai/usage'
+    | '/factors/attrib'
+    | '/factors/baseline'
+    | '/factors/buckets'
+    | '/factors/flow'
+    | '/factors/gates'
     | '/flow/close'
     | '/flow/futures'
     | '/flow/hot'
@@ -499,19 +603,20 @@ export interface FileRouteTypes {
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/ai/'
+    | '/factors/'
     | '/flow/'
     | '/review/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AiRoute: typeof AiRoute
+  AiRoute: typeof AiRouteWithChildren
   BacktestRoute: typeof BacktestRoute
   CalendarRoute: typeof CalendarRoute
   DebateRoute: typeof DebateRoute
   DeskRoute: typeof DeskRoute
   EventsRoute: typeof EventsRoute
-  FactorsRoute: typeof FactorsRoute
   FlowRoute: typeof FlowRouteWithChildren
   InboxRoute: typeof InboxRoute
   MyStocksRoute: typeof MyStocksRoute
@@ -528,6 +633,12 @@ export interface RootRouteChildren {
   SignalsRoute: typeof SignalsRoute
   StrategiesRoute: typeof StrategiesRouteWithChildren
   SymbolRoute: typeof SymbolRoute
+  FactorsAttribRoute: typeof FactorsAttribRoute
+  FactorsBaselineRoute: typeof FactorsBaselineRoute
+  FactorsBucketsRoute: typeof FactorsBucketsRoute
+  FactorsFlowRoute: typeof FactorsFlowRoute
+  FactorsGatesRoute: typeof FactorsGatesRoute
+  FactorsIndexRoute: typeof FactorsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -579,13 +690,6 @@ declare module '@tanstack/react-router' {
       path: '/events'
       fullPath: '/events'
       preLoaderRoute: typeof EventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/factors': {
-      id: '/factors'
-      path: '/factors'
-      fullPath: '/factors'
-      preLoaderRoute: typeof FactorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/flow': {
@@ -698,6 +802,76 @@ declare module '@tanstack/react-router' {
       path: '/symbol'
       fullPath: '/symbol'
       preLoaderRoute: typeof SymbolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai/': {
+      id: '/ai/'
+      path: '/'
+      fullPath: '/ai/'
+      preLoaderRoute: typeof AiIndexRouteImport
+      parentRoute: typeof AiRoute
+    }
+    '/ai/config': {
+      id: '/ai/config'
+      path: '/config'
+      fullPath: '/ai/config'
+      preLoaderRoute: typeof AiConfigRouteImport
+      parentRoute: typeof AiRoute
+    }
+    '/ai/rules': {
+      id: '/ai/rules'
+      path: '/rules'
+      fullPath: '/ai/rules'
+      preLoaderRoute: typeof AiRulesRouteImport
+      parentRoute: typeof AiRoute
+    }
+    '/ai/usage': {
+      id: '/ai/usage'
+      path: '/usage'
+      fullPath: '/ai/usage'
+      preLoaderRoute: typeof AiUsageRouteImport
+      parentRoute: typeof AiRoute
+    }
+    '/factors/': {
+      id: '/factors/'
+      path: '/factors'
+      fullPath: '/factors/'
+      preLoaderRoute: typeof FactorsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/factors/attrib': {
+      id: '/factors/attrib'
+      path: '/factors/attrib'
+      fullPath: '/factors/attrib'
+      preLoaderRoute: typeof FactorsAttribRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/factors/baseline': {
+      id: '/factors/baseline'
+      path: '/factors/baseline'
+      fullPath: '/factors/baseline'
+      preLoaderRoute: typeof FactorsBaselineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/factors/buckets': {
+      id: '/factors/buckets'
+      path: '/factors/buckets'
+      fullPath: '/factors/buckets'
+      preLoaderRoute: typeof FactorsBucketsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/factors/flow': {
+      id: '/factors/flow'
+      path: '/factors/flow'
+      fullPath: '/factors/flow'
+      preLoaderRoute: typeof FactorsFlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/factors/gates': {
+      id: '/factors/gates'
+      path: '/factors/gates'
+      fullPath: '/factors/gates'
+      preLoaderRoute: typeof FactorsGatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/flow/': {
@@ -815,6 +989,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AiRouteChildren {
+  AiConfigRoute: typeof AiConfigRoute
+  AiRulesRoute: typeof AiRulesRoute
+  AiUsageRoute: typeof AiUsageRoute
+  AiIndexRoute: typeof AiIndexRoute
+}
+
+const AiRouteChildren: AiRouteChildren = {
+  AiConfigRoute: AiConfigRoute,
+  AiRulesRoute: AiRulesRoute,
+  AiUsageRoute: AiUsageRoute,
+  AiIndexRoute: AiIndexRoute,
+}
+
+const AiRouteWithChildren = AiRoute._addFileChildren(AiRouteChildren)
+
 interface FlowRouteChildren {
   FlowCloseRoute: typeof FlowCloseRoute
   FlowFuturesRoute: typeof FlowFuturesRoute
@@ -876,13 +1066,12 @@ const StrategiesRouteWithChildren = StrategiesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AiRoute: AiRoute,
+  AiRoute: AiRouteWithChildren,
   BacktestRoute: BacktestRoute,
   CalendarRoute: CalendarRoute,
   DebateRoute: DebateRoute,
   DeskRoute: DeskRoute,
   EventsRoute: EventsRoute,
-  FactorsRoute: FactorsRoute,
   FlowRoute: FlowRouteWithChildren,
   InboxRoute: InboxRoute,
   MyStocksRoute: MyStocksRoute,
@@ -899,6 +1088,12 @@ const rootRouteChildren: RootRouteChildren = {
   SignalsRoute: SignalsRoute,
   StrategiesRoute: StrategiesRouteWithChildren,
   SymbolRoute: SymbolRoute,
+  FactorsAttribRoute: FactorsAttribRoute,
+  FactorsBaselineRoute: FactorsBaselineRoute,
+  FactorsBucketsRoute: FactorsBucketsRoute,
+  FactorsFlowRoute: FactorsFlowRoute,
+  FactorsGatesRoute: FactorsGatesRoute,
+  FactorsIndexRoute: FactorsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

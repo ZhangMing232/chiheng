@@ -21,7 +21,8 @@ import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
-import { watchList, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
+import { watchList, ACTIVE_STYLES, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
+import { CollapsibleSection } from "@/components/collapsible";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getStrategyGates, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { AccountStatus, DataStatusBadge } from "@/components/screener/data-status";
@@ -235,7 +236,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             <div>
               <div className="text-[10px] tracking-widest text-muted">策略</div>
               <div className="mt-1 flex flex-col gap-0.5">
-                {STYLES.map((item) => (
+                {/* 只有 ACTIVE_STYLES 会真的建仓（见 strategies.ts 的下线记录），
+                    筛选列表只把它们平铺；下线的收进下面折叠区，不和可用的混在一起
+                    （2026-10-21 用户点名：筛选条件里不该出现已下线策略）。 */}
+                {STYLES.filter((item) => (ACTIVE_STYLES as string[]).includes(item.id)).map((item) => (
                   <button
                     key={item.id}
                     type="button"
@@ -268,6 +272,50 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
                   </button>
                 ))}
               </div>
+              {(() => {
+                const retired = STYLES.filter(
+                  (item) => !(ACTIVE_STYLES as string[]).includes(item.id),
+                );
+                if (retired.length === 0) return null;
+                return (
+                  <CollapsibleSection
+                    storageKey="ch-collapse-retired-styles"
+                    // 选中的恰是下线策略时默认展开，不然用户找不到当前选中项在哪。
+                    defaultOpen={retired.some((item) => item.id === prefs.style)}
+                    className="mt-1"
+                    headerClassName="bg-surface-2"
+                    header={
+                      <>
+                        <h3 className="text-xs font-medium">已下线（{retired.length}）</h3>
+                        <p className="text-[11px] text-muted">只留查看，不再自动建仓</p>
+                      </>
+                    }
+                  >
+                    <div className="flex flex-col gap-0.5 px-1.5 py-1.5">
+                      {retired.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => pickStyle(item.id)}
+                          aria-pressed={item.id === prefs.style}
+                          className={
+                            "flex items-center justify-between rounded px-2 py-1.5 text-sm text-left " +
+                            (item.id === prefs.style
+                              ? "bg-brand-soft font-medium text-brand-text"
+                              : "text-muted hover:bg-surface-2 hover:text-fg")
+                          }
+                        >
+                          <span className="flex min-w-0 items-center gap-1">
+                            <span className="truncate">{item.name}</span>
+                            <span className="shrink-0 rounded bg-warn-soft px-1 text-[10px] text-warn">已下线</span>
+                          </span>
+                          <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </CollapsibleSection>
+                );
+              })()}
               <p className="mt-2 text-xs text-muted">{STYLES.find((item) => item.id === prefs.style)?.hint}</p>
             </div>
             <PrefsBar
