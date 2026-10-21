@@ -292,3 +292,11 @@ test("fallbackCandidates：缺三件套的不补位；没有启用档案时给�
   assert.equal(none.length, 1);
   assert.equal(none[0].profileId, "b");
 });
+
+test("buildPrompt：表达式白名单逐字写进铁律（防 AI 再编 f_dtyoy 这类假字段）", () => {
+  const prompt = buildPrompt([]);
+  assert.match(prompt, /字段白名单（共 \d+ 个/);
+  assert.ok(prompt.includes("floatCap lowerWick"), "白名单字段必须逐个列出");
+  assert.ok(prompt.includes("springAge springLow springRangeHigh"), "白名单尾部字段也要在");
+  assert.ok(prompt.includes("abs/log/sqrt"), "函数白名单必须列出");
+});

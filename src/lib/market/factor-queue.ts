@@ -26,7 +26,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { validateFactorExpr } from "./factor-expr.ts";
+import { FACTOR_EXPR_FUNCS, FACTOR_EXPR_VARS, validateFactorExpr } from "./factor-expr.ts";
 import { appendAILog, factorSelfHistory, readAILog } from "./ai-log.ts";
 import type { Factor, MetricRow } from "./factors.ts";
 import { readAllRunRows, type FactorRunRow } from "./factor-runs-file.ts";
@@ -325,7 +325,7 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?:
     "",
     "检验铁律（你的提议必须遵守）：",
     "1. 每个因子必须预登记方向和经济逻辑，不许看结果反推。",
-    "2. 因子只允许用给定指标字段做四则运算，函数只能用 abs/log/sqrt。不要发明新指标。",
+    `2. 因子表达式只允许用字段白名单里的变量做四则运算，函数只能用 ${FACTOR_EXPR_FUNCS.join("/")}。字段白名单（共 ${FACTOR_EXPR_VARS.length} 个，逐字抄，一个字母都不能错；发明白名单外的名字（比如 f_dtyoy）会被编译器直接拒掉，那一轮提议就白跑）：${FACTOR_EXPR_VARS.join(" ")}`,
     "3. 优先针对败因提假设：时段翻号的要想「什么条件下它才成立」；形状和方向不符的按真实形状重新立方向；全灭的维度别再试微调。",
     "4. 不许提议和现有因子逻辑等价的换皮（比如换个窗口再测一遍 d60）。",
     "5. 提 1~3 个你最看好的，宁缺毋滥。每个给：id（小写字母开头 slug）、name（中文名）、category（只能填一个词，从这六个里选：动量 / 反转 / 波动率 / 量能 / 形态 / 规模。不要自造组合类别，「量能/反转」这种会被拒）、direction（1 或 -1）、expr（表达式）、rationale（经济逻辑，一两句）。",

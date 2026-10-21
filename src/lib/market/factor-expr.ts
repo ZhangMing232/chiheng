@@ -67,6 +67,14 @@ const FUNCS: Record<string, (x: number) => number> = {
   sqrt: (x) => (x >= 0 ? Math.sqrt(x) : NaN),
 };
 
+/** 对外（提议 prompt）只读视图：表达式里合法的变量名/函数名清单。改了 VARS/FUNCS
+ *  这里自动跟着变，prompt 里的白名单和编译器永远是同一份——AI 照着抄名字就不会
+ *  提「f_dtyoy」这种编出来的字段（2026-10-21 实测：prompt 只说「用给定指标字段」
+ *  没给清单，AI 两轮都编了白名单外字段被编译器拒）。 */
+export const FACTOR_EXPR_VARS: readonly string[] = VARS;
+export const FACTOR_EXPR_FUNCS: readonly string[] = Object.keys(FUNCS);
+
+
 type Tok =
   | { kind: "num"; v: number }
   | { kind: "var"; name: string }
