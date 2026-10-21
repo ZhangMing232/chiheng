@@ -42,6 +42,8 @@ export type AIStatusPayload = {
   autoEvolve: boolean;
   activeId: string | null;
   profiles: ProfileStatus[];
+  /** 主备切换链（与 callAIWithFallback 同源）：超时/报错按序自动切，封顶两个。 */
+  fallbackOrder: string[];
 };
 
 /** Token 用量的 loader 形状（getAIUsage 的返回）。 */
@@ -357,6 +359,13 @@ export function ConfigBlock({ ai }: { ai: AIStatusPayload }) {
           还没有档案。点「新增接口」填一套 DeepSeek / Ollama / LM Studio 的地址和 key，填过的东西都会留住，随时切换。
         </p>
       )}
+      {ai.fallbackOrder.length > 1 ? (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+          切换链：主档案超时/报错自动按序切到下一个（封顶两个），
+          <span className="font-mono">{ai.fallbackOrder.join(" → ")}</span>
+          ；每次调用按实际出活的档案单价记账，用量监控台看得到。
+        </p>
+      ) : null}
       {ai.configured ? null : <p className="mt-1.5 text-[11px] text-warn">当前没有启用中的档案——闭环和自动进化都不会跑，先启用一套。</p>}
       {message ? <p className="mt-1.5 text-xs text-muted">{message}</p> : null}
       {modal ? <ProfileModal editing={modal === "new" ? null : modal} onClose={() => setModal(null)} /> : null}

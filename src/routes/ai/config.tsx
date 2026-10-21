@@ -17,7 +17,7 @@ import { AISectionTabs, ConfigBlock, Section, type AIStatusPayload } from "@/com
 
 export const Route = createFileRoute("/ai/config")({
   loader: async () => {
-    const ai = await getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [] }));
+    const ai = await getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] }));
     return { ai };
   },
   component: AIConfigPage,

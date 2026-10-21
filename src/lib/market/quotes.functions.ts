@@ -711,10 +711,17 @@ export const getAIStatus = createServerFn({ method: "GET" }).handler(async () =>
   const { getActiveConfig } = await import("@/lib/market/ai-profiles");
   const userId = await requireUserId();
   const [prefs, profiles] = await Promise.all([readAIPrefs(), readProfiles()]);
+  const { fallbackCandidates } = await import("@/lib/market/factor-queue");
   const base = {
     autoEvolve: prefs.autoEvolve,
     activeId: profiles.activeId,
     profiles: profiles.profiles.map(profileStatus),
+    // 主备切换链（和 callAIWithFallback 同一个纯函数，不另写一遍）：主档案超时/
+    // 报错按这个顺序自动切，封顶两个。只回名字+模型，key 照旧不出服务端。
+    fallbackOrder: fallbackCandidates(profiles).map((c) => {
+      const p = profiles.profiles.find((x) => x.id === c.profileId);
+      return p ? `${p.name}（${p.model}）` : c.profileId;
+    }),
     ...(await aiStatus(await getActiveConfig(profiles))),
   };
   if (userId !== OWNER_ID) return { allowed: false as const, ...base };
