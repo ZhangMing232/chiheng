@@ -163,7 +163,9 @@ export const getOverseasWatchQuotes = createServerFn({ method: "GET" }).handler(
   rows: WatchQuoteRow[];
   gaps: string[];
 }> => {
-  const list = await readWatchlist();
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const userId = await requireUserId();
+  const list = await readWatchlist(userId);
   const targets = list.items.filter((item) => item.id.startsWith("hk") || item.id.startsWith("us"));
   const gap = rateLimitOf("eastmoney").minGapMs;
   const rows: WatchQuoteRow[] = [];

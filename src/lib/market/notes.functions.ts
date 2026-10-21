@@ -23,11 +23,21 @@ function now(): string {
   return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 }
 
-export const getNotes = createServerFn({ method: "GET" }).handler(async (): Promise<Note[]> => loadNotes());
+/** 这次请求是谁。没有身份的请求在这里就被拦（requireUserId 抛 401），不碰账本。 */
+async function whoAmI(): Promise<string> {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  return requireUserId();
+}
+
+export const getNotes = createServerFn({ method: "GET" }).handler(async (): Promise<Note[]> => {
+  const userId = await whoAmI();
+  return loadNotes(userId);
+});
 
 export const addNoteFn = createServerFn({ method: "POST" })
   .validator((input: unknown) => input as { text?: unknown; symbol?: unknown; name?: unknown })
   .handler(async ({ data }): Promise<Result> => {
+    const userId = await whoAmI();
     const at = now();
     const checked = checkNote({
       text: data.text,
@@ -36,34 +46,36 @@ export const addNoteFn = createServerFn({ method: "POST" })
       symbol: typeof data.symbol === "string" && SYMBOL.test(data.symbol) ? data.symbol : null,
       name: data.name,
     });
-    const notes = await loadNotes();
+    const notes = await loadNotes(userId);
     if (!checked.ok) return { ok: false, reason: checked.reason, notes };
-    const saved = await saveNotes(addNote(notes, checked.note));
-    if (!saved) return { ok: false, reason: "写不进 data/notes.json（权限或磁盘问题），这次没存上", notes };
+    const saved = await saveNotes(addNote(notes, checked.note), userId);
+    if (!saved) return { ok: false, reason: "写不进笔记文件（权限或磁盘问题），这次没存上", notes };
     return { ok: true, notes: addNote(notes, checked.note) };
   });
 
 export const editNoteFn = createServerFn({ method: "POST" })
   .validator((input: unknown) => input as { id?: unknown; text?: unknown })
   .handler(async ({ data }): Promise<Result> => {
-    const notes = await loadNotes();
+    const userId = await whoAmI();
+    const notes = await loadNotes(userId);
     const id = typeof data.id === "string" ? data.id : "";
     if (!id || !notes.some((n) => n.id === id)) return { ok: false, reason: "这条笔记不在了（可能已经被删掉）", notes };
     const text = typeof data.text === "string" ? data.text.trim() : "";
     if (text === "") return { ok: false, reason: "内容不能为空", notes };
     const next = editNote(notes, id, text);
-    const saved = await saveNotes(next);
-    if (!saved) return { ok: false, reason: "写不进 data/notes.json，这次没存上", notes };
+    const saved = await saveNotes(next, userId);
+    if (!saved) return { ok: false, reason: "写不进笔记文件，这次没存上", notes };
     return { ok: true, notes: next };
   });
 
 export const deleteNoteFn = createServerFn({ method: "POST" })
   .validator((input: unknown) => input as { id?: unknown })
   .handler(async ({ data }): Promise<Result> => {
-    const notes = await loadNotes();
+    const userId = await whoAmI();
+    const notes = await loadNotes(userId);
     const id = typeof data.id === "string" ? data.id : "";
     const next = removeNote(notes, id);
-    const saved = await saveNotes(next);
-    if (!saved) return { ok: false, reason: "写不进 data/notes.json，这次没删掉", notes };
+    const saved = await saveNotes(next, userId);
+    if (!saved) return { ok: false, reason: "写不进笔记文件，这次没删掉", notes };
     return { ok: true, notes: next };
   });

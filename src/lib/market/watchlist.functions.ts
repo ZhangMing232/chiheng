@@ -24,7 +24,9 @@ export type WatchRow = WatchItem & { quote: Quote | null };
 
 /** 读名单 + 报价。行情拉失败时 quote 为 null，不阻塞名单本身。 */
 export const getWatchlistFn = createServerFn({ method: "GET" }).handler(async () => {
-  const list = await readWatchlist();
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const userId = await requireUserId();
+  const list = await readWatchlist(userId);
   const uni = await loadUniverse(false).catch(() => null);
   const byId = new Map((uni?.quotes ?? []).map((q) => [q.id, q]));
   const items = list.items.map((item) => ({ ...item, quote: byId.get(item.id) ?? null }));
@@ -44,9 +46,11 @@ export const addWatchFn = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }) => {
-    const list = await readWatchlist();
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const userId = await requireUserId();
+    const list = await readWatchlist(userId);
     const next = addWatch(list, { ...data, addedAt: new Date().toISOString() });
-    await writeWatchlist(next);
+    await writeWatchlist(userId, next);
     return { items: next.items, limit: WATCH_LIMIT };
   });
 
@@ -58,8 +62,10 @@ export const removeWatchFn = createServerFn({ method: "POST" })
     return { id: id.slice(0, 20) };
   })
   .handler(async ({ data }) => {
-    const list = await readWatchlist();
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const userId = await requireUserId();
+    const list = await readWatchlist(userId);
     const next = removeWatch(list, data.id);
-    await writeWatchlist(next);
+    await writeWatchlist(userId, next);
     return { items: next.items, limit: WATCH_LIMIT };
   });
