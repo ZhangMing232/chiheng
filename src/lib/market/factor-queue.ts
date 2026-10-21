@@ -539,6 +539,8 @@ export async function runFactorAILoop(
     ]);
   }
   const result: AILoopResult = { ok: true, proposed: accepted.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
+  // 与策略层同一取舍：accepted/rejected 全 0 = 模型空返回，留原始响应摘要好诊断。
+  const silentEmpty = accepted.length === 0 && rejected.length === 0;
   await appendAILog({
     at: new Date().toISOString(),
     layer: "factor",
@@ -546,6 +548,9 @@ export async function runFactorAILoop(
     ...result,
     proposed: accepted.map((a) => ({ id: a.id, name: a.name })),
     rejected: result.rejectReasons,
+    ...(silentEmpty
+      ? { note: `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——本轮没有任何提案` }
+      : {}),
   });
   return result;
 }
