@@ -17,6 +17,7 @@ import {
   summarizeMarketRow,
   summarizeQueue,
   summarizeRunRow,
+  verifyDiagnosisNumbers,
   type LedgerSnapshot,
 } from "@/lib/market/agent-loop";
 
@@ -137,4 +138,34 @@ test("summarizeChallengerSamples：已平仓/持仓/最近建仓/距 Welch 差�
     Array.from({ length: 30 }, (_, i) => ({ variant: "c_d", exit: 10 + i, date: "2026-10-21" })),
   );
   assert.match(full[0], /已够格/);
+});
+
+test("verifyDiagnosisNumbers：快照里有的数字放行，没出处的数字列出来（标注不拦截）", () => {
+  const ok = {
+    summary: "测试因子 t=2.50 已过 6 关",
+    factorLayer: "",
+    strategyLayer: "",
+    suggestions: [],
+    ruleChangeRequests: [],
+  };
+  assert.deepEqual(verifyDiagnosisNumbers(ok, SNAP), { ungrounded: [] });
+
+  const bad = {
+    summary: "神秘数字 999.9 说明一切",
+    factorLayer: "",
+    strategyLayer: "",
+    suggestions: [],
+    ruleChangeRequests: [],
+  };
+  const check = verifyDiagnosisNumbers(bad, SNAP);
+  assert.ok(check.ungrounded.includes("999.9"));
+  // 汇总五字段全部参与核验：suggestions / ruleChangeRequests 里的数也查
+  const mixed = {
+    ...ok,
+    suggestions: ["提议新因子，参考 247 个交易日的口径"],
+    ruleChangeRequests: ["6 关阈值太严，建议看看 888 这个数"],
+  };
+  const mixedCheck = verifyDiagnosisNumbers(mixed, SNAP);
+  assert.ok(!mixedCheck.ungrounded.includes("247"));
+  assert.ok(mixedCheck.ungrounded.includes("888"));
 });

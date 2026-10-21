@@ -32,6 +32,7 @@ import { readStrategyGates } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
 import { collectChallengerSamples, type ChallengerSample } from "./challenger-samples.ts";
+import { screenNumbers } from "./number-gate.ts";
 
 // ── 账本快照（observe） ─────────────────────────────────────────
 
@@ -215,6 +216,32 @@ export function parseDiagnosis(raw: string): AgentDiagnosis | null {
   }
 }
 
+// ── VT7：诊断报告的数字核验（展示侧标注，非阻断） ─────────────
+
+export type DiagnosisNumberCheck = { ungrounded: string[] };
+
+/**
+ * 诊断报告引用的每个数字，应能在本轮账本快照里找到出处。
+ * 借 Vibe grounding gate 的思想，但只落在诊断面：报告照常落地，无出处的数字
+ * 列进 numberCheck 给人看——AI 自查「前视/编数」的第一步。
+ *
+ * ⚠️ 同款局限照写在这：只核对「数字在快照里出现过」，不核对「用在了对的地方」。
+ *    而且这是标注不是拦截：诊断里合法但快照里没原文的数（比如快照没有挑战者时
+ *    引用 Welch 的 30 笔阈值）也会被标出，人读的时候自行判断成色。
+ */
+export function verifyDiagnosisNumbers(d: AgentDiagnosis, snap: LedgerSnapshot): DiagnosisNumberCheck {
+  const corpus = [
+    ...snap.factorLines, snap.factorMeta, ...snap.queueLines, ...snap.necropsy,
+    ...snap.championLines, ...snap.chalLines, ...snap.chalSampleLines,
+    ...snap.gateLines, ...snap.selfHistory, ...snap.marketEvidence,
+  ];
+  const ungrounded: string[] = [];
+  for (const field of [d.summary, d.factorLayer, d.strategyLayer, ...d.suggestions, ...d.ruleChangeRequests]) {
+    ungrounded.push(...screenNumbers(field, corpus).replaced);
+  }
+  return { ungrounded: [...new Set(ungrounded)].slice(0, 10) };
+}
+
 // ── 收集 + 运行（server-only：fs + fetch） ──────────────────────
 
 function dataDir(): string {
@@ -359,8 +386,16 @@ export async function runAgentDiagnosis(trigger: "manual" | "auto" = "manual"): 
     return logFail(`AI 返回不是合法诊断 JSON（原文前 200 字：${raw.trim().slice(0, 200) || "空白"}）`);
   }
 
+  // VT7：数字核验是展示侧标注，任何失败都不许拖垮诊断报告本身。
+  let numberCheck: DiagnosisNumberCheck | null = null;
+  try {
+    numberCheck = verifyDiagnosisNumbers(diagnosis, snap);
+  } catch {
+    numberCheck = null;
+  }
+
   await mkdir(dirname(agentDiagnosisPath()), { recursive: true });
-  await writeFile(agentDiagnosisPath(), JSON.stringify({ at, ...diagnosis }, null, 2));
+  await writeFile(agentDiagnosisPath(), JSON.stringify({ at, ...diagnosis, numberCheck }, null, 2));
   await appendAILog({
     at,
     layer: "agent",
@@ -368,7 +403,10 @@ export async function runAgentDiagnosis(trigger: "manual" | "auto" = "manual"): 
     ok: true,
     proposed: [],
     rejected: [],
-    note: diagnosis.summary,
+    note:
+      numberCheck && numberCheck.ungrounded.length > 0
+        ? `${diagnosis.summary}｜数字核验：${numberCheck.ungrounded.length} 个数无出处（${numberCheck.ungrounded.join("、")}）`
+        : diagnosis.summary,
   });
   return { ok: true, diagnosis };
 }

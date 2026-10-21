@@ -188,4 +188,4 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 | VT4 | 因子 IC/ICIR | Vibe Alpha Zoo 的因子评价维度（因子值 vs 次日收益的秩相关序列），补进 6 关判决的展示侧 | ✅ 完成（2026-10-21，7 单测）：analyzeFactors 逐日算横截面 Spearman（同分档天口径），runs/队列各落 ic 字段，因子闭环面板加「IC / ICIR」列（只展示不改判决；零波动 ICIR 记 null 不编数） |
 | VT5 | PBO（回测过拟合概率） | CSCV 组合对称交叉验证，回答「这套参数是不是过拟合」 | ✅ 完成（2026-10-21，5 单测）：robustness.ts 加 `pbo()`（2S=8 块递归枚举 70 切分，IS 最优配置看其 OOS 夏普在全体中的位次退化占比，Bailey & López de Prado）；挑战者稳健性报告把基准+邻域重模拟的逐笔收益按平仓日聚成 配置×期 矩阵跑 PBO，报告/note 落 `pbo`/`pboSplits`（只标注不改判决；配置不足/期数不足/零波动退化返回 null 不编数） |
 | VT6 | 组合权重优化（HRP/风险平价） | Vibe backtest/optimizers；赤轨现单票账本优先级低 | ⏸ 暂缓 |
-| VT7 | 数字声明角色核验升级 | Vibe 的 grounding 闸门（observed/derived/proposed/cited/count 声明式核验）；赤轨已有 number-gate，看值不值得换 | ❓ 待评估 |
+| VT7 | 数字声明角色核验升级 | Vibe 的 grounding 闸门（observed/derived/proposed/cited/count 声明式核验）；赤轨已有 number-gate，看值不值得换 | ✅ 完成（2026-10-21，1 单测）：评估结论——赤轨 number-gate 已是 Vibe 原版的合理裁剪（逐数字替换/阈值豁免/假设小句豁免/代码块防绕过），不换；VT7 价值落诊断面：agent-loop 加 `verifyDiagnosisNumbers`，诊断报告引用的每个数字核一遍本轮账本快照出处，无出处的列进 `numberCheck`（报告照常落地，ai-log note 标注几个数无出处；只标注不拦截，核验失败置 null 不拖垮报告） |
