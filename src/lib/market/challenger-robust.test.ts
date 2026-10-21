@@ -199,3 +199,28 @@ test("robustnessReport：邻域全模拟不出来 → fragile=null 不下结论"
   assert.equal(report.simulated, 0);
   assert.match(report.note, /不/);
 });
+
+test("robustnessReport：VT5 各邻域点逐期收益完全一致 → PBO=0，note 带 PBO 文案", async () => {
+  // 横盘价 10 元，8 笔交易建仓日间隔约 30 天、建仓价 10~10.7 各不相同：止损位
+  // （最高 entry×0.92 ≈ 9.84）永远碰不到 10 元，止盈位（最低 entry×1.15 > 11）也
+  // 永远碰不到，任何参数组合都到期按 10 元平掉 → 每个配置的逐期收益 profile 完全
+  // 相同（只有跨期差异、没有配置间差异）；30 天间隔保证 holdDays±2 的出场日抖动
+  // 不会跨期。→ 没有调参空间就没有过拟合，CSCV 70 切分全过，PBO=0。
+  const trades: ClosedTrade[] = Array.from({ length: 8 }, (_, i) => ({
+    id: "a",
+    entryDate: new Date(Date.UTC(2026, 8 + i, 1)).toISOString().slice(0, 10),
+    entry: 10 + i * 0.1,
+    stop: 9,
+    target: 30, // 横盘永远打不到
+  }));
+  const report = await robustnessReport({
+    chal: chalOf({ holdDays: 10, stopPct: 10, targetPct: 20 }),
+    verdict: "promote",
+    trades,
+    barsOf: barsMapOf({ a: flatBars("2026-09-01", 280) }),
+  });
+  assert.ok(report);
+  assert.equal(report.pbo, 0);
+  assert.equal(report.pboSplits, 70);
+  assert.match(report.note, /PBO（过拟合概率）=0%/);
+});

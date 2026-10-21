@@ -13,6 +13,10 @@
  *     再算 PSR——试了 N 个因子挑出来的最佳，先过这道运气线再说显著。
  *   - paramSensitivity     ← 邻近参数敏感度网格的思路（Vibe 的邻近参数检验）
  *     给一个基准参数组和一组邻点，逐个评估，看指标在邻域里是平还是悬崖。
+ *   - pbo                  ← CSCV（Combinatorially Symmetric Cross-Validation，
+ *     Bailey & López de Prado 2014）：把期数切成 2S 段、枚举全部 C(2S,S) 种
+ *     前半/后半切分，每切分上「样本内最优配置」拿到样本外去比中位数——
+ *     退化（ω<0）的切分占比就是过拟合概率。回答「这套参数是不是回测调出来的」。
  *
  * 纪律（和 6 关判决的关系）：
  * 1. 这一层只做**展示和提示**，不改 6 关判决、不改挑战者 Welch 判决——
@@ -372,5 +376,96 @@ export function paramSensitivity<T>(
     min: metrics.length ? Math.min(...metrics) : baseMetric,
     max: metrics.length ? Math.max(...metrics) : baseMetric,
     fragile,
+  };
+}
+
+// ─── PBO：组合对称交叉验证（CSCV）──────────────────────────────
+
+export type PboResult = {
+  /** 过拟合概率 0~1：IS 最优配置在 OOS 退化的切分占比。越大越像回测调出来的。 */
+  pbo: number;
+  nConfigs: number;
+  nPeriods: number;
+  /** 实际评估的切分数（数据不够的分割被跳过，如实计数）。 */
+  nSplits: number;
+  /** ω = OOS(最优) − OOS(中位数) 的中位数；负 = 样本内最好的那套样本外一般。 */
+  omegaMedian: number | null;
+};
+
+/**
+ * CSCV 过拟合概率。series[c][p] = 配置 c 在第 p 期的收益，缺数据填 null。
+ * 要求 ≥3 个配置、≥2S 期；把期数切成 2S 个连续块，枚举 C(2S,S) 种 IS/OOS
+ * 切分（S=4 → 70 种），每切分：IS 段上按夏普（均值/标准差，无风险=0）选最优配置，
+ * 看它在 OOS 段的夏普是否低于全体中位数。退化占比 = PBO。
+ *
+ * 纯函数、确定性：不做任何重采样。夏普没有年化——这里只比大小，年化系数是
+ * 单调变换不影响排序。块内某配置数据不足（<2 期或零波动）→ 该配置退出该切分的
+ * 比较；切分有效配置 <3 → 整个切分跳过。全跳过返回 null（不编数）。
+ */
+export function pbo(series: (number | null)[][], sBlocks = 4): PboResult | null {
+  const nConfigs = series.length;
+  const nPeriods = series[0]?.length ?? 0;
+  const S = sBlocks;
+  if (nConfigs < 3 || nPeriods < S * 2) return null;
+
+  // 期 → 连续块（前段密、后段疏的边缘由 min 吃掉，块大小差 ≤1）。
+  const blockOf = (p: number) => Math.min(Math.floor((p * 2 * S) / nPeriods), 2 * S - 1);
+  const blocks: number[][] = Array.from({ length: 2 * S }, () => []);
+  for (let p = 0; p < nPeriods; p++) blocks[blockOf(p)].push(p);
+
+  const sharpeOf = (cfg: number, periods: number[]): number | null => {
+    const xs = periods.map((p) => series[cfg][p]).filter((v): v is number => v != null);
+    if (xs.length < 2) return null;
+    const sd = std(xs);
+    return sd > 0 ? mean(xs) / sd : null;
+  };
+
+  let splits = 0;
+  let degradations = 0;
+  const omegas: number[] = [];
+
+  const visit = (chosen: number[], start: number) => {
+    if (chosen.length === S) {
+      const isBlocks = new Set(chosen);
+      const isPeriods = chosen.flatMap((b) => blocks[b]);
+      const oosPeriods = blocks.flatMap((b, i) => (isBlocks.has(i) ? [] : b));
+      let best: number | null = null;
+      let bestIs = -Infinity;
+      for (let c = 0; c < nConfigs; c += 1) {
+        const v = sharpeOf(c, isPeriods);
+        if (v != null && v > bestIs) {
+          bestIs = v;
+          best = c;
+        }
+      }
+      if (best == null) return;
+      const bestOos = sharpeOf(best, oosPeriods);
+      const allOos: number[] = [];
+      for (let c = 0; c < nConfigs; c += 1) {
+        const v = sharpeOf(c, oosPeriods);
+        if (v != null) allOos.push(v);
+      }
+      if (bestOos == null || allOos.length < 3) return;
+      const sorted = [...allOos].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      omegas.push(bestOos - median);
+      splits += 1;
+      if (bestOos - median < 0) degradations += 1;
+      return;
+    }
+    for (let i = start; i <= 2 * S - (S - chosen.length); i += 1) {
+      visit([...chosen, i], i + 1);
+    }
+  };
+  visit([], 0);
+
+  if (splits === 0) return null;
+  const sortedOmega = [...omegas].sort((a, b) => a - b);
+  return {
+    pbo: degradations / splits,
+    nConfigs,
+    nPeriods,
+    nSplits: splits,
+    omegaMedian: sortedOmega[Math.floor(sortedOmega.length / 2)] ?? null,
   };
 }

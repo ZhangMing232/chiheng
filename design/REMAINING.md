@@ -186,6 +186,6 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 | VT2 | DSR 进因子层 | deflated_sharpe_ratio：把「试 N 个因子运气最好的夏普」当基准线，函数+测试已在 robustness.ts，接进因子页/evolve 提示 | ✅ 完成（2026-10-21，4 单测）：因子 runs 落 spreadSkew/Kurt + dsr，队列 lastDsr 沿账，因子闭环面板加「运气线 DSR」列（只展示不改判决） |
 | VT3 | 挑战者邻近参数敏感度 | paramSensitivity（robustness.ts 已有）：挑战者转正判决时给参数邻域 ±20% 网格，参数是悬崖不是平台就标脆弱 | ✅ 完成（2026-10-21，9 单测）：判决落地时对该挑战者已平仓样本做旋钮 ±一步重模拟（exitFill 同根 K 线反事实），报告落 data/challenger-robustness.json + 推送/面板标注悬崖·平台·样本不足（只标注不改判决） |
 | VT4 | 因子 IC/ICIR | Vibe Alpha Zoo 的因子评价维度（因子值 vs 次日收益的秩相关序列），补进 6 关判决的展示侧 | ✅ 完成（2026-10-21，7 单测）：analyzeFactors 逐日算横截面 Spearman（同分档天口径），runs/队列各落 ic 字段，因子闭环面板加「IC / ICIR」列（只展示不改判决；零波动 ICIR 记 null 不编数） |
-| VT5 | PBO（回测过拟合概率） | CSCV 组合对称交叉验证，回答「这套参数是不是过拟合」 | ⬜ 低优先 |
+| VT5 | PBO（回测过拟合概率） | CSCV 组合对称交叉验证，回答「这套参数是不是过拟合」 | ✅ 完成（2026-10-21，5 单测）：robustness.ts 加 `pbo()`（2S=8 块递归枚举 70 切分，IS 最优配置看其 OOS 夏普在全体中的位次退化占比，Bailey & López de Prado）；挑战者稳健性报告把基准+邻域重模拟的逐笔收益按平仓日聚成 配置×期 矩阵跑 PBO，报告/note 落 `pbo`/`pboSplits`（只标注不改判决；配置不足/期数不足/零波动退化返回 null 不编数） |
 | VT6 | 组合权重优化（HRP/风险平价） | Vibe backtest/optimizers；赤轨现单票账本优先级低 | ⏸ 暂缓 |
 | VT7 | 数字声明角色核验升级 | Vibe 的 grounding 闸门（observed/derived/proposed/cited/count 声明式核验）；赤轨已有 number-gate，看值不值得换 | ❓ 待评估 |

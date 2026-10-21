@@ -17,6 +17,7 @@ import {
   normalPpf,
   paramSensitivity,
   perPeriodSharpe,
+  pbo,
   psr,
   sharpe,
   skewness,
@@ -196,4 +197,47 @@ test("mean/std 基础行为", () => {
   assert.equal(mean([1, 2, 3]), 2);
   assert.equal(std([1]), 0);
   assert.ok(Math.abs(std([1, 2, 3]) - 1) < 1e-9);
+});
+
+// ── pbo（CSCV 过拟合概率）────────────────────────────────────
+
+test("pbo：配置不足 3 个或期数不足 2S → null，不编数", () => {
+  assert.equal(pbo([[0.01, 0.02, 0.01, null, null, null, null, null], [0.02, 0.01, 0.02, null, null, null, null, null]]), null);
+  assert.equal(
+    pbo([[0.01, 0.02], [0.02, 0.01], [0.01, 0.01]], 4),
+    null,
+    "3 配置但只有 2 期 < 2S=8，返回 null",
+  );
+});
+
+test("pbo：全部配置同一序列 → PBO=0，ω 中位数≈0（没有调参空间就没有过拟合）", () => {
+  const series = Array.from({ length: 4 }, () =>
+    Array.from({ length: 16 }, (_, p) => 0.01 + ((p * 7) % 3) * 0.001),
+  );
+  const r = pbo(series, 4);
+  assert.ok(r);
+  assert.equal(r.pbo, 0);
+  assert.ok(Math.abs(r.omegaMedian as number) < 1e-9, `ω 中位数应≈0，实际 ${r.omegaMedian}`);
+  assert.equal(r.nSplits, 70, "S=4 → C(8,4)=70 种切分都应有效");
+});
+
+test("pbo：参数越激进展现在样本内越好、样本外越差 → PBO=1", () => {
+  // 8 配置 × 16 期滑窗调参构造：把 16 期切成 8 个连续块（块 b=0..7，各含 2 期），
+  // 配置 k 在块 (b−k) mod 8 ≤ 3 时 +0.02、否则 −0.005。对任意 IS/OOS 互补切分（CSCV
+  // 枚举 70 种），IS 内选出的最优 k 在 OOS 必反向垫底——「滑窗式往历史上调参」的形状。
+  // jitter 用 (p·7+k·13) mod 3 的确定性零均值小扰动（±0.004 < 信号间隙 0.025），
+  // 纯覆盖，不改变排序。不用线性两段式构造：其 IS/OOS 互补对称性会让 50/50 混合
+  // 切分的 IS 最优在 OOS 也最优，永远测不出过拟合（已调试确认 pbo=0.357）。
+  const jitter = (p: number, k: number) => (((p * 7 + k * 13) % 3) - 1) * 0.004;
+  const series = Array.from({ length: 8 }, (_, k) =>
+    Array.from({ length: 16 }, (_, p) => {
+      const b = Math.min(Math.floor((p * 8) / 16), 7);
+      const hot = ((b - k) % 8 + 8) % 8 <= 3;
+      return (hot ? 0.02 : -0.005) + jitter(p, k);
+    }),
+  );
+  const r = pbo(series, 4);
+  assert.ok(r);
+  assert.equal(r.pbo, 1, "每个切分的 IS 最优在 OOS 都反向垫底");
+  assert.ok((r.omegaMedian as number) < 0, "ω 中位数应为负");
 });

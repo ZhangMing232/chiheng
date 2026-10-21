@@ -22,7 +22,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { exitFill, netReturn } from "./journal-book.ts";
 import { holdOf } from "./strategies.ts";
-import { paramSensitivity, type SensitivityResult } from "./robustness.ts";
+import { paramSensitivity, pbo, type SensitivityResult } from "./robustness.ts";
 import type { Challenger } from "./challenger.ts";
 
 /** 解析后的完整出场参数。null = 那维沿用建仓时的计划位（记录在交易上）。 */
@@ -76,8 +76,9 @@ export async function simulateMean(
   barsOf: (id: string) => Promise<{ date: string; o?: number; h?: number; l?: number; c: number }[] | null>,
   params: RobustParams,
   limitPct: number | null = 10,
-): Promise<{ mean: number | null; simulated: number; skipped: number }> {
+): Promise<{ mean: number | null; simulated: number; skipped: number; details: { date: string; ret: number }[] }> {
   const rets: number[] = [];
+  const details: { date: string; ret: number }[] = [];
   let skipped = 0;
   for (const t of trades) {
     const stop = params.stopPct != null ? round2(t.entry * (1 - params.stopPct / 100)) : t.stop;
@@ -103,10 +104,13 @@ export async function simulateMean(
     }
     const net = netReturn(t.entry, fill.price);
     if (net == null) skipped += 1;
-    else rets.push(net);
+    else {
+      rets.push(net);
+      details.push({ date: fill.date, ret: net });
+    }
   }
-  if (rets.length === 0) return { mean: null, simulated: 0, skipped };
-  return { mean: rets.reduce((s, x) => s + x, 0) / rets.length, simulated: rets.length, skipped };
+  if (rets.length === 0) return { mean: null, simulated: 0, skipped, details };
+  return { mean: rets.reduce((s, x) => s + x, 0) / rets.length, simulated: rets.length, skipped, details };
 }
 
 export type ChallengerRobustReport = {
@@ -123,6 +127,10 @@ export type ChallengerRobustReport = {
   fragile: boolean | null;
   simulated: number;
   skipped: number;
+  /** VT5 CSCV 过拟合概率（0~1，越高越像往历史上调参）。null = 配置/期数不足没算。 */
+  pbo: number | null;
+  /** 参与 PBO 的 CSCV 切分数（S=4 → 70）。pbo 为 null 时也为 null。 */
+  pboSplits: number | null;
   /** 给人看的结论一句话。 */
   note: string;
 };
@@ -161,22 +169,48 @@ export async function robustnessReport(args: {
   const neighbors = neighborParams(base);
 
   const baseRun = await simulateMean(trades, barsOf, base, limitPct);
-  const neighborRuns: { params: RobustParams; mean: number | null }[] = [];
+  const neighborRuns: { params: RobustParams; run: Awaited<ReturnType<typeof simulateMean>> }[] = [];
   for (const p of neighbors) {
-    neighborRuns.push({ params: p, mean: (await simulateMean(trades, barsOf, p, limitPct)).mean });
+    neighborRuns.push({ params: p, run: await simulateMean(trades, barsOf, p, limitPct) });
   }
 
   // 数学照 paramSensitivity（变号或 CV>1 = 悬崖），但只在一半以上邻域点
   // 模拟得出来时才下结论——网格缺一半还说「平台」是在编故事。
-  const usable = neighborRuns.filter((r) => r.mean != null);
+  const usable = neighborRuns.filter((r) => r.run.mean != null);
   let fragile: boolean | null = null;
   let result: SensitivityResult<RobustParams> | null = null;
   if (baseRun.mean != null && usable.length > 0 && usable.length >= Math.ceil(neighborRuns.length / 2)) {
     const means = new Map<string, number>();
     means.set(paramsKey(base), baseRun.mean);
-    for (const r of usable) means.set(paramsKey(r.params), r.mean as number);
+    for (const r of usable) means.set(paramsKey(r.params), r.run.mean as number);
     result = paramSensitivity(base, neighbors, (p) => means.get(paramsKey(p)) ?? baseRun.mean as number);
     fragile = result.fragile;
+  }
+
+  // VT5：CSCV PBO（过拟合概率）。把基准 + 邻域网格的逐笔重模拟收益按平仓日排序
+  // 均分成 8 期（2S，S=4），得到 配置×期 矩阵丢给 robustness.pbo。同样只标注
+  // 不判决——它回答的是「这套参数相对邻域是不是往历史上调出来的」。
+  const PBO_PERIODS = 8;
+  let pboResult: ReturnType<typeof pbo> = null;
+  {
+    const grids = [
+      baseRun.details,
+      ...neighborRuns.map((r) => r.run.details),
+    ].filter((details) => details.length > 0);
+    const allDates = [...new Set(grids.flatMap((d) => d.map((x) => x.date)))].sort();
+    if (grids.length >= 3 && allDates.length >= PBO_PERIODS) {
+      const dateIdx = new Map(allDates.map((d, i) => [d, i]));
+      const matrix = grids.map((details) => {
+        const buckets: number[][] = Array.from({ length: PBO_PERIODS }, () => []);
+        for (const d of details) {
+          const idx = dateIdx.get(d.date) as number;
+          const p = Math.min(Math.floor((idx * PBO_PERIODS) / allDates.length), PBO_PERIODS - 1);
+          buckets[p].push(d.ret);
+        }
+        return buckets.map((b) => (b.length > 0 ? b.reduce((s, x) => s + x, 0) / b.length : null));
+      });
+      pboResult = pbo(matrix, 4);
+    }
   }
 
   const neighborLines = neighborRuns.map((r) => {
@@ -184,17 +218,22 @@ export async function robustnessReport(args: {
     for (const knob of ["holdDays", "stopPct", "targetPct"] as const) {
       if (r.params[knob] !== base[knob]) diff[knob] = r.params[knob] as number;
     }
-    return { ...diff, mean: r.mean };
+    return { ...diff, mean: r.run.mean };
   });
+
+  const pboSuffix =
+    pboResult == null
+      ? ""
+      : `；PBO（过拟合概率）=${(pboResult.pbo * 100).toFixed(0)}%（CSCV ${pboResult.nSplits} 切分${pboResult.pbo >= 0.5 ? "，参数相对邻域更像往历史上调出来的" : ""}）`;
 
   const note =
     baseRun.mean == null
       ? `敏感度：${trades.length} 笔里一笔都模拟不出来（K 线窗口外或缺计划位），本次不评估`
       : fragile == null
-        ? `敏感度：基准 ${fmtPct(baseRun.mean)}，但邻域只模拟出 ${usable.length}/${neighborRuns.length} 点，样本不足不下结论`
+        ? `敏感度：基准 ${fmtPct(baseRun.mean)}，但邻域只模拟出 ${usable.length}/${neighborRuns.length} 点，样本不足不下结论${pboSuffix}`
         : fragile
-          ? `敏感度：基准 ${fmtPct(baseRun.mean)}，但邻域均值 ${fmtPct(Math.min(...usable.map((r) => r.mean as number)))} ~ ${fmtPct(Math.max(...usable.map((r) => r.mean as number)))}——参数是悬崖不是平台，转正成绩可能只是踩中尖点`
-          : `敏感度：基准 ${fmtPct(baseRun.mean)}，邻域 ${fmtPct(Math.min(...usable.map((r) => r.mean as number)))} ~ ${fmtPct(Math.max(...usable.map((r) => r.mean as number)))}，参数在平台上`;
+          ? `敏感度：基准 ${fmtPct(baseRun.mean)}，但邻域均值 ${fmtPct(Math.min(...usable.map((r) => r.run.mean as number)))} ~ ${fmtPct(Math.max(...usable.map((r) => r.run.mean as number)))}——参数是悬崖不是平台，转正成绩可能只是踩中尖点${pboSuffix}`
+          : `敏感度：基准 ${fmtPct(baseRun.mean)}，邻域 ${fmtPct(Math.min(...usable.map((r) => r.run.mean as number)))} ~ ${fmtPct(Math.max(...usable.map((r) => r.run.mean as number)))}，参数在平台上${pboSuffix}`;
 
   return {
     id: chal.id,
@@ -206,6 +245,8 @@ export async function robustnessReport(args: {
     fragile,
     simulated: baseRun.simulated,
     skipped: baseRun.skipped,
+    pbo: pboResult?.pbo ?? null,
+    pboSplits: pboResult?.nSplits ?? null,
     note,
   };
 }
