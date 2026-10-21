@@ -391,11 +391,17 @@ export function takeBuys(
  * 但**不占冠军每天 10 个的名额**——预登记规则是「每天限 1 只和冠军并行」，
  * 它的 1 只配额是自己的，不是从冠军碗里抢的。曾用 takeBuys(...)[0] 实现，
  * 冠军先买完 10 个名额后 slotsLeft=0，挑战者从 10-09 上线起一只都没买过。
+ *
+ * ownTodayCount：这个挑战者今天已落账几只。预登记「每天限 1 只」靠它执行——
+ * 只查已持仓挡不住「每分钟 run 各买一只新票」：10-21 实测 14:28 修复上线后
+ * 32 分钟内 breakout-lcap-long 连买 3 只（只挡双押同票，不挡同日多票）。
  */
 export function takeChallengerBuy(
   list: Listed[],
   held: { id: string; style?: string; exit: number | null }[],
+  ownTodayCount = 0,
 ): Listed | null {
+  if (ownTodayCount >= 1) return null;
   const openIds = new Set(held.filter((trade) => trade.exit == null).map((trade) => trade.id));
   const seen = new Set<string>();
   const row = list

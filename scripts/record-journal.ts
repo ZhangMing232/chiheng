@@ -487,7 +487,13 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
       // takeChallengerBuy 不占冠军名额（预登记：配额是自己的），但同样避开已持仓的票。
       for (const chal of runningChallengers) {
         if (chal.style !== style) continue;
-        const row = takeChallengerBuy(list, held);
+        const ownToday = todayTrades.filter((t) => t.variant === chal.id).length;
+        if (ownToday >= 1) {
+          // 预登记铁律「每天限 1 只」：10-21 曾连跑 32 分钟买 3 只，必须留痕。
+          console.log(`challenger-skip ${userId} ${phase.date} ${chal.id}：今天已买 ${ownToday} 只（预登记每日上限 1 只）`);
+          continue;
+        }
+        const row = takeChallengerBuy(list, held, ownToday);
         if (!row) {
           // 别静默跳过：「挑战者今天为什么没买」事后全靠猜。逐行复算一遍
           // takeChallengerBuy 的过滤口径，把每行的落选原因打进日志，

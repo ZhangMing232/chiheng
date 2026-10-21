@@ -156,16 +156,19 @@ test("takeChallengerBuy：冠军名额买满后挑战者仍能拿 1 只，但已
   // 冠军今天已买满 10 只（takeBuys 在这种情况下返回 0）——挑战者照拿自己的 1 只
   const today = Array.from({ length: MAX_POSITIONS }, (_, i) => trade(`sz1111${i}`, "breakout"));
   assert.equal(takeBuys(series("sz2222", 5), [], "breakout", today).length, 0);
-  const got = takeChallengerBuy(series("sz2222", 5), today);
+  const got = takeChallengerBuy(series("sz2222", 5), today, 0);
   assert.ok(got);
   assert.equal(got.quote.id, "sz22220");
+  // 预登记「每天限 1 只」：今天已落账 1 只就不再拿——不查这个的话，
+  // 每分钟 run 会各买一只新票（10-21 实测 32 分钟买 3 只）
+  assert.equal(takeChallengerBuy(series("sz2222", 5), today, 1), null);
   // 已持仓的票不双押：sz22220 持仓中就跳过它，拿下一个候选 sz22221
-  const skip = takeChallengerBuy(series("sz2222", 5), [...today, trade("sz22220", "breakout")]);
+  const skip = takeChallengerBuy(series("sz2222", 5), [...today, trade("sz22220", "breakout")], 0);
   assert.ok(skip);
   assert.equal(skip.quote.id, "sz22221");
   // 全部候选都已持仓 → 无票可拿
   assert.equal(
-    takeChallengerBuy(series("sz2222", 5), [...today, ...Array.from({ length: 5 }, (_, i) => trade(`sz2222${i}`, "breakout"))]),
+    takeChallengerBuy(series("sz2222", 5), [...today, ...Array.from({ length: 5 }, (_, i) => trade(`sz2222${i}`, "breakout"))], 0),
     null,
   );
 });
