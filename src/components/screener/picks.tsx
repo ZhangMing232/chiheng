@@ -81,10 +81,10 @@ export function Picks({
   const browserDays = usePaper((state) => state.days);
   const navigate = useNavigate();
   const rowMenu = useRowMenu();
-  // 右键菜单三项：看个股开抽屉，资金流向跳资金页个股区（锚点 flow-stocks），复制代码进剪贴板。
+  // 右键菜单三项：看个股开抽屉，资金流向跳资金区个股子页，复制代码进剪贴板。
   const menuFor = (pick: Pick): RowMenuItem[] => [
     { label: "看个股", onClick: () => onOpen(pick.quote.id) },
-    { label: "看资金流向", onClick: () => void navigate({ to: "/flow", hash: "flow-stocks" }) },
+    { label: "看资金流向", onClick: () => void navigate({ to: "/flow/stocks" }) },
     { label: "复制代码", onClick: () => void navigator.clipboard?.writeText(pick.quote.code) },
   ];
   const source = personal || serverDays.length > 0 ? serverDays : browserDays;

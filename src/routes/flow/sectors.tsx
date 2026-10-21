@@ -1,8 +1,9 @@
 /**
  * 这个文件是干什么的：
- * 「资金流向」区的「板块」子页——东财三级行业分类（D6）+ 每个板块的月度温度计（D5）。
- * 2026-10-21 从独立 /sectors 并入 /flow/sectors（和资金流向同区的两个子页，
- * 顶部共用 SectionTabs；旧 /sectors 路由保留为重定向，书签不断）。
+ * 「资金流向」区的「板块」子页（/flow/sectors）——东财三级行业分类（D6）+ 每个板块的月度温度计（D5）。
+ * 2026-10-21 从独立 /sectors 先并入 /flow，随后资金流向整页拆成子页面，板块是其中一个
+ * 子页（顶部 tab 和其他子页同一组，见 components/flow-sections.tsx 的 FlowSectionTabs；
+ * 旧 /sectors 路由保留为重定向，书签不断）。
  *
  * 对标 Vibe-Research 的 Sectors / SectorDetail（它那页还有 GPU 租金这种产业温度计，
  * 赤轨没有，见下面「给不出什么」）。
@@ -23,7 +24,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { SectionTabs } from "@/components/section-tabs";
+import { FlowSectionTabs } from "@/components/flow-sections";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
@@ -76,14 +77,7 @@ function SectorsPage() {
   if (!table || table.rows.length === 0) {
     return (
       <Frame aside="板块">
-        {/* 和资金流向子页同一组二级 tab（资金流向区整合，2026-10-21）。 */}
-        <SectionTabs
-          ariaLabel="资金流向"
-          tabs={[
-            { to: "/flow/", label: "资金流向" },
-            { to: "/flow/sectors", label: "板块" },
-          ]}
-        />
+        <FlowSectionTabs />
         <Panel title="板块" note="没有数据">
           <StateBlock
             kind="empty"
@@ -98,14 +92,7 @@ function SectorsPage() {
 
   return (
     <Frame aside="板块">
-      {/* 和资金流向子页同一组二级 tab（资金流向区整合，2026-10-21）。 */}
-      <SectionTabs
-        ariaLabel="资金流向"
-        tabs={[
-          { to: "/flow/", label: "资金流向" },
-          { to: "/flow/sectors", label: "板块" },
-        ]}
-      />
+      <FlowSectionTabs />
       <Panel
         title="板块"
         note={`${table.rows.length} 个行业板块 · 分类 ${table.indexDate ?? "无"} · 月度 ${table.monthlyDate ?? "无"}`}
