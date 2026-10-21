@@ -50,3 +50,27 @@ test("跑满 maxTrades 仍不分胜负 → inconclusive 停跑", () => {
   const d = judgeChallenger(champ, chal);
   assert.equal(d.action, "inconclusive");
 });
+
+// ── bucketReturns：判决和 UI 进度共用的分桶口径 ───────────────────
+
+test("bucketReturns：按 style:variant 分桶，未平仓/不可信天/无风格不入桶", async () => {
+  const { bucketReturns } = await import("@/lib/market/challenger");
+  const days = [
+    {
+      signalTime: "09:35", // 可信（早盘后）
+      trades: [
+        { entry: 10, exit: 11, style: "breakout", variant: "c_a" },       // +10% 进 breakout:c_a
+        { entry: 10, exit: 9.5, style: "breakout" },                        // 冠军桶 breakout:champion
+        { entry: 10, exit: null, style: "rebound", variant: "c_b" },        // 未平仓，不入
+        { entry: 10, exit: 12, style: "rebound", variant: "champion" },     // 显式 champion → 冠军桶
+      ],
+    },
+    { signalTime: "15:05", trades: [{ entry: 10, exit: 11, style: "breakout", variant: "c_a" }] }, // 收盘后记的（不可信天），整桶跳过
+    { signalTime: "09:35", trades: [{ entry: 10, exit: 11, style: "已退市旧策略" }] }, // 无风格不入
+  ];
+  const buckets = bucketReturns(days);
+  assert.equal((buckets.get("breakout:c_a") ?? []).length, 1);
+  assert.equal((buckets.get("breakout:champion") ?? []).length, 1);
+  assert.equal((buckets.get("rebound:champion") ?? []).length, 1);
+  assert.equal(buckets.has("rebound:c_b"), false);
+});

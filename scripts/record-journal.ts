@@ -24,6 +24,7 @@ import { isStuck, settleOne } from "@/lib/market/settle";
 import { evaluateGate, readStrategyGates, writeStrategyGates } from "../src/lib/market/strategy-gate.ts";
 import {
   appendChampionLog,
+  bucketReturns,
   judgeChallenger,
   readChallengers,
   readChampions,
@@ -211,28 +212,11 @@ let runningChallengers = chalFile.list.filter((item) => item.status === "running
 if (phase.date) {
   const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
   if (ownerBook) {
-    const retsByStyle = new Map<string, number[]>();
     // 按 style:variant 分桶：冠军和挑战者的判决必须各算各的，混在一起两边都判不准。
-    const retsByBucket = new Map<string, number[]>();
-    for (const day of ownerBook.days) {
-      if (!dayReliable(day)) continue;
-      for (const trade of day.trades) {
-        if (trade.exit == null) continue;
-        const style = styleOf(trade);
-        if (!style) continue;
-        const ret = netReturn(trade.entry, trade.exit);
-        if (ret == null) continue;
-        const bucket = `${style}:${trade.variant && trade.variant !== "champion" ? trade.variant : "champion"}`;
-        const bucketList = retsByBucket.get(bucket) ?? [];
-        bucketList.push(ret);
-        retsByBucket.set(bucket, bucketList);
-        // 策略闸判的是冠军参数（挑战者样本不算冠军的成绩，反之亦然）。
-        if (trade.variant && trade.variant !== "champion") continue;
-        const list = retsByStyle.get(style) ?? [];
-        list.push(ret);
-        retsByStyle.set(style, list);
-      }
-    }
+    // 分桶口径抽在 challenger.bucketReturns，UI 的「样本 x/30」进度和这里共用。
+    const retsByBucket = bucketReturns(ownerBook.days);
+    // 策略闸判的是冠军参数（挑战者样本不算冠军的成绩，反之亦然）。
+    const retsByStyle = new Map<string, number[]>(ACTIVE_STYLES.map((style) => [style, retsByBucket.get(`${style}:champion`) ?? []]));
     let gatesChanged = false;
     for (const style of ACTIVE_STYLES) {
       const decision = evaluateGate({

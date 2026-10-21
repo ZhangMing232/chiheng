@@ -17,6 +17,7 @@ import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import {
   getAIStatus,
+  getChallengerSamples,
   getChallengers,
   getDecisionLedger,
   getFactorQueue,
@@ -65,6 +66,8 @@ type Loader = {
   queue: QueuePayload;
   ai: { allowed: boolean; configured: boolean };
   chal: Challenger[];
+  /** 在跑挑战者攒到的已平仓样本数（判决要 30 笔），id → {n, target}。 */
+  samples: Record<string, { n: number; target: number }>;
   ledger: { allowed: boolean; ledger: DecisionLedger | null };
 };
 
@@ -114,14 +117,15 @@ export function FactorLoopPanels() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [queue, chalRes, ledgerRes, aiRes] = await Promise.all([
+      const [queue, chalRes, samplesRes, ledgerRes, aiRes] = await Promise.all([
         getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
         getChallengers().then((res) => res.list).catch((): Challenger[] => []),
+        getChallengerSamples().catch((): Loader["samples"] => ({})),
         getDecisionLedger().catch((): Loader["ledger"] => ({ allowed: false, ledger: null })),
         getAIStatus().catch(() => ({ allowed: false, configured: false })),
       ]);
       if (!alive) return;
-      setData({ queue, chal: chalRes, ledger: ledgerRes, ai: { allowed: aiRes.allowed, configured: aiRes.configured } });
+      setData({ queue, chal: chalRes, samples: samplesRes, ledger: ledgerRes, ai: { allowed: aiRes.allowed, configured: aiRes.configured } });
     })();
     return () => {
       alive = false;
@@ -129,7 +133,7 @@ export function FactorLoopPanels() {
   }, []);
 
   if (!data) return <StateBlock kind="loading" title="正在读闭环数据" hint="队列、挑战者、记分牌" />;
-  const { queue, chal, ledger, ai } = data;
+  const { queue, chal, samples, ledger, ai } = data;
 
   const runFactor = async () => {
     setBusy("factor");
@@ -293,6 +297,11 @@ export function FactorLoopPanels() {
                       {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
                       {c.targetPct ?? "沿用冠军"}% · {c.since} 开跑
                     </span>
+                    {samples[c.id] ? (
+                      <span className="tabular-nums text-muted">
+                        样本 {samples[c.id].n}/{samples[c.id].target}
+                      </span>
+                    ) : null}
                     {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
                   </li>
                 );

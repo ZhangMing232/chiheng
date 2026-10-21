@@ -16,6 +16,8 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tStat } from "./strategy-gate.ts";
+import { dayReliable, netReturn } from "./journal-book.ts";
+import { styleOf } from "./strategies.ts";
 
 /** 预先登记的挑战者判决标准。改这里等于改规则本身，要带着理由改。 */
 export const CHALLENGER_RULE = {
@@ -110,6 +112,32 @@ export function welchT(a: number[], b: number[]): number | null {
 }
 
 const meanOf = (xs: number[]) => xs.reduce((sum, x) => sum + x, 0) / xs.length;
+
+/**
+ * 从账本日数据按 `style:variant` 分桶已平仓净收益。判决（record-journal）和
+ * UI 上的「样本 x/30」进度共用这一个口径——两边各写一遍分桶逻辑，数字就会
+ * 对不上。只数信号日可信的天、已平仓、风格可识别、净收益算得出来的单。
+ */
+export function bucketReturns(
+  days: { signalTime?: string; trades: { entry?: number; exit?: number | null; style?: string; variant?: string }[] }[],
+): Map<string, number[]> {
+  const buckets = new Map<string, number[]>();
+  for (const day of days) {
+    if (!dayReliable(day)) continue;
+    for (const trade of day.trades) {
+      if (trade.exit == null || typeof trade.entry !== "number") continue;
+      const style = styleOf(trade);
+      if (!style) continue;
+      const ret = netReturn(trade.entry, trade.exit);
+      if (ret == null) continue;
+      const key = `${style}:${trade.variant && trade.variant !== "champion" ? trade.variant : "champion"}`;
+      const list = buckets.get(key) ?? [];
+      list.push(ret);
+      buckets.set(key, list);
+    }
+  }
+  return buckets;
+}
 
 export type ChallengerDecision =
   | { action: "promote"; reason: string }

@@ -28,7 +28,7 @@ import { ACTIVE_STYLES, STYLES, styleOf } from "@/lib/market/strategies";
 import { SectionTabs } from "@/components/section-tabs";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
+import { getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
 import type { Challenger } from "@/lib/market/challenger";
 import { CollapsibleSection } from "@/components/collapsible";
 import { PageTabs } from "@/components/page-tabs";
@@ -39,12 +39,13 @@ import { journalTradeIds, slimUniverse } from "@/lib/market/slim-universe";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
-    const [universe, journal, nav, chal] = await Promise.all([
+    const [universe, journal, nav, chal, samples] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getServerJournal(),
       // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
       getNavHistory().catch(() => ({ points: [] as NavPoint[] })),
       getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string> })),
+      getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number }>),
     ]);
     return {
       // 快照只留账本里出现过的股票（页面只用 byId 查持仓现价），
@@ -56,6 +57,7 @@ export const Route = createFileRoute("/strategies/positions")({
       date: shanghaiDate(),
       chal: chal.list,
       champions: chal.champions,
+      samples,
     };
   },
   component: Positions,
@@ -202,9 +204,11 @@ const CHAL_STATUS: Record<Challenger["status"], { label: string; className: stri
 function ChallengerPanel({
   list,
   champions,
+  samples,
 }: {
   list: Challenger[];
   champions: Record<string, string>;
+  samples: Record<string, { n: number; target: number }>;
 }) {
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
   const runningCount = list.filter((c) => c.status === "running").length;
@@ -214,6 +218,7 @@ function ChallengerPanel({
   const renderRow = (c: Challenger) => {
     const st = CHAL_STATUS[c.status];
     const isChampion = champions[c.style] === c.id;
+    const sample = samples[c.id];
     return (
       <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
         <span className={`shrink-0 ${st.className}`}>{st.label}</span>
@@ -225,6 +230,11 @@ function ChallengerPanel({
           {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
           {c.targetPct ?? "沿用冠军"}%
         </span>
+        {sample ? (
+          <span className="tabular-nums text-muted">
+            样本 {sample.n}/{sample.target}
+          </span>
+        ) : null}
         {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
       </li>
     );
@@ -382,7 +392,7 @@ function attrRow(row: AttrRow) {
 }
 
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, samples } = Route.useLoaderData();
   const browserDays = usePaper((state) => state.days);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -597,7 +607,7 @@ function Positions() {
   {/* 体检 tab：当前状态——挑战者赛马、净值曲线、持仓结构。 */}
   const checkTab = (
     <div className="flex flex-col gap-2">
-        <ChallengerPanel list={chal} champions={champions} />
+        <ChallengerPanel list={chal} champions={champions} samples={samples} />
 
         {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
             不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}
