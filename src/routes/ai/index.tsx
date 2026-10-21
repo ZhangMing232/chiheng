@@ -15,7 +15,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { getAILog, getAIStatus, getAgentDiagnosis, runAgentDiagnose, runEvolve, saveAIPrefs } from "@/lib/market/quotes.functions";
+import { getAILog, getAIStatus, getAgentDiagnosis, getVTToolsStatus, runAgentDiagnose, runEvolve, saveAIPrefs } from "@/lib/market/quotes.functions";
 import type { AILogEntry } from "@/lib/market/ai-log";
 import {
   AISectionTabs,
@@ -25,18 +25,19 @@ import {
 
 export const Route = createFileRoute("/ai/")({
   loader: async () => {
-    const [ai, logRes, diagnosis] = await Promise.all([
+    const [ai, logRes, diagnosis, vtRes] = await Promise.all([
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] })),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
       getAgentDiagnosis().catch(() => null),
+      getVTToolsStatus().catch(() => ({ allowed: false as const })),
     ]);
-    return { ai, log: logRes.entries, diagnosis };
+    return { ai, log: logRes.entries, diagnosis, vt: vtRes.allowed ? vtRes.status : null };
   },
   component: AIConsolePage,
 });
 
 function AIConsolePage() {
-  const { ai, log, diagnosis } = Route.useLoaderData();
+  const { ai, log, diagnosis, vt } = Route.useLoaderData();
   const router = useRouter();
   const [evolveMsg, setEvolveMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<"evolve" | "diagnose" | null>(null);
@@ -221,6 +222,38 @@ function AIConsolePage() {
             </div>
           ) : (
             <StateBlock kind="empty" title="还没有诊断报告" hint="点上面的「跑一轮全局诊断」；开自动进化后，收盘后进化完自动补一份。" />
+          )}
+        </div>
+      </Section>
+
+      <Section
+        id="vt-tools"
+        title="VT 工具矿山"
+        hint="Vibe-Trading 的 MCP server（stdio 子进程随用随起）：74 个只读研究工具——A 股资金流 / 全市场筛选 / 研报检索 / 回测分析。shell 工具对方默认就不注册。下一步接进诊断/提议的 prompt 当证据源。"
+      >
+        <div className="px-3.5 py-3">
+          {vt ? (
+            vt.online ? (
+              <div>
+                <p className="mb-2 text-xs">
+                  <span className="text-up">● 在线</span>
+                  <span className="ml-2 text-muted">{vt.toolCount} 个工具 · 检测于 {vt.checkedAt.slice(11, 19)}</span>
+                </p>
+                <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {vt.tools.slice(0, 24).map((t) => (
+                    <p key={t.name} className="truncate text-[11px] text-muted" title={t.description}>
+                      <span className="font-mono text-foreground">{t.name}</span>
+                      {t.description ? ` — ${t.description.slice(0, 40)}` : ""}
+                    </p>
+                  ))}
+                </div>
+                {vt.toolCount > 24 ? <p className="mt-1 text-[11px] text-muted">… 共 {vt.toolCount} 个，其余略</p> : null}
+              </div>
+            ) : (
+              <StateBlock kind="empty" title="VT 工具离线" hint={`${vt.error ?? "未知原因"}。venv 路径可用 CHIHENG_VT_MCP_HOME 环境变量改。`} />
+            )
+          ) : (
+            <StateBlock kind="empty" title="工具状态未知" hint="主人账号登录后自动检测。" />
           )}
         </div>
       </Section>

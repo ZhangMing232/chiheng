@@ -974,6 +974,19 @@ export const runAgentDiagnose = createServerFn({ method: "POST" }).handler(async
   return runAgentDiagnosis("manual");
 });
 
+// ── Vibe-Trading MCP 工具矿山（vt-tools.ts，design/AI-BRAIN.md 方案 B）──
+// 74 个只读研究工具，stdio 子进程随用随起；shell 工具 VT 侧默认就不注册。
+
+/** VT 工具矿山状态（在线 / 工具数 / 清单）。非主人回 allowed: false。带 5 分钟缓存。 */
+export const getVTToolsStatus = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) return { allowed: false as const };
+  const { checkVTTools } = await import("@/lib/market/vt-tools");
+  return { allowed: true as const, status: await checkVTTools() };
+});
+
 /** token 用量账（监控控制台）。非主人只回 allowed: false。 */
 export const getAIUsage = createServerFn({ method: "GET" }).handler(async () => {
   const { requireUserId } = await import("@/lib/auth/verify.server");
