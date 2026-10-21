@@ -20,7 +20,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { callAI, readAIConfig, readQueue } from "./factor-queue.ts";
+import { callAIWithFallback, readAIConfig, readQueue } from "./factor-queue.ts";
 import { appendAILog, readAILog, strategySelfHistory } from "./ai-log.ts";
 import { readChallengers, readChampions, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
@@ -282,8 +282,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   };
   let raw: string;
   try {
-    const { readActiveMeta } = await import("./ai-profiles.ts");
-    raw = await callAI(config, buildStrategyPrompt(ctx), { layer: "strategy", trigger, ...(await readActiveMeta()) });
+    raw = await callAIWithFallback(buildStrategyPrompt(ctx), { layer: "strategy", trigger });
   } catch (error) {
     const result: StrategyAILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "strategy", trigger, ...result, proposed: [], rejected: [] });

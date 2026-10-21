@@ -393,6 +393,44 @@ export type AIMeta = {
   priceCompletionPerM?: number | null;
 };
 
+/**
+ * 主档案挂了时的备用候选（纯函数）：启用档案排第一，其余填全了三件套的档案
+ * 按文件顺序补位，最多再给一个——fallback 是无底洞，两个都挂就该熔断器说话了。
+ */
+export function fallbackCandidates(file: {
+  activeId: string | null;
+  profiles: { id: string; baseUrl: string; apiKey: string; model: string; pricePromptPerM?: number | null; priceCompletionPerM?: number | null }[];
+}): { config: AIConfig; profileId: string; pricePromptPerM: number | null; priceCompletionPerM: number | null }[] {
+  const complete = file.profiles.filter((p) => p.baseUrl && p.apiKey && p.model);
+  const ordered = [...complete.filter((p) => p.id === file.activeId), ...complete.filter((p) => p.id !== file.activeId)];
+  return ordered.slice(0, 2).map((p) => ({
+    config: { baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model },
+    profileId: p.id,
+    pricePromptPerM: p.pricePromptPerM ?? null,
+    priceCompletionPerM: p.priceCompletionPerM ?? null,
+  }));
+}
+
+/**
+ * callAI 的多档案版：按 fallbackCandidates 的顺序打，主档案超时/报错自动切下一个。
+ * 每次尝试带各自的计价钱包快照，用量监控台看到的就是实际用的那个模型。
+ * 全部失败抛最后一个错（ai-log 记账照旧）。
+ */
+export async function callAIWithFallback(prompt: string, meta: AIMeta = {}): Promise<string> {
+  const { readProfiles } = await import("./ai-profiles.ts");
+  const candidates = fallbackCandidates(await readProfiles());
+  if (candidates.length === 0) throw new Error("AI 接口还没配置（/ai 页填 baseUrl / apiKey / model）");
+  let lastError: unknown = null;
+  for (const c of candidates) {
+    try {
+      return await callAI(c.config, prompt, { ...meta, profileId: c.profileId, pricePromptPerM: c.pricePromptPerM, priceCompletionPerM: c.priceCompletionPerM });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 /** OpenAI 兼容 /chat/completions 调用。factor 层和 strategy 层共用。
  *  每次调用的 token 用量 + 计价钱包快照自动记进 ai-usage.json，调用方不用管。 */
 export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}): Promise<string> {
@@ -413,20 +451,38 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
   // 自动进化在收盘后跑，多等一分钟换不白跑一趟。
   const timer = setTimeout(() => ctrl.abort(), 150_000);
   const started = Date.now();
-  try {
-    const res = await fetch(`${config.baseUrl}/chat/completions`, {
+  /** 有些模型（如 kimi code-highspeed）只收 temperature=1：400 里点名 temperature
+   *  就摘掉这个参数原样重发一次，别让整个 fallback 白切过来。 */
+  const post = (body: Record<string, unknown>) =>
+    fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
       signal: ctrl.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
-      body: JSON.stringify({
-        model: config.model,
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: "你是一个严谨的量化研究助理。只输出要求的 JSON，不输出别的。" },
-          { role: "user", content: prompt },
-        ],
-      }),
+      body: JSON.stringify(body),
     });
+  try {
+    let res = await post({
+      model: config.model,
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: "你是一个严谨的量化研究助理。只输出要求的 JSON，不输出别的。" },
+        { role: "user", content: prompt },
+      ],
+    });
+    if (!res.ok && res.status === 400) {
+      const text = await res.text();
+      if (text.includes("temperature")) {
+        res = await post({
+          model: config.model,
+          messages: [
+            { role: "system", content: "你是一个严谨的量化研究助理。只输出要求的 JSON，不输出别的。" },
+            { role: "user", content: prompt },
+          ],
+        });
+      } else {
+        throw new Error(`AI 接口 HTTP ${res.status}：${text.slice(0, 200)}`);
+      }
+    }
     if (!res.ok) throw new Error(`AI 接口 HTTP ${res.status}：${(await res.text()).slice(0, 200)}`);
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
@@ -521,8 +577,7 @@ export async function runFactorAILoop(
   const necropsy = necropsyLines(await readTombstones());
   let raw: string;
   try {
-    const { readActiveMeta } = await import("./ai-profiles.ts");
-    raw = await callAI(config, buildPrompt(runs.batch.rows, history, necropsy), { layer: "factor", trigger, ...(await readActiveMeta()) });
+    raw = await callAIWithFallback(buildPrompt(runs.batch.rows, history, necropsy), { layer: "factor", trigger });
   } catch (error) {
     const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });

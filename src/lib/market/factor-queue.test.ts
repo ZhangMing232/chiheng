@@ -215,3 +215,38 @@ test("buildPrompt：判决行带样本量，老批次没记显示 ?——AI 能�
   const legacy = buildPrompt([row()]);
   assert.match(legacy, /样本\?只/);
 });
+
+// ── fallbackCandidates（主档案挂了切备用）─────────────────────────
+
+test("fallbackCandidates：启用档案排第一，其余补位，最多两个", async () => {
+  const { fallbackCandidates } = await import("@/lib/market/factor-queue");
+  const profiles = [
+    { id: "b", baseUrl: "https://b.example.com", apiKey: "k2", model: "m2", pricePromptPerM: 6.5, priceCompletionPerM: 54 },
+    { id: "default", baseUrl: "https://a.example.com", apiKey: "k1", model: "m1", pricePromptPerM: 4.7, priceCompletionPerM: 14.1 },
+    { id: "c", baseUrl: "https://c.example.com", apiKey: "k3", model: "m3" },
+  ];
+  const candidates = fallbackCandidates({ activeId: "default", profiles });
+  assert.equal(candidates.length, 2);
+  assert.equal(candidates[0].profileId, "default");
+  assert.equal(candidates[1].profileId, "b");
+  assert.equal(candidates[0].config.model, "m1");
+  // 计价钱包跟着各自档案走，不串
+  assert.equal(candidates[0].pricePromptPerM, 4.7);
+  assert.equal(candidates[1].pricePromptPerM, 6.5);
+});
+
+test("fallbackCandidates：缺三件套的不补位；没有启用档案时给顺序第一个", async () => {
+  const { fallbackCandidates } = await import("@/lib/market/factor-queue");
+  const incomplete = fallbackCandidates({
+    activeId: "default",
+    profiles: [
+      { id: "default", baseUrl: "https://a.example.com", apiKey: "", model: "m1" },
+      { id: "b", baseUrl: "https://b.example.com", apiKey: "k2", model: "m2" },
+    ],
+  });
+  assert.equal(incomplete.length, 1);
+  assert.equal(incomplete[0].profileId, "b");
+  const none = fallbackCandidates({ activeId: "ghost", profiles: [{ id: "b", baseUrl: "https://b.example.com", apiKey: "k2", model: "m2" }] });
+  assert.equal(none.length, 1);
+  assert.equal(none[0].profileId, "b");
+});
