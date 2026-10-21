@@ -18,8 +18,18 @@ import { fetchEastmoneyIndices } from "@/lib/market/providers/eastmoney";
 /** 全市场名单的最低只数。现在沪深京一共五千多只，低于这个数说明源返回得不完整。 */
 const MIN_UNIVERSE = 4000;
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/**
+ * 错误 → 日志字符串。fetch failed 这类消息不带原因，把 cause 挖出来——
+ * 不然「腾讯源失败（fetch failed）」看不出是 WAF 掐断（ECONNRESET）、
+ * 超时（ETIMEDOUT）还是 DNS，下次排障还得现抓。
+ */
+export function messageOf(error: unknown): string {
+  const base = error instanceof Error ? error.message : String(error);
+  const cause = (error as { cause?: unknown }).cause;
+  if (cause == null) return base;
+  const causeMsg = cause instanceof Error ? cause.message : String(cause);
+  const causeCode = typeof (cause as { code?: unknown }).code === "string" ? (cause as { code: string }).code : "";
+  return `${base}（${[causeCode, causeMsg].filter(Boolean).join(": ")}）`;
 }
 
 /**
