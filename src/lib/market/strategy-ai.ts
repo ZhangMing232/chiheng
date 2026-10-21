@@ -150,6 +150,8 @@ export type StrategyAIContext = {
   selfHistory?: string[];
   /** 每套在跑策略当前的冠军参数（默认 or 已转正挑战者），冷启动提案的基准。 */
   champions: { style: string; source: string; params: string }[];
+  /** 当日市场头部快照（VT 工具拉的实时截面），校准当前市场风格，辅助判断出场节奏。 */
+  marketEvidence?: string[];
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -199,6 +201,13 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     "",
     "因子层刚过 6 关的信号（可以据此提策略线）：",
     factorLines,
+    ...(ctx.marketEvidence && ctx.marketEvidence.length > 0
+      ? [
+          "",
+          "当日 A 股头部快照（Vibe-Trading 工具拉的实时截面：涨跌幅 / 成交额。只用来校准「现在市场在奖励什么风格」，帮助判断出场节奏与参数方向；不要当成历史规律，调参仍以冠军-挑战者判决和自我历史为主）：",
+          ...ctx.marketEvidence,
+        ]
+      : []),
     ...(ctx.selfHistory && ctx.selfHistory.length > 0
       ? ["", "你自己之前几轮提名的下场（据此纠错：被 Welch 淘汰的参数方向别急着再试；转正了的想想它做对了什么）：", ...ctx.selfHistory]
       : []),
@@ -272,6 +281,16 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
       params: [`持有${promoted.holdDays ?? holdOf(style)}天`, `止损${promoted.stopPct ?? "内置公式"}%`, `目标${promoted.targetPct ?? "内置公式"}%`].join(" / "),
     };
   });
+  // 当日市场快照（与因子层同款）：VT 工具矿山拉头部涨跌/成交。离线/超时降级为空，
+  // 策略提议照常跑——证据是校准项不是依赖项。
+  let marketEvidence: string[] = [];
+  try {
+    const { callVTTool } = await import("./vt-tools.ts");
+    const { evidenceOf } = await import("./agent-loop.ts");
+    marketEvidence = evidenceOf(await callVTTool("screen_market", { market: "a", top_n: 10 }, 60_000));
+  } catch {
+    marketEvidence = [];
+  }
   const ctx: StrategyAIContext = {
     challengers: chalFile.list,
     gates: await readStrategyGates(),
@@ -279,6 +298,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     passedFactors: entries.filter((e) => e.status === "passed").map((e) => ({ id: e.id, name: e.name, direction: e.direction, expr: e.expr })),
     selfHistory: strategySelfHistory(await readAILog(), chalFile.list),
     champions: championInfos,
+    marketEvidence,
   };
   let raw: string;
   try {

@@ -176,3 +176,19 @@ test("buildStrategyPrompt：给了自我历史就追加反馈段，没给不追�
   const bare = buildStrategyPrompt(base);
   assert.doesNotMatch(bare, /你自己之前几轮提名的下场/);
 });
+
+test("buildStrategyPrompt：给了当日市场快照就追加证据段，没给不追加", () => {
+  const base = {
+    challengers: [],
+    gates: {},
+    logTail: [],
+    passedFactors: [],
+    champions: [],
+  };
+  const withEvidence = buildStrategyPrompt({ ...base, marketEvidence: ["N文峰 600099.SH +5.21% 成交 8.3亿"] });
+  assert.match(withEvidence, /当日 A 股头部快照/);
+  assert.match(withEvidence, /N文峰/);
+  assert.match(withEvidence, /不要当成历史规律/);
+  const bare = buildStrategyPrompt(base);
+  assert.doesNotMatch(bare, /当日 A 股头部快照/);
+});
