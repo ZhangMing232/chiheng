@@ -84,6 +84,26 @@
 - 风险：vibe-trading 依赖重（装的时候会拉一堆 py 依赖），先跑通
   `mcp_server.py --transport http` 验证可用性再写入计划。
 
+**探针结果（2026-10-21，✅ 可用）**：
+- 启动所需最小依赖比想象轻：fastmcp + pydantic + pandas/numpy + httpx +
+  defusedxml + yfinance + requests 即可起服务；**langchain/langgraph 全家桶
+  不需要**（那是 swarm/agent 功能才用）。A 股数据工具要补装 `akshare`。
+- stdio 真进程验证通过：74 个工具列全，`list_skills` 返回真实数据，
+  `screen_market(market='a')` 返回东财真实全市场快照。
+- 数据源现状：东财（akshare）今天可用 ✅；雅虎今天 SSL 抖动+429（环境问题
+  不是架构问题）；FRED 宏观需要 key；baostock/mootdx 未装会自动降级腾讯。
+- 安全默认值好：shell 工具默认关（`--enable-shell-tools` 才开），网络
+  transport 有 DNS-rebinding 防护——原样保留，赤轨不打开 shell 工具。
+- 下一步（未做）：chiheng 侧 MCP client（`vt-tools.ts`）+ /ai 页显示
+  「VT 工具在线 + 工具清单」；起服务方式建议 stdio 子进程（赤轨 spawn，
+  不常驻端口）。
+- 探针复现（本机）：解包目录 + venv 在
+  `/Users/zhangweimin/Documents/kimi/tasks/2026-09-30/11-14-40-0dc258a/`
+  （`Vibe-Trading/` + `vt-venv/`，已装 fastmcp/mcp/pydantic/pandas/numpy/
+  httpx/defusedxml/yfinance/requests/akshare）。赤轨集成时建议把这套 venv
+  挪进 `/Volumes/colorful/chiheng/vendor/vt-mcp/`（不进 git，加 .gitignore），
+  spawn 命令：`vt-venv/bin/python Vibe-Trading/mcp_server.py`（stdio）。
+
 ### 方案 C：部署 DeepSeek HARNESS 运行时（暂缓）
 - 需要 `@deepseek-ai/dsh@0.1.0-rc.6`（私有 rc 包）+ DeepSeek API key，
   本质是再养一个 coding agent 进程，和赤轨的记账/判决体系是两套会话。
@@ -93,11 +113,13 @@
 ## 四、落地顺序（建议）
 
 > 进度：1 ✅（2026-10-21，4707890：agent-loop 诊断层 + CLI + 5 单测，实跑一轮报告合格）。
+> 进度：2 ✅ 探针（2026-10-21）：VT 的 MCP server 本地 stdio 起服务成功，74 工具列全，
+> A 股筛选工具返回东财真实数据；细节见方案 B 一节。
 
 1. **A 的 observe/diagnose**：agent-loop.ts 骨架 + 诊断 prompt 模板
    （读账本 → 输出诊断报告，先只展示不行动）——改动小、立刻有体感 ✅
 2. **B 的 MCP 探针**：本地起 vibe-trading MCP，赤轨加 client，
-   /ai 页显示「VT 工具在线 + 工具清单」
+   /ai 页显示「VT 工具在线 + 工具清单」——探针 ✅，client 未写
 3. **A 的 plan/act**：诊断接上现有提议通道（因子层先通，策略层后通）
 4. 审计自证 + 人格蒸馏（从 A 的诊断里长出来的子功能，不急）
 
