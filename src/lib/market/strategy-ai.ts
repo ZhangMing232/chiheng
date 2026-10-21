@@ -22,9 +22,9 @@
 import { readFile } from "node:fs/promises";
 import { callAI, readAIConfig, readQueue } from "./factor-queue.ts";
 import { appendAILog, readAILog, strategySelfHistory } from "./ai-log.ts";
-import { readChallengers, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
+import { readChallengers, readChampions, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
-import { ACTIVE_STYLES, STYLES, STYLE_IDS } from "./strategies.ts";
+import { ACTIVE_STYLES, STYLES, STYLE_IDS, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
 
 // ── 旋钮白名单 ──────────────────────────────────────────────────
@@ -148,6 +148,8 @@ export type StrategyAIContext = {
   passedFactors: { id: string; name: string; direction: 1 | -1; expr: string }[];
   /** AI 自己之前提名挑战者的下场（strategySelfHistory 产物），自我纠错用。 */
   selfHistory?: string[];
+  /** 每套在跑策略当前的冠军参数（默认 or 已转正挑战者），冷启动提案的基准。 */
+  champions: { style: string; source: string; params: string }[];
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -167,6 +169,9 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
       ? ctx.passedFactors.map((f) => `- ${f.name}（${f.id}）：${f.direction > 0 ? "正向" : "反向"}，表达式 ${f.expr}`).join("\n")
       : "- （最近没有）";
   const logLines = ctx.logTail.length > 0 ? ctx.logTail.join("\n") : "- （没有留档）";
+  const championLines = ctx.champions
+    .map((c) => `- ${styleName(c.style)}：${c.source}；当前参数 ${c.params}`)
+    .join("\n");
   return [
     "你在管理一个 A 股量化项目的策略参数进化。机制是冠军-挑战者：挑战者和冠军用同一套选股名单、只改出场参数，双方各攒够 30 笔已平仓后 Welch t ≥ 1.5 且均值更高才转正，t ≤ −2 淘汰。",
     "",
@@ -178,6 +183,10 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     "3. 提案要针对证据：策略闸停用中的策略别提它的挑战者；冠军刚被回滚的参数方向别急着再试；因子层新过关的信号（如大市值溢价）可以想「它适合配什么出场节奏」。",
     `4. style 只能填以下 id 之一（填英文 id，不是中文名）：${STYLE_IDS.map((id) => `${id}（${styleName(id)}）`).join(" / ")}。`,
     "5. 提 1~2 个，宁缺毋滥。每个给：id（小写字母开头 slug）、style、name（中文名）、holdDays / stopPct / targetPct（至少填一个，只填要改的）、rationale（调参理由，一两句）。",
+    "6. **冷启动不许空转**：某套策略在跑挑战者不到 2 个、且没有针对它的近期证据时，恰恰最该提案——给该冠军的参数提 1 个保守变体来攒样本。只做小幅偏移（止损 ±2%、目标 ±5%、持有 ±2 天这种量级），rationale 里写明是探索性变体、想验证什么。全部策略都没挑战者在跑时返回空数组，等于这一天白过，不允许。",
+    "",
+    "冠军当前参数（挑战者的基准，缺省字段就沿用这里）：",
+    championLines || "- （没有）",
     "",
     "现有挑战者（近 20 条）：",
     chalLines || "- （没有）",
@@ -246,12 +255,30 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   }
   const chalFile = await readChallengers();
   const { entries } = await readQueue();
+  const champions = await readChampions();
+  /** 每套在跑策略的当前冠军参数摘要：默认参数 or 已转正挑战者的旋钮。 */
+  const championInfos = ACTIVE_STYLES.map((style) => {
+    const version = champions[style];
+    if (!version) {
+      return { style, source: "代码默认参数", params: `持有${holdOf(style)}天；止损/目标 = 策略内置公式` };
+    }
+    const promoted = chalFile.list.find((c) => c.id === version);
+    if (!promoted) {
+      return { style, source: `参数版本「${version}」`, params: "（champions.json 指了这个版本但挑战者记录里找不到，按默认参数对待）" };
+    }
+    return {
+      style,
+      source: `已转正挑战者「${promoted.name}」（${promoted.id}）`,
+      params: [`持有${promoted.holdDays ?? holdOf(style)}天`, `止损${promoted.stopPct ?? "内置公式"}%`, `目标${promoted.targetPct ?? "内置公式"}%`].join(" / "),
+    };
+  });
   const ctx: StrategyAIContext = {
     challengers: chalFile.list,
     gates: await readStrategyGates(),
     logTail: await readLogTail(8),
     passedFactors: entries.filter((e) => e.status === "passed").map((e) => ({ id: e.id, name: e.name, direction: e.direction, expr: e.expr })),
     selfHistory: strategySelfHistory(await readAILog(), chalFile.list),
+    champions: championInfos,
   };
   let raw: string;
   try {
@@ -284,6 +311,9 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     });
   }
   const result: StrategyAILoopResult = { ok: true, proposed: accepted.length, rejected: rejected.length, rejectReasons: rejected.map((r) => r.reason).slice(0, 5) };
+  // 空返回（accepted/rejected 都是 0）多半是模型没提案就返回了 []——把原始响应
+  // 摘要记进账本，不然 ai-log 里只有光秃秃的 0，没法诊断模型为什么不提。
+  const silentEmpty = accepted.length === 0 && rejected.length === 0;
   await appendAILog({
     at: new Date().toISOString(),
     layer: "strategy",
@@ -291,6 +321,9 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     ...result,
     proposed: accepted.map((a) => ({ id: a.id, name: a.name })),
     rejected: result.rejectReasons,
+    ...(silentEmpty
+      ? { note: `AI 返回空数组（${raw.trim().slice(0, 200) || "空白响应"}）——按冷启动铁律第 6 条，这视为本轮失职` }
+      : {}),
   });
   return result;
 }

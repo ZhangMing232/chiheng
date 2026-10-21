@@ -34,6 +34,8 @@ export type AILogEntry = {
   /** 被拒原因（前几条）。 */
   rejected: string[];
   error?: string;
+  /** 诊断备注：空返回等「跑了但没产出」的情况，留原始响应摘要。 */
+  note?: string;
 };
 
 /** 账本上限，满了丢最旧的。 */

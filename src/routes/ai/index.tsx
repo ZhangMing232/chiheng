@@ -112,6 +112,7 @@ function AIConsolePage() {
                   <th className={thClass()}>结果</th>
                   <th className={thClass("text-left")}>提议</th>
                   <th className={thClass("text-left")}>被拒 / 报错</th>
+                  <th className={thClass("text-left")}>备注</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,6 +136,13 @@ function AIConsolePage() {
                     <td data-l="被拒" className="max-w-[32ch] px-2.5 py-1.5 text-[11px] text-muted">
                       {e.error ?? (e.rejected.length > 0 ? e.rejected.slice(0, 2).join("；") : "—")}
                     </td>
+                    {e.note ? (
+                      <td data-l="备注" className="max-w-[36ch] truncate px-2.5 py-1.5 text-[11px] text-warn" title={e.note}>
+                        {e.note}
+                      </td>
+                    ) : (
+                      <td data-l="备注" className="px-2.5 py-1.5 text-[11px] text-muted">—</td>
+                    )}
                   </tr>
                 ))}
               </tbody>

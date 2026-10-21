@@ -143,6 +143,10 @@ test("buildStrategyPrompt：判决产物原样进 prompt，含旋钮范围和名
     gates: { breakout: { state: "disabled", since: "2026-10-01", cooldownDays: 10, strikes: 1, reason: "最近 20 笔 t=-2.3" } },
     logTail: ["breakout: c1 → champion（策略闸停用，参数自动回滚）"],
     passedFactors: [{ id: "q_lcap", name: "大市值溢价", direction: 1, expr: "log(floatCap)" }],
+    champions: [
+      { style: "breakout", source: "代码默认参数", params: "持有8天；止损/目标 = 策略内置公式" },
+      { style: "rebound", source: "已转正挑战者「耐心持有」（c_slow）", params: "持有12天 / 止损8% / 目标25%" },
+    ],
   });
   assert.match(prompt, /突破·拿12天|现有挑战者/);
   assert.match(prompt, /停用中（第 1 次/);
@@ -151,6 +155,11 @@ test("buildStrategyPrompt：判决产物原样进 prompt，含旋钮范围和名
   assert.match(prompt, /holdDays（3~30/);
   assert.match(prompt, /最多 2 个在跑挑战者/);
   assert.match(prompt, /只输出 JSON 数组/);
+  // 冠军参数进 prompt（冷启动提案的基准），含冷启动不空转铁律
+  assert.match(prompt, /冠军当前参数/);
+  assert.match(prompt, /已转正挑战者「耐心持有」/);
+  assert.match(prompt, /持有8天；止损\/目标 = 策略内置公式/);
+  assert.match(prompt, /冷启动不许空转/);
 });
 
 test("buildStrategyPrompt：给了自我历史就追加反馈段，没给不追加", () => {
@@ -159,6 +168,7 @@ test("buildStrategyPrompt：给了自我历史就追加反馈段，没给不追�
     gates: {},
     logTail: [],
     passedFactors: [],
+    champions: [],
   };
   const withHistory = buildStrategyPrompt({ ...base, selfHistory: ["- 10-08：你提名「快止盈」（c_a）——已淘汰（Welch 判决质量不过关）"] });
   assert.match(withHistory, /你自己之前几轮提名的下场/);
