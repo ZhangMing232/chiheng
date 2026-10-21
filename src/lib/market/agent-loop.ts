@@ -31,7 +31,7 @@ import { readChallengers, readChampions, CHALLENGER_RULE } from "./challenger.ts
 import { readStrategyGates } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
-import { listUserIds, readUserBook } from "./book-file.ts";
+import { collectChallengerSamples, type ChallengerSample } from "./challenger-samples.ts";
 
 // ── 账本快照（observe） ─────────────────────────────────────────
 
@@ -277,21 +277,12 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     .slice(-20)
     .map((c) => `- ${c.name}（${c.id}）：挑战「${styleName(c.style)}」，状态 ${c.status}，${c.since} 开跑${c.source === "ai" ? "，AI 提名" : ""}`);
 
-  // 挑战者纸面样本：全用户账本里 variant=挑战者id 的行。账本读失败降级为空——
+  // 挑战者纸面样本：全用户账本里 variant=挑战者id 的行（采集逻辑在
+  // challenger-samples.ts，strategy-ai 也用同一份）。账本读失败降级为空——
   // 诊断不能因为一块挂了而跑不了，只是这条进度行缺位。
-  let chalSamples: { variant: string; exit: number | null; date: string }[] = [];
+  let chalSamples: ChallengerSample[] = [];
   try {
-    type BookTrade = { variant?: string; exit?: number | null };
-    type BookDay = { date?: string; trades?: BookTrade[] };
-    for (const uid of await listUserIds()) {
-      const book = await readUserBook<BookDay>(uid);
-      for (const day of book.days ?? []) {
-        for (const t of day.trades ?? []) {
-          if (typeof t.variant !== "string" || t.variant.length === 0) continue;
-          chalSamples.push({ variant: t.variant, exit: t.exit ?? null, date: day.date ?? "" });
-        }
-      }
-    }
+    chalSamples = await collectChallengerSamples();
   } catch {
     chalSamples = [];
   }

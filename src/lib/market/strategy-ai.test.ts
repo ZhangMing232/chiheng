@@ -207,3 +207,22 @@ test("buildStrategyPrompt：给了诊断建议就追加 plan 层段，没给不�
   const bare = buildStrategyPrompt(base);
   assert.doesNotMatch(bare, /AI 管家的诊断建议/);
 });
+
+test("buildStrategyPrompt：挑战者样本进度给了就进 prompt，没给不硬塞", () => {
+  const base = {
+    challengers: [chal({})],
+    gates: {},
+    logTail: [],
+    passedFactors: [],
+    champions: [{ style: "breakout", source: "代码默认参数", params: "持有8天" }],
+  };
+  const without = buildStrategyPrompt({ ...base });
+  assert.ok(!without.includes("纸面样本进度"));
+  const withLines = buildStrategyPrompt({
+    ...base,
+    chalSampleLines: ["- 挑战者A（c_a）：纸面样本 3 笔（已平仓 0 / 持仓 3），最近建仓 2026-10-21，Welch 判决要 30 笔已平仓，还差 30 笔"],
+  });
+  assert.match(withLines, /纸面样本进度/);
+  assert.match(withLines, /挑战者A（c_a）：纸面样本 3 笔/);
+  assert.match(withLines, /还差 30 笔/);
+});

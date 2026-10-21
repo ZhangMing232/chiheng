@@ -154,6 +154,8 @@ export type StrategyAIContext = {
   marketEvidence?: string[];
   /** AI 管家最近一次诊断的 suggestions（plan 层产物），供调参参考不强制。 */
   diagnosisHints?: string[];
+  /** 挑战者纸面样本进度（账本 variant 行数，summarizeChallengerSamples 产物）。 */
+  chalSampleLines?: string[];
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -194,6 +196,9 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     "",
     "现有挑战者（近 20 条）：",
     chalLines || "- （没有）",
+    ...(ctx.chalSampleLines && ctx.chalSampleLines.length > 0
+      ? ["", "挑战者纸面样本进度（账本 variant 行数——攒得慢的在跑挑战者占着名额不出样本，提名时优先考虑样本能落账的风格/参数）：", ...ctx.chalSampleLines]
+      : []),
     "",
     "策略闸当前状态：",
     gateLines || "- （全部正常）",
@@ -308,6 +313,16 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   } catch {
     diagnosisHints = [];
   }
+  // 挑战者纸面样本进度（与诊断层同一份账本采集）：模型提名时看得见谁在攒样、
+  // 谁占着名额不出样本——不然它只知道「2 个在跑」，不知道 2 个都是 0 样本。
+  let chalSampleLines: string[] = [];
+  try {
+    const { collectChallengerSamples } = await import("./challenger-samples.ts");
+    const { summarizeChallengerSamples } = await import("./agent-loop.ts");
+    chalSampleLines = summarizeChallengerSamples(chalFile.list, await collectChallengerSamples());
+  } catch {
+    chalSampleLines = [];
+  }
   const ctx: StrategyAIContext = {
     challengers: chalFile.list,
     gates: await readStrategyGates(),
@@ -317,6 +332,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     champions: championInfos,
     marketEvidence,
     diagnosisHints,
+    chalSampleLines,
   };
   let raw: string;
   try {
