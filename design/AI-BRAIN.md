@@ -126,6 +126,11 @@
    venv 固定 `~/.chiheng/vt-venv/`；实测探针 1.6s 报 74 工具在线，
    `screen_market` 出证喂 evidenceOf 格式正确（change_pct 为百分数×100，
    amount 为元，渲染 217.03%/成交 7.6 亿正常）；7 条单测钉死。
+   **证据三源化**（2026-10-21，e5fb2be）：因子层/策略层提议 prompt 的市场证据
+   从单一 screen_market 升级为 `gatherVtEvidence()` 三路——头部个股截面 +
+   行业板块强弱（get_sector_info ranking）+ 龙虎榜热钱方向（get_dragon_tiger
+   按净买排序），串行取数 + 单源独立容错（东财会对突发 IP 限流，实测并发全灭，
+   串行才稳；invokeVtTool 对 Connection aborted 类抖动重试一次）。
 3. **A 的 plan/act**：诊断接上现有提议通道（因子层先通，策略层后通）
    ✅（2026-10-21）：诊断 suggestions 经 fetchDiagnosisHints 自动进因子层和策略层的
    提议 prompt（plan 层接线，建议性不强制）；规则变更仍只生成人工请求，判决规则不动。
