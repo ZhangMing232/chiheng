@@ -80,3 +80,34 @@ test("含单调死法时给形状警示，全是别的死法时不硬凑", () =>
     /单调也挂/,
   );
 });
+
+test("edgeFamilyLines：只挑历史某批五关全过、独挂 g5 的临门一脚家族", async () => {
+  const { edgeFamilyLines } = await import("./factor-necropsy.ts");
+  const run = (factor: string, gates: Record<string, boolean>, t = 2.9) =>
+    ({ factor, name: factor, t, nTested: 37, gates }) as never;
+  // 大市值三兄弟式的真 edge 家族：某批只挂 g5
+  const near = record({ id: "largecap_vol", name: "大市值高量比", failedGates: ["g5"], expr: "log(floatCap) * volRatio" });
+  // 五关全挂的平庸死因子：不算临门一脚
+  const dead = record({ id: "weak_mom", name: "弱动量", failedGates: ["g1", "g2", "g3", "g4", "g5"] });
+  // 衰减退役（无败关信息）：不参选对错判断，但也绝不进名单
+  const decayed = record({ id: "old_decay", name: "老衰减", failedGates: [] });
+
+  const rows = [
+    run("largecap_vol", { g1: true, g2: true, g3: true, g4: true, g5: false, g6: true }, 3.05),
+    run("largecap_vol", { g1: true, g2: false, g3: false, g4: false, g5: false, g6: true }, 1.2),
+    run("weak_mom", { g1: false, g2: false, g3: false, g4: false, g5: false, g6: true }, 0.8),
+  ];
+  const lines = edgeFamilyLines([near, dead, decayed], rows);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0]!, /大市值高量比/);
+  assert.match(lines[0]!, /独挂多重检验/);
+  assert.match(lines[0]!, /t=3\.05/);
+  assert.match(lines[0]!, /N=37/);
+  // 全部候选都没五关全过过的批次 → 空名单
+  assert.deepEqual(
+    edgeFamilyLines([near], [run("largecap_vol", { g1: true, g2: true, g3: true, g4: true, g5: false, g6: false })]),
+    [],
+  );
+  // runs 里根本没这个因子 → 不编数，不进名单
+  assert.deepEqual(edgeFamilyLines([near], []), []);
+});

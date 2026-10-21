@@ -29,10 +29,10 @@ import { join } from "node:path";
 import { validateFactorExpr } from "./factor-expr.ts";
 import { appendAILog, factorSelfHistory, readAILog } from "./ai-log.ts";
 import type { Factor, MetricRow } from "./factors.ts";
-import type { FactorRunRow } from "./factor-runs-file.ts";
+import { readAllRunRows, type FactorRunRow } from "./factor-runs-file.ts";
 import { GATE_KEYS } from "./factors-view.ts";
 import { appendTombstones, buildRecord, diffTombstones, readTombstones } from "./factor-tombstones.ts";
-import { necropsyLines } from "./factor-necropsy.ts";
+import { edgeFamilyLines, necropsyLines } from "./factor-necropsy.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
 
 // ── 数据结构 ────────────────────────────────────────────────────
@@ -310,7 +310,7 @@ export function parseAIProposals(
 /** 把最新一批判决压成给 AI 的败因摘要。数字原样来自日志，不加工。
  *  history = AI 自己之前提议的下场（factorSelfHistory 产物），给了就加一段
  *  自我反馈——自我进化的核心：让它读到自己的历史成败再提下一轮。 */
-export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[], marketEvidence?: string[], diagnosisHints?: string[]): string {
+export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[], marketEvidence?: string[], diagnosisHints?: string[], edgeFamilies?: string[]): string {
   const lines = rows.map((r) => {
     const failed = GATE_KEYS.filter((k) => r.gates[k] === false).map((k) => k.toUpperCase());
     const buckets = r.bucketMeans.map((v) => `${(v * 100).toFixed(2)}%`).join(" → ");
@@ -337,6 +337,13 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?:
       : []),
     ...(necropsy && necropsy.length > 0
       ? ["", "已被证伪方向的完整死因档案（换皮重提 = 浪费一轮检验；真想复活某个方向，先回答它当初死于哪关、这次的表达式怎么不一样）：", ...necropsy]
+      : []),
+    ...(edgeFamilies && edgeFamilies.length > 0
+      ? [
+          "",
+          "有 edge 的「临门一脚」家族（历史某批五关全过、只挂多重检验——反事实证实这类有真信号，和其他死因子态度不同：别永弃，要复活就换正交表达把 |t| 顶过临界线，别微调同一形状）：",
+          ...edgeFamilies,
+        ]
       : []),
     ...(marketEvidence && marketEvidence.length > 0
       ? [
@@ -616,7 +623,16 @@ export async function runFactorAILoop(
   const { entries } = await readQueue();
   const history = factorSelfHistory(await readAILog(), entries);
   // 死因档案喂给下一轮：26 个死因子躺在档案里，不读就是每轮从零猜。
-  const necropsy = necropsyLines(await readTombstones());
+  const tombs = await readTombstones();
+  const necropsy = necropsyLines(tombs);
+  // 「临门一脚家族」：历史某批五关全过、独挂 g5 的死因子（edgeFamilyLines 纯函数，
+  // 需要全量 runs 行——只看最近一批会漏）。读不到档案/行就空数组，增强项不阻断。
+  let edgeFamilies: string[] = [];
+  try {
+    edgeFamilies = edgeFamilyLines(tombs, await readAllRunRows());
+  } catch {
+    edgeFamilies = [];
+  }
   // 当日市场快照（增强项）：VT 工具矿山拉头部涨跌/成交。离线/超时降级为空，
   // 提议照常跑——证据是校准项不是依赖项。
   let marketEvidence: string[] = [];
@@ -638,7 +654,7 @@ export async function runFactorAILoop(
   }
   let raw: string;
   try {
-    raw = await callAIWithFallback(buildPrompt(runs.batch.rows, history, necropsy, marketEvidence, diagnosisHints), { layer: "factor", trigger });
+    raw = await callAIWithFallback(buildPrompt(runs.batch.rows, history, necropsy, marketEvidence, diagnosisHints, edgeFamilies), { layer: "factor", trigger });
   } catch (error) {
     const result: AILoopResult = { ok: false, proposed: 0, rejected: 0, rejectReasons: [], error: error instanceof Error ? error.message : String(error) };
     await appendAILog({ at: new Date().toISOString(), layer: "factor", trigger, ...result, proposed: [], rejected: [] });

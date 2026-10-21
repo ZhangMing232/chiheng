@@ -270,6 +270,21 @@ export async function readFactorRuns(batchIndex?: number): Promise<FactorRunsPay
   }
 }
 
+/**
+ * 全部 runs 行（不分批）。少数场景要吃历史全貌——如 edgeFamilyLines 找
+ * 「历史某批五关全过、独挂 g5」的临门一脚家族，只看最近一批会漏。
+ * 读不到返回空数组：分析是增强项，不阻断调用方。
+ */
+export async function readAllRunRows(): Promise<FactorRunRow[]> {
+  const path = join(backtestDir(), "factor-runs.jsonl");
+  try {
+    const { rows } = parseLines<FactorRunRow>(await readFile(path, "utf8"));
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
 /** 读归因与资金流探路。三种 kind 各自取最新一条；flowProbe 按持有期分组。 */
 export async function readFactorDiag(): Promise<FactorDiagPayload> {
   const path = join(backtestDir(), "factor-diag.jsonl");

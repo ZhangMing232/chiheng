@@ -16,6 +16,7 @@
 
 import { GATE_KEYS, GATE_LEGEND } from "./factors-view.ts";
 import type { TombstoneRecord } from "./factor-tombstones.ts";
+import type { FactorRunRow } from "./factor-runs-file.ts";
 
 const GATE_LABEL = new Map(GATE_LEGEND.map((gate) => [gate.key, gate.label]));
 
@@ -75,4 +76,28 @@ export function necropsyLines(records: TombstoneRecord[], maxList = 20): string[
 /** 供单测和调用方核对：关名表必须覆盖全部 6 关，缺一个标签就退回代号。 */
 export function gateLabelCoverage(): boolean {
   return GATE_KEYS.every((key) => GATE_LABEL.has(key));
+}
+
+/**
+ * 「临门一脚家族」：死因子里有谁曾在某一检验批**五关全过、独挂 g5 多重检验**。
+ * 反事实依据（2026-10-21，774 条 runs 全量复算）：删掉 g5 38 个死因子里只活 3 个、
+ * 换 DSR 0 个能活——即这类因子有真 edge，只是显著性撑不过多重检验校正。
+ * 喂给提议层的态度和其他死因子不同：别永弃、别微调同一形状，要复活就换正交表达
+ * 把 |t| 顶过临界线（临界值 ≈2.7~3.3，随批大小平缓上浮）。
+ */
+export function edgeFamilyLines(records: TombstoneRecord[], rows: FactorRunRow[], maxList = 5): string[] {
+  const out: string[] = [];
+  for (const record of records) {
+    const mine = rows.filter((r) => r.factor === record.id);
+    const onlyG5 = mine.some(
+      (r) => r.gates.g5 === false && (["g1", "g2", "g3", "g4", "g6"] as const).every((g) => r.gates[g] === true),
+    );
+    if (!onlyG5) continue;
+    const best = mine.reduce((a, b) => (Math.abs(a.t) > Math.abs(b.t) ? a : b));
+    out.push(
+      `- ${record.name}（${record.category}）：历史某批五关全过、独挂多重检验（最好 t=${best.t.toFixed(2)}，该批 N=${best.nTested}）。原式=${clip(record.expr, 40)}。这类要复活就换正交表达把 |t| 顶过临界线，别微调同一形状。`,
+    );
+    if (out.length >= maxList) break;
+  }
+  return out;
 }
