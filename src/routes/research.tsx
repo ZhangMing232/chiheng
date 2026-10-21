@@ -66,6 +66,9 @@ const runResearchPage = createServerFn({ method: "GET" })
       return { q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来", ai: null };
     }
     const quote: Quote | null = uni?.quotes.find((row) => row.id === news.picked?.id) ?? null;
+    // 身份在这里解析：下面的知识库是按人落盘的，读写都要带本人 id。
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const userId = await requireUserId();
     // 各数据源互不依赖，一次并发全拉上（原来逐个串行 await，每多一个源多一次往返）。
     // 估值历史（PE/PB 分位）来自 baostock 离线脚本，没跑过就是没有——
     // 页面会把它写成「缺口」，不用当日 PE 反推一个假的。
@@ -76,7 +79,7 @@ const runResearchPage = createServerFn({ method: "GET" })
         quote ? loadEarnings(quote.id).catch(() => null) : Promise.resolve(null),
         quote ? loadFinancials(quote.id).catch(() => null) : Promise.resolve(null),
         quote ? fetchConsensusReports(quote.code).catch(() => null) : Promise.resolve(null),
-        quote ? loadKnowledge(quote.id).catch(() => null) : Promise.resolve(null),
+        quote ? loadKnowledge(quote.id, userId).catch(() => null) : Promise.resolve(null),
         quote ? loadKlines(quote.id).catch(() => null) : Promise.resolve(null),
         quote ? loadKlines("sh000300").catch(() => null) : Promise.resolve(null),
         quote ? loadIndustry().catch(() => null) : Promise.resolve(null),
@@ -104,7 +107,7 @@ const runResearchPage = createServerFn({ method: "GET" })
     // 研判完自动归档（覆盖旧的）——这样下次研判同一只票能核对这次的预警
     if (quote) {
       const reportId = `research-${quote.id}-${Date.now().toString(36)}`;
-      await saveKnowledge(knowledgeFromReport(report, reportId, quote, valuation)).catch(() => {});
+      await saveKnowledge(knowledgeFromReport(report, reportId, quote, valuation), userId).catch(() => {});
     }
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
     // AI 综合。caller 里读档案 + 调 callAI + 记账；任何异常都由 runAiSynthesis 接住

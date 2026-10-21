@@ -34,6 +34,9 @@ function file(over: Partial<KnowledgeFile> = {}): KnowledgeFile {
   };
 }
 
+const USER_A = "dev-user";
+const USER_B = "visitor-2";
+
 test("d20 掉头 → 上次的预警标「已应验」", () => {
   const old = file({ points: [{ object: "近 20 日涨幅方向", threshold: "穿越 0", source: "行情", nextAt: "每日", effect: "失效", from: "price" }] });
   const checks = checkOldPoints(old, quote({ d20: 2.5 }), null);
@@ -72,8 +75,8 @@ test("落盘再读回来：档案一致", async () => {
   const root = mkdtempSync(join(tmpdir(), "chiheng-know-"));
   try {
     const f = file();
-    await saveKnowledge(f, root);
-    const back = await loadKnowledge("600519", root);
+    await saveKnowledge(f, USER_A, root);
+    const back = await loadKnowledge("600519", USER_A, root);
     assert.equal(back?.symbol, "600519");
     assert.equal(back?.conclusions.length, 1);
   } finally {
@@ -81,9 +84,46 @@ test("落盘再读回来：档案一致", async () => {
   }
 });
 
+test("每人一份：A 的档案 B 看不到，且覆盖写不互踩", async () => {
+  const root = mkdtempSync(join(tmpdir(), "chiheng-know-iso-"));
+  try {
+    await saveKnowledge(file(), USER_A, root);
+    assert.equal(await loadKnowledge("600519", USER_B, root), null, "B 没有 A 的档案");
+    // B 对同一只票归档自己的快照：A 的不能被覆盖
+    await saveKnowledge({ ...file(), conclusions: ["B 的结论"], reportId: "r-b" }, USER_B, root);
+    const a = await loadKnowledge("600519", USER_A, root);
+    assert.equal(a?.conclusions[0], "PE 与 PB 都处在自身历史的低分位", "A 的快照原样还在");
+    const b = await loadKnowledge("600519", USER_B, root);
+    assert.equal(b?.conclusions[0], "B 的结论", "B 的独立存在");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("旧全局档案只复制给主人：dev-user 读得到，别人读不到，原文件不动", async () => {
+  const root = mkdtempSync(join(tmpdir(), "chiheng-know-migrate-"));
+  const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+  try {
+    const legacy = join(root, "data", "knowledge");
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(join(legacy, "600519.json"), JSON.stringify(file()), "utf-8");
+
+    const owner = await loadKnowledge("600519", USER_A, root);
+    assert.equal(owner?.symbol, "600519", "主人通过复制拿到旧档案");
+    assert.ok(existsSync(join(legacy, "600519.json")), "旧文件留着不动（复制不是搬走）");
+    assert.equal(await loadKnowledge("600519", USER_B, root), null, "别人不从旧文件继承");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("没归档过 → 读回 null（不是报错）", async () => {
-  const back = await loadKnowledge("sz000001", mkdtempSync(join(tmpdir(), "chiheng-know-empty-")));
+  const back = await loadKnowledge("sz000001", USER_A, mkdtempSync(join(tmpdir(), "chiheng-know-empty-")));
   assert.equal(back, null);
+});
+
+test("标的编号带 ../ 要拒：知识库不能被路径穿越读穿", async () => {
+  await assert.rejects(() => saveKnowledge({ ...file(), symbol: "../escape" }, USER_A, mkdtempSync(join(tmpdir(), "chiheng-know-path-"))), /无效的标的编号/);
 });
 
 test("摘要一行说得清有几个待验证预警", () => {
