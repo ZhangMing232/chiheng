@@ -466,6 +466,9 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
         additions.push(trade);
         held.push(trade);
         todayTrades.push(trade);
+        // 单独记一行：挑战者建仓是 Welch 判决的样本来源，混在冠军那行 bought 里
+        // 事后统计「挑战者今天买没买到」得靠数 variant，太绕。
+        console.log(`bought-challenge ${userId} ${phase.date} ${chal.id} ${trade.name}`);
       }
     }
     if (additions.length > 0) {
