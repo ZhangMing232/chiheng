@@ -15,7 +15,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { getAILog, getAIStatus, runEvolve, saveAIPrefs } from "@/lib/market/quotes.functions";
+import { getAILog, getAIStatus, getAgentDiagnosis, runAgentDiagnose, runEvolve, saveAIPrefs } from "@/lib/market/quotes.functions";
 import type { AILogEntry } from "@/lib/market/ai-log";
 import {
   AISectionTabs,
@@ -25,20 +25,36 @@ import {
 
 export const Route = createFileRoute("/ai/")({
   loader: async () => {
-    const [ai, logRes] = await Promise.all([
+    const [ai, logRes, diagnosis] = await Promise.all([
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] })),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
+      getAgentDiagnosis().catch(() => null),
     ]);
-    return { ai, log: logRes.entries };
+    return { ai, log: logRes.entries, diagnosis };
   },
   component: AIConsolePage,
 });
 
 function AIConsolePage() {
-  const { ai, log } = Route.useLoaderData();
+  const { ai, log, diagnosis } = Route.useLoaderData();
   const router = useRouter();
   const [evolveMsg, setEvolveMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"evolve" | null>(null);
+  const [busy, setBusy] = useState<"evolve" | "diagnose" | null>(null);
+
+  /** AI 全局诊断：读整个账本出报告（只诊断不行动，规则变更只请求人拍板）。 */
+  const runDiagnose = async () => {
+    setBusy("diagnose");
+    setEvolveMsg(null);
+    try {
+      const res = await runAgentDiagnose();
+      setEvolveMsg(res.ok ? `诊断完成：${res.diagnosis?.summary ?? ""}` : `诊断失败（${res.error ?? "?"}）`);
+      await router.invalidate();
+    } catch (err) {
+      setEvolveMsg(err instanceof Error ? err.message : "运行失败");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   /** 一键完整进化：因子层 → 策略层，两层各自记账，结果拼一句汇报。 */
   const runEvolveOnce = async () => {
@@ -86,6 +102,14 @@ function AIConsolePage() {
               >
                 {busy === "evolve" ? "AI 进化中…" : "跑一轮完整进化"}
               </button>
+              <button
+                type="button"
+                disabled={busy !== null || !ai.configured}
+                onClick={() => void runDiagnose()}
+                className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busy === "diagnose" ? "AI 诊断中…" : "跑一轮全局诊断"}
+              </button>
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
                 <input
                   type="checkbox"
@@ -122,7 +146,7 @@ function AIConsolePage() {
                       {e.at.slice(0, 16).replace("T", " ")}
                     </td>
                     <td data-l="层" className="px-2.5 py-1.5 text-[11px]">
-                      {e.layer === "factor" ? "因子" : "策略"}
+                      {e.layer === "factor" ? "因子" : e.layer === "agent" ? "诊断" : "策略"}
                     </td>
                     <td data-l="触发" className="px-2.5 py-1.5 text-[11px] text-muted">
                       {e.trigger === "auto" ? "自动" : "手动"}
@@ -149,6 +173,54 @@ function AIConsolePage() {
             </Table>
           ) : (
             <StateBlock kind="empty" title="还没有运行记录" hint="点上面的「跑一轮完整进化」，或开自动进化让记账进程收盘后自己跑。" />
+          )}
+        </div>
+      </Section>
+
+      <Section
+        id="ai-diagnosis"
+        title="全局诊断报告"
+        hint="AI 大脑的「观察」层：把因子判决史、队列、死因档案、挑战者、策略闸整个账本摊给它，出一份诊断。只诊断不行动——建议要走提议通道，规则变更只生成请求给人拍板。"
+      >
+        <div className="px-3.5 py-3">
+          {diagnosis ? (
+            <div className="space-y-2.5 text-xs leading-relaxed">
+              <p className="text-[11px] text-muted">诊断时间：{diagnosis.at.slice(0, 16).replace("T", " ")}</p>
+              <div>
+                <p className="mb-0.5 font-medium text-up">总评</p>
+                <p>{diagnosis.summary || "—"}</p>
+              </div>
+              <div>
+                <p className="mb-0.5 font-medium">因子层</p>
+                <p className="text-muted">{diagnosis.factorLayer || "—"}</p>
+              </div>
+              <div>
+                <p className="mb-0.5 font-medium">策略层</p>
+                <p className="text-muted">{diagnosis.strategyLayer || "—"}</p>
+              </div>
+              {diagnosis.suggestions.length > 0 ? (
+                <div>
+                  <p className="mb-0.5 font-medium">建议动作</p>
+                  <ul className="list-disc space-y-0.5 pl-4 text-muted">
+                    {diagnosis.suggestions.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {diagnosis.ruleChangeRequests.length > 0 ? (
+                <div>
+                  <p className="mb-0.5 font-medium text-warn">规则变更请求（需主人拍板，AI 无权直接改）</p>
+                  <ul className="list-disc space-y-0.5 pl-4 text-warn">
+                    {diagnosis.ruleChangeRequests.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <StateBlock kind="empty" title="还没有诊断报告" hint="点上面的「跑一轮全局诊断」；开自动进化后，收盘后进化完自动补一份。" />
           )}
         </div>
       </Section>

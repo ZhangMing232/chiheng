@@ -951,6 +951,29 @@ export const getAILog = createServerFn({ method: "GET" }).handler(async () => {
   return { allowed: true as const, entries: await readAILog() };
 });
 
+// ── AI 大脑诊断层（agent-loop.ts，design/AI-BRAIN.md 方案 A 第一步）──
+// 只诊断不行动：读整个账本出报告，规则变更只生成请求给人拍板。
+
+/** 最近一次全局诊断报告（agent-diagnosis.json）。非主人回 null。 */
+export const getAgentDiagnosis = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) return null;
+  const { readAgentDiagnosis } = await import("@/lib/market/agent-loop");
+  return readAgentDiagnosis();
+});
+
+/** 手动跑一轮全局诊断：结果落 agent-diagnosis.json + ai-log（layer=agent）。 */
+export const runAgentDiagnose = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const userId = await requireUserId();
+  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 诊断");
+  const { runAgentDiagnosis } = await import("@/lib/market/agent-loop");
+  return runAgentDiagnosis("manual");
+});
+
 /** token 用量账（监控控制台）。非主人只回 allowed: false。 */
 export const getAIUsage = createServerFn({ method: "GET" }).handler(async () => {
   const { requireUserId } = await import("@/lib/auth/verify.server");

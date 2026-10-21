@@ -703,6 +703,14 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
           );
           console.error(`${time} AI 自动进化熔断：${next.trippedReason}`);
         }
+        // 大脑诊断：进化完补一份全局诊断（只诊断不行动；挂了不连坐记账）。
+        try {
+          const { runAgentDiagnosis } = await import("../src/lib/market/agent-loop.ts");
+          const diag = await runAgentDiagnosis("auto");
+          console.log(`${time} AI 全局诊断：${diag.ok ? diag.diagnosis?.summary ?? "ok" : `没跑成（${diag.error ?? "?"}）`}`);
+        } catch (diagError) {
+          console.error(`${time} AI 全局诊断失败（不影响记账）:`, diagError);
+        }
       }
     }
   } catch (error) {
