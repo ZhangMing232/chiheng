@@ -160,13 +160,13 @@ function ResearchPage() {
 
   return (
     <Frame wide>
-      {data.q ? (
-        <Panel
-          title="个股研判"
-          note={
-            <span className="text-xs text-muted">七阶段 · 只给数据和裁决点，不给买卖建议</span>
-          }
-          action={
+      <Panel
+        title="个股研判"
+        note={
+          <span className="text-xs text-muted">七阶段 · 只给数据和裁决点，不给买卖建议</span>
+        }
+        action={
+          data.q ? (
             <button
               type="button"
               disabled={saving || saved != null}
@@ -175,8 +175,9 @@ function ResearchPage() {
             >
               {saved ? "已存" : saving ? "存…" : "存成报告"}
             </button>
-          }
-        >
+          ) : null
+        }
+      >
         <div className="p-3">
           <form
             className="flex gap-2"
@@ -201,7 +202,6 @@ function ResearchPage() {
           </form>
         </div>
       </Panel>
-      ) : null}
 
       {!data.q ? (
         <Panel title="还没选股票">

@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
 import { KlineChart } from "@/components/kline-chart";
@@ -66,7 +66,21 @@ function SymbolPage() {
           搜索
         </button>
       </form>
-      <p className="text-xs text-muted">资讯和公告按标题用词分成利好或利空。有利空的持仓排在前面。不改买入价。</p>
+      <p className="text-xs text-muted">
+        资讯和公告按标题用词分成利好或利空。有利空的持仓排在前面。不改买入价。
+        {data.picked ? (
+          <>
+            {" "}
+            <Link to="/research" search={{ q: data.picked.code }} className="text-accent hover:underline">
+              去七阶段研判 →
+            </Link>
+            {" · "}
+            <Link to="/debate" search={{ q: data.picked.code }} className="text-accent hover:underline">
+              去多空辩论 →
+            </Link>
+          </>
+        ) : null}
+      </p>
       <PosterButton
         draw={() => {
           const date = shanghaiDate();
