@@ -21,7 +21,19 @@ import {
 } from "@/lib/market/factors";
 
 function run(meanSpread: number, t: number, bucketMeans = [0, 0, 0, 0, 0]): FactorRun {
-  return { bucketMeans, meanSpread, t, nDays: 200, topBlockedRatio: 0, spreadSkew: null, spreadKurt: null };
+  return {
+    bucketMeans,
+    meanSpread,
+    t,
+    nDays: 200,
+    topBlockedRatio: 0,
+    spreadSkew: null,
+    spreadKurt: null,
+    icMean: null,
+    icir: null,
+    icDays: 0,
+    icPositiveRatio: null,
+  };
 }
 
 test("因子注册表：每个因子都有方向假设和经济逻辑（预注册）", () => {
@@ -86,6 +98,74 @@ test("analyzeFactors：顶档被挡比例统计的是 tradable=false 的占比",
   }
   const runs = analyzeFactors(daily, 1, 5);
   assert.ok(runs[0].topBlockedRatio > 0.5, "顶档（值最大的 12 只）里应该有一大半被挡");
+});
+
+test("IC/ICIR：完美正相关因子 → |IC|≈1、正占比 100%；零波动时 ICIR 记 null 不编数", () => {
+  const daily = [];
+  for (let day = 0; day < 10; day += 1) {
+    const today = [];
+    // 值与次日超额严格单调同向 → 每天横截面 Spearman = 1
+    for (let i = 0; i < 60; i += 1) today.push({ vals: [i], ex: i * 0.001, tradable: true });
+    daily.push(today);
+  }
+  const [r] = analyzeFactors(daily, 1, 5);
+  assert.ok(Math.abs((r.icMean as number) - 1) < 1e-9, `IC 应≈1，实际 ${r.icMean}`);
+  assert.equal(r.icir, null, "IC 序列零波动时 ICIR 除不出来，记 null 而不是编一个无穷大");
+  assert.equal(r.icDays, 10);
+  assert.equal(r.icPositiveRatio, 1);
+});
+
+test("IC/ICIR：一半天正相关一半天反相关 → IC 均值为 0、ICIR=0、正占比 50%", () => {
+  const daily = [];
+  for (let day = 0; day < 10; day += 1) {
+    const today = [];
+    const sign = day % 2 === 0 ? 1 : -1;
+    for (let i = 0; i < 60; i += 1) today.push({ vals: [i], ex: sign * i * 0.001, tradable: true });
+    daily.push(today);
+  }
+  const [r] = analyzeFactors(daily, 1, 5);
+  assert.ok(Math.abs(r.icMean as number) < 1e-9, `IC 均值应≈0，实际 ${r.icMean}`);
+  assert.ok(Math.abs(r.icir as number) < 1e-9, `ICIR 应≈0（均值 0/有波动的标准差），实际 ${r.icir}`);
+  assert.equal(r.icDays, 10);
+  assert.equal(r.icPositiveRatio, 0.5);
+});
+
+test("IC/ICIR：值与超额严格反相关 → IC≈−1，方向由 direction 承担不由 IC 翻转", () => {
+  const daily = [];
+  for (let day = 0; day < 10; day += 1) {
+    const today = [];
+    for (let i = 0; i < 60; i += 1) today.push({ vals: [i], ex: -i * 0.001, tradable: true });
+    daily.push(today);
+  }
+  const [r] = analyzeFactors(daily, 1, 5);
+  assert.ok(Math.abs((r.icMean as number) + 1) < 1e-9, `IC 应≈−1（原始方向存），实际 ${r.icMean}`);
+});
+
+test("IC/ICIR：序列不足 IC_MIN_DAYS 天 → 均值/ICIR 为 null，天数照实记", () => {
+  const daily = [];
+  for (let day = 0; day < 3; day += 1) {
+    const today = [];
+    for (let i = 0; i < 60; i += 1) today.push({ vals: [i], ex: i * 0.001, tradable: true });
+    daily.push(today);
+  }
+  const [r] = analyzeFactors(daily, 1, 5);
+  assert.equal(r.icMean, null);
+  assert.equal(r.icir, null);
+  assert.equal(r.icPositiveRatio, null);
+  assert.equal(r.icDays, 3);
+});
+
+test("IC/ICIR：横截面票数不足 IC_MIN_PAIRS 的那天不进 IC 序列", () => {
+  const daily = [];
+  for (let day = 0; day < 10; day += 1) {
+    const today = [];
+    const n = day === 0 ? 15 : 60; // 第 0 天只有 15 只（< 20），其余天 60 只
+    for (let i = 0; i < n; i += 1) today.push({ vals: [i], ex: i * 0.001, tradable: true });
+    daily.push(today);
+  }
+  const [r] = analyzeFactors(daily, 1, 5);
+  assert.equal(r.icDays, 9, "15 只的那天分档也不够 50，整体出局——IC 天数按分档同一口径");
+  assert.ok(r.icMean != null);
 });
 
 test("G1 单调性：方向符合预注册才算过", () => {

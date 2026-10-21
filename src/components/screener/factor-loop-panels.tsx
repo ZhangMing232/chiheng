@@ -221,6 +221,7 @@ export function FactorLoopPanels() {
                   <th className={thClass("text-left")}>经济逻辑</th>
                   <th className={thClass()}>跑过/失败</th>
                   <th className={thClass()}>运气线 DSR</th>
+                  <th className={thClass()}>IC / ICIR</th>
                 </tr>
               </thead>
               <tbody>
@@ -260,6 +261,29 @@ export function FactorLoopPanels() {
                           </span>
                         ) : (
                           <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td
+                        data-l="IC / ICIR"
+                        className="px-2.5 py-1.5 text-[11px]"
+                        title="逐日横截面「因子值 vs 未来超额」的 Spearman 秩相关：IC=均值，ICIR=均值/标准差（日频）。读数按原始方向存，对照「方向」列看正负。只展示，不改 6 关判决。"
+                      >
+                        {e.lastIc && e.lastIc.mean != null ? (
+                          <span>
+                            <span className={e.lastIc.mean * e.direction > 0 ? "text-emerald-500" : "text-amber-500"}>
+                              IC {e.lastIc.mean >= 0 ? "+" : ""}
+                              {e.lastIc.mean.toFixed(3)}
+                            </span>
+                            {e.lastIc.icir != null ? (
+                              <span className="ml-1 text-muted">
+                                ICIR {e.lastIc.icir >= 0 ? "+" : ""}
+                                {e.lastIc.icir.toFixed(2)}
+                              </span>
+                            ) : null}
+                            <span className="ml-1 text-muted">{e.lastIc.days} 天</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted">{e.lastIc ? "样本不足" : "—"}</span>
                         )}
                       </td>
                     </tr>

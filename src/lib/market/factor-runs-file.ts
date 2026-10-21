@@ -63,6 +63,12 @@ export type FactorRunRow = {
    * **只存档展示，不进 6 关判决**（判决规则改动必须用户拍板）。**旧批次没有**。
    */
   dsr?: { value: number; expectedMax: number; survives: boolean; nTrials: number } | null;
+  /**
+   * IC/ICIR（Vibe Alpha Zoo）：逐日横截面「因子值 vs 未来超额」秩相关序列。
+   * mean = 均值（原始方向），icir = 均值/标准差（日频），days = 序列天数，
+   * positiveRatio = IC>0 占比。**只存档展示，不进 6 关判决**。**旧批次没有**。
+   */
+  ic?: { mean: number | null; icir: number | null; days: number; positiveRatio?: number | null } | null;
 };
 
 export type GateKey = "g1" | "g2" | "g3" | "g4" | "g5" | "g6";

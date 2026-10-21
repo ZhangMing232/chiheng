@@ -87,6 +87,18 @@ test("DSR 运气线随判决落账：本轮有 dsr 记本轮，没有则沿用�
   assert.deepEqual(out2[0].lastDsr, { ...dsrInfo, at: "t1" });
 });
 
+test("IC/ICIR 随判决落账：与 DSR 同规矩，过关失败都记、没有则沿用上轮", () => {
+  const icInfo = { mean: 0.021, icir: 0.65, days: 118 };
+  const out = updateQueueAfterRun([entry({})], [{ id: "q_test", passed: true, at: "t1", ic: icInfo }]);
+  assert.deepEqual(out[0].lastIc, { ...icInfo, at: "t1" });
+  // 失败的这轮也带 ic：展示层证据，败因子也照记
+  const out2 = updateQueueAfterRun(out, [{ id: "q_test", passed: false, at: "t2", ic: { mean: -0.004, icir: -0.1, days: 118 } }]);
+  assert.deepEqual(out2[0].lastIc, { mean: -0.004, icir: -0.1, days: 118, at: "t2" });
+  // 重跑老批次没带 ic：lastIc 沿用上轮不丢
+  const out3 = updateQueueAfterRun(out2, [{ id: "q_test", passed: false, at: "t3" }]);
+  assert.deepEqual(out3[0].lastIc, { mean: -0.004, icir: -0.1, days: 118, at: "t2" });
+});
+
 // ── parseAIProposals ────────────────────────────────────────────
 
 // 每次调用拿一份新的——parseAIProposals 会往里 add 已接受的 id/name，

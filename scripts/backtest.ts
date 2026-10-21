@@ -1458,6 +1458,8 @@ async function main() {
           spreadSkew: run.spreadSkew,
           spreadKurt: run.spreadKurt,
           dsr: dsrInfo,
+          /** IC/ICIR（Vibe Alpha Zoo）：逐日横截面秩相关序列的均值与稳定性。旧批次没有。 */
+          ic: run.icDays > 0 ? { mean: run.icMean, icir: run.icir, days: run.icDays, positiveRatio: run.icPositiveRatio } : null,
         }),
       );
       // 队列因子（f 排在注册表后面）记下判决，整轮跑完一起回写队列状态。
@@ -1470,6 +1472,8 @@ async function main() {
           failedGates: [g1, g2, g3, g4, g5, g6].flatMap((g, i) => (g.pass ? [] : [`g${i + 1}`])),
           // DSR 是展示层证据，过关失败都存档——回答「这个因子是不是搜出来的」。
           dsr: dsrInfo ?? undefined,
+          // IC/ICIR 同 DSR：展示层证据，过关失败都存档——回答「信号稳不稳」。
+          ic: run.icDays > 0 ? { mean: run.icMean, icir: run.icir, days: run.icDays } : undefined,
         });
       }
     }

@@ -84,6 +84,12 @@ export type QueueEntry = {
    * survives=true 表示过了运气线。只展示不改判决；老条目没有这个字段。
    */
   lastDsr?: { value: number; expectedMax: number; survives: boolean; nTrials: number; at: string } | null;
+  /**
+   * 最近一轮判决的 IC/ICIR（Vibe Alpha Zoo）：逐日横截面秩相关的均值与稳定性。
+   * mean 是原始方向（不乘 direction），读的时候自己对照方向。只展示不改判决；
+   * 老条目没有这个字段。
+   */
+  lastIc?: { mean: number | null; icir: number | null; days: number; at: string } | null;
 };
 
 /** 只保留最近这么多轮的信号。多了没用，连续判定只看尾部。 */
@@ -111,6 +117,11 @@ export type QueueVerdict = {
    * 不参与过关/淘汰判定——判决仍只认 6 关。
    */
   dsr?: { value: number; expectedMax: number; survives: boolean; nTrials: number };
+  /**
+   * 这一轮的 IC/ICIR（Vibe Alpha Zoo）。展示层证据，只进 lastIc 存档，
+   * 不参与过关/淘汰判定——判决仍只认 6 关。
+   */
+  ic?: { mean: number | null; icir: number | null; days: number };
 };
 
 /** 连续几次没过 6 关就淘汰。2 = 给「换行情环境再确认一次」的机会，也是上限。 */
@@ -195,8 +206,10 @@ export function updateQueueAfterRun(queue: QueueEntry[], verdicts: QueueVerdict[
     if (!v) return e;
     // DSR 是展示层证据，过关失败都记——失败因子下次再判会覆盖。
     const lastDsr = v.dsr ? { ...v.dsr, at: v.at } : e.lastDsr;
+    // IC/ICIR 同 DSR：展示层证据，过关失败都记。
+    const lastIc = v.ic ? { ...v.ic, at: v.at } : e.lastIc;
     if (v.passed) {
-      return { ...e, ...applyDecay(e, v), status: queueStatusOf(e, v), failCount: 0, runs: e.runs + 1, lastRunAt: v.at, lastDsr };
+      return { ...e, ...applyDecay(e, v), status: queueStatusOf(e, v), failCount: 0, runs: e.runs + 1, lastRunAt: v.at, lastDsr, lastIc };
     }
     const failCount = e.failCount + 1;
     const tombstone = failCount >= TOMBSTONE_AFTER;
@@ -207,6 +220,7 @@ export function updateQueueAfterRun(queue: QueueEntry[], verdicts: QueueVerdict[
       runs: e.runs + 1,
       lastRunAt: v.at,
       lastDsr,
+      lastIc,
       note: tombstone ? `连续 ${TOMBSTONE_AFTER} 次未过 6 关，自动淘汰` : e.note,
     };
   });

@@ -240,9 +240,25 @@ export type FactorRun = {
    */
   spreadSkew: number | null;
   spreadKurt: number | null;
+  /**
+   * IC/ICIR（学 Vibe Alpha Zoo）：每天横截面上因子值与未来 N 天超额的 Spearman
+   * 秩相关序列。icMean = 序列均值（原始方向，不乘 direction），icir = 均值/标准差
+   * （日频，不年化），icDays = 序列长度，icPositiveRatio = IC>0 的天数占比。
+   * 横截面票数不足 IC_MIN_PAIRS 或序列不足 IC_MIN_DAYS 天 → 相应字段 null
+   * （拿不到 ≠ 0）。**展示层证据，不进 6 关判决。**
+   */
+  icMean: number | null;
+  icir: number | null;
+  icDays: number;
+  icPositiveRatio: number | null;
 };
 
 export type DailyRow = { vals: (number | null)[]; ex: number; tradable?: boolean };
+
+/** 算单日 IC 要求的最少横截面票数（再多才谈得上秩相关）。 */
+export const IC_MIN_PAIRS = 20;
+/** IC 序列要求的最少天数（再少均值/ICIR 都是噪声冒充信号）。 */
+export const IC_MIN_DAYS = 5;
 
 /**
  * 纯函数：把「每天每只票的因子取值 + 未来 N 天超额」分档，算每个因子的分档结果。
@@ -256,11 +272,22 @@ export function analyzeFactors(daily: DailyRow[][], factorCount: number, buckets
     const sum = new Array(buckets).fill(0);
     let days = 0;
     const spreads: number[] = [];
+    const ics: number[] = [];
     let topTotal = 0;
     let topBlocked = 0;
     for (const today of daily) {
       const usable = today.filter((r) => r.vals[f] != null);
       if (usable.length < buckets * 10) continue;
+      // IC：当天横截面「因子值 vs 未来超额」的秩相关。usable 已按因子值排序过，
+      // 排序不影响 spearman，但 ex 要跟着同一个顺序取——usable 是过滤+排序后的
+      // 新数组，直接映射即可。
+      if (usable.length >= IC_MIN_PAIRS) {
+        const ic = spearman(
+          usable.map((r) => r.vals[f] as number),
+          usable.map((r) => r.ex),
+        );
+        if (Number.isFinite(ic)) ics.push(ic);
+      }
       usable.sort((a, b) => (a.vals[f] as number) - (b.vals[f] as number));
       const q = Math.floor(usable.length / buckets);
       const meanOf = (slice: DailyRow[]) => slice.reduce((s, r) => s + r.ex, 0) / slice.length;
@@ -282,6 +309,11 @@ export function analyzeFactors(daily: DailyRow[][], factorCount: number, buckets
         ? Math.sqrt(spreads.reduce((s, v) => s + (v - meanSpread) ** 2, 0) / (spreads.length - 1))
         : 0;
     const t = sd > 0 ? meanSpread / (sd / Math.sqrt(spreads.length)) : 0;
+    const icMean = ics.length >= IC_MIN_DAYS ? ics.reduce((s, v) => s + v, 0) / ics.length : null;
+    const icSd =
+      ics.length >= IC_MIN_DAYS
+        ? Math.sqrt(ics.reduce((s, v) => s + (v - (icMean as number)) ** 2, 0) / (ics.length - 1))
+        : 0;
     out.push({
       bucketMeans: each,
       meanSpread,
@@ -290,6 +322,10 @@ export function analyzeFactors(daily: DailyRow[][], factorCount: number, buckets
       topBlockedRatio: topTotal > 0 ? topBlocked / topTotal : 1,
       spreadSkew: sd > 0 && spreads.length >= 4 ? skewness(spreads) : null,
       spreadKurt: sd > 0 && spreads.length >= 4 ? kurtosisOf(spreads) : null,
+      icMean,
+      icir: icMean != null && icSd > 0 ? icMean / icSd : null,
+      icDays: ics.length,
+      icPositiveRatio: ics.length >= IC_MIN_DAYS ? ics.filter((v) => v > 0).length / ics.length : null,
     });
   }
   return out;
@@ -331,8 +367,7 @@ function spearman(x: number[], y: number[]): number {
  * G1 单调性：分档均值是否随档位单调，且方向符合预注册假设。
  * 用 Spearman 秩相关衡量单调程度，阈值 MONO_MIN 是预注册判据。
  */
-export const MONO_MIN = 0.8;
-export function gateMonotonic(means: number[], direction: 1 | -1): Gate {
+export const MONO_MIN = 0.8;export function gateMonotonic(means: number[], direction: 1 | -1): Gate {
   if (means.length < 3) return { pass: false, detail: "档位不足 3，判不了单调" };
   const rs = spearman(means.map((_, i) => i), means);
   const dirOk = Math.sign(rs) === direction;
