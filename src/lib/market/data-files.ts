@@ -96,13 +96,6 @@ export const DATA_FILES: FileFact[] = [
     required: false,
   },
   {
-    path: "data/backtest/calendar.json",
-    label: "交易日历",
-    ttlKey: null,
-    refresh: "python3 scripts/fetch-calendar.py",
-    required: false,
-  },
-  {
     path: "data/backtest/runs.jsonl",
     label: "回测运行记录",
     ttlKey: null,

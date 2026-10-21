@@ -74,7 +74,6 @@ test("🔴 被 node 跑的 serverFn 文件必须真能被加载（import 路径�
   // glob 出来的列表如果自己错了，测试会 silently 变松。
   const files = [
     "alerts.functions",
-    "calendar.functions",
     "industry.functions",
     "notes.functions",
     "overseas-list.functions",

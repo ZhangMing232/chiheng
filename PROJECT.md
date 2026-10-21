@@ -69,9 +69,9 @@ design/ docs/         规范、手册、进度表
 data/                 全部运行时数据，**不在 git 里**
 ```
 
-**页面清单**：主控台 `/`、每日复盘 `/review`、消息 `/news`、资金 `/flow`、
-板块 `/sectors`、日历 `/calendar`、个股 `/symbol`、研判 `/research`、辩论 `/debate`、
-港美 `/overseas`、选股 `/screener`、策略追踪 `/positions`、因子 `/factors`、
+**页面清单**：主控台 `/`、每日复盘 `/review`（含信号、公司事件两个子页）、消息 `/news`、资金 `/flow`、
+板块 `/sectors`、个股 `/symbol`、研判 `/research`、辩论 `/debate`、
+港美 `/overseas`、策略 `/strategies`（选股 + 追踪两个子页）、因子 `/factors`、
 回测 `/backtest`、自选 `/my-stocks`、笔记 `/notes`、提醒 `/inbox`、报告 `/reports`、
 AI `/ai`（**侧栏无入口**，入口在设置页）、设置与状态 `/settings`。
 
@@ -93,7 +93,6 @@ AI `/ai`（**侧栏无入口**，入口在设置页）、设置与状态 `/setti
 | 一致预期 | 东财研报接口直连 | 实时 | 3 天 |
 | 行业分类 | `fetch-industry.mjs` | `industry.json` 496 板块/5659 只 | 6 小时 |
 | 行业月度 | `fetch-industry-monthly.mjs` | `industry-monthly.json` 8928 完整月 | 24 小时 |
-| 交易日历 | `fetch-calendar.py`（baostock） | `calendar.json` 79 交易日 | 只到当年底 |
 | 回测记录 | `backtest.ts` 自动追加 | `runs.jsonl` | 跑一次加一行 |
 | 笔记 | 笔记页写 | `notes.json` | 你写的时候 |
 
@@ -147,7 +146,7 @@ AI `/ai`（**侧栏无入口**，入口在设置页）、设置与状态 `/setti
 | 服务 | **没在跑**（行情快照昨晚 23:59，之后没更新） |
 | 测试 | 949 条全绿 · typecheck 干净 · lint 0 error |
 | 账本 | 4 天记录 / 94 笔 / **30 笔未平仓**（2026-09-29 ~ 10-09 建仓） |
-| 待结算 | 30 笔持仓的到期日排在 10-16 ~ 10-23（见 `/calendar`） |
+| 待结算 | 30 笔持仓的计划卖出日逐笔记在策略追踪页（原日历页 2026-10-21 已撤） |
 | 过期数据 | 行情快照、流通市值快照、行业分类（服务没跑导致的） |
 | 下一步 | 港股行情页（用户已定：只看不选股） |
 

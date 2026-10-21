@@ -47,6 +47,7 @@ function SignalsPage() {
       tabs={[
         { to: "/review/", label: "每日复盘" },
         { to: "/review/signals", label: "信号" },
+        { to: "/review/events", label: "公司事件" },
       ]}
     />
   );

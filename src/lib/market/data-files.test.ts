@@ -44,7 +44,7 @@ test("过了 TTL 就是过期，没过就是新鲜", () => {
   assert.match(stale.note, /已过新鲜期/);
 });
 
-test("不看新鲜度的文件（记账心跳、交易日历）只报多久没更新", () => {
+test("不看新鲜度的文件（记账心跳、笔记）只报多久没更新", () => {
   const f = freshnessOf(notes, { [notes.path]: { size: 200, mtime: NOW - 3 * 24 * 60 * MIN } }, NOW);
   assert.equal(f.state, "na");
   assert.match(f.note, /3 天前更新/);

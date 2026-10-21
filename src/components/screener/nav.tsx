@@ -13,7 +13,6 @@ import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-ro
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
-  CalendarDays,
   ChevronDown,
   Coins,
   FileSearch,
@@ -60,7 +59,7 @@ import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/inbox" | "/sectors" | "/calendar" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/sectors" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/desk", label: "合成台", icon: Workflow }] },
   {
@@ -71,7 +70,6 @@ const SIDEBAR: {
       { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/sectors", label: "板块", icon: Grid2x2 },
       { to: "/overseas", label: "港美行情", icon: Globe },
-      { to: "/calendar", label: "日历与事件", icon: CalendarDays },
     ],
   },
   {

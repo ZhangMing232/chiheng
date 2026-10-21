@@ -6,8 +6,9 @@
  * 股权质押（风险指标，中国结算周频）、新股申购（打新日历）。
  *
  * 2026-10-16 整合导航：/events 不再是独立页面，本文件只导出 EventsPanel 组件，
- * 由 /calendar 页以「页内 tab（三级导航）」的方式挂进去；/events 路由保留但重定向到
- * /calendar?tab=events（旧链接、手机书签不断）。
+ * 由复盘页以「子页面」的方式挂进去（2026-10-21 起挂在 /review/events；此前在
+ * /calendar?tab=events）；/events 路由保留但重定向到 /review/events（旧链接、
+ * 手机书签不断）。
  *
  * 你需要知道的（纪律都写在页面上）：
  * 1. **「略增/首亏」是公司自己在公告里用的措辞**，不是我们的判断，原样显示。
@@ -29,9 +30,9 @@ import { getBuybacks, getForecasts, getHolderTrades, getIpos, getPledges, getSur
 import { buybackTone, forecastTone, holderTone } from "@/lib/market/events";
 
 export const Route = createFileRoute("/events")({
-  // 旧链接兼容：/events 已并入日历页（页内 tab），进来直接送过去。
+  // 旧链接兼容：/events 已并入复盘区（子页面），进来直接送过去。
   beforeLoad: () => {
-    throw redirect({ to: "/calendar", search: { tab: "events" } });
+    throw redirect({ to: "/review/events" });
   },
 });
 

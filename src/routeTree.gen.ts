@@ -34,6 +34,7 @@ import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as StrategiesRouteImport } from './routes/strategies'
 import { Route as SymbolRouteImport } from './routes/symbol'
 import { Route as ReviewIndexRouteImport } from './routes/review/index'
+import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
 import { Route as StrategiesPositionsRouteImport } from './routes/strategies/positions'
 import { Route as StrategiesScreenerRouteImport } from './routes/strategies/screener'
@@ -163,6 +164,11 @@ const ReviewIndexRoute = ReviewIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ReviewRoute,
 } as any)
+const ReviewEventsRoute = ReviewEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => ReviewRoute,
+} as any)
 const ReviewSignalsRoute = ReviewSignalsRouteImport.update({
   id: '/signals',
   path: '/signals',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
@@ -264,6 +272,7 @@ export interface FileRoutesById {
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/symbol': typeof SymbolRoute
+  '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
@@ -296,6 +305,7 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
@@ -325,6 +335,7 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/signals'
     | '/strategies'
     | '/symbol'
+    | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
@@ -565,6 +577,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewIndexRouteImport
       parentRoute: typeof ReviewRoute
     }
+    '/review/events': {
+      id: '/review/events'
+      path: '/events'
+      fullPath: '/review/events'
+      preLoaderRoute: typeof ReviewEventsRouteImport
+      parentRoute: typeof ReviewRoute
+    }
     '/review/signals': {
       id: '/review/signals'
       path: '/signals'
@@ -590,11 +609,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface ReviewRouteChildren {
+  ReviewEventsRoute: typeof ReviewEventsRoute
   ReviewSignalsRoute: typeof ReviewSignalsRoute
   ReviewIndexRoute: typeof ReviewIndexRoute
 }
 
 const ReviewRouteChildren: ReviewRouteChildren = {
+  ReviewEventsRoute: ReviewEventsRoute,
   ReviewSignalsRoute: ReviewSignalsRoute,
   ReviewIndexRoute: ReviewIndexRoute,
 }

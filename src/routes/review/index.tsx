@@ -114,6 +114,7 @@ function Review() {
         tabs={[
           { to: "/review/", label: "每日复盘" },
           { to: "/review/signals", label: "信号" },
+          { to: "/review/events", label: "公司事件" },
         ]}
       />
       <div className="flex flex-col gap-3">

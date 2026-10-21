@@ -13,10 +13,10 @@ export type DeskSide = "research" | "trading";
 export type DeskHref =
   | "/"
   | "/review"
+  | "/review/events"
   | "/research"
   | "/debate"
   | "/reports"
-  | "/calendar"
   | "/flow"
   | "/sectors"
   | "/overseas"
@@ -49,7 +49,7 @@ export const DESK_TOOLS: DeskTool[] = [
   { id: "research", side: "research", title: "个股研判", does: "一只票的证据、推断和缺口，分阶段写，不给买卖建议。", to: "/research", keys: ["研判", "基本面", "估值", "这只", "个股"] },
   { id: "debate", side: "research", title: "多空辩论", does: "同一只票的支持和反对，最后只留裁决点。", to: "/debate", keys: ["多空", "辩论", "看多", "看空"] },
   { id: "reports", side: "research", title: "研报库", does: "已导入的 PDF 或 Word，引用能回查原文。", to: "/reports", keys: ["研报", "pdf", "PDF"] },
-  { id: "calendar", side: "research", title: "日历与事件", does: "持仓到期、业绩预告、增减持、回购、质押、申购。", to: "/calendar", keys: ["日历", "事件", "预告", "解禁", "回购"] },
+  { id: "review-events", side: "research", title: "公司事件", does: "业绩预告、增减持、调研、回购、质押、申购。公司措辞原样显示。", to: "/review/events", keys: ["事件", "预告", "增减持", "回购", "调研", "质押", "申购"] },
   { id: "flow", side: "research", title: "资金流向", does: "大盘资金、北向披露和龙虎榜席位。没有的就写没有。", to: "/flow", keys: ["资金", "北向", "龙虎榜", "主力"] },
   { id: "sectors", side: "research", title: "板块", does: "东财行业的涨跌和资金。这不是景气度。", to: "/sectors", keys: ["板块", "行业"] },
   { id: "overseas", side: "research", title: "港美行情", does: "只看报价和 K 线，不进选股，也不进账。", to: "/overseas", keys: ["港股", "美股", "恒生", "纳指"] },
