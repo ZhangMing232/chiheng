@@ -53,7 +53,32 @@ export type LedgerSnapshot = {
   gateLines: string[];
   /** AI 自身：近几轮两层进化的成败史。 */
   selfHistory: string[];
+  /** 市场证据：VT 工具矿山拉的当日 A 股快照（涨跌幅/成交额头部）。空数组 = 工具离线，诊断照常跑。 */
+  marketEvidence: string[];
 };
+
+/** 一行市场快照 → 中文摘要（代码 名称 涨跌幅 成交额亿）。 */
+export function summarizeMarketRow(r: Record<string, unknown>): string {
+  const code = String(r.code ?? "?");
+  const name = String(r.name ?? "?");
+  const pct = typeof r.change_pct === "number" ? (r.change_pct / 100).toFixed(2) : "?";
+  const amountYi = typeof r.amount === "number" ? (r.amount / 1e8).toFixed(1) : "?";
+  return `${code} ${name} ${pct}% · 成交 ${amountYi} 亿`;
+}
+
+/**
+ * 从 VT 工具矿山拉当日市场证据（纯函数：把工具返回的 JSON 文本变成行）。
+ * 解析失败/返回 ok:false → 空数组（证据是增强项，不是必需品）。
+ */
+export function evidenceOf(raw: string, maxRows = 10): string[] {
+  try {
+    const parsed = JSON.parse(raw) as { ok?: boolean; data?: { rows?: Record<string, unknown>[] } };
+    if (parsed.ok === false || !Array.isArray(parsed.data?.rows)) return [];
+    return parsed.data.rows.slice(0, maxRows).map(summarizeMarketRow);
+  } catch {
+    return [];
+  }
+}
 
 /** 一条因子判决 → 一行摘要（t 值、过几关、DSR 运气线）。 */
 export function summarizeRunRow(r: FactorRunRow): string {
@@ -100,6 +125,11 @@ export function buildDiagnosisPrompt(snap: LedgerSnapshot): string {
     "",
     "【AI 自身：近几轮进化成败】",
     snap.selfHistory.join("\n") || "- （还没有记录）",
+    "",
+    "【当日市场证据（Vibe-Trading 工具拉的实时快照）】",
+    snap.marketEvidence.length > 0
+      ? [...snap.marketEvidence, "", "注意：这是当日截面快照，只用来校准「现在市场处于什么状态」，不要当成历史规律引用。"].join("\n")
+      : "- （工具离线或没拉到，基于账本诊断即可）",
     "",
     "输出要求：只输出一个 JSON 对象，不要输出任何别的文字。结构：",
     '{',
@@ -213,6 +243,17 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     ...log.slice(-8).map((e) => `- ${e.at.slice(0, 16).replace("T", " ")} ${e.layer} ${e.trigger}：${e.ok ? "ok" : `失败（${e.error ?? "未知"}）`}，提议 ${e.proposed.length}`),
   ];
 
+  // 市场证据（增强项）：VT 工具矿山拉当日 A 股头部快照。离线/超时/解析失败
+  // 都降级为空数组——诊断不能因为工具矿山塌了而缺席。
+  let marketEvidence: string[] = [];
+  try {
+    const { callVTTool } = await import("./vt-tools.ts");
+    const raw = await callVTTool("screen_market", { market: "a", top_n: 10 }, 60_000);
+    marketEvidence = evidenceOf(raw);
+  } catch {
+    marketEvidence = [];
+  }
+
   return {
     at: new Date().toISOString(),
     factorLines: (batch?.rows ?? []).map(summarizeRunRow),
@@ -223,6 +264,7 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     chalLines,
     gateLines,
     selfHistory,
+    marketEvidence,
   };
 }
 

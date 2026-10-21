@@ -10,8 +10,10 @@ import assert from "node:assert/strict";
 
 import {
   buildDiagnosisPrompt,
+  evidenceOf,
   extractJson,
   parseDiagnosis,
+  summarizeMarketRow,
   summarizeQueue,
   summarizeRunRow,
   type LedgerSnapshot,
@@ -27,6 +29,7 @@ const SNAP: LedgerSnapshot = {
   chalLines: ["- 挑战者A（c_a）：挑战「测试策略」，状态 running，2026-10-21 开跑，AI 提名"],
   gateLines: ["- 测试策略：假释观察中，正常"],
   selfHistory: ["- 因子层进化 10 轮，策略层 10 轮"],
+  marketEvidence: ["920296 N文峰 217.03% · 成交 7.6 亿"],
 };
 
 test("summarizeRunRow：t 值、过关数、DSR 口径都对", () => {
@@ -62,9 +65,28 @@ test("buildDiagnosisPrompt：账本各块都在，且声明只诊断不行动", 
   for (const fact of [
     "测试因子（test_f）", "队列共 46 条", "死因统计", "挑战者A",
     "规则变更请求", "ruleChangeRequests", "你的任务是诊断，不是行动",
+    "N文峰", "当日市场证据",
   ]) {
     assert.ok(p.includes(fact), `prompt 缺：${fact}`);
   }
+});
+
+test("市场证据：行摘要 + JSON 解析 + 坏输入降级", () => {
+  assert.equal(summarizeMarketRow({ code: "920296", name: "N文峰", change_pct: 21703, amount: 759246929.88 }), "920296 N文峰 217.03% · 成交 7.6 亿");
+  // 真工具返回形状（ok + data.rows）
+  const raw = JSON.stringify({ ok: true, data: { rows: [
+    { code: "920296", name: "N文峰", change_pct: 21703, amount: 759246929.88 },
+    { code: "300750", name: "宁德时代", change_pct: 285, amount: 8.9e9 },
+  ] } });
+  const lines = evidenceOf(raw);
+  assert.equal(lines.length, 2);
+  assert.match(lines[1], /宁德时代 2.85%/);
+  assert.equal(evidenceOf('{"ok": false}').length, 0);
+  assert.equal(evidenceOf("not json").length, 0);
+  assert.equal(evidenceOf('{"ok":true,"data":{}}').length, 0);
+  // 截断到 maxRows
+  const many = JSON.stringify({ ok: true, data: { rows: Array.from({ length: 20 }, (_, i) => ({ code: String(i), name: "x", change_pct: 1, amount: 1 })) } });
+  assert.equal(evidenceOf(many, 10).length, 10);
 });
 
 test("extractJson：前后有杂音也能抠出来；没有 { } 返回 null", () => {
