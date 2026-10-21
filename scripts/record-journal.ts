@@ -488,7 +488,28 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
       for (const chal of runningChallengers) {
         if (chal.style !== style) continue;
         const row = takeChallengerBuy(list, held);
-        if (!row) continue;
+        if (!row) {
+          // 别静默跳过：「挑战者今天为什么没买」事后全靠猜。逐行复算一遍
+          // takeChallengerBuy 的过滤口径，把每行的落选原因打进日志，
+          // 第二天就能从 serve.log 直接回答「是名单短（行情）还是开仓条件偏严」。
+          const openIds = new Set(held.filter((t) => t.exit == null).map((t) => t.id));
+          const seen = new Set<string>();
+          let nHit = 0;
+          const skip = { held: 0, limit: 0, dup: 0 };
+          for (const r of list) {
+            if (!r.hit) continue;
+            nHit += 1;
+            if (limitTag(r.quote) === "涨停") skip.limit += 1;
+            else if (openIds.has(r.quote.id)) skip.held += 1;
+            else if (seen.has(r.quote.id)) skip.dup += 1;
+            else seen.add(r.quote.id);
+          }
+          console.log(
+            `challenger-skip ${userId} ${phase.date} ${chal.id}：名单 ${list.length} 行，命中 ${nHit} 行——` +
+              `已持仓挡 ${skip.held}、涨停挡 ${skip.limit}、重复挡 ${skip.dup}，剩 0 可买`,
+          );
+          continue;
+        }
         const trade: Trade = {
           id: row.quote.id,
           code: row.quote.code,
