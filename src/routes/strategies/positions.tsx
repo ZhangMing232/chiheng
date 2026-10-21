@@ -225,6 +225,7 @@ function ChallengerPanel({
     const st = CHAL_STATUS[c.status];
     const isChampion = champions[c.style] === c.id;
     const sample = samples[c.id];
+    const rb = robust[c.id];
     return (
       <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
         <span className={`shrink-0 ${st.className}`}>{st.label}</span>
@@ -241,18 +242,24 @@ function ChallengerPanel({
             样本 {sample.n}/{sample.target} · 冠军 {sample.champN}/{sample.target}
           </span>
         ) : null}
-        {robust[c.id] ? (
+        {rb ? (
           <span
             className={
-              robust[c.id].fragile === true
+              rb.fragile === true
                 ? "text-amber-600 dark:text-amber-400"
-                : robust[c.id].fragile === false
-                  ? "text-muted"
-                  : "text-muted"
+                : "text-muted"
             }
-            title={robust[c.id].note}
+            title={rb.note}
           >
-            {robust[c.id].fragile === true ? "⚠️ 参数悬崖" : robust[c.id].fragile === false ? "参数平台" : "敏感度样本不足"}
+            {rb.fragile === true ? "⚠️ 参数悬崖" : rb.fragile === false ? "参数平台" : "敏感度样本不足"}
+          </span>
+        ) : null}
+        {rb?.pbo != null ? (
+          <span
+            className={rb.pbo >= 0.5 ? "text-amber-600 dark:text-amber-400" : "text-muted"}
+            title={`PBO（回测过拟合概率，CSCV ${rb.pboSplits} 切分）：这套参数是数据挖掘出来的运气成分占比。越低越好，≥50% 说明参数大概率是拟合出来的，转正判决要打个问号。只标注，不改判决。`}
+          >
+            PBO {Math.round(rb.pbo * 100)}%
           </span>
         ) : null}
         {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
