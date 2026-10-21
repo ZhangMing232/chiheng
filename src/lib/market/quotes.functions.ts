@@ -670,10 +670,9 @@ async function readPushToken(): Promise<string | null> {
 
 /** 推送配置状态。谁都能调（铃铛人人可见），非主人只回 allowed: false。 */
 export const getPushStatus = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) return { allowed: false as const, configured: false, tail: null as string | null };
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, configured: false, tail: null as string | null };
   const token = await readPushToken();
   return { allowed: true as const, configured: token != null, tail: token ? token.slice(-4) : null };
 });
@@ -686,10 +685,9 @@ export const getPushStatus = createServerFn({ method: "GET" }).handler(async () 
     return { token: (data as { token: string }).token.trim() };
   })
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能改推送配置");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能改推送配置");
     await mkdir(join(process.cwd(), "data"), { recursive: true });
     await writeFile(pushConfigPath(), JSON.stringify({ token: data.token }, null, 2));
     return { ok: true as const, configured: data.token !== "", tail: data.token ? data.token.slice(-4) : null };
@@ -705,11 +703,10 @@ export const getFactorQueue = createServerFn({ method: "GET" }).handler(async ()
 
 /** AI 接口配置状态：档案列表（key 只回尾号）+ 启用中那套 + 自动进化开关。谁都能调，非主人只回 allowed: false。 */
 export const getAIStatus = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { readAIPrefs } = await import("@/lib/market/ai-prefs");
   const { getActiveConfig } = await import("@/lib/market/ai-profiles");
-  const userId = await requireUserId();
+  const { userId, isOwner } = await requirePrincipal();
   const [prefs, profiles] = await Promise.all([readAIPrefs(), readProfiles()]);
   const { fallbackCandidates } = await import("@/lib/market/factor-queue");
   const base = {
@@ -724,7 +721,7 @@ export const getAIStatus = createServerFn({ method: "GET" }).handler(async () =>
     }),
     ...(await aiStatus(await getActiveConfig(profiles))),
   };
-  if (userId !== OWNER_ID) return { allowed: false as const, ...base };
+  if (!isOwner) return { allowed: false as const, ...base };
   return { allowed: true as const, ...base };
 });
 
@@ -759,11 +756,10 @@ export const saveAIProfile = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
     const { upsertProfile, writeProfiles } = await import("@/lib/market/ai-profiles");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 接口档案");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能改 AI 接口档案");
     const result = upsertProfile(await readProfiles(), data, new Date().toISOString());
     if (!result.ok) throw new Error(result.error);
     await writeProfiles(result.file);
@@ -778,11 +774,10 @@ export const deleteAIProfile = createServerFn({ method: "POST" })
     return { id: d.id };
   })
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
     const { removeProfile, writeProfiles } = await import("@/lib/market/ai-profiles");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 接口档案");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能改 AI 接口档案");
     const file = removeProfile(await readProfiles(), data.id);
     await writeProfiles(file);
     return { ok: true as const, activeId: file.activeId };
@@ -796,11 +791,10 @@ export const setActiveAIProfile = createServerFn({ method: "POST" })
     return { id: d.id };
   })
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
     const { setActiveProfile, writeProfiles } = await import("@/lib/market/ai-profiles");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 接口档案");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能改 AI 接口档案");
     const file = setActiveProfile(await readProfiles(), data.id);
     await writeProfiles(file);
     return { ok: true as const, activeId: file.activeId };
@@ -814,10 +808,9 @@ export const listAIModels = createServerFn({ method: "POST" })
     return { baseUrl: d.baseUrl.trim().replace(/\/+$/, ""), apiKey: d.apiKey.trim() };
   })
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能拉模型清单");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能拉模型清单");
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15_000);
     try {
@@ -856,10 +849,9 @@ export const testAIProfile = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能测接口");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能测接口");
     const { callAI } = await import("@/lib/market/factor-queue");
     const started = Date.now();
     try {
@@ -876,10 +868,9 @@ export const testAIProfile = createServerFn({ method: "POST" })
 
 /** 让 AI 跑一轮闭环：读最近判决 → 提议新因子 → 校验后进队列。 */
 export const runFactorAI = createServerFn({ method: "POST" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 闭环");
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) throw new Error("只有主人账号能跑 AI 闭环");
   const { FACTORS } = await import("@/lib/market/factors");
   return runFactorAILoop({
     readRows: readFactorRuns,
@@ -929,20 +920,18 @@ export const getChallengerRobustness = createServerFn({ method: "GET" }).handler
 
 /** 让 AI 提名一轮挑战者：校验通过的直接 running，记账进程当天开始并行攒样本。 */
 export const runStrategyAI = createServerFn({ method: "POST" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 闭环");
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) throw new Error("只有主人账号能跑 AI 闭环");
   const { runStrategyAILoop } = await import("@/lib/market/strategy-ai");
   return runStrategyAILoop();
 });
 
 /** 一键完整进化：因子层 → 策略层各跑一轮，两层各自记账（ai-log）。 */
 export const runEvolve = createServerFn({ method: "POST" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 进化");
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) throw new Error("只有主人账号能跑 AI 进化");
   const { runEvolveLoop } = await import("@/lib/market/evolve");
   const { FACTORS } = await import("@/lib/market/factors");
   return runEvolveLoop({
@@ -953,10 +942,9 @@ export const runEvolve = createServerFn({ method: "POST" }).handler(async () => 
 
 /** AI 运行账本（自我进化历史）。非主人只回 allowed: false。 */
 export const getAILog = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) return { allowed: false as const, entries: [] as Awaited<ReturnType<typeof readAILog>> };
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, entries: [] as Awaited<ReturnType<typeof readAILog>> };
   return { allowed: true as const, entries: await readAILog() };
 });
 
@@ -965,20 +953,18 @@ export const getAILog = createServerFn({ method: "GET" }).handler(async () => {
 
 /** 最近一次全局诊断报告（agent-diagnosis.json）。非主人回 null。 */
 export const getAgentDiagnosis = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) return null;
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return null;
   const { readAgentDiagnosis } = await import("@/lib/market/agent-loop");
   return readAgentDiagnosis();
 });
 
 /** 手动跑一轮全局诊断：结果落 agent-diagnosis.json + ai-log（layer=agent）。 */
 export const runAgentDiagnose = createServerFn({ method: "POST" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) throw new Error("只有主人账号能跑 AI 诊断");
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) throw new Error("只有主人账号能跑 AI 诊断");
   const { runAgentDiagnosis } = await import("@/lib/market/agent-loop");
   return runAgentDiagnosis("manual");
 });
@@ -988,23 +974,21 @@ export const runAgentDiagnose = createServerFn({ method: "POST" }).handler(async
 
 /** VT 工具矿山状态（在线 / 工具数 / 清单）。非主人回 allowed: false。带 5 分钟缓存。 */
 export const getVTToolsStatus = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) return { allowed: false as const };
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const };
   const { probeVtTools } = await import("./vt-tools.ts");
   return { allowed: true as const, status: await probeVtTools() };
 });
 
 /** token 用量账（监控控制台）。非主人只回 allowed: false。 */
 export const getAIUsage = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { readAIUsage, usageStats } = await import("@/lib/market/ai-usage");
   const { readProfiles } = await import("@/lib/market/ai-profiles");
   const { referencePriceOf } = await import("@/lib/market/ai-prices");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) return { allowed: false as const, entries: [], stats: null };
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, entries: [], stats: null };
   const entries = await readAIUsage();
   // 历史未计价条目的现价估算：先按条目记的 profileId 找档案现价（模型名对得上
   // 才用——换过模型的档案，旧模型的账不能套新价），对不上再查内置参考价目表。
@@ -1023,11 +1007,10 @@ export const getAIUsage = createServerFn({ method: "GET" }).handler(async () => 
 
 /** 决策者记分牌（decision-ledger.ts）：AI 提议 vs 人工登记的过关/淘汰对照。 */
 export const getDecisionLedger = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireUserId } = await import("@/lib/auth/verify.server");
-  const { OWNER_ID } = await import("@/lib/market/book-file");
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { readDecisionLedger } = await import("@/lib/market/decision-ledger");
-  const userId = await requireUserId();
-  if (userId !== OWNER_ID) return { allowed: false as const, ledger: null };
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, ledger: null };
   return { allowed: true as const, ledger: await readDecisionLedger() };
 });
 
@@ -1044,10 +1027,9 @@ export const getSystemRules = createServerFn({ method: "GET" }).handler(async ()
 export const runFactorTest = createServerFn({ method: "POST" })
   .validator((data: unknown) => sanitizeParams(data))
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能发起因子检验");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能发起因子检验");
     const { runFactorTest: run } = await import("@/lib/market/factor-test-runner");
     return run(data);
   });
@@ -1060,12 +1042,11 @@ export const saveAIPrefs = createServerFn({ method: "POST" })
     return { autoEvolve: d.autoEvolve };
   })
   .handler(async ({ data }) => {
-    const { requireUserId } = await import("@/lib/auth/verify.server");
-    const { OWNER_ID } = await import("@/lib/market/book-file");
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
     const { writeAIPrefs } = await import("@/lib/market/ai-prefs");
     const { resetBreaker } = await import("@/lib/market/evolve-breaker");
-    const userId = await requireUserId();
-    if (userId !== OWNER_ID) throw new Error("只有主人账号能改 AI 开关");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) throw new Error("只有主人账号能改 AI 开关");
     await writeAIPrefs(data);
     // 重新打开自动进化 = 人来看过了。清零熔断计数、解除断电记录，
     // 不然下一轮还在「已熔断」的旧账上计。

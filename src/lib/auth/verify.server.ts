@@ -10,6 +10,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { gateIdentityEnabled } from "./gate-identity.server";
 import { auth, authConfigured } from "./server";
 import { mayUseDevUser } from "./dev-user-policy";
+import { isAdmin } from "./plan";
 
 /**
  * Server-side session resolution (server-only).
@@ -51,7 +52,7 @@ export class UnauthorizedError extends Error {
   }
 }
 
-export type VerifiedUser = { id: string; email: string | null };
+export type VerifiedUser = { id: string; email: string | null; /** 会员档位（user.additionalFields.plan，未取到为 null） */ plan: string | null };
 
 /**
  * Resolve the signed-in user from the current request, or `null` when auth isn't
@@ -76,7 +77,8 @@ export async function getSessionUser(
   }
   const session = await auth.api.getSession({ headers });
   if (!session?.user) return null;
-  return { id: session.user.id, email: session.user.email ?? null };
+  const plan = (session.user as { plan?: unknown }).plan;
+  return { id: session.user.id, email: session.user.email ?? null, plan: typeof plan === "string" ? plan : null };
 }
 
 /**
@@ -117,5 +119,39 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
   // 累计收益 —），看着像数据丢了——2026-10-05 下午就是这样查了半天才找到。
   // 能不能退到共享的 dev 用户，看 mayUseDevUser 的两个条件。
   if (mayUseDevUser({ databaseConfigured, hasRealIdentity: false })) return DEV_USER_ID;
+  throw new UnauthorizedError();
+}
+
+/**
+ * 一次身份解析给出两件事情：userId（数据归属键）+ isOwner（主人判定）。
+ *
+ * 主人不再看用户 id 是不是 dev-user（design/MULTI-USER-AUDIT.md R4）：
+ * 真实库里 Better Auth 的 id 是随机串，dev-user 那套一上线就锁死主人自己。
+ * 现在认 `plan === "admin"`——scripts/grant-plan.ts 给哪个账号授 admin，
+ * 哪个账号就是主人，本机 dev 和线上真实账号同一套判定。
+ * 唯一例外：没有真实库的 dev 回落（和 requireUserId 同一条路），dev-user 天然是主人。
+ */
+export type Principal = { userId: string; isOwner: boolean };
+
+export async function requirePrincipal(bearerToken?: string): Promise<Principal> {
+  if (!authConfigured && !gateIdentityEnabled()) {
+    if (databaseConfigured) {
+      throw new Error(
+        "Auth is disabled (VITE_AUTH_ENABLED=false) but DATABASE_URL is set — " +
+          "refusing to fall back to the shared dev user against a real database.",
+      );
+    }
+    return { userId: DEV_USER_ID, isOwner: true };
+  }
+  let user: VerifiedUser | null = null;
+  try {
+    user = await getSessionUser(bearerToken);
+  } catch {
+    user = null;
+  }
+  if (user) return { userId: user.id, isOwner: isAdmin(user.plan) };
+  if (mayUseDevUser({ databaseConfigured, hasRealIdentity: false })) {
+    return { userId: DEV_USER_ID, isOwner: true };
+  }
   throw new UnauthorizedError();
 }

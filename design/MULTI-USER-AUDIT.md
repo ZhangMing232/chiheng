@@ -14,7 +14,7 @@
 | 笔记 `data/notes/` | 每人一份 | ❌ 全局单文件，人人共享 | ✅ 已修（本轮） |
 | 研判报告 `data/reports/` | 每人一份 | ❌ 全局，人人可读可写 | ✅ 已修（R1） |
 | 知识库 `data/knowledge/` | 每人一份 | ❌ 全局，按股票覆盖 | ✅ 已修（R2） |
-| 预警收件箱 | 主人策略产物 | ❌ 人人可读 | ❌ 未修（见下） |
+| 预警收件箱 | 主人策略产物 | ❌ 人人可读 | ✅ 已修（R3，只对 admin 可见） |
 
 ## 本轮已修（自选 + 笔记）
 
@@ -33,33 +33,31 @@
 `OWNER_ID`/`safeUserId`，而是本地同值常量 + 同规则函数。原因：`notes-store.ts` 会进客户端
 bundle（见该文件头注释），不让 node:fs 链路有任何被客户端引到的机会。
 
-## 未修清单（按风险排序）
+## 修复记录（全部完成）
 
-> R1（报告）、R2（知识库）已修，见上表。以下两项仍在：
+> R1（报告）、R2（知识库）、R3（收件箱）、R4（admin 认定）均已修。
 
-### R3. 预警收件箱（读别人的推送，中）
+### R4 + R3 的做法（2026-10-21）
 
-- `alerts.functions.ts getAlerts` 返回全局收件箱。收件箱内容是主人策略信号经 PushPlus 的产物，
-  免费用户看到主人的实时策略信号 = 白嫖付费内容。
-- 修法：短期最省事——收件箱只对 `OWNER_ID`（或 plan === "admin"）可见，其他人返回空 +
-  一句说明；长期做 per-user 预警时再按用户拆。
+- verify.server.ts 新增 `requirePrincipal()`：一次解析给出
+  `{ userId, isOwner }`。isOwner = `plan === "admin"`（isAdmin 判定）；
+  唯一例外是没有真实库的 dev 回落（和 requireUserId 同一条路），
+  dev-user 天然是主人。getSessionUser 现在把 user.additionalFields.plan
+  一并返回（Better Auth 的 session.user 自带这个字段）。
+- quotes.functions.ts 的 19 处 `userId !== OWNER_ID` 门全部换成
+  `!isOwner`。**本机 dev 和线上真实账号同一套判定**：grant-plan.ts
+  给哪个账号授 admin，哪个账号就能改推送/AI 配置、跑 AI 闭环。
+- alerts.functions.ts getAlerts：非主人返回空。收件箱是主人策略的推送
+  产物，免费用户看了等于白嫖；未来做每用户预警时再改成数据级过滤。
+- 仍保留 `userId === "dev-user"` 的地方（正确，勿改）：
+  各存储的 LEGACY_OWNER_ID 迁移（数据文件归属）和
+  getChallengerSamples 读主人的账本（挑战者配置是全局文件）。
 
-### R4. 「主人」判定：真实数据库下 `OWNER_ID` 不认主（中，全局性）
+### 部署时注意事项（开真实数据库前过一遍）
 
-- 现在「主人」判定是 `userId === "dev-user"`。开了真实数据库（DATABASE_URL）后，
-  主人注册的 Better Auth id 是随机串，不是 dev-user——主人的推送/AI 配置全锁死，
-  反之如果把 dev-user 当公共 fallback 又会出大事（verify.server 已在没库时才允许 dev-user）。
-- 修法：把「主人」从用户 id 改成 **`plan === "admin"`**（plan.ts 已有 isAdmin）。
-  授予脚本（`scripts/grant-plan.ts`）给主人账号授 admin 即完成认定。
-  quotes.functions.ts 里所有 `userId !== OWNER_ID` 的判断都要换。
-
-## 依赖关系
-
-```
-R4（admin 认定）──→ R3（收件箱对主人可见）
-      │
-      └── 不阻塞 R1/R2（reports/knowledge 按 userId 拆，与谁是主人无关）
-```
-
-建议顺序：~~R1 → R2~~ ✅ → R4 → R3。R1/R2 是隐私线，必须先于任何形式的对外宣传；
-R4 是功能线（主人自己的配置），开真实库之前必须完成。
+- 本机数据（账本/报告/知识库/自选/笔记）都落在 `data/` 下以 dev-user
+  为键的文件里。线上你的账号是 Better Auth 随机 id + admin 档位：
+  **数据文件需要一次性改名/迁移到你的账号 id**，或给线上账号特殊处理
+  （比如 grant-plan 同时把数据目录 dev-user 改名成新 id）。
+- `scripts/grant-plan.ts` 目前只在 DATABASE_URL 形态可用（本机 PGLite
+  是内存库）——线上部署后第一个动作就是给自己的账号授 admin。
