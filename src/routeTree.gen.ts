@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AiRouteImport } from './routes/ai'
 import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as ButlerRouteImport } from './routes/butler'
@@ -66,6 +67,11 @@ import { Route as StrategiesScreenerRouteImport } from './routes/strategies/scre
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AiRoute = AiRouteImport.update({
@@ -331,6 +337,7 @@ const StrategiesScreenerRoute = StrategiesScreenerRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
@@ -386,6 +393,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -439,6 +447,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
@@ -496,6 +505,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/ai'
     | '/backtest'
     | '/butler'
@@ -551,6 +561,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/backtest'
     | '/butler'
     | '/calendar'
@@ -603,6 +614,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/ai'
     | '/backtest'
     | '/butler'
@@ -659,6 +671,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   AiRoute: typeof AiRouteWithChildren
   BacktestRoute: typeof BacktestRoute
   ButlerRoute: typeof ButlerRoute
@@ -700,6 +713,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ai': {
@@ -1146,6 +1166,7 @@ const StrategiesRouteWithChildren = StrategiesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   AiRoute: AiRouteWithChildren,
   BacktestRoute: BacktestRoute,
   ButlerRoute: ButlerRoute,

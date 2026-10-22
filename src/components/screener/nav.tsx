@@ -33,6 +33,7 @@ import {
   Settings,
   Sparkles,
   Star,
+  Users,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -99,7 +100,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/butler" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/butler" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/butler", label: "大管家", icon: Sparkles }, { to: "/desk", label: "合成台", icon: Workflow }] },
   {
@@ -135,6 +136,7 @@ const SIDEBAR: {
       { to: "/my-stocks", label: "自选与持仓", icon: Star },
       { to: "/inbox", label: "提醒", icon: Bell },
       { to: "/settings", label: "设置与状态", icon: Settings },
+      { to: "/admin", label: "管理系统", icon: Users },
     ],
   },
 ];
