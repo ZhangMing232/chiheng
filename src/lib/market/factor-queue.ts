@@ -466,6 +466,17 @@ export function fallbackCandidates(file: {
  * 全部失败抛最后一个错（ai-log 记账照旧）。
  */
 export async function callAIWithFallback(prompt: string, meta: AIMeta = {}): Promise<string> {
+  // DeepSeek HARNESS 优先：设置了 CHIHENG_DSH_URL 且桥接在线时走它（AI 大脑运行时层）。
+  // 连不上/报错原样回退下面的直连 fallback；不设该变量则完全不碰 DSH，零影响。
+  // 注：走 DSH 时 token 用量由 DSH 自己记账（不写 ai-usage.json），额度闸（按次）不受影响。
+  if (process.env.CHIHENG_DSH_URL) {
+    try {
+      const { callDSH } = await import("./chiheng-dsh-client.ts");
+      return await callDSH(prompt);
+    } catch {
+      // DSH 不可用 → 落到直连 fallback
+    }
+  }
   const { readProfiles } = await import("./ai-profiles.ts");
   const candidates = fallbackCandidates(await readProfiles());
   if (candidates.length === 0) throw new Error("AI 接口还没配置（/ai 页填 baseUrl / apiKey / model）");

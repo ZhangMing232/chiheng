@@ -22,3 +22,10 @@ __pycache__/
 
 # Vibe-Trading MCP server 源码（vendored，许可证随包）；venv 在 ~/.chiheng/vt-venv 不进库
 vendor/
+
+# DeepSeek HARNESS 运行时：真实凭据与 node_modules 不进库（node_modules 已由上方规则忽略）
+harness/home/.credentials.yaml
+harness/home/.anonymous-user-id
+harness/home/settings.yaml.imported
+harness/home/logs/
+harness/home/storages/

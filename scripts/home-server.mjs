@@ -83,6 +83,47 @@ const alertTimer = setInterval(runAlerts, 60_000);
 let stopping = false;
 let failures = 0;
 
+/**
+ * DeepSeek HARNESS 运行时（AI 大脑层，可选）。
+ * 只在 harness/node_modules/@deepseek-ai/dsh 已安装时启动；没装就跳过并提示，不影响主服务。
+ * DSH 起在 3080（CHIHENG_DSH_PORT 可覆盖），赤轨的 AI 闭环通过 CHIHENG_DSH_URL 走它（DSH 优先、直连兜底）。
+ */
+const DSH_BIN = join("harness", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
+const DSH_HOME = join(process.cwd(), "harness", "home");
+const dshPort = process.env.CHIHENG_DSH_PORT ?? "3080";
+const DSH_URL = `http://127.0.0.1:${dshPort}`;
+
+let dsh = null;
+let dshFailures = 0;
+
+function spawnDSH() {
+  if (!existsSync(DSH_BIN)) {
+    console.log(`[DSH] 未安装（在 harness/ 跑 npm install 后会自动拉起 AI 大脑）。现在跳过，赤轨回退直连。`);
+    return;
+  }
+  const startedAt = Date.now();
+  const child = spawn(process.execPath, [DSH_BIN, "web", "--port", dshPort, "--no-open"], {
+    stdio: "inherit",
+    env: { ...process.env, DSH_HOME },
+  });
+  dsh = child;
+  child.on("exit", (code, signal) => {
+    if (stopping) return;
+    if (Date.now() - startedAt < 60_000) {
+      dshFailures += 1;
+      if (dshFailures >= 3) {
+        console.error(`[DSH] 连续 ${dshFailures} 次起不来（${code != null ? `退出码 ${code}` : `信号 ${signal ?? "未知"}`}）。上面几行是原因。AI 大脑没起，赤轨回退直连。`);
+        return;
+      }
+    } else {
+      dshFailures = 0;
+    }
+    const wait = Math.min(60, 5 * Math.max(1, dshFailures));
+    console.log(`[DSH] 进程没了，${wait} 秒后重拉`);
+    setTimeout(spawnDSH, wait * 1000);
+  });
+}
+
 function clock() {
   return new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
 }
@@ -127,6 +168,7 @@ function spawnServer() {
         //    这里用 dirname(process.execPath) 推，不硬编码路径（换 node 版本也不会失效）。
         env: {
           ...process.env,
+          CHIHENG_DSH_URL: DSH_URL,
           PATH: [
             join(process.cwd(), "node_modules", ".bin"),
             dirname(process.execPath),
@@ -136,7 +178,7 @@ function spawnServer() {
       })
     : spawn(process.execPath, [entry], {
         stdio: "inherit",
-        env: { ...process.env, PORT: port, HOST: host, NITRO_PORT: port, NITRO_HOST: host },
+        env: { ...process.env, PORT: port, HOST: host, NITRO_PORT: port, NITRO_HOST: host, CHIHENG_DSH_URL: DSH_URL },
       });
   child.on("exit", (code, signal) => {
     if (stopping) return;
@@ -204,6 +246,7 @@ async function main() {
     process.exit(0);
   }
   server = spawnServer();
+  spawnDSH();
 }
 
 main();
@@ -215,6 +258,7 @@ function shutdown() {
   // 2026-10-05 下午 8787 打不开、日志却在刷「重新拉起」，就是这么来的。
   if (shuttingDown) {
     server.kill("SIGKILL");
+    if (dsh) dsh.kill("SIGKILL");
     process.exit(1);
   }
   shuttingDown = true;
@@ -232,6 +276,7 @@ function shutdown() {
     process.exit(0);
   });
   server.kill("SIGTERM");
+  if (dsh) dsh.kill("SIGTERM");
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
