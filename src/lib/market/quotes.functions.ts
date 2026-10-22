@@ -298,6 +298,25 @@ export const getBreadth = createServerFn({ method: "GET" }).handler(async () => 
   return { up, down, flat, limitUp, limitDown, total: universe.quotes.length, asOf: universe.asOf, source: universe.source };
 });
 
+/** 大管家问答。POST { q } → { ok, answer } 或 { ok:false, error }。 */
+export const askButler = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const q =
+      typeof data === "object" && data !== null && "q" in data && typeof (data as { q?: unknown }).q === "string"
+        ? (data as { q: string }).q.trim()
+        : "";
+    if (!q) throw new Error("问题不能为空");
+    return { q };
+  })
+  .handler(async ({ data }) => {
+    const { askButler } = await import("@/lib/market/butler");
+    try {
+      return { ok: true as const, answer: await askButler(data.q) };
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+
 /** 给页面用的指数行情。没有参数。 */
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
 

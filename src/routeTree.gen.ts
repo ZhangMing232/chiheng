@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiRouteImport } from './routes/ai'
 import { Route as BacktestRouteImport } from './routes/backtest'
+import { Route as ButlerRouteImport } from './routes/butler'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DebateRouteImport } from './routes/debate'
 import { Route as DeskRouteImport } from './routes/desk'
@@ -75,6 +76,11 @@ const AiRoute = AiRouteImport.update({
 const BacktestRoute = BacktestRouteImport.update({
   id: '/backtest',
   path: '/backtest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ButlerRoute = ButlerRouteImport.update({
+  id: '/butler',
+  path: '/butler',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -327,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
+  '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/desk': typeof DeskRoute
@@ -380,6 +387,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/backtest': typeof BacktestRoute
+  '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/desk': typeof DeskRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
+  '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/desk': typeof DeskRoute
@@ -489,6 +498,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai'
     | '/backtest'
+    | '/butler'
     | '/calendar'
     | '/debate'
     | '/desk'
@@ -542,6 +552,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/backtest'
+    | '/butler'
     | '/calendar'
     | '/debate'
     | '/desk'
@@ -594,6 +605,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai'
     | '/backtest'
+    | '/butler'
     | '/calendar'
     | '/debate'
     | '/desk'
@@ -649,6 +661,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiRoute: typeof AiRouteWithChildren
   BacktestRoute: typeof BacktestRoute
+  ButlerRoute: typeof ButlerRoute
   CalendarRoute: typeof CalendarRoute
   DebateRoute: typeof DebateRoute
   DeskRoute: typeof DeskRoute
@@ -701,6 +714,13 @@ declare module '@tanstack/react-router' {
       path: '/backtest'
       fullPath: '/backtest'
       preLoaderRoute: typeof BacktestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/butler': {
+      id: '/butler'
+      path: '/butler'
+      fullPath: '/butler'
+      preLoaderRoute: typeof ButlerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -1128,6 +1148,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiRoute: AiRouteWithChildren,
   BacktestRoute: BacktestRoute,
+  ButlerRoute: ButlerRoute,
   CalendarRoute: CalendarRoute,
   DebateRoute: DebateRoute,
   DeskRoute: DeskRoute,
