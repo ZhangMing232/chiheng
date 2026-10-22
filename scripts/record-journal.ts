@@ -28,6 +28,7 @@ import {
   judgeChallenger,
   readChallengers,
   readChampions,
+  tradingDaysSince,
   writeChallengers,
   writeChampions,
   type Challenger,
@@ -268,6 +269,7 @@ if (phase.date) {
       const decision = judgeChallenger(
         retsByBucket.get(`${chal.style}:champion`) ?? [],
         retsByBucket.get(`${chal.style}:${chal.id}`) ?? [],
+        tradingDaysSince(ownerBook.days, chal.since),
       );
       if (decision.action === "none") continue;
       chalChanged = true;

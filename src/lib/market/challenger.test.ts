@@ -74,3 +74,39 @@ test("bucketReturns：按 style:variant 分桶，未平仓/不可信天/无风�
   assert.equal((buckets.get("rebound:champion") ?? []).length, 1);
   assert.equal(buckets.has("rebound:c_b"), false);
 });
+
+// ── 提前否决（DECISIONS #1）：建仓满 15 个交易日后跑输冠军 5pp 即淘汰 ───
+
+test("提前否决：满 15 天且纸面跑输冠军超 5pp → 淘汰（即使样本不满 30 笔）", () => {
+  const champ = makeRets(30, 0.01, 0.01); // 冠军均值 +1%
+  const chal = makeRets(3, -0.06, 0.001); // 挑战者均值 −6%，差 −7pp
+  const d = judgeChallenger(champ, chal, 15);
+  assert.equal(d.action, "reject");
+  assert.match(d.reason, /提前否决/);
+});
+
+test("提前否决：满 15 天但跑输不足 5pp → 不提前淘汰", () => {
+  const champ = makeRets(30, 0.01, 0.01);
+  const chal = makeRets(3, -0.02, 0.001); // 差 −3pp，不到 5pp
+  const d = judgeChallenger(champ, chal, 15);
+  assert.equal(d.action, "none");
+});
+
+test("提前否决：没满 15 天 → 不触发", () => {
+  const champ = makeRets(30, 0.01, 0.01);
+  const chal = makeRets(3, -0.06, 0.001); // 差 −7pp，但只跑了 10 天
+  const d = judgeChallenger(champ, chal, 10);
+  assert.equal(d.action, "none");
+});
+
+test("tradingDaysSince：数 since 及之后的去重交易日", async () => {
+  const { tradingDaysSince } = await import("@/lib/market/challenger");
+  const days = [
+    { date: "2026-10-08" },
+    { date: "2026-10-09" },
+    { date: "2026-10-09" }, // 重复
+    { date: "2026-10-10" },
+  ];
+  assert.equal(tradingDaysSince(days, "2026-10-09"), 2); // 10-09、10-10
+  assert.equal(tradingDaysSince(days, "2026-10-11"), 0); // 之后没有
+});

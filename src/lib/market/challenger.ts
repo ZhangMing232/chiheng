@@ -29,6 +29,13 @@ export const CHALLENGER_RULE = {
   rejectT: -2,
   /** 跑满这么多笔还分不出胜负 →  inconclusive 停跑，不再占用样本。 */
   maxTrades: 200,
+  /**
+   * 提前否决（DECISIONS #1 已拍板，只动淘汰侧不松转正门槛）：
+   * 建仓满这么多个交易日后，纸面均值跑输冠军超过 earlyRejectGap 即淘汰——
+   * 给攒不满 30 笔的僵尸挑战者一个时间盒，把名额让给新提名。
+   */
+  earlyRejectDays: 15,
+  earlyRejectGap: 0.05,
 } as const;
 
 export type Challenger = {
@@ -113,6 +120,15 @@ export function welchT(a: number[], b: number[]): number | null {
 
 const meanOf = (xs: number[]) => xs.reduce((sum, x) => sum + x, 0) / xs.length;
 
+/** 从账本日数组里数「since 及之后」的交易日个数（去重）。ISO 日期字符串直接比大小。 */
+export function tradingDaysSince(days: { date?: string }[], since: string): number {
+  const set = new Set<string>();
+  for (const d of days) {
+    if (d.date && d.date >= since) set.add(d.date);
+  }
+  return set.size;
+}
+
 /**
  * 从账本日数据按 `style:variant` 分桶已平仓净收益。判决（record-journal）和
  * UI 上的「样本 x/30」进度共用这一个口径——两边各写一遍分桶逻辑，数字就会
@@ -149,7 +165,18 @@ export type ChallengerDecision =
  * 判决一个挑战者。champ = 冠军同期逐笔净收益，chal = 挑战者逐笔净收益，
  * 都要按平仓日排好序、只数信号日可信的天（调用方负责过滤）。
  */
-export function judgeChallenger(champ: number[], chal: number[]): ChallengerDecision {
+export function judgeChallenger(champ: number[], chal: number[], tradingDays = 0): ChallengerDecision {
+  // 提前否决（DECISIONS #1 已拍板）：建仓满 15 个交易日后，纸面均值跑输冠军超过 5pp 即淘汰。
+  // 只动淘汰侧、不松转正门槛；样本至少 2 笔才做均值比较，免得单笔噪声误杀。
+  if (tradingDays >= CHALLENGER_RULE.earlyRejectDays && chal.length >= 2 && champ.length >= 1) {
+    const gap = meanOf(chal) - meanOf(champ);
+    if (gap < -CHALLENGER_RULE.earlyRejectGap) {
+      return {
+        action: "reject",
+        reason: `提前否决：建仓满 ${tradingDays} 个交易日后纸面均值 ${(meanOf(chal) * 100).toFixed(2)}% 跑输冠军 ${(meanOf(champ) * 100).toFixed(2)}%（差 ${(gap * 100).toFixed(1)}pp，超过 ${CHALLENGER_RULE.earlyRejectGap * 100}pp），淘汰`,
+      };
+    }
+  }
   if (chal.length < CHALLENGER_RULE.minTrades || champ.length < CHALLENGER_RULE.minTrades) {
     return { action: "none", reason: "" };
   }
