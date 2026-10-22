@@ -4,3 +4,9 @@
 - insert:
     - id: chiheng-bridge
       name: ./plugins/chiheng-bridge.js
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+    reasoningEffort: max
