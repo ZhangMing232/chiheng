@@ -277,6 +277,27 @@ export const getUniverse = createServerFn({ method: "GET" })
   .validator(readRefresh)
   .handler(async ({ data }) => loadUniverse(data.refresh));
 
+/** 全市场涨跌分布（总览页用）。只回计数，不把几千只票塞给客户端（避免 SSR HTML 膨胀）。 */
+export const getBreadth = createServerFn({ method: "GET" }).handler(async () => {
+  const { limitTag } = await import("@/lib/market/model");
+  const universe = await loadUniverse(false);
+  let up = 0;
+  let down = 0;
+  let flat = 0;
+  let limitUp = 0;
+  let limitDown = 0;
+  for (const q of universe.quotes) {
+    const chg = q.chg ?? 0;
+    if (chg > 0) up += 1;
+    else if (chg < 0) down += 1;
+    else flat += 1;
+    const tag = limitTag(q);
+    if (tag === "涨停") limitUp += 1;
+    else if (tag === "跌停") limitDown += 1;
+  }
+  return { up, down, flat, limitUp, limitDown, total: universe.quotes.length, asOf: universe.asOf, source: universe.source };
+});
+
 /** 给页面用的指数行情。没有参数。 */
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
 

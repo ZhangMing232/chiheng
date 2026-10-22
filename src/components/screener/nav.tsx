@@ -18,6 +18,7 @@ import {
   FileSearch,
   FileText,
   FlaskConical,
+  Gauge,
   Globe,
   History,
   LayoutDashboard,
@@ -98,12 +99,13 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/desk", label: "合成台", icon: Workflow }] },
   {
     label: "市场",
     items: [
+      { to: "/overview", label: "股市总览", icon: Gauge },
       { to: "/review", label: "每日复盘", icon: History },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
