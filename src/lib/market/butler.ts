@@ -11,7 +11,10 @@
 
 import { loadIndices, loadUniverse } from "./quotes.functions.ts";
 import { OWNER_ID, readUserBook } from "./book-file.ts";
-import { readChallengers } from "./challenger.ts";
+import { readChallengers, readChampions } from "./challenger.ts";
+import { readQueue } from "./factor-queue.ts";
+import { readAgentDiagnosis } from "./agent-loop.ts";
+import { readWatchlist } from "./watchlist.ts";
 import { callDSH } from "./chiheng-dsh-client.ts";
 
 /** 大管家的系统提示：中文、简洁、只基于给定状态、不编数、不给投资建议。 */
@@ -77,6 +80,34 @@ export async function buildButlerContext(): Promise<string> {
     }
   } catch {
     /* 挑战者读不到就跳过 */
+  }
+  try {
+    const champions = await readChampions();
+    const keys = Object.keys(champions);
+    if (keys.length) {
+      lines.push("【冠军参数】" + keys.map((k) => `${k}=${champions[k]}`).join("，"));
+    }
+  } catch {
+    /* 冠军读不到就跳过 */
+  }
+  try {
+    const queue = await readQueue();
+    const n = queue.entries?.length ?? 0;
+    lines.push(`【因子队列】${n} 个待验/在测因子${queue.missing ? `（读不到：${queue.missing}）` : ""}`);
+  } catch {
+    /* 因子队列读不到就跳过 */
+  }
+  try {
+    const diag = await readAgentDiagnosis();
+    if (diag?.summary) lines.push(`【最新诊断】${diag.summary}`);
+  } catch {
+    /* 诊断读不到就跳过 */
+  }
+  try {
+    const watch = await readWatchlist(OWNER_ID);
+    lines.push(`【自选】${watch.items?.length ?? 0} 只`);
+  } catch {
+    /* 自选读不到就跳过 */
   }
   return lines.join("\n") || "（暂无项目状态数据）";
 }
