@@ -44,7 +44,7 @@ export type GateRecord = {
 export type GatesFile = Record<string, GateRecord>;
 
 export function gatesPath(): string {
-  return join(process.cwd(), "data", "strategy-gates.json");
+  return join(process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data"), "strategy-gates.json");
 }
 
 export async function readStrategyGates(): Promise<GatesFile> {
@@ -58,7 +58,7 @@ export async function readStrategyGates(): Promise<GatesFile> {
 }
 
 export async function writeStrategyGates(gates: GatesFile) {
-  await mkdir(join(process.cwd(), "data"), { recursive: true });
+  await mkdir(process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data"), { recursive: true });
   await writeFile(gatesPath(), JSON.stringify(gates, null, 2));
 }
 

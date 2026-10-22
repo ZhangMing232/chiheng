@@ -52,7 +52,7 @@ export type ChallengersFile = { list: Challenger[] };
 /** 每套策略当前生效的参数版本。"champion" = 代码里的默认参数。 */
 export type ChampionsFile = Record<string, string>;
 
-const dataDir = () => join(process.cwd(), "data");
+const dataDir = () => process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
 export const challengersPath = () => join(dataDir(), "challengers.json");
 export const championsPath = () => join(dataDir(), "champions.json");
 export const championLogPath = () => join(dataDir(), "champion-log.jsonl");

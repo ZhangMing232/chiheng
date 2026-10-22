@@ -642,7 +642,10 @@ export const saveRules = createServerFn({ method: "POST" })
   .handler(async ({ data }) => writeRules(data));
 
 /** 读页面偏好（策略、板块、价位、市值）。读不到就用默认。 */
-export const getPrefs = createServerFn({ method: "GET" }).handler(async () => readPrefs());
+export const getPrefs = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  return readPrefs(await requireUserId());
+});
 
 /** 保存页面偏好。填不对会报错。 */
 export const savePrefs = createServerFn({ method: "POST" })
@@ -651,7 +654,10 @@ export const savePrefs = createServerFn({ method: "POST" })
     if (!parsed) throw new Error("偏好没填对");
     return parsed;
   })
-  .handler(async ({ data }) => writePrefs(data));
+  .handler(async ({ data }) => {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    return writePrefs(await requireUserId(), data);
+  });
 
 // ── 预警微信推送（PushPlus）配置 ─────────────────────────────
 // 推送只在记账进程为主人账号发声时触发，所以配置也只许主人动。

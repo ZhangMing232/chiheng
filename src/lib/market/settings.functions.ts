@@ -65,7 +65,8 @@ async function configRows(): Promise<ConfigRow[]> {
   }
   // 偏好
   try {
-    const prefs = await readPrefs();
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const prefs = await readPrefs(await requireUserId());
     const keys = Object.entries(prefs)
       .slice(0, 6)
       .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join("/") : String(v)}`)
