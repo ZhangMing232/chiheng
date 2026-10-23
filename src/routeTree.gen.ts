@@ -52,11 +52,9 @@ import { Route as FlowFuturesRouteImport } from './routes/flow/futures'
 import { Route as FlowHotRouteImport } from './routes/flow/hot'
 import { Route as FlowIndustriesRouteImport } from './routes/flow/industries'
 import { Route as FlowMarginRouteImport } from './routes/flow/margin'
-import { Route as FlowMarketRouteImport } from './routes/flow/market'
 import { Route as FlowNorthRouteImport } from './routes/flow/north'
 import { Route as FlowSectorsRouteImport } from './routes/flow/sectors'
 import { Route as FlowStocksRouteImport } from './routes/flow/stocks'
-import { Route as FlowTrendRouteImport } from './routes/flow/trend'
 import { Route as ReviewIndexRouteImport } from './routes/review/index'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
@@ -278,11 +276,6 @@ const FlowMarginRoute = FlowMarginRouteImport.update({
   path: '/margin',
   getParentRoute: () => FlowRoute,
 } as any)
-const FlowMarketRoute = FlowMarketRouteImport.update({
-  id: '/market',
-  path: '/market',
-  getParentRoute: () => FlowRoute,
-} as any)
 const FlowNorthRoute = FlowNorthRouteImport.update({
   id: '/north',
   path: '/north',
@@ -296,11 +289,6 @@ const FlowSectorsRoute = FlowSectorsRouteImport.update({
 const FlowStocksRoute = FlowStocksRouteImport.update({
   id: '/stocks',
   path: '/stocks',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowTrendRoute = FlowTrendRouteImport.update({
-  id: '/trend',
-  path: '/trend',
   getParentRoute: () => FlowRoute,
 } as any)
 const ReviewIndexRoute = ReviewIndexRouteImport.update({
@@ -370,11 +358,9 @@ export interface FileRoutesByFullPath {
   '/flow/hot': typeof FlowHotRoute
   '/flow/industries': typeof FlowIndustriesRoute
   '/flow/margin': typeof FlowMarginRoute
-  '/flow/market': typeof FlowMarketRoute
   '/flow/north': typeof FlowNorthRoute
   '/flow/sectors': typeof FlowSectorsRoute
   '/flow/stocks': typeof FlowStocksRoute
-  '/flow/trend': typeof FlowTrendRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
@@ -422,11 +408,9 @@ export interface FileRoutesByTo {
   '/flow/hot': typeof FlowHotRoute
   '/flow/industries': typeof FlowIndustriesRoute
   '/flow/margin': typeof FlowMarginRoute
-  '/flow/market': typeof FlowMarketRoute
   '/flow/north': typeof FlowNorthRoute
   '/flow/sectors': typeof FlowSectorsRoute
   '/flow/stocks': typeof FlowStocksRoute
-  '/flow/trend': typeof FlowTrendRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
@@ -478,11 +462,9 @@ export interface FileRoutesById {
   '/flow/hot': typeof FlowHotRoute
   '/flow/industries': typeof FlowIndustriesRoute
   '/flow/margin': typeof FlowMarginRoute
-  '/flow/market': typeof FlowMarketRoute
   '/flow/north': typeof FlowNorthRoute
   '/flow/sectors': typeof FlowSectorsRoute
   '/flow/stocks': typeof FlowStocksRoute
-  '/flow/trend': typeof FlowTrendRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
@@ -535,11 +517,9 @@ export interface FileRouteTypes {
     | '/flow/hot'
     | '/flow/industries'
     | '/flow/margin'
-    | '/flow/market'
     | '/flow/north'
     | '/flow/sectors'
     | '/flow/stocks'
-    | '/flow/trend'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
@@ -587,11 +567,9 @@ export interface FileRouteTypes {
     | '/flow/hot'
     | '/flow/industries'
     | '/flow/margin'
-    | '/flow/market'
     | '/flow/north'
     | '/flow/sectors'
     | '/flow/stocks'
-    | '/flow/trend'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
@@ -642,11 +620,9 @@ export interface FileRouteTypes {
     | '/flow/hot'
     | '/flow/industries'
     | '/flow/margin'
-    | '/flow/market'
     | '/flow/north'
     | '/flow/sectors'
     | '/flow/stocks'
-    | '/flow/trend'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
@@ -996,13 +972,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FlowMarginRouteImport
       parentRoute: typeof FlowRoute
     }
-    '/flow/market': {
-      id: '/flow/market'
-      path: '/market'
-      fullPath: '/flow/market'
-      preLoaderRoute: typeof FlowMarketRouteImport
-      parentRoute: typeof FlowRoute
-    }
     '/flow/north': {
       id: '/flow/north'
       path: '/north'
@@ -1022,13 +991,6 @@ declare module '@tanstack/react-router' {
       path: '/stocks'
       fullPath: '/flow/stocks'
       preLoaderRoute: typeof FlowStocksRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/trend': {
-      id: '/flow/trend'
-      path: '/trend'
-      fullPath: '/flow/trend'
-      preLoaderRoute: typeof FlowTrendRouteImport
       parentRoute: typeof FlowRoute
     }
     '/review/': {
@@ -1091,11 +1053,9 @@ interface FlowRouteChildren {
   FlowHotRoute: typeof FlowHotRoute
   FlowIndustriesRoute: typeof FlowIndustriesRoute
   FlowMarginRoute: typeof FlowMarginRoute
-  FlowMarketRoute: typeof FlowMarketRoute
   FlowNorthRoute: typeof FlowNorthRoute
   FlowSectorsRoute: typeof FlowSectorsRoute
   FlowStocksRoute: typeof FlowStocksRoute
-  FlowTrendRoute: typeof FlowTrendRoute
   FlowIndexRoute: typeof FlowIndexRoute
 }
 
@@ -1105,11 +1065,9 @@ const FlowRouteChildren: FlowRouteChildren = {
   FlowHotRoute: FlowHotRoute,
   FlowIndustriesRoute: FlowIndustriesRoute,
   FlowMarginRoute: FlowMarginRoute,
-  FlowMarketRoute: FlowMarketRoute,
   FlowNorthRoute: FlowNorthRoute,
   FlowSectorsRoute: FlowSectorsRoute,
   FlowStocksRoute: FlowStocksRoute,
-  FlowTrendRoute: FlowTrendRoute,
   FlowIndexRoute: FlowIndexRoute,
 }
 

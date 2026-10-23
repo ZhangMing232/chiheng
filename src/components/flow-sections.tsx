@@ -35,8 +35,6 @@ export function FlowSectionTabs() {
       ariaLabel="资金流向"
       tabs={[
         { to: "/flow/", label: "概览" },
-        { to: "/flow/trend", label: "走势" },
-        { to: "/flow/market", label: "大盘资金" },
         { to: "/flow/north", label: "北向" },
         { to: "/flow/industries", label: "行业" },
         { to: "/flow/sectors", label: "板块" },
