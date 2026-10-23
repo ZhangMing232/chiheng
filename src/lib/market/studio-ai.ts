@@ -107,7 +107,10 @@ export function buildVersusBrief(book: FlowBook, kind: VersusKind): VersusBrief 
 
   const dataBlock = [`【今日日期】${dateLine}`, ...lines].join("\n");
   const disclaimer = "数据不构成投资建议";
-  facts.push(dateLine, disclaimer);
+  // 日期校验只钉死「M月D日」核心——星期几是装饰，AI 写成「10月23日 星期五」
+  // 或换个位置都会被整行校验误杀（真踩过：连续两轮只差个星期几，整图被毙）。
+  const dateCore = /(\d{1,2}月\d{1,2}日)/.exec(dateLine)?.[1] ?? dateLine;
+  facts.push(dateCore, disclaimer);
 
   const prompt = [
     "你是一位顶尖财经自媒体视觉设计师。请设计一张竖版对比海报的 SVG 代码。",
@@ -124,7 +127,7 @@ export function buildVersusBrief(book: FlowBook, kind: VersusKind): VersusBrief 
     "5. 只使用 SVG 标准元素（rect/circle/text/path/line/linearGradient/radialGradient/filter 基础模糊），不要用脚本、不要外链图片/字体。",
     "6. 内容饱满铁律：有效内容必须纵向占满画幅 88% 以上，禁止出现「下半幅大片留白」「内容挤在上 1/3」——图要丰富、有层次、有呼吸节奏。",
     "7. 要有设计感：对比布局、清晰的视觉层次（标题区/对比区/补充区/落款区）、装饰元素（几何图形/分割线/徽章/淡纹理背景），拒绝平庸的表格感。",
-    `8. 底部必须有一行小字「${disclaimer} · 赤轨」。`,
+    "8. 品牌露出铁律（这图是「赤轨」做的，必须让人看见）：画面角落必须有一个醒目的品牌徽章——图形标 + 「赤轨」字标（可做成印章/徽章/水印样式，但不能小到看不清），底部另起一行小字「数据不构成投资建议 · 赤轨」。",
   ].join("\n");
 
   return { prompt, facts, dateLine };
@@ -141,9 +144,12 @@ export function validatePosterSVG(svg: string, facts: readonly string[]): Poster
   for (const bad of ["NaN", "undefined", "null"]) {
     if (svg.includes(bad)) issues.push(`含非法占位「${bad}」`);
   }
-  // 免责声明在 facts 里（最后两条），单独查一遍让报错信息更明确
+  // 免责声明在 facts 里（最后一条），单独查一遍让报错信息更明确
   const disclaimer = facts[facts.length - 1];
   if (disclaimer && !svg.includes(disclaimer)) missing.push(disclaimer);
+  // 品牌露出是硬需求（「别人怎么知道是赤轨做的」）：赤轨字标必须出现。
+  // 免责声明里虽含「赤轨」，但这里单独查，防止以后改免责语文案时把品牌校验一起丢掉。
+  if (!svg.includes("赤轨")) issues.push("缺品牌标识「赤轨」");
   for (const fact of facts.slice(0, -1)) {
     if (!svg.includes(fact)) missing.push(fact);
   }

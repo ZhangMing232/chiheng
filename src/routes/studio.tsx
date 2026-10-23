@@ -10,7 +10,7 @@
  * - 「我的观点」是可选项：AI 把它自然融进文案，不原话照搬、不盖过数据。
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
@@ -62,6 +62,18 @@ function StudioPage() {
   const [copied, setCopied] = useState(false);
   const [renderPath, setRenderPath] = useState<"svg" | "canvas" | null>(null);
   const [renderNote, setRenderNote] = useState("");
+  const [stage, setStage] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // 秒表：busy 期间每秒跳一次，让用户看到「它还在跑」而不是死等
+  useEffect(() => {
+    if (!busy) {
+      setElapsed(0);
+      return;
+    }
+    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [busy]);
 
   const g = genreOf(genre);
   const studioData: StudioData = {
@@ -78,34 +90,49 @@ function StudioPage() {
     setBusy(true);
     setError(null);
     setCopied(false);
+    setRenderNote("");
     try {
+      const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
+      const isVersus = topic === "stockVersus" || topic === "sectorVersus";
+
+      // **并行抢跑**：versus 题材的海报（AI 设计）和文案是两个独立请求，同时发出去。
+      // 原来串行等（文案跑完才发海报）会把总时间拉成两者之和——AI 写 SVG 本身就要
+      // 1–2 分钟，海报先开工，等文案回来时海报通常已经画完了。
+      const posterPromise = isVersus
+        ? fetch("/api/studio/ai-poster", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ kind: topic === "sectorVersus" ? "sector" : "stock", format }),
+          })
+            .then(
+              (r) =>
+                r.json() as Promise<
+                  | { ok: true; dataUrl: string; attempts: number; ms: number }
+                  | { ok: false; error: string }
+                >,
+            )
+            .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }))
+        : null;
+      setStage(
+        isVersus
+          ? "海报：AI 设计师排版中（真实数据已注入，通常 1–2 分钟）· 文案：同步撰写中"
+          : "海报模板渲染中 · 文案撰写中",
+      );
+
       const res = await generateStudioCaption({ data: { genre, topic, platform, extra } });
       const caption = res.ok ? res.text : "";
       if (!res.ok) setError(res.error);
 
       const spec = buildStudioSpec(genre, topic, studioData, { topN, newsIndex });
       const title = caption ? titleFromCaption(caption, defaultTitle(topic)) : defaultTitle(topic);
-      const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
       const withTitle = { ...spec, title };
 
       // **资金流向对比体裁：AI 设计优先**。数字和事实走模板逐字注入，审美/排版交给
-      // 模型写 SVG；服务端先校验（真实数字、免责声明、NaN）再渲染，不过会自动重画。
+      // 模型写 SVG；服务端先校验（真实数字、免责声明、品牌标识、NaN）再渲染，不过自动重画。
       // AI 不可用（非主人账号 / 接口失败）时安静回退到下面的模板路径。
-      const isVersus = topic === "stockVersus" || topic === "sectorVersus";
-      if (isVersus) {
-        const ai = await fetch("/api/studio/ai-poster", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ kind: topic === "sectorVersus" ? "sector" : "stock", format }),
-        })
-          .then(
-            (r) =>
-              r.json() as Promise<
-                | { ok: true; dataUrl: string; attempts: number; ms: number }
-                | { ok: false; error: string }
-              >,
-          )
-          .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+      if (posterPromise) {
+        if (!caption) setStage("文案没出（看上方报错），等海报收尾…");
+        const ai = await posterPromise;
         if (ai.ok) {
           if (imageUrl) URL.revokeObjectURL(imageUrl);
           setImageUrl(ai.dataUrl);
@@ -113,7 +140,7 @@ function StudioPage() {
             `赤轨-资金流向对比-${new Date().toISOString().slice(0, 10)}-${platform === "douyin" ? "抖音" : "公众号"}.png`,
           );
           setRenderPath("svg");
-          setRenderNote(`AI 设计 · ${ai.attempts} 次尝试 · ${Math.round(ai.ms / 1000)}s · 数字已逐字校验`);
+          setRenderNote(`AI 设计 · ${ai.attempts} 次尝试 · ${Math.round(ai.ms / 1000)}s · 数字已逐字校验 · 带赤轨品牌标`);
           if (caption) setText(caption);
           return;
         }
@@ -157,6 +184,7 @@ function StudioPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      setStage(null);
       setBusy(false);
     }
   }
@@ -262,7 +290,7 @@ function StudioPage() {
             </button>
           ))}
           <span className="text-[11px] text-muted">
-            数据图必须模板渲染——AI 画的数字是编的；AI 只适合封面氛围图
+            资金流向题材：AI 设计排版 + 真实数据逐字注入（服务端校验数字）· 其他题材：模板渲染（AI 画的数字不可信）
           </span>
         </div>
 
@@ -295,9 +323,19 @@ function StudioPage() {
               disabled={busy}
               className="rounded-full border border-line bg-surface px-3 py-2 text-sm disabled:opacity-40"
             >
-              {busy ? "正在生成图+文…" : "生成图 + 文"}
+              {busy ? "生成中，别关页面…" : "生成图 + 文"}
             </button>
           </div>
+
+          {/* 进度可见：阶段 + 秒表。AI 设计 1–2 分钟是正常的，但不能让用户对着
+              一个静止按钮死等——每秒跳的秒表就是「它还在跑」的证据。 */}
+          {busy ? (
+            <div className="flex items-center gap-2 rounded border border-line bg-surface px-3 py-2">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+              <span className="text-xs text-fg">{stage ?? "处理中…"}</span>
+              <span className="ml-auto text-xs tabular-nums text-muted">{elapsed}s</span>
+            </div>
+          ) : null}
 
           {error ? <p className="text-sm text-up">{error}</p> : null}
           {renderNote ? <p className="text-xs text-warn">{renderNote}</p> : null}

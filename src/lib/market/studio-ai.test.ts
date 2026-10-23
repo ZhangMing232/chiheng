@@ -45,7 +45,8 @@ test("buildVersusBrief：数据块含双边榜单/板块/两市/北向，facts �
   assert.match(brief.prompt, /板块流入 CPO 80.0亿（领涨 中际旭创）/);
   assert.match(brief.prompt, /沪股通成交 900.0亿/);
   assert.match(brief.prompt, /内容必须纵向占满画幅 88%/);
-  for (const fact of ["中际旭创", "16.2亿", "交通银行", "5.7亿", "数据不构成投资建议", brief.dateLine]) {
+  const dateCore = /(\d{1,2}月\d{1,2}日)/.exec(brief.dateLine)?.[1] ?? brief.dateLine;
+  for (const fact of ["中际旭创", "16.2亿", "交通银行", "5.7亿", "数据不构成投资建议", dateCore]) {
     assert.ok(brief.facts.includes(fact), `facts 缺 ${fact}`);
   }
   // 涨跌幅有值的在 facts 里（校验要逐字查，带符号 +3.82%），null 的不在
@@ -88,4 +89,13 @@ test("validatePosterSVG：AI 改了数字（缺字）→ 逮住", () => {
   const notSvg = validatePosterSVG("抱歉我无法输出", ["数据不构成投资建议"]);
   assert.equal(notSvg.ok, false);
   assert.ok(notSvg.issues.some((i) => i.includes("完整 SVG")));
+});
+
+test("validatePosterSVG：缺「赤轨」品牌标识 → 逮住（别人得知道这是赤轨做的）", () => {
+  const noBrand = validatePosterSVG(
+    `<svg><text>中际旭创 16.2亿 数据不构成投资建议</text></svg>`,
+    ["中际旭创", "16.2亿", "数据不构成投资建议"],
+  );
+  assert.equal(noBrand.ok, false);
+  assert.ok(noBrand.issues.some((i) => i.includes("赤轨")));
 });
