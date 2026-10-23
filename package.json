@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node scripts/with-app-env.mjs vite dev --host 0.0.0.0 --port 8080",
     "build": "node scripts/with-app-env.mjs vite build && npm run db:migrate",
-    "build:mac": "node scripts/check-rolldown-binding.mjs && NITRO_PRESET=node-server node scripts/with-app-env.mjs vite build && npm run db:migrate && node scripts/copy-pglite-assets.mjs && node scripts/after-build.mjs",
+    "build:mac": "node scripts/check-rolldown-binding.mjs && NITRO_PRESET=node-server node scripts/with-app-env.mjs vite build && npm run db:migrate && node scripts/copy-pglite-assets.mjs && node scripts/after-build.mjs && npm run check:client",
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "node scripts/with-app-env.mjs vite build --mode development",
     "preview": "node scripts/with-app-env.mjs vite preview",
@@ -39,7 +39,8 @@
     "watch:open": "node --experimental-strip-types --import ./scripts/alias.mjs scripts/preflight.ts --watch",
     "build:note": "node scripts/after-build.mjs",
     "test:py": "python3 scripts/fetch-tdx-package.test.py && python3 scripts/fetch-social-financing.test.py",
-    "serve:dev": "node scripts/home-server.mjs --dev"
+    "serve:dev": "node scripts/home-server.mjs --dev",
+    "check:client": "node scripts/check-client-bundle.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
