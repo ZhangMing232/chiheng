@@ -11,25 +11,34 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-/** 读 PushPlus token；没配返回 null。导出给调用方用——它们想区分「推了」和「没 token 静默跳过」。 */
-export async function readPushToken(): Promise<string | null> {
+export type PushConfig = { token: string | null; baseUrl: string | null };
+
+/** 读 PushPlus 配置；token/baseUrl 没配返回 null。导出给调用方用——它们想区分「推了」和「没 token 静默跳过」。 */
+export async function readPushConfig(): Promise<PushConfig> {
   try {
     const parsed = JSON.parse(await readFile(join(process.cwd(), "data", "push-config.json"), "utf8"));
-    return typeof parsed.token === "string" && parsed.token.trim() ? parsed.token.trim() : null;
+    const token = typeof parsed.token === "string" && parsed.token.trim() ? parsed.token.trim() : null;
+    const baseUrl = typeof parsed.baseUrl === "string" && parsed.baseUrl.trim() ? parsed.baseUrl.trim().replace(/\/$/, "") : null;
+    return { token, baseUrl };
   } catch {
-    return null;
+    return { token: null, baseUrl: null };
   }
 }
 
-/** 发一条 PushPlus 消息。title 是微信里看到的标题，content 支持换行。 */
-export async function sendPushPlus(title: string, content: string) {
+/** 读 PushPlus token；没配返回 null。 */
+export async function readPushToken(): Promise<string | null> {
+  return (await readPushConfig()).token;
+}
+
+/** 发一条 PushPlus 消息。title 是微信里看到的标题，content 支持换行；template=markdown 可嵌图片。 */
+export async function sendPushPlus(title: string, content: string, template: "txt" | "markdown" = "txt") {
   const token = await readPushToken();
   if (!token) return;
   try {
     const res = await fetch("http://www.pushplus.plus/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, title, content, template: "txt" }),
+      body: JSON.stringify({ token, title, content, template }),
       signal: AbortSignal.timeout(8_000),
     });
     const data = (await res.json().catch(() => null)) as { code?: number; msg?: string } | null;

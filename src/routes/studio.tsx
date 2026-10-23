@@ -74,6 +74,9 @@ function StudioPage() {
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  // 推到手机（PushPlus）：图文生成完一键推到主人微信
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushNote, setPushNote] = useState("");
 
   // 秒表：busy 期间每秒跳一次，让用户看到「它还在跑」而不是死等
   useEffect(() => {
@@ -264,6 +267,29 @@ function StudioPage() {
       setChat((c) => [...c, { role: "assistant", content: `（网络没通：${e instanceof Error ? e.message : String(e)}）` }]);
     } finally {
       setChatBusy(false);
+    }
+  }
+
+  async function pushToPhone() {
+    if (pushBusy) return;
+    setPushBusy(true);
+    setPushNote("");
+    try {
+      const r = await fetch("/api/studio/push", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: `赤轨图文 · ${defaultTitle(topic)}`,
+          text,
+          // canvas 回退路径是 blob: 对象 URL，传不了——只有 dataURL（服务端渲染/AI 设计）能推图
+          imageDataUrl: imageUrl?.startsWith("data:image") ? imageUrl : undefined,
+        }),
+      }).then((res) => res.json() as Promise<{ ok: true } | { ok: false; error: string }>);
+      setPushNote(r.ok ? "已推送到微信，去手机看 ✓" : r.error);
+    } catch (e) {
+      setPushNote(`推送失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPushBusy(false);
     }
   }
 
@@ -532,13 +558,28 @@ function StudioPage() {
           {text ? (
             <>
               <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} className="w-full rounded border border-line bg-transparent px-3 py-2 text-[13px] leading-relaxed text-fg" />
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button type="button" onClick={copy} className="rounded-full border border-line bg-surface px-3 py-2 text-sm">
                   {copied ? "已复制 ✓" : "复制文案"}
                 </button>
                 <span className="text-xs text-muted">文案可先改再复制，直接粘贴到抖音/公众号。</span>
               </div>
             </>
+          ) : null}
+
+          {/* 推到手机：图文任一存在就能推（只出图也能推图，只出文也能推文） */}
+          {imageUrl || text ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void pushToPhone()}
+                disabled={pushBusy}
+                className="rounded-full border border-line bg-surface px-3 py-2 text-sm disabled:opacity-40"
+              >
+                {pushBusy ? "推送中…" : "推到手机（微信）"}
+              </button>
+              <span className="text-xs text-muted">{pushNote || "推送到你绑定 PushPlus 的微信，手机上直接看图发文。"}</span>
+            </div>
           ) : null}
         </div>
       </Panel>
