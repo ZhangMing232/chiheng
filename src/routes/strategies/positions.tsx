@@ -147,7 +147,7 @@ function TradeTable({
   // 和选股页结果表同一套右键菜单：看个股 / 看资金流向 / 复制代码。
   const menuFor = (row: PositionRow): RowMenuItem[] => [
     { label: "看个股", onClick: () => openSymbol(row.id, "positions") },
-    { label: "看资金流向", onClick: () => void navigate({ to: "/flow/stocks" }) },
+    { label: "看资金流向", onClick: () => void navigate({ to: "/review/flow/stocks" }) },
     { label: "复制代码", onClick: () => void navigator.clipboard?.writeText(row.code) },
   ];
   return (

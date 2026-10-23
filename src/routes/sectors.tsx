@@ -1,11 +1,12 @@
 /**
  * 这个文件是干什么的：
- * 旧路由兼容。2026-10-21 板块页并入了「资金流向」区（/flow/sectors，和资金流向
- * 同一个页面的两个子页），本文件不再渲染页面，进来直接送过去，board 参数带上。
+ * 旧路由兼容。2026-10-21 板块页并入了「资金流向」区；2026-10-23 资金流向又并入
+ * 「每日复盘」（/review/flow/sectors）。本文件不再渲染页面，进来直接送过去，
+ * board 参数带上。
  *
  * 你需要知道的：
  * - 书签、手机桌面快捷方式里的旧链接（含 /sectors?board=BKxxx）靠这层不断链。
- * - 正文已搬到 routes/flow/sectors.tsx，改功能去那边。
+ * - 正文已搬到 routes/review/flow/sectors.tsx，改功能去那边。
  */
 
 import { createFileRoute, redirect } from "@tanstack/react-router";
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/sectors")({
   beforeLoad: ({ search }) => {
     const board = (search as Record<string, unknown>).board;
     throw redirect({
-      to: "/flow/sectors",
+      to: "/review/flow/sectors",
       // 目标子页的 validateSearch 把 board 定成必填（缺省 ""），这里必须始终带上。
       search: { board: typeof board === "string" && board ? board : "" },
     });

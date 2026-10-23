@@ -13,7 +13,7 @@ import { Frame } from "@/components/screener/nav";
 import { FlowSectionTabs, North } from "@/components/flow-sections";
 import { getFlow } from "@/lib/market/quotes.functions";
 
-export const Route = createFileRoute("/flow/north")({
+export const Route = createFileRoute("/review/flow/north")({
   loader: async () => ({ book: await getFlow().catch(() => null) }),
   component: FlowNorthPage,
 });

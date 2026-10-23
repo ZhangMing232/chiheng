@@ -15,7 +15,7 @@ import { FlowSectionTabs, Futures } from "@/components/flow-sections";
 import { drawFuturesPoster } from "@/lib/market/extra-posters";
 import { getIndexFutures } from "@/lib/market/quotes.functions";
 
-export const Route = createFileRoute("/flow/futures")({
+export const Route = createFileRoute("/review/flow/futures")({
   loader: async () => ({ futures: await getIndexFutures().catch(() => null) }),
   component: FlowFuturesPage,
 });

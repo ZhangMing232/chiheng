@@ -21,7 +21,7 @@ import { marketBreadth } from "@/lib/market/slim-universe";
 import type { IndexQuote } from "@/lib/market/types";
 import { cx, FlowSectionTabs, Market, Overview, TrendChart } from "@/components/flow-sections";
 
-export const Route = createFileRoute("/flow/")({
+export const Route = createFileRoute("/review/flow/")({
   loader: async () => {
     const [book, indices, universe, trend] = await Promise.all([
       getFlow().catch((error: unknown) => ({ error })),

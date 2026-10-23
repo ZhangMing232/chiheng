@@ -110,7 +110,7 @@ function SettingsPage() {
               <td className={tdClass("text-left text-muted")}>微信推送</td>
               <td className={tdClass("text-left")}>预警推送（到卖出价/止损/到期）</td>
               <td className={tdClass("text-left text-muted")}>
-                <a href="/flow" className="underline decoration-line underline-offset-2 hover:text-fg">
+                <a href="/review/flow/" className="underline decoration-line underline-offset-2 hover:text-fg">
                   资金页顶部
                 </a>
               </td>

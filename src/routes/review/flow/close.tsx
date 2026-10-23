@@ -15,7 +15,7 @@ import { Frame } from "@/components/screener/nav";
 import { CloseSnapshotPanel, FlowSectionTabs } from "@/components/flow-sections";
 import { getCloseSnapshot } from "@/lib/market/tdx-daily.functions";
 
-export const Route = createFileRoute("/flow/close")({
+export const Route = createFileRoute("/review/flow/close")({
   loader: async () => ({ close: await getCloseSnapshot({ data: { limit: 20 } }).catch(() => null) }),
   component: FlowClosePage,
 });

@@ -33,7 +33,7 @@ import { searchBoards, sortBoards, type BoardDetail, type SortKey } from "@/lib/
 import { signedPct, toneClass } from "@/lib/market/format";
 import type { ThermometerDirection } from "@/lib/market/industry-monthly";
 
-export const Route = createFileRoute("/flow/sectors")({
+export const Route = createFileRoute("/review/flow/sectors")({
   validateSearch: (search: Record<string, unknown>) => ({
     board: typeof search.board === "string" && /^BK\d+$/.test(search.board) ? search.board : "",
   }),
@@ -71,7 +71,7 @@ function SectorsPage() {
   const picked = search.board;
 
   function pick(code: string) {
-    void navigate({ to: "/flow/sectors", search: { board: picked === code ? "" : code } });
+    void navigate({ to: "/review/flow/sectors", search: { board: picked === code ? "" : code } });
   }
 
   if (!table || table.rows.length === 0) {

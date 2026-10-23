@@ -92,8 +92,11 @@ function AccountChip() {
  *   - AI 入口仍 pinned 在侧栏底部（学 Vibe），不混进分组
  *
  * 2026-10-21 又两轮：复盘区整合（/review 下每日复盘+信号+公司事件）、策略区整合
- * （/strategies 下选股+追踪）、日历页撤销、板块并入资金流向（/flow 下两个子页），
+ * （/strategies 下选股+追踪）、日历页撤销、板块并入资金流向，
  * 二级项 19 → 18；旧路由（/sectors 等）都留重定向文件，书签不断链。
+ *
+ * 2026-10-23：资金流向整体并入每日复盘（/review/flow 子区，九个二级页搬过去），
+ * 侧栏「资金流向」入口撤掉；旧 /flow 路由留重定向，书签不断链。
  *
  * 保留 Vibe 的三条原则：
  *   1. 最多两级（分组 + 页面）；第三级只许在页面里切，不占侧栏
@@ -102,7 +105,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/butler" | "/studio" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/butler" | "/studio" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/butler", label: "大管家", icon: Sparkles }, { to: "/studio", label: "自媒体图文", icon: Image }] },
   {
@@ -110,7 +113,6 @@ const SIDEBAR: {
     items: [
       { to: "/overview", label: "股市总览", icon: Gauge },
       { to: "/review", label: "每日复盘", icon: History },
-      { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/overseas", label: "港美行情", icon: Globe },
     ],

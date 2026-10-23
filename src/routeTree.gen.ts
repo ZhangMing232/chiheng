@@ -47,20 +47,22 @@ import { Route as FactorsBaselineRouteImport } from './routes/factors/baseline'
 import { Route as FactorsBucketsRouteImport } from './routes/factors/buckets'
 import { Route as FactorsFlowRouteImport } from './routes/factors/flow'
 import { Route as FactorsGatesRouteImport } from './routes/factors/gates'
-import { Route as FlowIndexRouteImport } from './routes/flow/index'
-import { Route as FlowCloseRouteImport } from './routes/flow/close'
-import { Route as FlowFuturesRouteImport } from './routes/flow/futures'
-import { Route as FlowHotRouteImport } from './routes/flow/hot'
-import { Route as FlowIndustriesRouteImport } from './routes/flow/industries'
-import { Route as FlowMarginRouteImport } from './routes/flow/margin'
-import { Route as FlowNorthRouteImport } from './routes/flow/north'
-import { Route as FlowSectorsRouteImport } from './routes/flow/sectors'
-import { Route as FlowStocksRouteImport } from './routes/flow/stocks'
+import { Route as FlowSplatRouteImport } from './routes/flow.$'
 import { Route as ReviewIndexRouteImport } from './routes/review/index'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
+import { Route as ReviewFlowRouteImport } from './routes/review/flow'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
 import { Route as StrategiesPositionsRouteImport } from './routes/strategies/positions'
 import { Route as StrategiesScreenerRouteImport } from './routes/strategies/screener'
+import { Route as ReviewFlowIndexRouteImport } from './routes/review/flow/index'
+import { Route as ReviewFlowCloseRouteImport } from './routes/review/flow/close'
+import { Route as ReviewFlowFuturesRouteImport } from './routes/review/flow/futures'
+import { Route as ReviewFlowHotRouteImport } from './routes/review/flow/hot'
+import { Route as ReviewFlowIndustriesRouteImport } from './routes/review/flow/industries'
+import { Route as ReviewFlowMarginRouteImport } from './routes/review/flow/margin'
+import { Route as ReviewFlowNorthRouteImport } from './routes/review/flow/north'
+import { Route as ReviewFlowSectorsRouteImport } from './routes/review/flow/sectors'
+import { Route as ReviewFlowStocksRouteImport } from './routes/review/flow/stocks'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -252,49 +254,9 @@ const FactorsGatesRoute = FactorsGatesRouteImport.update({
   path: '/factors/gates',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FlowIndexRoute = FlowIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowCloseRoute = FlowCloseRouteImport.update({
-  id: '/close',
-  path: '/close',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowFuturesRoute = FlowFuturesRouteImport.update({
-  id: '/futures',
-  path: '/futures',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowHotRoute = FlowHotRouteImport.update({
-  id: '/hot',
-  path: '/hot',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowIndustriesRoute = FlowIndustriesRouteImport.update({
-  id: '/industries',
-  path: '/industries',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowMarginRoute = FlowMarginRouteImport.update({
-  id: '/margin',
-  path: '/margin',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowNorthRoute = FlowNorthRouteImport.update({
-  id: '/north',
-  path: '/north',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowSectorsRoute = FlowSectorsRouteImport.update({
-  id: '/sectors',
-  path: '/sectors',
-  getParentRoute: () => FlowRoute,
-} as any)
-const FlowStocksRoute = FlowStocksRouteImport.update({
-  id: '/stocks',
-  path: '/stocks',
+const FlowSplatRoute = FlowSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => FlowRoute,
 } as any)
 const ReviewIndexRoute = ReviewIndexRouteImport.update({
@@ -305,6 +267,11 @@ const ReviewIndexRoute = ReviewIndexRouteImport.update({
 const ReviewEventsRoute = ReviewEventsRouteImport.update({
   id: '/events',
   path: '/events',
+  getParentRoute: () => ReviewRoute,
+} as any)
+const ReviewFlowRoute = ReviewFlowRouteImport.update({
+  id: '/flow',
+  path: '/flow',
   getParentRoute: () => ReviewRoute,
 } as any)
 const ReviewSignalsRoute = ReviewSignalsRouteImport.update({
@@ -321,6 +288,51 @@ const StrategiesScreenerRoute = StrategiesScreenerRouteImport.update({
   id: '/screener',
   path: '/screener',
   getParentRoute: () => StrategiesRoute,
+} as any)
+const ReviewFlowIndexRoute = ReviewFlowIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowCloseRoute = ReviewFlowCloseRouteImport.update({
+  id: '/close',
+  path: '/close',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowFuturesRoute = ReviewFlowFuturesRouteImport.update({
+  id: '/futures',
+  path: '/futures',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowHotRoute = ReviewFlowHotRouteImport.update({
+  id: '/hot',
+  path: '/hot',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowIndustriesRoute = ReviewFlowIndustriesRouteImport.update({
+  id: '/industries',
+  path: '/industries',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowMarginRoute = ReviewFlowMarginRouteImport.update({
+  id: '/margin',
+  path: '/margin',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowNorthRoute = ReviewFlowNorthRouteImport.update({
+  id: '/north',
+  path: '/north',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowSectorsRoute = ReviewFlowSectorsRouteImport.update({
+  id: '/sectors',
+  path: '/sectors',
+  getParentRoute: () => ReviewFlowRoute,
+} as any)
+const ReviewFlowStocksRoute = ReviewFlowStocksRouteImport.update({
+  id: '/stocks',
+  path: '/stocks',
+  getParentRoute: () => ReviewFlowRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -360,22 +372,24 @@ export interface FileRoutesByFullPath {
   '/factors/buckets': typeof FactorsBucketsRoute
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
-  '/flow/close': typeof FlowCloseRoute
-  '/flow/futures': typeof FlowFuturesRoute
-  '/flow/hot': typeof FlowHotRoute
-  '/flow/industries': typeof FlowIndustriesRoute
-  '/flow/margin': typeof FlowMarginRoute
-  '/flow/north': typeof FlowNorthRoute
-  '/flow/sectors': typeof FlowSectorsRoute
-  '/flow/stocks': typeof FlowStocksRoute
+  '/flow/$': typeof FlowSplatRoute
   '/review/events': typeof ReviewEventsRoute
+  '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
-  '/flow/': typeof FlowIndexRoute
   '/review/': typeof ReviewIndexRoute
+  '/review/flow/close': typeof ReviewFlowCloseRoute
+  '/review/flow/futures': typeof ReviewFlowFuturesRoute
+  '/review/flow/hot': typeof ReviewFlowHotRoute
+  '/review/flow/industries': typeof ReviewFlowIndustriesRoute
+  '/review/flow/margin': typeof ReviewFlowMarginRoute
+  '/review/flow/north': typeof ReviewFlowNorthRoute
+  '/review/flow/sectors': typeof ReviewFlowSectorsRoute
+  '/review/flow/stocks': typeof ReviewFlowStocksRoute
+  '/review/flow/': typeof ReviewFlowIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -385,6 +399,7 @@ export interface FileRoutesByTo {
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
   '/events': typeof EventsRoute
+  '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -411,22 +426,23 @@ export interface FileRoutesByTo {
   '/factors/buckets': typeof FactorsBucketsRoute
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
-  '/flow/close': typeof FlowCloseRoute
-  '/flow/futures': typeof FlowFuturesRoute
-  '/flow/hot': typeof FlowHotRoute
-  '/flow/industries': typeof FlowIndustriesRoute
-  '/flow/margin': typeof FlowMarginRoute
-  '/flow/north': typeof FlowNorthRoute
-  '/flow/sectors': typeof FlowSectorsRoute
-  '/flow/stocks': typeof FlowStocksRoute
+  '/flow/$': typeof FlowSplatRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/ai': typeof AiIndexRoute
   '/factors': typeof FactorsIndexRoute
-  '/flow': typeof FlowIndexRoute
   '/review': typeof ReviewIndexRoute
+  '/review/flow/close': typeof ReviewFlowCloseRoute
+  '/review/flow/futures': typeof ReviewFlowFuturesRoute
+  '/review/flow/hot': typeof ReviewFlowHotRoute
+  '/review/flow/industries': typeof ReviewFlowIndustriesRoute
+  '/review/flow/margin': typeof ReviewFlowMarginRoute
+  '/review/flow/north': typeof ReviewFlowNorthRoute
+  '/review/flow/sectors': typeof ReviewFlowSectorsRoute
+  '/review/flow/stocks': typeof ReviewFlowStocksRoute
+  '/review/flow': typeof ReviewFlowIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -466,22 +482,24 @@ export interface FileRoutesById {
   '/factors/buckets': typeof FactorsBucketsRoute
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
-  '/flow/close': typeof FlowCloseRoute
-  '/flow/futures': typeof FlowFuturesRoute
-  '/flow/hot': typeof FlowHotRoute
-  '/flow/industries': typeof FlowIndustriesRoute
-  '/flow/margin': typeof FlowMarginRoute
-  '/flow/north': typeof FlowNorthRoute
-  '/flow/sectors': typeof FlowSectorsRoute
-  '/flow/stocks': typeof FlowStocksRoute
+  '/flow/$': typeof FlowSplatRoute
   '/review/events': typeof ReviewEventsRoute
+  '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
-  '/flow/': typeof FlowIndexRoute
   '/review/': typeof ReviewIndexRoute
+  '/review/flow/close': typeof ReviewFlowCloseRoute
+  '/review/flow/futures': typeof ReviewFlowFuturesRoute
+  '/review/flow/hot': typeof ReviewFlowHotRoute
+  '/review/flow/industries': typeof ReviewFlowIndustriesRoute
+  '/review/flow/margin': typeof ReviewFlowMarginRoute
+  '/review/flow/north': typeof ReviewFlowNorthRoute
+  '/review/flow/sectors': typeof ReviewFlowSectorsRoute
+  '/review/flow/stocks': typeof ReviewFlowStocksRoute
+  '/review/flow/': typeof ReviewFlowIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -522,22 +540,24 @@ export interface FileRouteTypes {
     | '/factors/buckets'
     | '/factors/flow'
     | '/factors/gates'
-    | '/flow/close'
-    | '/flow/futures'
-    | '/flow/hot'
-    | '/flow/industries'
-    | '/flow/margin'
-    | '/flow/north'
-    | '/flow/sectors'
-    | '/flow/stocks'
+    | '/flow/$'
     | '/review/events'
+    | '/review/flow'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
     | '/ai/'
     | '/factors/'
-    | '/flow/'
     | '/review/'
+    | '/review/flow/close'
+    | '/review/flow/futures'
+    | '/review/flow/hot'
+    | '/review/flow/industries'
+    | '/review/flow/margin'
+    | '/review/flow/north'
+    | '/review/flow/sectors'
+    | '/review/flow/stocks'
+    | '/review/flow/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -547,6 +567,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/debate'
     | '/events'
+    | '/flow'
     | '/inbox'
     | '/login'
     | '/membership'
@@ -573,22 +594,23 @@ export interface FileRouteTypes {
     | '/factors/buckets'
     | '/factors/flow'
     | '/factors/gates'
-    | '/flow/close'
-    | '/flow/futures'
-    | '/flow/hot'
-    | '/flow/industries'
-    | '/flow/margin'
-    | '/flow/north'
-    | '/flow/sectors'
-    | '/flow/stocks'
+    | '/flow/$'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
     | '/ai'
     | '/factors'
-    | '/flow'
     | '/review'
+    | '/review/flow/close'
+    | '/review/flow/futures'
+    | '/review/flow/hot'
+    | '/review/flow/industries'
+    | '/review/flow/margin'
+    | '/review/flow/north'
+    | '/review/flow/sectors'
+    | '/review/flow/stocks'
+    | '/review/flow'
   id:
     | '__root__'
     | '/'
@@ -627,22 +649,24 @@ export interface FileRouteTypes {
     | '/factors/buckets'
     | '/factors/flow'
     | '/factors/gates'
-    | '/flow/close'
-    | '/flow/futures'
-    | '/flow/hot'
-    | '/flow/industries'
-    | '/flow/margin'
-    | '/flow/north'
-    | '/flow/sectors'
-    | '/flow/stocks'
+    | '/flow/$'
     | '/review/events'
+    | '/review/flow'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
     | '/ai/'
     | '/factors/'
-    | '/flow/'
     | '/review/'
+    | '/review/flow/close'
+    | '/review/flow/futures'
+    | '/review/flow/hot'
+    | '/review/flow/industries'
+    | '/review/flow/margin'
+    | '/review/flow/north'
+    | '/review/flow/sectors'
+    | '/review/flow/stocks'
+    | '/review/flow/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -950,67 +974,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FactorsGatesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/flow/': {
-      id: '/flow/'
-      path: '/'
-      fullPath: '/flow/'
-      preLoaderRoute: typeof FlowIndexRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/close': {
-      id: '/flow/close'
-      path: '/close'
-      fullPath: '/flow/close'
-      preLoaderRoute: typeof FlowCloseRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/futures': {
-      id: '/flow/futures'
-      path: '/futures'
-      fullPath: '/flow/futures'
-      preLoaderRoute: typeof FlowFuturesRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/hot': {
-      id: '/flow/hot'
-      path: '/hot'
-      fullPath: '/flow/hot'
-      preLoaderRoute: typeof FlowHotRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/industries': {
-      id: '/flow/industries'
-      path: '/industries'
-      fullPath: '/flow/industries'
-      preLoaderRoute: typeof FlowIndustriesRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/margin': {
-      id: '/flow/margin'
-      path: '/margin'
-      fullPath: '/flow/margin'
-      preLoaderRoute: typeof FlowMarginRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/north': {
-      id: '/flow/north'
-      path: '/north'
-      fullPath: '/flow/north'
-      preLoaderRoute: typeof FlowNorthRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/sectors': {
-      id: '/flow/sectors'
-      path: '/sectors'
-      fullPath: '/flow/sectors'
-      preLoaderRoute: typeof FlowSectorsRouteImport
-      parentRoute: typeof FlowRoute
-    }
-    '/flow/stocks': {
-      id: '/flow/stocks'
-      path: '/stocks'
-      fullPath: '/flow/stocks'
-      preLoaderRoute: typeof FlowStocksRouteImport
+    '/flow/$': {
+      id: '/flow/$'
+      path: '/$'
+      fullPath: '/flow/$'
+      preLoaderRoute: typeof FlowSplatRouteImport
       parentRoute: typeof FlowRoute
     }
     '/review/': {
@@ -1025,6 +993,13 @@ declare module '@tanstack/react-router' {
       path: '/events'
       fullPath: '/review/events'
       preLoaderRoute: typeof ReviewEventsRouteImport
+      parentRoute: typeof ReviewRoute
+    }
+    '/review/flow': {
+      id: '/review/flow'
+      path: '/flow'
+      fullPath: '/review/flow'
+      preLoaderRoute: typeof ReviewFlowRouteImport
       parentRoute: typeof ReviewRoute
     }
     '/review/signals': {
@@ -1048,6 +1023,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StrategiesScreenerRouteImport
       parentRoute: typeof StrategiesRoute
     }
+    '/review/flow/': {
+      id: '/review/flow/'
+      path: '/'
+      fullPath: '/review/flow/'
+      preLoaderRoute: typeof ReviewFlowIndexRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/close': {
+      id: '/review/flow/close'
+      path: '/close'
+      fullPath: '/review/flow/close'
+      preLoaderRoute: typeof ReviewFlowCloseRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/futures': {
+      id: '/review/flow/futures'
+      path: '/futures'
+      fullPath: '/review/flow/futures'
+      preLoaderRoute: typeof ReviewFlowFuturesRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/hot': {
+      id: '/review/flow/hot'
+      path: '/hot'
+      fullPath: '/review/flow/hot'
+      preLoaderRoute: typeof ReviewFlowHotRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/industries': {
+      id: '/review/flow/industries'
+      path: '/industries'
+      fullPath: '/review/flow/industries'
+      preLoaderRoute: typeof ReviewFlowIndustriesRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/margin': {
+      id: '/review/flow/margin'
+      path: '/margin'
+      fullPath: '/review/flow/margin'
+      preLoaderRoute: typeof ReviewFlowMarginRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/north': {
+      id: '/review/flow/north'
+      path: '/north'
+      fullPath: '/review/flow/north'
+      preLoaderRoute: typeof ReviewFlowNorthRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/sectors': {
+      id: '/review/flow/sectors'
+      path: '/sectors'
+      fullPath: '/review/flow/sectors'
+      preLoaderRoute: typeof ReviewFlowSectorsRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
+    '/review/flow/stocks': {
+      id: '/review/flow/stocks'
+      path: '/stocks'
+      fullPath: '/review/flow/stocks'
+      preLoaderRoute: typeof ReviewFlowStocksRouteImport
+      parentRoute: typeof ReviewFlowRoute
+    }
   }
 }
 
@@ -1068,39 +1106,53 @@ const AiRouteChildren: AiRouteChildren = {
 const AiRouteWithChildren = AiRoute._addFileChildren(AiRouteChildren)
 
 interface FlowRouteChildren {
-  FlowCloseRoute: typeof FlowCloseRoute
-  FlowFuturesRoute: typeof FlowFuturesRoute
-  FlowHotRoute: typeof FlowHotRoute
-  FlowIndustriesRoute: typeof FlowIndustriesRoute
-  FlowMarginRoute: typeof FlowMarginRoute
-  FlowNorthRoute: typeof FlowNorthRoute
-  FlowSectorsRoute: typeof FlowSectorsRoute
-  FlowStocksRoute: typeof FlowStocksRoute
-  FlowIndexRoute: typeof FlowIndexRoute
+  FlowSplatRoute: typeof FlowSplatRoute
 }
 
 const FlowRouteChildren: FlowRouteChildren = {
-  FlowCloseRoute: FlowCloseRoute,
-  FlowFuturesRoute: FlowFuturesRoute,
-  FlowHotRoute: FlowHotRoute,
-  FlowIndustriesRoute: FlowIndustriesRoute,
-  FlowMarginRoute: FlowMarginRoute,
-  FlowNorthRoute: FlowNorthRoute,
-  FlowSectorsRoute: FlowSectorsRoute,
-  FlowStocksRoute: FlowStocksRoute,
-  FlowIndexRoute: FlowIndexRoute,
+  FlowSplatRoute: FlowSplatRoute,
 }
 
 const FlowRouteWithChildren = FlowRoute._addFileChildren(FlowRouteChildren)
 
+interface ReviewFlowRouteChildren {
+  ReviewFlowCloseRoute: typeof ReviewFlowCloseRoute
+  ReviewFlowFuturesRoute: typeof ReviewFlowFuturesRoute
+  ReviewFlowHotRoute: typeof ReviewFlowHotRoute
+  ReviewFlowIndustriesRoute: typeof ReviewFlowIndustriesRoute
+  ReviewFlowMarginRoute: typeof ReviewFlowMarginRoute
+  ReviewFlowNorthRoute: typeof ReviewFlowNorthRoute
+  ReviewFlowSectorsRoute: typeof ReviewFlowSectorsRoute
+  ReviewFlowStocksRoute: typeof ReviewFlowStocksRoute
+  ReviewFlowIndexRoute: typeof ReviewFlowIndexRoute
+}
+
+const ReviewFlowRouteChildren: ReviewFlowRouteChildren = {
+  ReviewFlowCloseRoute: ReviewFlowCloseRoute,
+  ReviewFlowFuturesRoute: ReviewFlowFuturesRoute,
+  ReviewFlowHotRoute: ReviewFlowHotRoute,
+  ReviewFlowIndustriesRoute: ReviewFlowIndustriesRoute,
+  ReviewFlowMarginRoute: ReviewFlowMarginRoute,
+  ReviewFlowNorthRoute: ReviewFlowNorthRoute,
+  ReviewFlowSectorsRoute: ReviewFlowSectorsRoute,
+  ReviewFlowStocksRoute: ReviewFlowStocksRoute,
+  ReviewFlowIndexRoute: ReviewFlowIndexRoute,
+}
+
+const ReviewFlowRouteWithChildren = ReviewFlowRoute._addFileChildren(
+  ReviewFlowRouteChildren,
+)
+
 interface ReviewRouteChildren {
   ReviewEventsRoute: typeof ReviewEventsRoute
+  ReviewFlowRoute: typeof ReviewFlowRouteWithChildren
   ReviewSignalsRoute: typeof ReviewSignalsRoute
   ReviewIndexRoute: typeof ReviewIndexRoute
 }
 
 const ReviewRouteChildren: ReviewRouteChildren = {
   ReviewEventsRoute: ReviewEventsRoute,
+  ReviewFlowRoute: ReviewFlowRouteWithChildren,
   ReviewSignalsRoute: ReviewSignalsRoute,
   ReviewIndexRoute: ReviewIndexRoute,
 }

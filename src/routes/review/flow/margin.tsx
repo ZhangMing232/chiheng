@@ -13,7 +13,7 @@ import { Frame } from "@/components/screener/nav";
 import { FlowSectionTabs, Margin } from "@/components/flow-sections";
 import { getMargin } from "@/lib/market/quotes.functions";
 
-export const Route = createFileRoute("/flow/margin")({
+export const Route = createFileRoute("/review/flow/margin")({
   loader: async () => ({ margin: await getMargin().catch(() => null) }),
   component: FlowMarginPage,
 });

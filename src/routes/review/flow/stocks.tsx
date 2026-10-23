@@ -16,7 +16,7 @@ import { StockName } from "@/components/screener/stock-name";
 import { getFlow } from "@/lib/market/quotes.functions";
 import type { FlowRow } from "@/lib/market/flow";
 
-export const Route = createFileRoute("/flow/stocks")({
+export const Route = createFileRoute("/review/flow/stocks")({
   loader: async () => ({ book: await getFlow().catch(() => null) }),
   component: FlowStocksPage,
 });

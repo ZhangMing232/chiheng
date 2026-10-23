@@ -28,21 +28,21 @@ import type { Trend } from "@/lib/market/types";
 import { marketBreadth, type Breadth } from "@/lib/market/slim-universe";
 import type { getCloseSnapshot } from "@/lib/market/tdx-daily.functions";
 
-/** 这一区统一的二级 tab：/flow 下所有子页面共用，增删子页只改这里。 */
+/** 这一区统一的二级 tab：/review/flow 下所有子页面共用，增删子页只改这里。 */
 export function FlowSectionTabs() {
   return (
     <SectionTabs
       ariaLabel="资金流向"
       tabs={[
-        { to: "/flow/", label: "概览" },
-        { to: "/flow/north", label: "北向" },
-        { to: "/flow/industries", label: "行业" },
-        { to: "/flow/sectors", label: "板块" },
-        { to: "/flow/stocks", label: "个股" },
-        { to: "/flow/hot", label: "游资" },
-        { to: "/flow/close", label: "收盘快照" },
-        { to: "/flow/margin", label: "两融" },
-        { to: "/flow/futures", label: "期指" },
+        { to: "/review/flow/", label: "概览" },
+        { to: "/review/flow/north", label: "北向" },
+        { to: "/review/flow/industries", label: "行业" },
+        { to: "/review/flow/sectors", label: "板块" },
+        { to: "/review/flow/stocks", label: "个股" },
+        { to: "/review/flow/hot", label: "游资" },
+        { to: "/review/flow/close", label: "收盘快照" },
+        { to: "/review/flow/margin", label: "两融" },
+        { to: "/review/flow/futures", label: "期指" },
       ]}
     />
   );

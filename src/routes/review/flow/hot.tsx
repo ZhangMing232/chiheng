@@ -15,7 +15,7 @@ import { FlowSectionTabs, Hot } from "@/components/flow-sections";
 import { drawHotPoster } from "@/lib/market/extra-posters";
 import { getHotMoney } from "@/lib/market/quotes.functions";
 
-export const Route = createFileRoute("/flow/hot")({
+export const Route = createFileRoute("/review/flow/hot")({
   loader: async () => ({ hot: await getHotMoney().catch(() => null) }),
   component: FlowHotPage,
 });

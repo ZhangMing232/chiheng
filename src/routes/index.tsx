@@ -242,7 +242,7 @@ function Dashboard() {
           </table>
         </Panel>
 
-        <Panel title="行业主力净流入 TOP6" note={<Link to="/flow" className="text-accent hover:underline">资金流向 →</Link>}>
+        <Panel title="行业主力净流入 TOP6" note={<Link to="/review/flow" className="text-accent hover:underline">资金流向 →</Link>}>
           <div className="flex flex-col gap-1 p-2">
             {(flow?.sectorsIn ?? []).slice(0, 6).map((row) => (
               <div key={row.id} className="flex items-baseline justify-between gap-2 text-sm">
