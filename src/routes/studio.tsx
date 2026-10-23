@@ -64,6 +64,11 @@ function StudioPage() {
   const [renderNote, setRenderNote] = useState("");
   const [stage, setStage] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  // 生成内容多选：图片/文案各自独立，图片格式（竖版/方版）也可多选一次出多张
+  const [wantImage, setWantImage] = useState(true);
+  const [wantText, setWantText] = useState(true);
+  const [wantVertical, setWantVertical] = useState(true);
+  const [wantSquare, setWantSquare] = useState(false);
   // AI 设计沟通：委托人（用户）和 AI 设计师的对话。user 消息累积成「设计要求」
   // 注入海报 prompt——聊得越具体，出图越符合想法。页面状态保管，刷新即新会话。
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
@@ -96,22 +101,70 @@ function StudioPage() {
     setError(null);
     setCopied(false);
     setRenderNote("");
+    // 生成内容多选：图片 / 文案各自独立，可只出一个。图片格式也可多选——
+    // 竖版+方版都勾就一次出两张（预览显示最后一张，下载逐张保存）。
+    const formats: StudioFormat[] = [
+      ...(wantVertical ? (["vertical"] as const) : []),
+      ...(wantSquare ? (["square"] as const) : []),
+    ];
+    const doImage = wantImage && formats.length > 0;
+    const doText = wantText;
+    if (!doImage && !doText) {
+      setBusy(false);
+      return;
+    }
+    const isVersus = topic === "stockVersus" || topic === "sectorVersus";
     try {
-      const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
-      const isVersus = topic === "stockVersus" || topic === "sectorVersus";
+      const direction = chat.filter((m) => m.role === "user").map((m) => m.content).join("\n") || undefined;
 
-      // **并行抢跑**：versus 题材的海报（AI 设计）和文案是两个独立请求，同时发出去。
-      // 原来串行等（文案跑完才发海报）会把总时间拉成两者之和——AI 写 SVG 本身就要
-      // 1–2 分钟，海报先开工，等文案回来时海报通常已经画完了。
-      const posterPromise = isVersus
-        ? fetch("/api/studio/ai-poster", {
+      // **并行抢跑**：海报和文案同时开工，不等对方。AI 写 SVG 要 1–2 分钟，
+      // 海报先跑起来，文案回来时图基本画完。只出图/只出文案时另一边不启动（不烧 token）。
+      const captionPromise = doText
+        ? generateStudioCaption({ data: { genre, topic, platform, extra } })
+        : null;
+      setStage(
+        doImage && doText
+          ? `海报：${isVersus ? "AI 设计师排版中（通常 1–2 分钟）" : "渲染中"} · 文案：同步撰写中`
+          : doImage
+            ? isVersus
+              ? "海报：AI 设计师排版中（真实数据已注入，通常 1–2 分钟）"
+              : "海报渲染中…"
+            : "文案撰写中…",
+      );
+
+      // caption 惰性 await：promise 早已开跑，第一次用到时才等它
+      let captionRes: { ok: boolean; text?: string; error?: string } | null = null;
+      const caption = async (): Promise<string> => {
+        if (!doText) return "";
+        if (captionRes === null) captionRes = await captionPromise;
+        const r = captionRes;
+        if (!r || !r.ok) {
+          setError(r?.error ?? "文案生成失败");
+          return "";
+        }
+        return r.text ?? "";
+      };
+
+      let doneImages = 0;
+      for (let i = 0; i < formats.length; i++) {
+        const format = formats[i]!;
+        const fmtLabel = format === "vertical" ? "抖音竖版" : "公众号方版";
+        if (formats.length > 1) {
+          setStage(`海报 ${i + 1}/${formats.length}（${fmtLabel}）${isVersus ? "：AI 设计师排版中…" : "：渲染中…"}`);
+        }
+
+        // **资金流向对比体裁：AI 设计优先**。数字和事实走模板逐字注入，审美/排版交给
+        // 模型写 SVG；服务端先校验（真实数字、免责声明、品牌标识、NaN）再渲染，不过自动重画。
+        // AI 不可用（非主人账号 / 接口失败）时安静回退到下面的模板路径。
+        let usedAI = false;
+        if (isVersus) {
+          const ai = await fetch("/api/studio/ai-poster", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               kind: topic === "sectorVersus" ? "sector" : "stock",
               format,
-              // 设计沟通里委托人说过的话全部带上（作为审美约束，不进数字校验）
-              direction: chat.filter((m) => m.role === "user").map((m) => m.content).join("\n") || undefined,
+              direction,
             }),
           })
             .then(
@@ -121,76 +174,65 @@ function StudioPage() {
                   | { ok: false; error: string }
                 >,
             )
-            .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }))
-        : null;
-      setStage(
-        isVersus
-          ? "海报：AI 设计师排版中（真实数据已注入，通常 1–2 分钟）· 文案：同步撰写中"
-          : "海报模板渲染中 · 文案撰写中",
-      );
-
-      const res = await generateStudioCaption({ data: { genre, topic, platform, extra } });
-      const caption = res.ok ? res.text : "";
-      if (!res.ok) setError(res.error);
-
-      const spec = buildStudioSpec(genre, topic, studioData, { topN, newsIndex });
-      const title = caption ? titleFromCaption(caption, defaultTitle(topic)) : defaultTitle(topic);
-      const withTitle = { ...spec, title };
-
-      // **资金流向对比体裁：AI 设计优先**。数字和事实走模板逐字注入，审美/排版交给
-      // 模型写 SVG；服务端先校验（真实数字、免责声明、品牌标识、NaN）再渲染，不过自动重画。
-      // AI 不可用（非主人账号 / 接口失败）时安静回退到下面的模板路径。
-      if (posterPromise) {
-        if (!caption) setStage("文案没出（看上方报错），等海报收尾…");
-        const ai = await posterPromise;
-        if (ai.ok) {
-          if (imageUrl) URL.revokeObjectURL(imageUrl);
-          setImageUrl(ai.dataUrl);
-          setFilename(
-            `赤轨-资金流向对比-${new Date().toISOString().slice(0, 10)}-${platform === "douyin" ? "抖音" : "公众号"}.png`,
-          );
-          setRenderPath("svg");
-          setRenderNote(`AI 设计 · ${ai.attempts} 次尝试 · ${Math.round(ai.ms / 1000)}s · 数字已逐字校验 · 带赤轨品牌标`);
-          if (caption) setText(caption);
-          return;
+            .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+          if (ai.ok) {
+            if (imageUrl) URL.revokeObjectURL(imageUrl);
+            setImageUrl(ai.dataUrl);
+            setFilename(`赤轨-资金流向对比-${new Date().toISOString().slice(0, 10)}-${fmtLabel}.png`);
+            setRenderPath("svg");
+            doneImages++;
+            setRenderNote(`AI 设计 · ${ai.attempts} 次尝试 · ${Math.round(ai.ms / 1000)}s · 数字已逐字校验 · 带赤轨品牌标`);
+            usedAI = true;
+          } else {
+            setRenderNote(`AI 设计不可用（${ai.error}），已回退模板渲染`);
+          }
         }
-        setRenderNote(`AI 设计不可用（${ai.error}），已回退模板渲染`);
-      }
+        if (usedAI) continue;
 
-      // **服务端 SVG 优先，失败回退 canvas**。SVG 版式更好（声明式、条件渲染），
-      // 但服务端要有字体和原生模块；回退保证任何情况下都能出图。
-      const rendered = await fetch("/api/studio/poster", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ spec: withTitle, format, theme }),
-      })
-        .then((r) => r.json() as Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>)
-        .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
-      if (rendered.ok) {
-        if (imageUrl) URL.revokeObjectURL(imageUrl);
-        setImageUrl(rendered.dataUrl);
-        setFilename(`赤轨-${new Date().toISOString().slice(0, 10)}-${platform === "douyin" ? "抖音" : "公众号"}.png`);
-        setRenderPath("svg");
-        setRenderNote((prev) => prev);
-      } else {
-        const drawn = drawStudioPoster(withTitle, format);
-        drawn.canvas.toBlob((blob) => {
-          if (!blob) return;
+        // **服务端 SVG 优先，失败回退 canvas**。SVG 版式更好（声明式、条件渲染），
+        // 但服务端要有字体和原生模块；回退保证任何情况下都能出图。
+        const cap = await caption();
+        const spec = buildStudioSpec(genre, topic, studioData, { topN, newsIndex });
+        const title = cap ? titleFromCaption(cap, defaultTitle(topic)) : defaultTitle(topic);
+        const withTitle = { ...spec, title };
+        const rendered = await fetch("/api/studio/poster", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ spec: withTitle, format, theme }),
+        })
+          .then((r) => r.json() as Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>)
+          .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+        if (rendered.ok) {
           if (imageUrl) URL.revokeObjectURL(imageUrl);
-          setImageUrl(URL.createObjectURL(blob));
-          setFilename(drawn.filename);
-        }, "image/png");
-        setRenderPath("canvas");
-        // 404 在 dev 下是**预期行为**：Nitro 的 server/routes 要 build 后才生效
-        // （vite.config 里 serverDir 只在 build/preview 分支配了 nitro 插件）。
-        // 所以这里要说清楚，别让人以为是服务器坏了。
-        const why = /404|fetch|Failed/i.test(rendered.error)
-          ? "服务端渲染接口当前不可用（开发模式下 server/routes 要 build 后才生效），已用浏览器绘制。"
-          : `服务端渲染失败，已回退浏览器绘制：${rendered.error}`;
-        setRenderNote((prev) => (prev ? `${prev}；${why}` : why));
+          setImageUrl(rendered.dataUrl);
+          setFilename(`赤轨-${new Date().toISOString().slice(0, 10)}-${fmtLabel}.png`);
+          setRenderPath("svg");
+          doneImages++;
+        } else {
+          const drawn = drawStudioPoster(withTitle, format);
+          drawn.canvas.toBlob((blob) => {
+            if (!blob) return;
+            if (imageUrl) URL.revokeObjectURL(imageUrl);
+            setImageUrl(URL.createObjectURL(blob));
+            setFilename(drawn.filename);
+          }, "image/png");
+          setRenderPath("canvas");
+          // 404 在 dev 下是**预期行为**：Nitro 的 server/routes 要 build 后才生效
+          // （vite.config 里 serverDir 只在 build/preview 分支配了 nitro 插件）。
+          // 所以这里要说清楚，别让人以为是服务器坏了。
+          const why = /404|fetch|Failed/i.test(rendered.error)
+            ? "服务端渲染接口当前不可用（开发模式下 server/routes 要 build 后才生效），已用浏览器绘制。"
+            : `服务端渲染失败，已回退浏览器绘制：${rendered.error}`;
+          setRenderNote((prev) => (prev ? `${prev}；${why}` : why));
+          doneImages++;
+        }
+      }
+      if (doneImages > 1) {
+        setRenderNote((prev) => `${prev ? `${prev}；` : ""}已生成 ${doneImages} 张图（预览显示最后一张，点下载逐张保存）`);
       }
 
-      if (caption) setText(caption);
+      const cap = await caption();
+      if (cap) setText(cap);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -352,14 +394,54 @@ function StudioPage() {
             />
           </div>
 
-          <div>
+          {/* 生成内容多选：想只出图、只出文，还是都要；图片可一次出多种尺寸 */}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-fg">
+              <input
+                type="checkbox"
+                checked={wantImage}
+                onChange={(e) => setWantImage(e.target.checked)}
+                className="accent-brand"
+              />
+              图片
+            </label>
+            {wantImage ? (
+              <span className="flex items-center gap-2 text-[11px] text-muted">
+                格式
+                <label className="flex cursor-pointer items-center gap-1">
+                  <input type="checkbox" checked={wantVertical} onChange={(e) => setWantVertical(e.target.checked)} className="accent-brand" />
+                  抖音竖版
+                </label>
+                <label className="flex cursor-pointer items-center gap-1">
+                  <input type="checkbox" checked={wantSquare} onChange={(e) => setWantSquare(e.target.checked)} className="accent-brand" />
+                  公众号方版
+                </label>
+              </span>
+            ) : null}
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-fg">
+              <input
+                type="checkbox"
+                checked={wantText}
+                onChange={(e) => setWantText(e.target.checked)}
+                className="accent-brand"
+              />
+              文案
+            </label>
             <button
               type="button"
               onClick={() => void generate()}
-              disabled={busy}
+              disabled={busy || (!wantImage && !wantText) || (wantImage && !wantVertical && !wantSquare)}
               className="rounded-full border border-line bg-surface px-3 py-2 text-sm disabled:opacity-40"
             >
-              {busy ? "生成中，别关页面…" : chat.length ? "按设计沟通生成图 + 文" : "生成图 + 文"}
+              {busy
+                ? "生成中，别关页面…"
+                : wantImage && wantText
+                  ? chat.length
+                    ? "按设计沟通生成图 + 文"
+                    : "生成图 + 文"
+                  : wantImage
+                    ? "只生成图片"
+                    : "只生成文案"}
             </button>
           </div>
 
