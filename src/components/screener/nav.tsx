@@ -34,7 +34,6 @@ import {
   Sparkles,
   Star,
   Users,
-  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
@@ -100,21 +99,21 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/butler" | "/desk" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/butler" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
-  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/butler", label: "大管家", icon: Sparkles }, { to: "/desk", label: "合成台", icon: Workflow }] },
+  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/butler", label: "大管家", icon: Sparkles }] },
   {
     label: "市场",
     items: [
       { to: "/overview", label: "股市总览", icon: Gauge },
       { to: "/review", label: "每日复盘", icon: History },
-      { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/flow", label: "资金流向", icon: Coins },
+      { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/overseas", label: "港美行情", icon: Globe },
     ],
   },
   {
-    label: "实验室",
+    label: "策略因子",
     items: [
       { to: "/strategies/screener", label: "策略", icon: ListFilter },
       { to: "/factors", label: "因子发掘", icon: FlaskConical },
