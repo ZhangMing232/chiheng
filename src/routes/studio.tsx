@@ -1,18 +1,22 @@
 /**
  * 这个文件是干什么的：
  * 「自媒体图文」页（/studio）。选内容类型（每日复盘/资金异动）+ 平台（抖音/公众号），
- * AI 生成一段可直接发布的文案（标题/正文/标签），你改一改就能发。
+ * 一键同时生成「图片（海报）+ 文案（AI 初稿）」，图可下载、文可改可复制。
  *
  * 你需要知道的：
- * - 文案是 AI 初稿，可编辑、可复制；不荐股、不编数。
- * - 配图走各页的「生成汇总图」按钮（资金流向/每日复盘/快讯等），本页只生成文案。
+ * - 图片在浏览器里用 canvas 画（复用 poster 主题），文案走 DSH（DeepSeek）生成。
+ * - 文案是 AI 初稿、有「活人感」约束，你改一改再发；不荐股、不编数。
  */
 
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
-import { generateStudioCaption } from "@/lib/market/quotes.functions";
+import { generateStudioCaption, getBreadth, getFlow, getIndices } from "@/lib/market/quotes.functions";
+import { drawDailyPoster } from "@/lib/market/studio-poster";
+import { drawFlowPoster } from "@/lib/market/flow-poster";
+import type { FlowBook } from "@/lib/market/flow";
+import type { IndexQuote } from "@/lib/market/types";
 
 type Kind = "daily" | "flow";
 type Platform = "douyin" | "wechat";
@@ -26,12 +30,25 @@ const PLATFORMS: { id: Platform; label: string }[] = [
   { id: "wechat", label: "公众号" },
 ];
 
-export const Route = createFileRoute("/studio")({ component: StudioPage });
+export const Route = createFileRoute("/studio")({
+  loader: async () => {
+    const [indices, breadth, flow] = await Promise.all([
+      getIndices().catch(() => [] as IndexQuote[]),
+      getBreadth().catch(() => null),
+      getFlow().catch(() => null),
+    ]);
+    return { indices, breadth, flow };
+  },
+  component: StudioPage,
+});
 
 function StudioPage() {
+  const { indices, breadth, flow } = Route.useLoaderData();
   const [kind, setKind] = useState<Kind>("daily");
   const [platform, setPlatform] = useState<Platform>("douyin");
   const [text, setText] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [filename, setFilename] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -41,9 +58,25 @@ function StudioPage() {
     setError(null);
     setCopied(false);
     try {
+      // 文案（AI）
       const res = await generateStudioCaption({ data: { kind, platform } });
       if (res.ok) setText(res.text);
       else setError(res.error);
+
+      // 图片（客户端 canvas 画）
+      let drawn: { canvas: HTMLCanvasElement; filename: string };
+      if (kind === "daily") {
+        drawn = drawDailyPoster({ indices, breadth: breadth ?? { up: 0, down: 0, flat: 0, limitUp: 0, limitDown: 0 }, flow: flow as FlowBook | null });
+      } else {
+        if (!flow) throw new Error("资金数据暂时拉不下来");
+        drawn = drawFlowPoster(flow);
+      }
+      drawn.canvas.toBlob((blob) => {
+        if (!blob) return;
+        if (imageUrl) URL.revokeObjectURL(imageUrl);
+        setImageUrl(URL.createObjectURL(blob));
+        setFilename(drawn.filename);
+      }, "image/png");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -62,13 +95,21 @@ function StudioPage() {
     );
   }
 
+  function saveImage() {
+    if (!imageUrl) return;
+    const link = document.createElement("a");
+    link.href = imageUrl;
+    link.download = filename || "赤轨-图文.png";
+    link.click();
+  }
+
   function tabClass(active: boolean) {
     return "rounded border px-2.5 py-1 text-xs transition " + (active ? "border-brand text-fg" : "border-line text-muted hover:text-fg");
   }
 
   return (
     <Frame aside="自媒体图文">
-      <Panel title="自媒体图文" note="AI 生成文案初稿 · 你改一改就能发 · 配图去各页「生成汇总图」">
+      <Panel title="自媒体图文" note="一键生成「图 + 文」· 图可下载、文可改可复制 · 不荐股不编数">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
           <span className="text-[11px] text-muted">内容</span>
           {KINDS.map((k) => (
@@ -92,34 +133,35 @@ function StudioPage() {
               disabled={busy}
               className="rounded-full border border-line bg-surface px-3 py-2 text-sm disabled:opacity-40"
             >
-              {busy ? "AI 正在写文案…" : "生成文案"}
+              {busy ? "正在生成图+文…" : "生成图 + 文"}
             </button>
           </div>
 
           {error ? <p className="text-sm text-up">{error}</p> : null}
 
+          {imageUrl ? (
+            <div className="flex flex-col gap-2">
+              <img src={imageUrl} alt="配图" className="w-full max-w-md rounded border border-line" />
+              <div>
+                <button type="button" onClick={saveImage} className="rounded-full border border-line bg-surface px-3 py-2 text-sm">
+                  下载图片
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {text ? (
             <>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={10}
-                className="w-full rounded border border-line bg-transparent px-3 py-2 text-[13px] leading-relaxed text-fg"
-              />
+              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} className="w-full rounded border border-line bg-transparent px-3 py-2 text-[13px] leading-relaxed text-fg" />
               <div className="flex items-center gap-3">
                 <button type="button" onClick={copy} className="rounded-full border border-line bg-surface px-3 py-2 text-sm">
                   {copied ? "已复制 ✓" : "复制文案"}
                 </button>
-                <span className="text-xs text-muted">文案可先改再复制，直接粘贴到抖音/公众号即可。</span>
+                <span className="text-xs text-muted">文案可先改再复制，直接粘贴到抖音/公众号。</span>
               </div>
             </>
           ) : null}
         </div>
-
-        <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
-          配图：去 <Link to="/flow" className="text-fg underline">资金流向</Link>（资金异动）或{" "}
-          <Link to="/review" className="text-fg underline">每日复盘</Link> 页，点「生成汇总图」即可出图。后面我会把「图+文」一键整合到这一页。
-        </p>
       </Panel>
     </Frame>
   );
