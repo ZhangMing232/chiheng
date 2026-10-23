@@ -137,6 +137,21 @@ canvas 实现保留做回退，双轨跑一段。ranking 版式先迁（用得�
 
 ---
 
+**落地实况（2026-10-16）**：
+- ✅ `@resvg/resvg-js` 装得上（arm64 原生二进制，4 秒）
+- ✅ 中文字体可用：Hiragino Sans GB / Arial Unicode MS / Heiti SC / Songti SC
+- ⚠️ **PingFang.ttc 在本机不存在**——我第一次就踩了（以为系统字体一定有它）
+- ⚠️ **resvg 静默失败**：字体路径不对时**不报错**，PNG 只有背景色（961B），
+  看起来像"渲染成功但图是空的"。所以做了两道保险：找不到字体抛错 /
+  渲染出空图抛错，各有测试钉住
+- ✅ 四个版式都迁到 SVG 模板（studio-card.ts），双轨并存（canvas 留作回退）
+- ✅ 行高自适应（studio-layout.ts，**SVG 和 canvas 共用一套算法**——两边各算各的
+  图会不一样）；顺带修好「竖版下面空一半」（实测 5 条只占 45% 画布）
+- ✅ 服务端入口 `server/routes/api/studio/poster`（Nitro route，curl 可验）
+- ⚠️ **dev 模式下 Nitro 的 server/routes 完全不生效**（vite.config 里 serverDir
+  只在 build/preview 分支配了 nitro 插件；实测 /api/auth/get-session 在 dev 下
+  也是 404）→ 开发时走浏览器 canvas 回退，生产 build 后走服务端 SVG。
+  页面会把回退原因显示出来，不让人误以为服务器坏了
 ## 四、落地顺序（建议）
 
 ```
