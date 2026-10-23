@@ -85,7 +85,17 @@ export type OrnamentKind =
   | "ladder-rungs"
   | "style-preview"
   | "trend-spark"
-  | "pulse-wave";
+  | "pulse-wave"
+  /** 复盘：一天的涨跌节奏（收/盘前/盘后三个时段） */
+  | "day-rhythm"
+  /** 持仓：冠军-挑战者的对决（谁在领跑） */
+  | "champion-race"
+  /** 个股页：这只票现在的价与位置 */
+  | "quote-tape"
+  /** 提醒：一条条待办的时间线 */
+  | "alert-timeline"
+  /** 会员/登录：档位阶梯 */
+  | "tier-ladder";
 
 /**
  * 路径 → 装饰配置。
@@ -125,6 +135,7 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/review": {
     title: "每日复盘",
     icon: History,
+        ornament: "day-rhythm",
     purpose: "收盘后把今天发生的事理一遍",
     hue: "blue",
   },
@@ -145,6 +156,7 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/overseas": {
     title: "港美行情",
     icon: Globe,
+        ornament: "day-rhythm",
     purpose: "港股美股，A股之外的另一个盘",
     hue: "blue",
   },
@@ -152,12 +164,14 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/strategies/screener": {
     title: "策略",
     icon: ListFilter,
+        ornament: "gate-badges",
     purpose: "按规则筛出候选股，只给名单不给结论",
     hue: "violet",
   },
   "/strategies/positions": {
     title: "策略追踪",
     icon: Table,
+        ornament: "champion-race",
     purpose: "在跟的仓位、当日盈亏、谁在领跑",
     hue: "violet",
   },
@@ -193,12 +207,14 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/reports": {
     title: "研报库",
     icon: FileText,
+        ornament: "evidence-chain",
     purpose: "存下来的研判，可以并排比",
     hue: "amber",
   },
   "/notes": {
     title: "笔记",
     icon: NotebookPen,
+        ornament: "evidence-chain",
     purpose: "自己的判断，随手记下来",
     hue: "amber",
   },
@@ -206,24 +222,28 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/my-stocks": {
     title: "自选与持仓",
     icon: Star,
+        ornament: "quote-tape",
     purpose: "自选和持仓，都在这儿",
     hue: "green",
   },
   "/inbox": {
     title: "提醒",
     icon: Bell,
+        ornament: "alert-timeline",
     purpose: "该看没看的提醒，都堆在这",
     hue: "green",
   },
   "/settings": {
     title: "设置与状态",
     icon: Settings,
+        ornament: "gate-badges",
     purpose: "数据源、记账、显示偏好",
     hue: "green",
   },
   "/admin": {
     title: "管理系统",
     icon: Users,
+        ornament: "tier-ladder",
     purpose: "用户和档位，站长自己看",
     hue: "green",
   },
@@ -238,6 +258,7 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/symbol": {
     title: "个股",
     icon: ScanSearch,
+        ornament: "quote-tape",
     purpose: "单只票的全部：行情、研判、持仓",
     hue: "blue",
   },
@@ -250,6 +271,7 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/membership": {
     title: "会员",
     icon: CreditCard,
+        ornament: "tier-ladder",
     purpose: "档位、定价、怎么开通",
     hue: "brand",
   },

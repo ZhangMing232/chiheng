@@ -18,12 +18,14 @@ import type { ReactNode } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  BellRing,
   CheckCircle2,
   ChevronRight,
   Circle,
   GitBranch,
   Scale,
   Sparkles,
+  Trophy,
   Zap,
 } from "lucide-react";
 import {
@@ -236,6 +238,46 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
         <span className="flex items-center gap-1.5 text-muted">
           <CheckCircle2 className="size-3.5" />
           <span className="text-[11px]">实时</span>
+          {children}
+        </span>
+      );
+    case "day-rhythm":
+      return (
+        <span className="flex items-center gap-1.5 text-muted">
+          <Zap className="size-3.5" />
+          <span className="text-[11px]">今天节奏</span>
+          {children}
+        </span>
+      );
+    case "champion-race":
+      return (
+        <span className="flex items-center gap-1.5 text-muted">
+          <Trophy className="size-3.5" />
+          <span className="text-[11px]">谁在领跑</span>
+          {children}
+        </span>
+      );
+    case "quote-tape":
+      return (
+        <span className="flex items-center gap-1.5 text-muted">
+          <Circle className="size-3.5" />
+          <span className="text-[11px]">此刻</span>
+          {children}
+        </span>
+      );
+    case "alert-timeline":
+      return (
+        <span className="flex items-center gap-1.5 text-muted">
+          <BellRing className="size-3.5" />
+          <span className="text-[11px]">时间线</span>
+          {children}
+        </span>
+      );
+    case "tier-ladder":
+      return (
+        <span className="flex items-center gap-1.5 text-muted">
+          <GitBranch className="size-3.5" />
+          <span className="text-[11px]">档位</span>
           {children}
         </span>
       );

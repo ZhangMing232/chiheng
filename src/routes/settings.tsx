@@ -46,7 +46,25 @@ function SettingsPage() {
   const stale = files.filter((f) => f.state === "stale");
 
   return (
-    <Frame aside="设置">
+    <Frame
+      aside="设置"
+      status={{
+        label: "数据源",
+        // **真实数据**：files 里各数据源的状态。missing 是缺失的、
+        // stale 是过期的——两个都是"不健康"，所以分开报。
+        value: files.length > 0 ? `${files.length - stale.length} / ${files.length} 正常` : null,
+        tone: stale.length > 0 || missing.length > 0 ? "warn" : "ok",
+      }}
+      ornamentContent={
+        missing.length > 0 ? (
+          <span className="text-[11px] text-warn">缺 {missing.length} 项数据源</span>
+        ) : stale.length > 0 ? (
+          <span className="text-[11px] text-warn">{stale.length} 项已过期</span>
+        ) : (
+          <span className="text-[11px]">所有数据源都是新的</span>
+        )
+      }
+    >
       <Panel title="系统状态" note={beat ? `记账心跳 ${beat}` : "没有心跳"}>
         <div className="grid grid-cols-2 gap-3 px-3.5 py-3 sm:grid-cols-4">
           <Stat label="记账进程" value={recorder.ok ? "正常" : "异常"} hint={beat ?? "从没记过账"} />

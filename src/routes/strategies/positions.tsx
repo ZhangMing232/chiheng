@@ -521,6 +521,8 @@ function Positions() {
 
   // ── 页头装饰用：未平仓笔数（从本页已有的 rows 算，不额外拉接口）──
   const openCount = rows.filter((row) => row.exit == null).length;
+  // 在跑的挑战者（status === "running"）。promoted/rejected 是历史，不算"在跑"。
+  const runningChals = chal.filter((c) => c.status === "running");
 
   // 组合体检的输入：现价查询、按开仓日排的合计盈亏（null 天剔除，旧在前）。
   const priceOf = useMemo(() => {
@@ -908,6 +910,18 @@ function Positions() {
         value: `${openCount} 只`,
         tone: openCount > 0 ? "brand" : "neutral",
       }}
+      ornamentContent={
+        // **真实数据**：在跑的挑战者数量 + 它们挑战哪套策略。
+        // 没挑战者就是"现在没有在跑的挑战"——不是"0 场对决"。
+        runningChals.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            {runningChals.length} 个挑战者在跑 ·{" "}
+            {[...new Set(runningChals.map((c) => c.style))].join(" / ")}
+          </span>
+        ) : (
+          <span className="text-[11px]">现在没有在跑的挑战者</span>
+        )
+      }
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">持仓</span>

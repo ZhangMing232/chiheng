@@ -81,6 +81,15 @@ function InboxPage() {
         value: rows.length > 0 ? `${unread} 条` : null,
         tone: unread > 0 ? "brand" : "neutral",
       }}
+      ornamentContent={
+        rows.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            最新 {new Date(rows[0]!.at).toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </span>
+        ) : (
+          <span className="text-[11px]">没有提醒</span>
+        )
+      }
     >
       <Panel
         title="收件箱"

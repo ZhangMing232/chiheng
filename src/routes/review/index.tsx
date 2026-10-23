@@ -91,6 +91,22 @@ function Review() {
 
   return (
     <Frame
+      status={{
+        label: "今日",
+        // **真实数据**：breadth 的涨跌家数。拿不到快照就是 null
+        //（页头少一个药丸，不拿 0 顶替"不知道"）。
+        value: breadth ? `涨 ${breadth.up} 跌 ${breadth.down}` : null,
+        tone: breadth ? (breadth.up > breadth.down ? "ok" : "warn") : "neutral",
+      }}
+      ornamentContent={
+        indices && indices.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            {indices[0]!.name} {indices[0]!.pct != null ? `${indices[0]!.pct > 0 ? "+" : ""}${indices[0]!.pct.toFixed(2)}%` : "—"}
+          </span>
+        ) : (
+          <span className="text-[11px]">指数快照暂不可用</span>
+        )
+      }
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">每日复盘</span>
