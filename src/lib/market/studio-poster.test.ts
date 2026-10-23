@@ -255,3 +255,34 @@ test("🔴 带小字的行不挤到下一张卡片上（另一个会话先发现
     assert.ok(noteY < secondCardTop, `小字 y=${noteY} 必须在下一张卡片起点 ${secondCardTop} 之前`);
   });
 });
+
+test("🔴 列表不能压到底部事实行/免责区（行高计算要扣掉分布条高度）", async () => {
+  const { drawStudioPoster } = await import("@/lib/market/studio-poster");
+  await withFakeCanvas(async (ctx) => {
+    // 竖版 1080×1920，**8 条**带分布条 + 事实行。
+    // ⚠️ 条数很关键：5 条时增量被 MAX_ROW_EXTRA(80) 封顶，两种算法结果一样，
+    // 测不出顺序 bug；8 条时封顶不生效，顺序错了才会压到事实行（实测）。
+    drawStudioPoster(
+      {
+        title: "主力净流入 TOP",
+        subtitle: "主力资金 · 净流入",
+        layout: "ranking",
+        items: Array.from({ length: 8 }, (_, i) => ({
+          name: `票${i + 1}`,
+          value: "+1.0亿",
+          color: "#ff5c5c",
+          note: "+1.00%",
+        })),
+        dist: { label: "前 3 名合计 / 其余全部", top: 320247, rest: 334200 },
+        footNote: "上涨 2135 · 下跌 2887",
+      },
+      "vertical",
+      Date.parse("2026-10-23T00:00:00+08:00"),
+    );
+    const tops = [...ctx.cardTops].sort((a, b) => a - b);
+    const lastBottom = tops[tops.length - 1]! + 132; // 最后一张卡片（含 note 行高 132）
+    const footY = ctx.positioned.find((p) => p.text.startsWith("上涨 2135"))?.y ?? 0;
+    assert.ok(footY > lastBottom, `事实行 y=${footY} 必须 below 最后一张卡片底边 ${lastBottom}`);
+    assert.ok(footY < 1920 - 48, `事实行 y=${footY} 不能压到免责区（1920-48）`);
+  });
+});

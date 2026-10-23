@@ -169,12 +169,6 @@ function footer(ctx: CanvasRenderingContext2D, W: number, H: number, note?: stri
 function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
   const pad = 72;
   const items = spec.items ?? [];
-  // 行高：带小字（note）的行必须更高，否则小字会画到下一张卡片上；
-  // 还要按剩余空间自适应（内容少时把画布撑满，竖版下面空一半像没做完）。
-  // **算法在 studio-layout.ts，SVG 路线共用**——两边各算各的图会不一样。
-  const heights = rankRowHeights(items, H - y0 - FOOT_ROOM, baseRowHeight(items.length));
-  const hOf = (i: number): number => heights[i] ?? heights[heights.length - 1] ?? 112;
-
   // 分布条：前 3 名合计 vs 其余（单看排名不知道这是不是全部）
   if (spec.dist) {
     const { top, rest } = spec.dist;
@@ -201,6 +195,16 @@ function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: 
     ctx.fillText(`${studioAbsWan(top)} / ${studioAbsWan(rest)}`, pad + barW, barY + barH + 40);
     y0 = barY + barH + 78;
   }
+
+  // 行高：**必须等分布条画完再算**——分布条占掉的高度要从可用高度里扣掉，
+  // 否则列表会压到事实行/免责区（2026-10-16 实测修掉的 bug：canvas 侧顺序反了，
+  // SVG 侧顺序对，两条路不一致）。
+  // 带小字（note）的行必须更高，否则小字会画到下一张卡片上；
+  // 还要按剩余空间自适应（内容少时把画布撑满，竖版下面空一半像没做完）。
+  // **算法在 studio-layout.ts，SVG 路线共用**——两边各算各的图会不一样。
+  const heights = rankRowHeights(items, H - y0 - FOOT_ROOM, baseRowHeight(items.length));
+  const hOf = (i: number): number => heights[i] ?? heights[heights.length - 1] ?? 112;
+
   let cursor = y0;
   items.forEach((item, i) => {
     const ry = cursor;
