@@ -32,7 +32,7 @@ const DATA: StudioData = {
   breadth: { up: 2843, down: 2106, flat: 176, limitUp: 48, limitDown: 7 },
   flow: {
     stocksIn: [
-      { name: "紫金矿业", inflow: 128600 },
+      { name: "紫金矿业", inflow: 128600, chg: 2.31 },
       { name: "中际旭创", inflow: 98200 },
       { name: "宁德时代", inflow: 87100 },
       { name: "贵州茅台", inflow: 65400 },
@@ -46,8 +46,13 @@ const DATA: StudioData = {
     sectorsIn: [
       { name: "半导体", inflow: 210400 },
       { name: "有色金属", inflow: 156700 },
+      { name: "新能源车", inflow: 98600 },
     ],
-    sectorsOut: [{ name: "银行", inflow: -98700 }],
+    sectorsOut: [
+      { name: "银行", inflow: -98700 },
+      { name: "煤炭", inflow: -65400 },
+      { name: "电力", inflow: -32100 },
+    ],
     north: [],
     market: [],
     tape: [],
@@ -61,9 +66,10 @@ const DATA: StudioData = {
     ],
   } as never,
   news: [
-    { id: "n1", time: "10:23", title: "国务院部署新一轮设备更新", summary: "会议指出加快重点行业设备更新改造。", tone: "positive", boards: [], stocks: [{ id: "s1", code: "600000", name: "浦发银行", chg: 1.2 }] },
-    { id: "n2", time: "09:41", title: "央行开展 5000 亿 MLF 操作", summary: "本月 MLF 超额续作。", tone: "neutral", boards: [], stocks: [] },
+    { id: "n1", time: "10:23", title: "国务院部署新一轮设备更新", summary: "会议指出加快重点行业设备更新改造。", tone: "good", boards: [], stocks: [{ id: "s1", code: "600000", name: "浦发银行", chg: 1.2 }] },
+    { id: "n2", time: "09:41", title: "央行开展 5000 亿 MLF 操作", summary: "本月 MLF 超额续作。", tone: "flat", boards: [], stocks: [] },
   ],
+  breakRate: null,
   ladder: [
     { streak: 1, count: 48 },
     { streak: 2, count: 12 },
@@ -161,4 +167,64 @@ test("标题抽取：从文案里拿【标题】，超长或缺失回退默认",
   assert.equal(titleFromCaption("没有标题行", "兜底"), "兜底");
   assert.equal(defaultTitle("ladder"), "连板梯队");
   assert.equal(TOPIC_LABEL.sectorIn, "板块净流入 TOP");
+});
+
+// ── L2 信息密度（2026-10-23，STUDIO-UPGRADE 第一层）──────────────────
+
+test("L2 榜单：条目带涨跌幅小字（chg 有才显示，null 不编）", () => {
+  const withChg = { ...DATA, flow: { ...DATA.flow, stocksIn: [{ name: "甲", inflow: 1000, chg: 3.25 }, { name: "乙", inflow: 800, chg: null }] } as never };
+  const spec = buildStudioSpec("ranking", "stockIn", withChg, { topN: 5 });
+  assert.equal(spec.items![0]!.sub, "+3.25%", "涨跌幅进 sub 小字");
+  assert.equal(spec.items![1]!.sub, undefined, "chg 是 null 不显示，不编 0%");
+});
+
+test("L2 榜单：集中度分布条——前 3 vs 榜上其余，不足 4 行不画", () => {
+  const spec = buildStudioSpec("ranking", "stockIn", DATA, { topN: 10 });
+  assert.ok(spec.distrib, "10 行有集中度");
+  // DATA.stocksIn 前 3：128600+98200+87100=313900；其余：65400+54300+43200=162900
+  assert.equal(spec.distrib!.top3, 313900);
+  assert.equal(spec.distrib!.rest, 162900);
+  const few = { ...DATA, flow: { ...DATA.flow, stocksIn: [{ name: "甲", inflow: 100 }, { name: "乙", inflow: 90 }, { name: "丙", inflow: 80 }] } as never };
+  assert.equal(buildStudioSpec("ranking", "stockIn", few, { topN: 5 }).distrib, undefined, "3 行画不出集中，不渲染");
+});
+
+test("L2 榜单：底部市场事实行（涨跌家数，全市场真数据）", () => {
+  const spec = buildStudioSpec("ranking", "stockIn", DATA, { topN: 10 });
+  assert.ok(spec.breadthLine?.includes("涨 2843"), "上涨家数在");
+  assert.ok(spec.breadthLine?.includes("涨停 48"), "涨停数在");
+});
+
+test("L2 复盘：板块 mini 双榜各 3 条（条数纪律）", () => {
+  const spec = buildStudioSpec("recap", "daily", DATA, { topN: 1 });
+  assert.ok(spec.sectorMini, "有板块 mini 榜");
+  assert.equal(spec.sectorMini!.gain.length, 3);
+  assert.equal(spec.sectorMini!.gain[0]!.name, "半导体");
+  assert.equal(spec.sectorMini!.lose.length, 3);
+  assert.equal(spec.sectorMini!.lose[0]!.name, "银行");
+});
+
+test("L2 复盘：事实行从数据算，不写 AI 话", () => {
+  const spec = buildStudioSpec("recap", "daily", DATA, { topN: 1 });
+  assert.ok(spec.facts!.some((f) => f.includes("领涨三板块主力净流入合计")), "确定性描述");
+  assert.ok(spec.facts!.some((f) => f.includes("涨停 48")), "涨跌停在事实行");
+  // flow 没有时 mini 榜整个不渲染（不留空模块）
+  const bare = { ...DATA, flow: null } as StudioData;
+  assert.equal(buildStudioSpec("recap", "daily", bare, { topN: 1 }).sectorMini, undefined);
+});
+
+test("L2 情绪：炸板率进 spec（/signals 汇总，null 不渲染）", () => {
+  const withRate = { ...DATA, breakRate: 40 };
+  const spec = buildStudioSpec("sentiment", "ladder", withRate, { topN: 1 });
+  assert.equal(spec.breakRate, 40);
+  assert.equal(buildStudioSpec("sentiment", "ladder", DATA, { topN: 1 }).breakRate, null);
+});
+
+test("L2 游资：每席位最多带 2 只票（条数纪律，原来 3 只）", () => {
+  const spec = buildStudioSpec("hotmoney", "seats", DATA, { topN: 5 });
+  assert.equal(spec.items![0]!.note, "买了 某A · 某B", "2 只，不堆");
+});
+
+test("L2 事件：涉及票带涨跌幅（chg 有才显示）", () => {
+  const spec = buildStudioSpec("event", "news", DATA, { topN: 1, newsIndex: 0 });
+  assert.ok(spec.meta?.includes("浦发银行 +1.20%"), "票带涨跌幅：" + spec.meta);
 });

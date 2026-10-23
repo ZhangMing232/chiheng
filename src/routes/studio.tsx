@@ -15,6 +15,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { generateStudioCaption, getBreadth, getFlow, getHotMoney, getIndices, getNews } from "@/lib/market/quotes.functions";
+import { getSignals } from "@/lib/market/limit-up.functions";
 import { buildStudioSpec, defaultTitle, genreOf, titleFromCaption, GENRES, type StudioData, type StudioGenre, type StudioPlatform, type StudioTopic } from "@/lib/market/studio";
 import { drawStudioPoster, type StudioFormat } from "@/lib/market/studio-poster";
 import type { FlowBook } from "@/lib/market/flow";
@@ -29,14 +30,16 @@ const PLATFORMS: { id: StudioPlatform; label: string }[] = [
 
 export const Route = createFileRoute("/studio")({
   loader: async () => {
-    const [indices, breadth, flow, hotMoney, news] = await Promise.all([
+    const [indices, breadth, flow, hotMoney, news, signals] = await Promise.all([
       getIndices().catch(() => [] as IndexQuote[]),
       getBreadth().catch(() => null),
       getFlow().catch(() => null),
       getHotMoney().catch(() => null),
       getNews().catch(() => [] as NewsItem[]),
+      // 情绪体裁的原料：连板梯队 + 炸板率（/signals 已拉过涨停池，这里不重复拉）
+      getSignals().catch(() => null),
     ]);
-    return { indices, breadth, flow, hotMoney, news };
+    return { indices, breadth, flow, hotMoney, news, signals };
   },
   component: StudioPage,
 });
@@ -63,7 +66,8 @@ function StudioPage() {
     flow: data.flow as FlowBook | null,
     hotMoney: data.hotMoney as HotBook | null,
     news: data.news,
-    ladder: [],
+    ladder: data.signals?.summary?.ladder ?? [],
+    breakRate: data.signals?.summary?.breakRate ?? null,
   };
 
   async function generate() {

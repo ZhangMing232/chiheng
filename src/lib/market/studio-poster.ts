@@ -27,8 +27,17 @@ export type StudioFormat = "vertical" | "square";
 /** 版式：ranking 排名列表 · event 事件卡 · stat 大数字 · ladder 梯队条。 */
 export type StudioLayout = "ranking" | "event" | "stat" | "ladder";
 
-/** 一条内容（ranking 用）。value 是右边大数字，color 红/绿/中性，note 可选。 */
-export type StudioItem = { name: string; value: string; color: string; note?: string };
+/**
+ * 一条内容（ranking 用）。value 是右边大数字，color 红/绿/中性。
+ * sub = 第二行小字（涨跌幅），note = 第三行小字（游资的"买了啥"）。
+ */
+export type StudioItem = { name: string; value: string; color: string; sub?: string; note?: string };
+
+/** 集中度分布（ranking 底部条）：前 3 名 vs 榜上其余。 */
+export type StudioDistrib = { top3: number; rest: number; total: number };
+
+/** 板块 mini 双榜（复盘用）：领涨/领跌各最多 3 条。 */
+export type StudioSectorMini = { gain: StudioItem[]; lose: StudioItem[] };
 
 /** 复盘用的大数字块。 */
 export type StudioStat = { label: string; value: string; sub?: string; color?: string };
@@ -57,6 +66,16 @@ export type StudioSpec = {
   rungs?: StudioRung[];
   /** 情绪脚注（sentiment，一句人话） */
   mood?: string;
+  /** 炸板率 %（sentiment，/signals 汇总） */
+  breakRate?: number | null;
+  /** ranking：集中度分布条（不足 4 行 buildStudioSpec 不传，这里不画） */
+  distrib?: StudioDistrib;
+  /** ranking：底部一行市场事实（涨跌家数） */
+  breadthLine?: string;
+  /** recap：板块领涨/领跌 mini 双榜 */
+  sectorMini?: StudioSectorMini;
+  /** recap：底部事实行（从数据算的确定性描述） */
+  facts?: string[];
 };
 
 function canvasOf(format: StudioFormat): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; W: number; H: number } {
@@ -151,33 +170,79 @@ function footer(ctx: CanvasRenderingContext2D, W: number, H: number, note?: stri
 function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
   const pad = 72;
   const items = spec.items ?? [];
-  const rowH = items.length > 10 ? 96 : 112;
+  // 行高分档：带小字的行更高（名次/名字上移，小字在下面），保证不挤压
+  const anySub = items.some((it) => it.sub || it.note);
+  const rowH = anySub ? 132 : items.length > 10 ? 96 : 112;
+  const baseY = anySub ? 54 : 66;
   items.forEach((item, i) => {
     const ry = y0 + i * rowH;
     ctx.fillStyle = CARD;
     roundRect(ctx, pad, ry, W - pad * 2, rowH - 16, 20);
     ctx.fill();
 
+    // 名次（金色）+ 名字，同一基线
     ctx.textAlign = "left";
     ctx.fillStyle = GOLD;
     ctx.font = `bold 34px ${FONT}`;
-    ctx.fillText(String(i + 1).padStart(2, "0"), pad + 32, ry + (item.note ? 52 : 66));
+    ctx.fillText(String(i + 1).padStart(2, "0"), pad + 32, ry + baseY);
 
     ctx.fillStyle = INK;
     ctx.font = `bold 36px ${FONT}`;
-    ctx.fillText(item.name, pad + 120, ry + (item.note ? 52 : 66));
+    ctx.fillText(item.name, pad + 120, ry + baseY);
 
+    // sub（第二行小字：涨跌幅，红绿——+ 红 - 绿，0 灰）
+    if (item.sub) {
+      ctx.fillStyle = item.sub.startsWith("+") ? RED : item.sub.startsWith("-") ? GREEN : MUTED;
+      ctx.font = `bold 26px ${FONT}`;
+      ctx.fillText(item.sub, pad + 120, ry + baseY + 40);
+    }
+
+    // note（游资的"买了啥"，第三行小字，灰）
     if (item.note) {
       ctx.fillStyle = MUTED;
       ctx.font = `24px ${FONT}`;
-      ctx.fillText(item.note, pad + 120, ry + 92);
+      ctx.fillText(item.note, pad + 120, ry + baseY + (item.sub ? 76 : 40));
     }
 
+    // 数值（右对齐，红绿），与名字同基线
     ctx.textAlign = "right";
     ctx.fillStyle = item.color;
     ctx.font = `bold 40px ${FONT}`;
-    ctx.fillText(item.value, W - pad - 32, ry + (item.note ? 60 : 66));
+    ctx.fillText(item.value, W - pad - 32, ry + baseY);
   });
+
+  // 集中度分布条：前 3 名 vs 榜上其余（不足 4 行 buildStudioSpec 不传，这里不画）
+  let afterY = y0 + items.length * rowH + 24;
+  const d = spec.distrib;
+  if (d && d.total > 0) {
+    const barW = W - pad * 2;
+    const barH = 40;
+    const topRatio = Math.max(0, Math.min(1, d.top3 / d.total));
+    ctx.fillStyle = RED;
+    ctx.fillRect(pad, afterY, barW * topRatio, barH);
+    ctx.fillStyle = "#3a4255";
+    ctx.fillRect(pad + barW * topRatio, afterY, barW * (1 - topRatio), barH);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold 28px ${FONT}`;
+    ctx.fillText(`前 3 名 ${(topRatio * 100).toFixed(0)}%`, pad + 24, afterY + 30);
+    ctx.textAlign = "right";
+    ctx.fillText(`其余 ${((1 - topRatio) * 100).toFixed(0)}%`, pad + barW - 24, afterY + 30);
+    // 口径脚注：集中度只覆盖榜上，不是全市场（避免黑箱）
+    ctx.textAlign = "left";
+    ctx.fillStyle = MUTED;
+    ctx.font = `22px ${FONT}`;
+    ctx.fillText("集中度 = 榜上第 4-N 名之和的对比，不是全市场口径", pad, afterY + barH + 34);
+    afterY += barH + 56;
+  }
+
+  // 底部市场事实行（涨跌家数，全市场真数据）
+  if (spec.breadthLine) {
+    ctx.textAlign = "left";
+    ctx.fillStyle = MUTED;
+    ctx.font = `26px ${FONT}`;
+    ctx.fillText(spec.breadthLine, pad, afterY + 24);
+  }
 }
 
 // ── 版式二：事件卡 ──────────────────────────────────────────────────
