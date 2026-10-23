@@ -48,7 +48,7 @@ export const Route = createFileRoute("/studio")({
 function StudioPage() {
   const data = Route.useLoaderData();
   const [genre, setGenre] = useState<StudioGenre>("ranking");
-  const [topic, setTopic] = useState<StudioTopic>("stockIn");
+  const [topic, setTopic] = useState<StudioTopic>("stockVersus");
   const [topN, setTopN] = useState(10);
   const [newsIndex, setNewsIndex] = useState(0);
   const [platform, setPlatform] = useState<StudioPlatform>("douyin");
@@ -88,6 +88,38 @@ function StudioPage() {
       const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
       const withTitle = { ...spec, title };
 
+      // **资金流向对比体裁：AI 设计优先**。数字和事实走模板逐字注入，审美/排版交给
+      // 模型写 SVG；服务端先校验（真实数字、免责声明、NaN）再渲染，不过会自动重画。
+      // AI 不可用（非主人账号 / 接口失败）时安静回退到下面的模板路径。
+      const isVersus = topic === "stockVersus" || topic === "sectorVersus";
+      if (isVersus) {
+        const ai = await fetch("/api/studio/ai-poster", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ kind: topic === "sectorVersus" ? "sector" : "stock", format }),
+        })
+          .then(
+            (r) =>
+              r.json() as Promise<
+                | { ok: true; dataUrl: string; attempts: number; ms: number }
+                | { ok: false; error: string }
+              >,
+          )
+          .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+        if (ai.ok) {
+          if (imageUrl) URL.revokeObjectURL(imageUrl);
+          setImageUrl(ai.dataUrl);
+          setFilename(
+            `赤轨-资金流向对比-${new Date().toISOString().slice(0, 10)}-${platform === "douyin" ? "抖音" : "公众号"}.png`,
+          );
+          setRenderPath("svg");
+          setRenderNote(`AI 设计 · ${ai.attempts} 次尝试 · ${Math.round(ai.ms / 1000)}s · 数字已逐字校验`);
+          if (caption) setText(caption);
+          return;
+        }
+        setRenderNote(`AI 设计不可用（${ai.error}），已回退模板渲染`);
+      }
+
       // **服务端 SVG 优先，失败回退 canvas**。SVG 版式更好（声明式、条件渲染），
       // 但服务端要有字体和原生模块；回退保证任何情况下都能出图。
       const rendered = await fetch("/api/studio/poster", {
@@ -102,7 +134,7 @@ function StudioPage() {
         setImageUrl(rendered.dataUrl);
         setFilename(`赤轨-${new Date().toISOString().slice(0, 10)}-${platform === "douyin" ? "抖音" : "公众号"}.png`);
         setRenderPath("svg");
-        setRenderNote("");
+        setRenderNote((prev) => prev);
       } else {
         const drawn = drawStudioPoster(withTitle, format);
         drawn.canvas.toBlob((blob) => {
@@ -118,7 +150,7 @@ function StudioPage() {
         const why = /404|fetch|Failed/i.test(rendered.error)
           ? "服务端渲染接口当前不可用（开发模式下 server/routes 要 build 后才生效），已用浏览器绘制。"
           : `服务端渲染失败，已回退浏览器绘制：${rendered.error}`;
-        setRenderNote(why);
+        setRenderNote((prev) => (prev ? `${prev}；${why}` : why));
       }
 
       if (caption) setText(caption);

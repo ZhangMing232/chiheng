@@ -440,6 +440,10 @@ export type AIMeta = {
   profileId?: string | null;
   pricePromptPerM?: number | null;
   priceCompletionPerM?: number | null;
+  /** 自定义 system prompt（默认是量化研究助理）。海报设计这类非 JSON 任务用。 */
+  system?: string;
+  /** 自定义超时（默认 150s）。长输出设计任务需要更久。 */
+  timeoutMs?: number;
 };
 
 /**
@@ -509,7 +513,7 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
   const ctrl = new AbortController();
   // 90s 不够：deepseek-flash 多数 17~37s，但长 prompt + 自我历史偶尔超 90s 被掐，
   // 自动进化在收盘后跑，多等一分钟换不白跑一趟。
-  const timer = setTimeout(() => ctrl.abort(), 150_000);
+  const timer = setTimeout(() => ctrl.abort(), meta.timeoutMs ?? 150_000);
   const started = Date.now();
   /** 有些模型（如 kimi code-highspeed）只收 temperature=1：400 里点名 temperature
    *  就摘掉这个参数原样重发一次，别让整个 fallback 白切过来。 */
@@ -521,11 +525,12 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
       body: JSON.stringify(body),
     });
   try {
+    const system = meta.system ?? "你是一个严谨的量化研究助理。只输出要求的 JSON，不输出别的。";
     let res = await post({
       model: config.model,
       temperature: 0.2,
       messages: [
-        { role: "system", content: "你是一个严谨的量化研究助理。只输出要求的 JSON，不输出别的。" },
+        { role: "system", content: system },
         { role: "user", content: prompt },
       ],
     });
@@ -535,7 +540,7 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
         res = await post({
           model: config.model,
           messages: [
-            { role: "system", content: "你是一个严谨的量化研究助理。只输出要求的 JSON，不输出别的。" },
+            { role: "system", content: system },
             { role: "user", content: prompt },
           ],
         });

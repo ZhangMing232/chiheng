@@ -83,21 +83,21 @@ test("五种体裁都注册了，且各有数据源和条数选项", () => {
 });
 
 test("体裁 → 版式映射：榜单/游资=ranking，事件=event，复盘=stat，情绪=ladder", () => {
-  assert.equal(buildStudioSpec("ranking", "stockIn", DATA, { topN: 10 }).layout, "ranking");
-  assert.equal(buildStudioSpec("ranking", "sectorOut", DATA, { topN: 10 }).layout, "ranking");
+  assert.equal(buildStudioSpec("ranking", "stockVersus", DATA, { topN: 10 }).layout, "ranking");
+  assert.equal(buildStudioSpec("ranking", "sectorVersus", DATA, { topN: 10 }).layout, "ranking");
   assert.equal(buildStudioSpec("hotmoney", "seats", DATA, { topN: 10 }).layout, "ranking");
   assert.equal(buildStudioSpec("event", "news", DATA, { topN: 1, newsIndex: 0 }).layout, "event");
   assert.equal(buildStudioSpec("recap", "daily", DATA, { topN: 1 }).layout, "stat");
   assert.equal(buildStudioSpec("sentiment", "ladder", DATA, { topN: 1 }).layout, "ladder");
 });
 
-test("ranking：topN 生效，红涨绿跌（净流出是负→绿）", () => {
-  const spec = buildStudioSpec("ranking", "stockIn", DATA, { topN: 3 });
-  assert.equal(spec.items!.length, 3);
+test("ranking：topN 生效，红涨绿跌（净流出是负→绿），双边拼接在同一张图", () => {
+  const spec = buildStudioSpec("ranking", "stockVersus", DATA, { topN: 3 });
+  assert.equal(spec.items!.length, 5, "流入 3 + 流出 2 拼接");
   assert.equal(spec.items![0]!.name, "紫金矿业");
   assert.equal(spec.items![0]!.value, "+12.9亿");
-  const out = buildStudioSpec("ranking", "stockOut", DATA, { topN: 5 });
-  assert.ok(out.items![0]!.value.startsWith("-"), "净流出带负号");
+  assert.equal(spec.items![3]!.name, "东方财富");
+  assert.ok(spec.items![3]!.value.startsWith("-"), "净流出侧带负号");
 });
 
 test("游资：条目带「买了啥」note（这是游资体裁的招牌信息）", () => {
@@ -139,7 +139,7 @@ test("空数据不崩：没快讯/没榜单各有兜底，不出假条目", () =
   const bare = { ...DATA, news: [], flow: null, hotMoney: null, ladder: [] } as StudioData;
   const ev = buildStudioSpec("event", "news", bare, { topN: 1, newsIndex: 0 });
   assert.ok(ev.body![0]!.includes("还没抓到快讯"));
-  const rk = buildStudioSpec("ranking", "stockIn", bare, { topN: 10 });
+  const rk = buildStudioSpec("ranking", "stockVersus", bare, { topN: 10 });
   assert.equal(rk.items!.length, 0);
 });
 
@@ -161,18 +161,14 @@ test("标题抽取：从文案里拿【标题】，超长或缺失回退默认",
   assert.equal(titleFromCaption("【标题】特别特别特别特别特别特别特别特别特别特别长的标题", "兜底"), "兜底");
   assert.equal(titleFromCaption("没有标题行", "兜底"), "兜底");
   assert.equal(defaultTitle("ladder"), "连板梯队");
-  assert.equal(TOPIC_LABEL.sectorIn, "板块净流入 TOP");
+  assert.equal(TOPIC_LABEL.sectorVersus, "板块资金流向对比");
 });
 
 // ── L2 信息密度（2026-10-23 加）──────────────────────────────────────
 
-test("ranking：分布条（前 3 合计 vs 其余）+ 底部涨跌家数行", () => {
-  const spec = buildStudioSpec("ranking", "stockIn", DATA, { topN: 6 });
-  assert.ok(spec.dist, "要有分布条");
-  assert.equal(spec.dist!.label, "前 3 名合计 / 其余全部");
-  // 前 3 = 128600 + 98200 + 87100 = 313900；其余 = 65400+54300+43200 = 162900
-  assert.equal(spec.dist!.top, 313900);
-  assert.equal(spec.dist!.rest, 162900);
+test("ranking：底部涨跌家数行（versus 体裁不再带分布条——双边拼接后「前3/其余」没意义）", () => {
+  const spec = buildStudioSpec("ranking", "stockVersus", DATA, { topN: 6 });
+  assert.equal(spec.dist, undefined, "versus 不画分布条");
   assert.ok(spec.footNote?.includes("上涨 2843"), "底部要有涨跌家数");
   assert.ok(spec.footNote?.includes("涨停 48"));
 });
@@ -185,7 +181,7 @@ test("ranking：个股行带涨跌幅（只给金额不给涨跌是信息缺失�
       stocksIn: [{ name: "紫金矿业", inflow: 128600, chg: 3.21, leader: "紫金矿业" }],
     },
   } as StudioData;
-  const spec = buildStudioSpec("ranking", "stockIn", withChg, { topN: 3 });
+  const spec = buildStudioSpec("ranking", "stockVersus", withChg, { topN: 3 });
   assert.equal(spec.items![0]!.note, "+3.21%");
 });
 
@@ -197,7 +193,7 @@ test("ranking：板块行带领涨股名", () => {
       sectorsIn: [{ name: "半导体", inflow: 210400, chg: 2.1, leader: "寒武纪" }],
     },
   } as StudioData;
-  const spec = buildStudioSpec("ranking", "sectorIn", withLeader, { topN: 3 });
+  const spec = buildStudioSpec("ranking", "sectorVersus", withLeader, { topN: 3 });
   assert.equal(spec.items![0]!.note, "领涨 寒武纪");
 });
 
@@ -224,7 +220,7 @@ test("event：涉及票带涨跌幅（光给票名是「提了一嘴」）", () 
 
 test("空数据：分布条/小榜该没有就没有，不留空框", () => {
   const bare = { ...DATA, flow: null, hotMoney: null, ladder: [], breakRate: null } as StudioData;
-  const rk = buildStudioSpec("ranking", "stockIn", bare, { topN: 10 });
+  const rk = buildStudioSpec("ranking", "stockVersus", bare, { topN: 10 });
   assert.equal(rk.dist, undefined, "没数据就不画分布条");
   assert.ok(rk.footNote, "涨跌家数是另一个源，有就显示");
   const rec = buildStudioSpec("recap", "daily", bare, { topN: 1 });

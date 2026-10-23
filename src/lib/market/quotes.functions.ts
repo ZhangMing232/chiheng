@@ -360,9 +360,9 @@ export const generateStudioCaption = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const d = data as { genre?: unknown; topic?: unknown; platform?: unknown; extra?: unknown };
     const genres = ["ranking", "hotmoney", "event", "recap", "sentiment"] as const;
-    const topics = ["stockIn", "stockOut", "sectorIn", "sectorOut", "seats", "news", "daily", "ladder"] as const;
+    const topics = ["stockVersus", "sectorVersus", "seats", "news", "daily", "ladder"] as const;
     const genre = (genres as readonly string[]).includes(String(d?.genre)) ? (d?.genre as (typeof genres)[number]) : "ranking";
-    const topic = (topics as readonly string[]).includes(String(d?.topic)) ? (d?.topic as (typeof topics)[number]) : "stockIn";
+    const topic = (topics as readonly string[]).includes(String(d?.topic)) ? (d?.topic as (typeof topics)[number]) : "stockVersus";
     return {
       genre,
       topic,

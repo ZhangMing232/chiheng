@@ -44,16 +44,9 @@ import {
 
 export type StudioGenre = "ranking" | "hotmoney" | "event" | "recap" | "sentiment";
 export type StudioPlatform = "douyin" | "wechat";
-/** ranking 下的具体榜单；hotmoney 只有 seats；event/news/recap/daily/sentiment/ladder 是单源。 */
-export type StudioTopic =
-  | "stockIn"
-  | "stockOut"
-  | "sectorIn"
-  | "sectorOut"
-  | "seats"
-  | "news"
-  | "daily"
-  | "ladder";
+/** versus 是「一张图讲完一场博弈」：流入流出同图对比（AI 设计管线，studio-ai.ts）。
+ *  seats/news/daily/ladder 是单源。 */
+export type StudioTopic = "stockVersus" | "sectorVersus" | "seats" | "news" | "daily" | "ladder";
 
 export type GenreDef = {
   id: StudioGenre;
@@ -67,15 +60,14 @@ export type GenreDef = {
 export const GENRES: GenreDef[] = [
   {
     id: "ranking",
-    label: "榜单",
-    desc: "钱往哪去：净流入/流出排名，大红大绿甩数字",
+    label: "资金流向",
+    desc: "一场博弈一张图：流入流出同图对比，红进绿出一眼看清",
     topics: [
-      { id: "stockIn", label: "个股净流入" },
-      { id: "stockOut", label: "个股净流出" },
-      { id: "sectorIn", label: "板块净流入" },
-      { id: "sectorOut", label: "板块净流出" },
+      { id: "stockVersus", label: "个股资金流向" },
+      { id: "sectorVersus", label: "板块资金流向" },
     ],
-    topNOptions: [5, 10, 15],
+    // versus 图条数固定（AI 管线按 TOP8 双边 + 板块 + 两市喂满画幅），不用调
+    topNOptions: [1],
   },
   {
     id: "hotmoney",
@@ -108,10 +100,8 @@ export const GENRES: GenreDef[] = [
 ];
 
 export const TOPIC_LABEL: Record<StudioTopic, string> = {
-  stockIn: "个股净流入 TOP",
-  stockOut: "个股净流出 TOP",
-  sectorIn: "板块净流入 TOP",
-  sectorOut: "板块净流出 TOP",
+  stockVersus: "个股资金流向对比",
+  sectorVersus: "板块资金流向对比",
   seats: "游资席位净买",
   news: "今日热点",
   daily: "今日 A 股",
@@ -178,49 +168,37 @@ function breadthNote(b: Breadth): string {
 export function buildStudioSpec(genre: StudioGenre, topic: StudioTopic, data: StudioData, opts: BuildOpts): StudioSpec {
   const flow = data.flow;
   switch (topic) {
-    case "stockIn":
+    case "stockVersus":
+      // AI 设计不可用时的模板兜底：流入 / 流出双边拼接在一张图里，
+      // 不再拆成「流入一张、流出一张」两张半图（2026-10-23 拍板：同一事实不拆两张）。
       return {
-        title: TOPIC_LABEL.stockIn,
-        subtitle: "主力资金 · 净流入",
+        title: TOPIC_LABEL.stockVersus,
+        subtitle: "主力资金 · 流入流出同图对比",
         layout: "ranking",
-        items: rankingItems(flow?.stocksIn ?? [], opts.topN),
-        dist: distOf(flow?.stocksIn ?? [], "前 3 名合计 / 其余全部"),
+        items: [
+          ...rankingItems(flow?.stocksIn ?? [], opts.topN),
+          ...rankingItems(flow?.stocksOut ?? [], opts.topN),
+        ],
         footNote: breadthNote(data.breadth),
       };
-    case "stockOut":
+    case "sectorVersus": {
+      // 板块榜的 note 是领涨 / 领跌股（FlowRow.leader）——**板块排名不带龙头是半张图**
+      const sectorNote = (side: "in" | "out") => (r: { name: string; inflow: number }) => {
+        const pool = side === "in" ? flow?.sectorsIn : flow?.sectorsOut;
+        const row = pool?.find((x) => x.name === r.name);
+        return row?.leader ? `${side === "in" ? "领涨" : "领跌"} ${row.leader}` : undefined;
+      };
       return {
-        title: TOPIC_LABEL.stockOut,
-        subtitle: "主力资金 · 净流出",
+        title: TOPIC_LABEL.sectorVersus,
+        subtitle: "板块资金 · 流入流出同图对比",
         layout: "ranking",
-        items: rankingItems(flow?.stocksOut ?? [], opts.topN),
-        dist: distOf(flow?.stocksOut ?? [], "前 3 名合计 / 其余全部"),
+        items: [
+          ...rankingItems(flow?.sectorsIn ?? [], opts.topN, sectorNote("in")),
+          ...rankingItems(flow?.sectorsOut ?? [], opts.topN, sectorNote("out")),
+        ],
         footNote: breadthNote(data.breadth),
       };
-    case "sectorIn":
-      return {
-        title: TOPIC_LABEL.sectorIn,
-        subtitle: "板块资金 · 净流入",
-        layout: "ranking",
-        // 板块榜的 note 是领涨股（FlowRow.leader）——**板块排名不带领涨股是半张图**
-        items: rankingItems(flow?.sectorsIn ?? [], opts.topN, (r) => {
-          const row = flow?.sectorsIn.find((x) => x.name === r.name);
-          return row?.leader ? `领涨 ${row.leader}` : undefined;
-        }),
-        dist: distOf(flow?.sectorsIn ?? [], "前 3 名合计 / 其余全部"),
-        footNote: breadthNote(data.breadth),
-      };
-    case "sectorOut":
-      return {
-        title: TOPIC_LABEL.sectorOut,
-        subtitle: "板块资金 · 净流出",
-        layout: "ranking",
-        items: rankingItems(flow?.sectorsOut ?? [], opts.topN, (r) => {
-          const row = flow?.sectorsOut.find((x) => x.name === r.name);
-          return row?.leader ? `领跌 ${row.leader}` : undefined;
-        }),
-        dist: distOf(flow?.sectorsOut ?? [], "前 3 名合计 / 其余全部"),
-        footNote: breadthNote(data.breadth),
-      };
+    }
     case "seats":
       return {
         title: "游资席位净买",
@@ -366,15 +344,15 @@ const PLATFORM_HINT: Record<StudioPlatform, string> = {
 async function gatherContext(genre: StudioGenre, topic: StudioTopic, opts: BuildOpts): Promise<string> {
   try {
     switch (topic) {
-      case "stockIn":
-      case "stockOut":
-      case "sectorIn":
-      case "sectorOut": {
+      case "stockVersus":
+      case "sectorVersus": {
         const flow = await loadFlow();
-        const pick =
-          topic === "stockIn" ? flow.stocksIn : topic === "stockOut" ? flow.stocksOut : topic === "sectorIn" ? flow.sectorsIn : flow.sectorsOut;
-        const label = topic.startsWith("sector") ? "板块" : "个股";
-        return `${label}主力净${topic === "stockOut" || topic === "sectorOut" ? "流" : "流入"}出前 ${opts.topN}：` + pick.slice(0, opts.topN).map((r) => `${r.name} ${studioAbsWan(r.inflow)}`).join("，");
+        const label = topic === "sectorVersus" ? "板块" : "个股";
+        const fmt = (rows: typeof flow.stocksIn) =>
+          rows.slice(0, opts.topN).map((r) => `${r.name} ${studioAbsWan(r.inflow)}`).join("，");
+        const poolIn = topic === "sectorVersus" ? flow.sectorsIn : flow.stocksIn;
+        const poolOut = topic === "sectorVersus" ? flow.sectorsOut : flow.stocksOut;
+        return `${label}主力净流入前 ${opts.topN}：${fmt(poolIn)}；净流出前 ${opts.topN}：${fmt(poolOut)}`;
       }
       case "seats": {
         const book = await loadHotMoney();
