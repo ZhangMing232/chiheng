@@ -8,10 +8,22 @@
 
 ## 0. 今天到哪了（一句话）
 
-护栏齐了、研究流水线跑通、SOP 6/6、新页面全部落地、数据 D1-D6 落地、港美行情接入、
-GitHub 已同步。908 测试全绿。Vibe-Research 对齐两轮（回测闸口三件套 + UI 标准 + 外壳 +
-/research 六阶段 + 知识档案），Vibe-Trading 融合 VT1-VT7 全部完成（VT6 暂缓）。
-**待拍板**：design/DECISIONS.md 四件事（Welch 提前否决 / g5 换 DSR / 同日样本去留 / 名单饱和观察）。
+护栏齐了、研究流水线跑通、SOP 6/6、数据 D1-D10 落地（含宏观四块/事件驱动东财 6 类）、
+港美行情接入、GitHub 已同步。**973 测试全绿**（2026-10-23）。Vibe-Research 对齐两轮，
+Vibe-Trading 融合 VT1-VT7 完成（VT6 暂缓）。
+
+**产品化进度**（2026-10-22/23，另一条线推进，详见 design/PRODUCT-VISION.md + PRODUCT-PLAN.md）：
+- ✅ AI 大脑三层（自研 agent-loop + VT MCP 74 工具 + DeepSeek HARNESS 运行时）
+- ✅ 会员体系 v1（Better Auth 注册登录 + plan 档位 + /membership 定价 29/299/999 + AI 额度闸）
+- ✅ 多用户隔离（自选/笔记/研判/知识库/prefs/收件箱按人落盘）
+- ✅ AI 大管家 /butler（常驻对话，先读项目状态再答）+ /admin 站长管理（改档位）
+- ✅ /studio 自媒体图文（复盘海报/资金异动，AI 文案活人感，抖音/公众号两版式）
+- ✅ 公网访问跑通一次（meanwhy.top + Cloudflare Tunnel，**隧道是手动开的，没常开**）
+- ✅ 信息架构收口（侧栏 7 功能组；删 /desk；/flow 三合一）
+- ⬜ 真收款（支付通道，MEMBERSHIP.md 第三节待拍板）、生产库 Neon、成本核算
+
+**待拍板**：design/DECISIONS.md 剩余三件（g5 换 DSR / 同日样本去留 / 名单饱和观察；
+第 1 件 Welch 提前否决已于 63c6219 按 C 落地）。
 
 ---
 
