@@ -12,7 +12,7 @@
  */
 
 import type { Quote, Universe } from "./types";
-import { limitTag } from "./model";
+import { limitTag } from "./model.ts";
 
 export function slimUniverse(universe: Universe | null, ids: Iterable<string>): Universe | null {
   if (!universe) return null;

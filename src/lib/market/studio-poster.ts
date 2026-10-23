@@ -1,12 +1,14 @@
 /**
  * 这个文件是干什么的：
- * 自媒体图文的配图，一套「可换内容」的现代财经海报画笔。
- * 不绑定某一种内容：外部传一个 spec（标题 + 条目列表），就画成一张深色行情风格的图。
+ * 自媒体图文的配图画笔。**一套底色、多种版式**——深色行情风不变，
+ * 但按内容体裁选版式：榜单用排名列表、事件用事件卡、复盘用大数字、
+ * 连板用梯队条。以前所有内容都塞进排名列表，所以怎么看都像套公式。
  *
  * 你需要知道的：
- * - 深色底 + 大标题 + 排名列表 + 大数字，对标行情 App / 财经大 V 的图。
  * - 红涨绿跌：红 #ff5c5c、绿 #2dd4a0；金色 #f5b544 做名次和品牌点缀。
  * - 抖音 = 1080×1920（9:16），公众号 = 1080×1440（3:4）。
+ * - 版式由 StudioSpec.layout 决定：ranking / event / stat / ladder。
+ *   每种版式是独立绘制函数，共享顶栏（日期+赤轨）和底部免责。
  */
 
 const BG_TOP = "#171b26";
@@ -22,11 +24,40 @@ const FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans SC",sans-serif';
 
 export type StudioFormat = "vertical" | "square";
 
-/** 一条内容。value 是右边大数字，color 红/绿/中性，note 可选（小字说明）。 */
+/** 版式：ranking 排名列表 · event 事件卡 · stat 大数字 · ladder 梯队条。 */
+export type StudioLayout = "ranking" | "event" | "stat" | "ladder";
+
+/** 一条内容（ranking 用）。value 是右边大数字，color 红/绿/中性，note 可选。 */
 export type StudioItem = { name: string; value: string; color: string; note?: string };
 
+/** 复盘用的大数字块。 */
+export type StudioStat = { label: string; value: string; sub?: string; color?: string };
+
+/** 涨跌分布（recap 用）。up/down/flat 是只数。 */
+export type StudioBreadth = { up: number; down: number; flat: number; limitUp?: number; limitDown?: number };
+
+/** 连板梯队的一级（sentiment 用）。 */
+export type StudioRung = { streak: number; count: number };
+
 /** 一张图文海报的内容规格。 */
-export type StudioSpec = { title: string; subtitle?: string; items: StudioItem[] };
+export type StudioSpec = {
+  title: string;
+  subtitle?: string;
+  layout: StudioLayout;
+  /** ranking / hotmoney */
+  items?: StudioItem[];
+  /** event：正文段落（已按句拆好，绘制时换行） */
+  body?: string[];
+  /** event：来源/时间行 */
+  meta?: string;
+  /** recap */
+  stats?: StudioStat[];
+  breadth?: StudioBreadth;
+  /** sentiment */
+  rungs?: StudioRung[];
+  /** 情绪脚注（sentiment，一句人话） */
+  mood?: string;
+};
 
 function canvasOf(format: StudioFormat): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; W: number; H: number } {
   const W = 1080;
@@ -40,6 +71,7 @@ function canvasOf(format: StudioFormat): { canvas: HTMLCanvasElement; ctx: Canva
   grad.addColorStop(0, BG_TOP);
   grad.addColorStop(1, BG_BOTTOM);
   ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 0, 0);
   ctx.fillRect(0, 0, W, H);
   return { canvas, ctx, W, H };
 }
@@ -61,12 +93,25 @@ function headline(at: number): string {
   return `${month}月${day}日`;
 }
 
-/** 画一张图文海报。 */
-export function drawStudioPoster(spec: StudioSpec, format: StudioFormat, at = Date.now()): { canvas: HTMLCanvasElement; filename: string } {
-  const { canvas, ctx, W } = canvasOf(format);
-  const pad = 72;
+/** 简易换行：按像素宽度断行，中文按字断（没有空格可依赖）。 */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const ch of text) {
+    if (ctx.measureText(line + ch).width > maxWidth && line) {
+      lines.push(line);
+      line = ch;
+    } else {
+      line += ch;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 
-  // 顶栏：日期 + 品牌
+/** 顶栏（日期 + 品牌）+ 大标题，返回内容区起始 y。各版式共用。 */
+function chrome(ctx: CanvasRenderingContext2D, W: number, spec: StudioSpec, at: number): number {
+  const pad = 72;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
   ctx.fillStyle = MUTED;
@@ -77,62 +122,218 @@ export function drawStudioPoster(spec: StudioSpec, format: StudioFormat, at = Da
   ctx.font = `bold 28px ${FONT}`;
   ctx.fillText("赤轨", W - pad, 92);
 
-  // 大标题
   ctx.textAlign = "left";
   ctx.fillStyle = INK;
   ctx.font = `bold 64px ${FONT}`;
-  ctx.fillText(spec.title, pad, 180);
-
-  // 副标题
-  let y = 240;
+  const titleLines = wrapText(ctx, spec.title, W - pad * 2).slice(0, 2);
+  titleLines.forEach((line, i) => ctx.fillText(line, pad, 180 + i * 74));
+  let y = 180 + titleLines.length * 74 + 24;
   if (spec.subtitle) {
     ctx.fillStyle = MUTED;
     ctx.font = `30px ${FONT}`;
     ctx.fillText(spec.subtitle, pad, y);
-    y += 60;
+    y += 56;
   }
+  return y + 24;
+}
 
-  // 排名列表
-  const rowH = 112;
-  for (let i = 0; i < spec.items.length; i += 1) {
-    const item = spec.items[i];
-    const ry = y + i * rowH;
+/** 底部免责，各版式共用。 */
+function footer(ctx: CanvasRenderingContext2D, W: number, H: number, note?: string) {
+  const pad = 72;
+  ctx.textAlign = "left";
+  ctx.fillStyle = MUTED;
+  ctx.font = `24px ${FONT}`;
+  ctx.fillText(note ?? "数据不构成投资建议 · 赤轨", pad, H - 48);
+}
+
+// ── 版式一：排名列表 ────────────────────────────────────────────────
+
+function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
+  const pad = 72;
+  const items = spec.items ?? [];
+  const rowH = items.length > 10 ? 96 : 112;
+  items.forEach((item, i) => {
+    const ry = y0 + i * rowH;
     ctx.fillStyle = CARD;
     roundRect(ctx, pad, ry, W - pad * 2, rowH - 16, 20);
     ctx.fill();
 
-    // 名次（金色）
     ctx.textAlign = "left";
     ctx.fillStyle = GOLD;
     ctx.font = `bold 34px ${FONT}`;
-    ctx.fillText(String(i + 1).padStart(2, "0"), pad + 32, ry + 66);
+    ctx.fillText(String(i + 1).padStart(2, "0"), pad + 32, ry + (item.note ? 52 : 66));
 
-    // 名字
     ctx.fillStyle = INK;
     ctx.font = `bold 36px ${FONT}`;
-    ctx.fillText(item.name, pad + 120, ry + 66);
+    ctx.fillText(item.name, pad + 120, ry + (item.note ? 52 : 66));
 
-    // note（小字，放名字下面）
     if (item.note) {
       ctx.fillStyle = MUTED;
       ctx.font = `24px ${FONT}`;
-      ctx.fillText(item.note, pad + 120, ry + 98);
+      ctx.fillText(item.note, pad + 120, ry + 92);
     }
 
-    // 数值（右对齐，红绿）
     ctx.textAlign = "right";
     ctx.fillStyle = item.color;
     ctx.font = `bold 40px ${FONT}`;
-    ctx.fillText(item.value, W - pad - 32, ry + 66);
+    ctx.fillText(item.value, W - pad - 32, ry + (item.note ? 60 : 66));
+  });
+}
+
+// ── 版式二：事件卡 ──────────────────────────────────────────────────
+
+function drawEvent(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
+  const pad = 72;
+  // meta 行（来源/时间）
+  if (spec.meta) {
+    ctx.textAlign = "left";
+    ctx.fillStyle = MUTED;
+    ctx.font = `26px ${FONT}`;
+    ctx.fillText(spec.meta, pad, y0);
+    y0 += 56;
   }
+  // 正文卡片：按行排，行距宽松，像给人读的一段话
+  const cardTop = y0;
+  const cardH = Math.min(H - cardTop - 140, 900);
+  ctx.fillStyle = CARD;
+  roundRect(ctx, pad, cardTop, W - pad * 2, cardH, 24);
+  ctx.fill();
 
-  // 底部免责
-  const footY = y + spec.items.length * rowH + 40;
   ctx.textAlign = "left";
-  ctx.fillStyle = MUTED;
-  ctx.font = `24px ${FONT}`;
-  ctx.fillText("数据不构成投资建议", pad, footY);
+  ctx.fillStyle = INK;
+  ctx.font = `32px ${FONT}`;
+  let ly = cardTop + 64;
+  for (const para of spec.body ?? []) {
+    for (const line of wrapText(ctx, para, W - pad * 2 - 96)) {
+      ctx.fillText(line, pad + 48, ly);
+      ly += 56;
+    }
+    ly += 24; // 段间距
+  }
+}
 
+// ── 版式三：大数字（复盘） ──────────────────────────────────────────
+
+function drawStat(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
+  const pad = 72;
+  const stats = spec.stats ?? [];
+  // 指数大卡：一列排（竖版）或两列（横版），每卡 label + 大数字 + 涨跌幅
+  const cols = stats.length <= 2 ? 1 : 2;
+  const gap = 24;
+  const cardW = (W - pad * 2 - gap * (cols - 1)) / cols;
+  const cardH = 220;
+  stats.forEach((s, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = pad + col * (cardW + gap);
+    const cy = y0 + row * (cardH + gap);
+    ctx.fillStyle = CARD;
+    roundRect(ctx, cx, cy, cardW, cardH, 24);
+    ctx.fill();
+    ctx.textAlign = "left";
+    ctx.fillStyle = MUTED;
+    ctx.font = `28px ${FONT}`;
+    ctx.fillText(s.label, cx + 36, cy + 56);
+    ctx.fillStyle = s.color ?? INK;
+    ctx.font = `bold 72px ${FONT}`;
+    ctx.fillText(s.value, cx + 36, cy + 140);
+    ctx.textAlign = "right";
+    if (s.sub) {
+      ctx.fillStyle = s.color ?? INK;
+      ctx.font = `bold 36px ${FONT}`;
+      ctx.fillText(s.sub, cx + cardW - 36, cy + 140);
+    }
+  });
+
+  // 涨跌分布横条
+  const b = spec.breadth;
+  if (b) {
+    const total = Math.max(1, b.up + b.down + b.flat);
+    const barY = y0 + Math.ceil(stats.length / cols) * (cardH + gap) + 24;
+    const barW = W - pad * 2;
+    const barH = 88;
+    let bx = pad;
+    const seg = (n: number, color: string) => {
+      const w = (n / total) * barW;
+      ctx.fillStyle = color;
+      ctx.fillRect(bx, barY, w, barH);
+      bx += w;
+    };
+    seg(b.up, RED);
+    seg(b.flat, "#3a4255");
+    seg(b.down, GREEN);
+    // 条上数字（白色，压在最宽的那段上方）
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold 34px ${FONT}`;
+    ctx.fillText(`涨 ${b.up}`, pad + 28, barY + 56);
+    ctx.textAlign = "right";
+    ctx.fillText(`跌 ${b.down}`, pad + barW - 28, barY + 56);
+    ctx.textAlign = "center";
+    ctx.fillStyle = MUTED;
+    ctx.font = `30px ${FONT}`;
+    ctx.fillText(`涨停 ${b.limitUp ?? 0} · 跌停 ${b.limitDown ?? 0}`, pad + barW / 2, barY + barH + 52);
+  }
+}
+
+// ── 版式四：连板梯队 ────────────────────────────────────────────────
+
+function drawLadder(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
+  const pad = 72;
+  const rungs = spec.rungs ?? [];
+  const max = Math.max(1, ...rungs.map((r) => r.count));
+  const rowH = 128;
+  rungs.forEach((r, i) => {
+    const ry = y0 + i * rowH;
+    // 左侧金色标签「N板」
+    ctx.fillStyle = GOLD;
+    ctx.font = `bold 44px ${FONT}`;
+    ctx.textAlign = "left";
+    ctx.fillText(`${r.streak}板`, pad, ry + 60);
+    // 横条：长度按占最大值的比例，最窄也给 8% 看得见
+    const barX = pad + 150;
+    const barMax = W - pad - barX - 220;
+    const w = Math.max(barMax * 0.08, (r.count / max) * barMax);
+    ctx.fillStyle = r.streak >= 3 ? RED : "#4a5468";
+    roundRect(ctx, barX, ry + 16, w, 72, 16);
+    ctx.fill();
+    // 右侧数量
+    ctx.textAlign = "right";
+    ctx.fillStyle = INK;
+    ctx.font = `bold 48px ${FONT}`;
+    ctx.fillText(`${r.count} 只`, W - pad, ry + 66);
+  });
+  // 情绪脚注
+  if (spec.mood) {
+    let my = y0 + rungs.length * rowH + 30;
+    ctx.textAlign = "left";
+    ctx.fillStyle = MUTED;
+    ctx.font = `30px ${FONT}`;
+    for (const line of wrapText(ctx, spec.mood, W - pad * 2).slice(0, 2)) {
+      ctx.fillText(line, pad, my);
+      my += 44;
+    }
+  }
+}
+
+/** 画一张图文海报。 */
+export function drawStudioPoster(spec: StudioSpec, format: StudioFormat, at = Date.now()): { canvas: HTMLCanvasElement; filename: string } {
+  const { canvas, ctx, W, H } = canvasOf(format);
+  const y0 = chrome(ctx, W, spec, at);
+  switch (spec.layout) {
+    case "event":
+      drawEvent(ctx, W, H, spec, y0);
+      break;
+    case "stat":
+      drawStat(ctx, W, H, spec, y0);
+      break;
+    case "ladder":
+      drawLadder(ctx, W, H, spec, y0);
+      break;
+    default:
+      drawRanking(ctx, W, H, spec, y0);
+  }
+  footer(ctx, W, H);
   return { canvas, filename: `赤轨-${headline(at)}-${format === "vertical" ? "抖音" : "公众号"}.png` };
 }
 
@@ -140,6 +341,7 @@ export function drawStudioPoster(spec: StudioSpec, format: StudioFormat, at = Da
 export const STUDIO_RED = RED;
 export const STUDIO_GREEN = GREEN;
 export const STUDIO_INK = INK;
+export const STUDIO_MUTED = MUTED;
 
 export function studioTone(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n) || n === 0) return INK;

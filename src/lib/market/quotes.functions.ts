@@ -320,18 +320,23 @@ export const askButler = createServerFn({ method: "POST" })
 /** 自媒体文案生成。POST { kind, platform } → { ok, text }。kind 见 studio.ts 的 StudioKind。 */
 export const generateStudioCaption = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
-    const d = data as { kind?: unknown; platform?: unknown };
-    const kinds = ["daily", "stockIn", "stockOut", "sector", "hotMoney", "news"] as const;
-    const kind = (kinds as readonly string[]).includes(String(d?.kind)) ? (d?.kind as (typeof kinds)[number]) : "daily";
+    const d = data as { genre?: unknown; topic?: unknown; platform?: unknown; extra?: unknown };
+    const genres = ["ranking", "hotmoney", "event", "recap", "sentiment"] as const;
+    const topics = ["stockIn", "stockOut", "sectorIn", "sectorOut", "seats", "news", "daily", "ladder"] as const;
+    const genre = (genres as readonly string[]).includes(String(d?.genre)) ? (d?.genre as (typeof genres)[number]) : "ranking";
+    const topic = (topics as readonly string[]).includes(String(d?.topic)) ? (d?.topic as (typeof topics)[number]) : "stockIn";
     return {
-      kind,
+      genre,
+      topic,
       platform: d?.platform === "wechat" ? ("wechat" as const) : ("douyin" as const),
+      // 用户自己补的观点（可选，融进文案不抢戏）。截断防滥用。
+      extra: typeof d?.extra === "string" ? d.extra.slice(0, 200) : "",
     };
   })
   .handler(async ({ data }) => {
     const { generateCaption } = await import("@/lib/market/studio");
     try {
-      return { ok: true as const, text: await generateCaption(data.kind, data.platform) };
+      return { ok: true as const, text: await generateCaption(data.genre, data.topic, data.platform, data.extra) };
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
     }

@@ -1,11 +1,13 @@
 /**
  * 这个文件是干什么的：
- * 「自媒体图文」页（/studio）。选内容类型（复盘/个股流入流出/板块/游资/热点）+ 平台（抖音/公众号），
- * 一键同时生成「图片 + 文案」：图走 studio-poster 的深色行情风，文走 DSH（DeepSeek）的活人感文案。
+ * 「自媒体图文」页（/studio）。**体裁 × 数据源**两级选择：先选怎么写（榜单/游资/
+ * 事件/复盘/情绪），再选写什么（哪份榜、哪条快讯），范围可调、观点可补。
+ * 一键生成「图 + 文」：图按体裁走四种版式（studio-poster），文按体裁走不同写法
+ * （studio.ts 的 GENRE_VOICE），所以不再是所有内容都长一个样。
  *
  * 你需要知道的：
- * - 图片在浏览器里用 canvas 画；文案走服务端 AI。不荐股、不编数。
- * - 内容类型是灵活的（不是固定复盘模板），每类自动套对应的排名/列表数据。
+ * - 图片在浏览器里用 canvas 画；文案走服务端 AI（DSH）。不荐股、不编数。
+ * - 「我的观点」是可选项：AI 把它自然融进文案，不原话照搬、不盖过数据。
  */
 
 import { useState } from "react";
@@ -13,14 +15,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { generateStudioCaption, getBreadth, getFlow, getHotMoney, getIndices, getNews } from "@/lib/market/quotes.functions";
-import { buildStudioItems, defaultTitle, KIND_LABEL, titleFromCaption, type StudioKind, type StudioPlatform } from "@/lib/market/studio";
-import { drawStudioPoster, type StudioFormat, type StudioSpec } from "@/lib/market/studio-poster";
+import { buildStudioSpec, defaultTitle, genreOf, titleFromCaption, GENRES, type StudioData, type StudioGenre, type StudioPlatform, type StudioTopic } from "@/lib/market/studio";
+import { drawStudioPoster, type StudioFormat } from "@/lib/market/studio-poster";
 import type { FlowBook } from "@/lib/market/flow";
 import type { HotBook } from "@/lib/market/hotmoney";
 import type { NewsItem } from "@/lib/market/news";
 import type { IndexQuote } from "@/lib/market/types";
 
-const KINDS: StudioKind[] = ["daily", "stockIn", "stockOut", "sector", "hotMoney", "news"];
 const PLATFORMS: { id: StudioPlatform; label: string }[] = [
   { id: "douyin", label: "抖音" },
   { id: "wechat", label: "公众号" },
@@ -42,8 +43,12 @@ export const Route = createFileRoute("/studio")({
 
 function StudioPage() {
   const data = Route.useLoaderData();
-  const [kind, setKind] = useState<StudioKind>("daily");
+  const [genre, setGenre] = useState<StudioGenre>("ranking");
+  const [topic, setTopic] = useState<StudioTopic>("stockIn");
+  const [topN, setTopN] = useState(10);
+  const [newsIndex, setNewsIndex] = useState(0);
   const [platform, setPlatform] = useState<StudioPlatform>("douyin");
+  const [extra, setExtra] = useState("");
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [filename, setFilename] = useState("");
@@ -51,26 +56,28 @@ function StudioPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const g = genreOf(genre);
+  const studioData: StudioData = {
+    indices: data.indices,
+    breadth: data.breadth ?? { up: 0, down: 0, flat: 0, limitUp: 0, limitDown: 0 },
+    flow: data.flow as FlowBook | null,
+    hotMoney: data.hotMoney as HotBook | null,
+    news: data.news,
+    ladder: [],
+  };
+
   async function generate() {
     setBusy(true);
     setError(null);
     setCopied(false);
     try {
-      const res = await generateStudioCaption({ data: { kind, platform } });
+      const res = await generateStudioCaption({ data: { genre, topic, platform, extra } });
       const caption = res.ok ? res.text : "";
       if (!res.ok) setError(res.error);
 
-      const title = caption ? titleFromCaption(caption, defaultTitle(kind)) : defaultTitle(kind);
-      const items = buildStudioItems(kind, {
-        indices: data.indices,
-        breadth: data.breadth ?? { up: 0, down: 0, flat: 0, limitUp: 0, limitDown: 0 },
-        flow: data.flow as FlowBook | null,
-        hotMoney: data.hotMoney as HotBook | null,
-        news: data.news,
-      });
-      const spec: StudioSpec = { title, items };
-      const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
-      const drawn = drawStudioPoster(spec, format);
+      const spec = buildStudioSpec(genre, topic, studioData, { topN, newsIndex });
+      const title = caption ? titleFromCaption(caption, defaultTitle(topic)) : defaultTitle(topic);
+      const drawn = drawStudioPoster({ ...spec, title }, (platform === "douyin" ? "vertical" : "square") as StudioFormat);
       drawn.canvas.toBlob((blob) => {
         if (!blob) return;
         if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -111,15 +118,71 @@ function StudioPage() {
 
   return (
     <Frame aside="自媒体图文">
-      <Panel title="自媒体图文" note="选内容 + 平台 → 一键生成「图 + 文」· 不荐股不编数">
+      <Panel title="自媒体图文" note="选体裁 → 选数据 → 生成图+文 · 不荐股不编数">
+        {/* 第一级：体裁 */}
+        <div className="border-b border-line px-3.5 py-2">
+          <div className="pb-1.5 text-[11px] text-muted">怎么写（体裁决定图和文的形态）</div>
+          <div className="flex flex-wrap gap-2">
+            {GENRES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setGenre(item.id);
+                  setTopic(item.topics[0]!.id);
+                }}
+                className={tabClass(genre === item.id)}
+              >
+                {item.label}
+                <span className="ml-1 hidden text-[10px] text-muted sm:inline">{item.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 第二级：数据源 + 范围 */}
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
-          <span className="text-[11px] text-muted">内容</span>
-          {KINDS.map((k) => (
-            <button key={k} type="button" onClick={() => setKind(k)} className={tabClass(kind === k)}>
-              {KIND_LABEL[k]}
+          <span className="text-[11px] text-muted">写什么</span>
+          {g.topics.map((t) => (
+            <button key={t.id} type="button" onClick={() => setTopic(t.id)} className={tabClass(topic === t.id)}>
+              {t.label}
             </button>
           ))}
+          {g.topNOptions.length > 1 ? (
+            <>
+              <span className="ml-2 text-[11px] text-muted">条数</span>
+              {g.topNOptions.map((n) => (
+                <button key={n} type="button" onClick={() => setTopN(n)} className={tabClass(topN === n)}>
+                  {n}
+                </button>
+              ))}
+            </>
+          ) : null}
         </div>
+
+        {/* 事件体裁：挑一条快讯 */}
+        {topic === "news" && data.news.length > 0 ? (
+          <div className="border-b border-line px-3.5 py-2">
+            <div className="pb-1.5 text-[11px] text-muted">挑一条深读（最新 {data.news.length} 条）</div>
+            <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">
+              {data.news.slice(0, 20).map((n, i) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => setNewsIndex(i)}
+                  className={
+                    "truncate rounded border px-2 py-1 text-left text-xs transition " +
+                    (newsIndex === i ? "border-brand text-fg" : "border-line text-muted hover:text-fg")
+                  }
+                >
+                  <span className="tabular-nums text-[10px] text-muted">{n.time}</span> {n.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* 平台 */}
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
           <span className="text-[11px] text-muted">平台</span>
           {PLATFORMS.map((p) => (
@@ -130,6 +193,17 @@ function StudioPage() {
         </div>
 
         <div className="flex flex-col gap-3 px-3.5 py-3">
+          {/* 我的观点（可选） */}
+          <div>
+            <input
+              value={extra}
+              onChange={(e) => setExtra(e.target.value)}
+              placeholder="我的观点（可选）：想让大家额外注意到什么，AI 会自然融进文案"
+              maxLength={200}
+              className="w-full rounded border border-line bg-transparent px-3 py-2 text-[13px] text-fg outline-none placeholder:text-muted focus:border-brand"
+            />
+          </div>
+
           <div>
             <button
               type="button"
