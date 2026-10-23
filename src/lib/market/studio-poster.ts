@@ -167,7 +167,12 @@ function footer(ctx: CanvasRenderingContext2D, W: number, H: number, note?: stri
 function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
   const pad = 72;
   const items = spec.items ?? [];
-  const rowH = items.length > 10 ? 96 : 112;
+  // 行高按内容分三态：**带小字（note）的行必须更高**，否则小字会画到下一张
+  // 卡片上（112 的行里小字在 92，字高 24 → 底边 116，已经出界）。
+  // 2026-10-13 那个会话先发现，我那版覆盖后重新吸收——并行工作不总是白做。
+  const baseH = items.length > 10 ? 96 : 112;
+  const noteH = 132;
+  const hOf = (i: number): number => (items[i]?.note ? noteH : baseH);
 
   // 分布条：前 3 名合计 vs 其余（单看排名不知道这是不是全部）
   if (spec.dist) {
@@ -195,10 +200,12 @@ function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: 
     ctx.fillText(`${studioAbsWan(top)} / ${studioAbsWan(rest)}`, pad + barW, barY + barH + 40);
     y0 = barY + barH + 78;
   }
+  let cursor = y0;
   items.forEach((item, i) => {
-    const ry = y0 + i * rowH;
+    const ry = cursor;
+    cursor += hOf(i);
     ctx.fillStyle = CARD;
-    roundRect(ctx, pad, ry, W - pad * 2, rowH - 16, 20);
+    roundRect(ctx, pad, ry, W - pad * 2, hOf(i) - 16, 20);
     ctx.fill();
 
     ctx.textAlign = "left";
@@ -213,7 +220,7 @@ function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: 
     if (item.note) {
       ctx.fillStyle = MUTED;
       ctx.font = `24px ${FONT}`;
-      ctx.fillText(item.note, pad + 120, ry + 92);
+      ctx.fillText(item.note, pad + 120, ry + 104);
     }
 
     ctx.textAlign = "right";
@@ -224,7 +231,8 @@ function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: 
 
   // 补充行（涨跌家数这类）
   if (spec.footNote) {
-    const fy = y0 + items.length * rowH + 20;
+    // y 用累加后的位置，不是「条数 × 统一行高」——带小字的行更高，固定算会错位
+    const fy = cursor + 16;
     ctx.textAlign = "left";
     ctx.fillStyle = MUTED;
     ctx.font = `26px ${FONT}`;

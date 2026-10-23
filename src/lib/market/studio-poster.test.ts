@@ -16,6 +16,10 @@ import { test } from "node:test";
 /** 记录型 canvas 上下文：所有绘制调用记下来，文字收集成数组。 */
 type FakeCtx = {
   texts: string[];
+  /** fillText 的文本和 y 坐标（用来验证文字没画到下一张卡片上） */
+  positioned: { text: string; y: number }[];
+  /** 卡片起点（roundRect 的 moveTo(x+r, y)，r=20 时 x+20 → 减 20 得卡片 x） */
+  cardTops: number[];
   rects: number;
   /** fill() 次数 = 画了几个卡片（圆角矩形走 beginPath+fill，不走 fillRect） */
   fills: number;
@@ -42,6 +46,8 @@ type FakeCtx = {
 function fakeCtx(): FakeCtx {
   const ctx: FakeCtx = {
     texts: [],
+    positioned: [],
+    cardTops: [],
     rects: 0,
     fills: 0,
     strokes: 0,
@@ -50,15 +56,19 @@ function fakeCtx(): FakeCtx {
     fillRect: () => {
       ctx.rects += 1;
     },
-    fillText: (t: string) => {
+    fillText: (t: string, x?: number, y?: number) => {
       ctx.texts.push(t);
+      if (typeof y === "number") ctx.positioned.push({ text: t, y });
     },
     strokeText: () => {
       ctx.strokes += 1;
     },
     beginPath: () => undefined,
     closePath: () => undefined,
-    moveTo: () => undefined,
+    moveTo: (x?: number, y?: number) => {
+      // roundRect 的第一句是 moveTo(x + r, y)，r 固定 20
+      if (typeof x === "number" && typeof y === "number") ctx.cardTops.push(y - 20);
+    },
     arcTo: () => undefined,
     fill: () => {
       ctx.fills += 1;
@@ -217,5 +227,31 @@ test("空条目不崩：items 为空时照样出图（只是没有列表）", as
     const out = drawStudioPoster({ title: "空榜", layout: "ranking", items: [] }, "vertical");
     assert.ok(out.canvas);
     assert.ok(ctx.texts.includes("空榜"));
+  });
+});
+
+test("🔴 带小字的行不挤到下一张卡片上（另一个会话先发现的行高 bug）", async () => {
+  const { drawStudioPoster } = await import("@/lib/market/studio-poster");
+  await withFakeCanvas(async (ctx) => {
+    drawStudioPoster(
+      {
+        title: "带小字的榜单",
+        layout: "ranking",
+        items: [
+          { name: "甲", value: "+1亿", color: "#ff5c5c", note: "+3.21%" },
+          { name: "乙", value: "+2亿", color: "#ff5c5c" },
+          { name: "丙", value: "+3亿", color: "#ff5c5c", note: "-1.00%" },
+        ],
+      },
+      "vertical",
+      Date.parse("2026-10-23T00:00:00+08:00"),
+    );
+    // 卡片起点（升序）：第 1 张、带 note 的第 2 张更靠后 → 行高按内容分三态
+    const tops = [...ctx.cardTops].sort((a, b) => a - b);
+    assert.ok(tops.length >= 3, `至少 3 张卡片，实际 ${tops.length}`);
+    // 带 note 的行（甲）到下一张卡（乙）的距离必须容得下小字
+    const noteY = ctx.positioned.find((p) => p.text === "+3.21%")!.y;
+    const secondCardTop = tops[1]!;
+    assert.ok(noteY < secondCardTop, `小字 y=${noteY} 必须在下一张卡片起点 ${secondCardTop} 之前`);
   });
 });
