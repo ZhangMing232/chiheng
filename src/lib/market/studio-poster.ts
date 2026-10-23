@@ -22,6 +22,8 @@ const GOLD = "#f5b544";
 
 const FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans SC",sans-serif';
 
+import { baseRowHeight, FOOT_ROOM, rankRowHeights } from "./studio-layout.ts";
+
 export type StudioFormat = "vertical" | "square";
 
 /** 版式：ranking 排名列表 · event 事件卡 · stat 大数字 · ladder 梯队条。 */
@@ -167,12 +169,11 @@ function footer(ctx: CanvasRenderingContext2D, W: number, H: number, note?: stri
 function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: StudioSpec, y0: number) {
   const pad = 72;
   const items = spec.items ?? [];
-  // 行高按内容分三态：**带小字（note）的行必须更高**，否则小字会画到下一张
-  // 卡片上（112 的行里小字在 92，字高 24 → 底边 116，已经出界）。
-  // 2026-10-13 那个会话先发现，我那版覆盖后重新吸收——并行工作不总是白做。
-  const baseH = items.length > 10 ? 96 : 112;
-  const noteH = 132;
-  const hOf = (i: number): number => (items[i]?.note ? noteH : baseH);
+  // 行高：带小字（note）的行必须更高，否则小字会画到下一张卡片上；
+  // 还要按剩余空间自适应（内容少时把画布撑满，竖版下面空一半像没做完）。
+  // **算法在 studio-layout.ts，SVG 路线共用**——两边各算各的图会不一样。
+  const heights = rankRowHeights(items, H - y0 - FOOT_ROOM, baseRowHeight(items.length));
+  const hOf = (i: number): number => heights[i] ?? heights[heights.length - 1] ?? 112;
 
   // 分布条：前 3 名合计 vs 其余（单看排名不知道这是不是全部）
   if (spec.dist) {
@@ -208,25 +209,30 @@ function drawRanking(ctx: CanvasRenderingContext2D, W: number, H: number, spec: 
     roundRect(ctx, pad, ry, W - pad * 2, hOf(i) - 16, 20);
     ctx.fill();
 
+    // 文字**随行高垂直居中**（行高会自适应放大，写死偏移会全挤在卡片上半部）
+    const cardH = hOf(i) - 16;
+    const midY = ry + cardH / 2;
+    const mainY = item.note ? midY - 4 : midY + 12;
+
     ctx.textAlign = "left";
     ctx.fillStyle = GOLD;
     ctx.font = `bold 34px ${FONT}`;
-    ctx.fillText(String(i + 1).padStart(2, "0"), pad + 32, ry + (item.note ? 52 : 66));
+    ctx.fillText(String(i + 1).padStart(2, "0"), pad + 32, mainY);
 
     ctx.fillStyle = INK;
     ctx.font = `bold 36px ${FONT}`;
-    ctx.fillText(item.name, pad + 120, ry + (item.note ? 52 : 66));
+    ctx.fillText(item.name, pad + 120, mainY);
 
     if (item.note) {
       ctx.fillStyle = MUTED;
       ctx.font = `24px ${FONT}`;
-      ctx.fillText(item.note, pad + 120, ry + 104);
+      ctx.fillText(item.note, pad + 120, midY + 38);
     }
 
     ctx.textAlign = "right";
     ctx.fillStyle = item.color;
     ctx.font = `bold 40px ${FONT}`;
-    ctx.fillText(item.value, W - pad - 32, ry + (item.note ? 60 : 66));
+    ctx.fillText(item.value, W - pad - 32, mainY + 8);
   });
 
   // 补充行（涨跌家数这类）

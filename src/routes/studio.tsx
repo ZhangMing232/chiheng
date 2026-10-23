@@ -58,6 +58,8 @@ function StudioPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [renderPath, setRenderPath] = useState<"svg" | "canvas" | null>(null);
+  const [renderNote, setRenderNote] = useState("");
 
   const g = genreOf(genre);
   const studioData: StudioData = {
@@ -81,13 +83,41 @@ function StudioPage() {
 
       const spec = buildStudioSpec(genre, topic, studioData, { topN, newsIndex });
       const title = caption ? titleFromCaption(caption, defaultTitle(topic)) : defaultTitle(topic);
-      const drawn = drawStudioPoster({ ...spec, title }, (platform === "douyin" ? "vertical" : "square") as StudioFormat);
-      drawn.canvas.toBlob((blob) => {
-        if (!blob) return;
+      const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
+      const withTitle = { ...spec, title };
+
+      // **服务端 SVG 优先，失败回退 canvas**。SVG 版式更好（声明式、条件渲染），
+      // 但服务端要有字体和原生模块；回退保证任何情况下都能出图。
+      const rendered = await fetch("/api/studio/poster", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ spec: withTitle, format }),
+      })
+        .then((r) => r.json() as Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>)
+        .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+      if (rendered.ok) {
         if (imageUrl) URL.revokeObjectURL(imageUrl);
-        setImageUrl(URL.createObjectURL(blob));
-        setFilename(drawn.filename);
-      }, "image/png");
+        setImageUrl(rendered.dataUrl);
+        setFilename(`赤轨-${new Date().toISOString().slice(0, 10)}-${platform === "douyin" ? "抖音" : "公众号"}.png`);
+        setRenderPath("svg");
+        setRenderNote("");
+      } else {
+        const drawn = drawStudioPoster(withTitle, format);
+        drawn.canvas.toBlob((blob) => {
+          if (!blob) return;
+          if (imageUrl) URL.revokeObjectURL(imageUrl);
+          setImageUrl(URL.createObjectURL(blob));
+          setFilename(drawn.filename);
+        }, "image/png");
+        setRenderPath("canvas");
+        // 404 在 dev 下是**预期行为**：Nitro 的 server/routes 要 build 后才生效
+        // （vite.config 里 serverDir 只在 build/preview 分支配了 nitro 插件）。
+        // 所以这里要说清楚，别让人以为是服务器坏了。
+        const why = /404|fetch|Failed/i.test(rendered.error)
+          ? "服务端渲染接口当前不可用（开发模式下 server/routes 要 build 后才生效），已用浏览器绘制。"
+          : `服务端渲染失败，已回退浏览器绘制：${rendered.error}`;
+        setRenderNote(why);
+      }
 
       if (caption) setText(caption);
     } catch (e) {
@@ -220,6 +250,12 @@ function StudioPage() {
           </div>
 
           {error ? <p className="text-sm text-up">{error}</p> : null}
+          {renderNote ? <p className="text-xs text-warn">{renderNote}</p> : null}
+          {renderPath ? (
+            <p className="text-[11px] text-muted">
+              渲染路径：{renderPath === "svg" ? "服务端 SVG 模板" : "浏览器 canvas（回退）"}
+            </p>
+          ) : null}
 
           {imageUrl ? (
             <div className="flex flex-col gap-2">
