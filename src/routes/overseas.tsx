@@ -83,7 +83,25 @@ function OverseasPage() {
   }
 
   return (
-    <Frame aside="港美行情">
+    <Frame
+      aside="港美行情"
+      ornamentContent={
+        // **真实数据**：indices[0] 是当前 tab 关注的那组指数里的第一个。
+        // pct 可能为 null（休市/没拿到）——那就只说名字，不编 0%。
+        indices && indices.quotes.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            {indices.quotes[0]!.name}
+            {/* 用 chg（涨跌幅）不用 price：指数点位要 ÷100 还原，写错就错 100 倍；
+                涨跌幅是现价和昨收算的比例，缩放无关（见 overseas-list.functions.ts 注释）。 */}
+            {indices.quotes[0]!.chg != null
+              ? ` ${indices.quotes[0]!.chg > 0 ? "+" : ""}${indices.quotes[0]!.chg.toFixed(2)}%`
+              : " 涨跌未取到"}
+          </span>
+        ) : (
+          <span className="text-[11px]">指数快照暂不可用</span>
+        )
+      }
+    >
       <Panel title="港美行情" note="只看数据，不做策略">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
           {TABS.map((tab) => (

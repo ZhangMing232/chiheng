@@ -10,6 +10,7 @@
 
 import { DecorBackdrop, DecorHeader, DecorOrnament } from "@/components/page-decor";
 import { decorFor } from "@/lib/ui/page-decor";
+import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -744,6 +745,16 @@ export function Frame({
       setRefreshing(false);
     }
   }
+
+  // F5 / r 刷新本页（复用缓存）。**注册在 Frame 而不是各页面**：绝大多数页面
+  // 没有自己的 onRefresh，但它们的 loader 也能 invalidate——之前只有选股页
+  // 注册了，别的地方按 F5 没反应，而 `?` 面板上明明写着「刷新」。
+  // 选股页会再注册一次（子组件 effect 先跑、父组件后跑，后注册的赢），
+  // 把「复用缓存」和「⌥F5 强制重拉」两个语义都补全。
+  // onToggleTheme 也注册在这里：cycleTheme 本来是选股页单独注册的，别的地方按 `t`
+  // 没反应，而 `?` 面板上写着「深浅色」是全局键——同一类漂移（面板说有、按下没反应）。
+  // 选股页会再注册一次覆盖掉，两个入口指向同一个 cycleTheme，不冲突。
+  useHotkeys({ onRefresh: () => refresh(), onToggleTheme: cycleTheme });
   return (
     <div className="min-h-screen md:flex">
       {/* 全站唯一的大面积用色：品牌条。窄屏在顶上（2px），桌面端是侧边栏 logo 旁那一竖 */}

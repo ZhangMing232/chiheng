@@ -317,7 +317,17 @@ function StudioPage() {
   }
 
   return (
-    <Frame aside="自媒体图文">
+    <Frame
+      aside="自媒体图文"
+      ornamentContent={
+        // **真实数据**：体裁和风格都是用户当前选中的（组件 state）。
+        // 页头跟着选中的组合变——换体裁时不用等生成就能看出差别。
+        <span className="text-[11px]">
+          {GENRES.find((g) => g.id === genre)?.label ?? genre} ·{" "}
+          {theme === "dark" ? "深色行情" : "浅色杂志"}
+        </span>
+      }
+    >
       <Panel title="自媒体图文" note="选体裁 → 选数据 → 生成图+文 · 不荐股不编数">
         {/* 第一级：体裁 */}
         <div className="border-b border-line px-3.5 py-2">

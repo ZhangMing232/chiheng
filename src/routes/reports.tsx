@@ -76,6 +76,18 @@ function ReportsPage() {
         value: rows.length > 0 ? `${rows.length} 份` : null,
         tone: "neutral",
       }}
+      ornamentContent={
+        // **真实数据**：rows[0] 是最新存的一份（列表按时间倒序）。
+        // at 是「YYYY-MM-DD HH:mm」或「YYYY-MM-DD」——只取日期部分，图上/页头
+        // 写一长串时间戳没意义（和海报层同一个教训）。
+        rows.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            最新 {rows[0]!.name || rows[0]!.symbol} · {rows[0]!.at.slice(0, 10)}
+          </span>
+        ) : (
+          <span className="text-[11px]">还没有存过报告</span>
+        )
+      }
     >
       <Panel
         title="我的报告"

@@ -217,6 +217,19 @@ export function Overview({ tape, parts, north, breadth, hasBreadth }: { tape: { 
   );
 }
 
+/**
+ * 万元 → 「+12.9 亿」/「-876 万」。
+ *
+ * **净流出必须带负号**：装饰件上「-876 万」写成「876 万」会被读成流入——
+ * 2026-10-23 在海报层（studio）踩过同款坑，那次是绿字无负号。
+ */
+export function flowAmount(wan: number): string {
+  const abs = Math.abs(wan);
+  const sign = wan < 0 ? "-" : "+";
+  if (abs >= 1e4) return `${sign}${(abs / 1e4).toFixed(1)} 亿`;
+  return `${sign}${Math.round(abs)} 万`;
+}
+
 export function flowWord(value: number): string {
   if (value > 0) return "净流入";
   if (value < 0) return "净流出";

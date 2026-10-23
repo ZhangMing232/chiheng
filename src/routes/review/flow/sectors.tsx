@@ -24,7 +24,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { FlowSectionTabs } from "@/components/flow-sections";
+import { flowAmount, FlowSectionTabs } from "@/components/flow-sections";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
@@ -91,7 +91,22 @@ function SectorsPage() {
   }
 
   return (
-    <Frame aside="板块">
+    <Frame
+      aside="板块"
+      ornamentContent={
+        // **真实数据**：板块行按主力净流入排，mainNet 单位万元。
+        table.rows.length === 0 ? (
+          <span className="text-[11px]">今天没有板块资金数据</span>
+        ) : table.rows[0]!.mainNet == null ? (
+          // 有板块行但没披露主力净额——「没披露」和「0」不是一回事
+          <span className="text-[11px]">板块资金口径未披露</span>
+        ) : (
+          <span className="text-[11px] tabular-nums">
+            净流入第一 {table.rows[0]!.name} {flowAmount(table.rows[0]!.mainNet)}
+          </span>
+        )
+      }
+    >
       <FlowSectionTabs />
       <Panel
         title="板块"

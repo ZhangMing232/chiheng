@@ -11,7 +11,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { FlowSectionTabs, List } from "@/components/flow-sections";
+import { flowAmount, FlowSectionTabs, List } from "@/components/flow-sections";
 import { StockName } from "@/components/screener/stock-name";
 import { getFlow } from "@/lib/market/quotes.functions";
 import type { FlowRow } from "@/lib/market/flow";
@@ -28,7 +28,26 @@ function renderStockName(row: FlowRow) {
 function FlowStocksPage() {
   const { book } = Route.useLoaderData();
   return (
-    <Frame aside="资金流向 · 个股">
+    <Frame
+      aside="资金流向 · 个股"
+      ornamentContent={
+        // **真实数据**：净流入榜第一名。流入榜空就看流出榜——
+        // 不拿空榜凑一句话，也不显示「0」冒充有数据。
+        book == null ? (
+          <span className="text-[11px]">资金榜没拉到</span>
+        ) : book.stocksIn.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            流入第一 {book.stocksIn[0]!.name} {flowAmount(book.stocksIn[0]!.inflow)}
+          </span>
+        ) : book.stocksOut.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            流出第一 {book.stocksOut[0]!.name} {flowAmount(book.stocksOut[0]!.inflow)}
+          </span>
+        ) : (
+          <span className="text-[11px]">今天没有个股资金榜</span>
+        )
+      }
+    >
       <FlowSectionTabs />
       {book ? (
         <div className="flex flex-col gap-3">

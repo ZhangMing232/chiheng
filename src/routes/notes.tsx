@@ -96,6 +96,18 @@ function NotesPage() {
         value: `${noteCount} 条`,
         tone: "neutral",
       }}
+      ornamentContent={
+        // **真实数据**：list[0] 是最新一条。relTimeOf 是本页已有的相对时间
+        // （「3 小时前」），比绝对时间更适合页头。
+        list.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            最新 {relTimeOf(list[0]!.at)}
+            {list[0]!.symbol ? ` · ${list[0]!.name ?? list[0]!.symbol}` : ""}
+          </span>
+        ) : (
+          <span className="text-[11px]">还没有笔记</span>
+        )
+      }
     >
       <Panel title="记一条" note="你自己写的观察，存在本机">
         <div className="space-y-2 border-b border-line px-3.5 py-3">

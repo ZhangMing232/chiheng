@@ -47,7 +47,19 @@ function SymbolPage() {
   useEffect(() => setValue(search.q), [search.q]);
 
   return (
-    <Frame>
+    <Frame
+      ornamentContent={
+        // **真实数据**：data.picked 是当前查的这只票，data.articles 是它的快讯。
+        // 没查票的时候页头就一句提示——不摆上一只票的名字（那是编）。
+        data.picked ? (
+          <span className="text-[11px] tabular-nums">
+            {data.picked.name} · 相关快讯 {data.articles.length} 条
+          </span>
+        ) : (
+          <span className="text-[11px]">输入代码或名称查一只票</span>
+        )
+      }
+    >
       <form
         className="flex gap-2"
         onSubmit={(event) => {

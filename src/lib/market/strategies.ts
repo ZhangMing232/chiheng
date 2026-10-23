@@ -271,6 +271,23 @@ export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "rel
  * 上线前的门槛：先补上回测能算的代理指标（换手率已经能从 amount/floatCap 反推），
  * 再跑一遍因子检验确认它们有没有东西值得挖。
  */
+/**
+ * 在策略列表里循环（快捷键 ← → 用）。
+ *
+ * 抽成纯函数是为了能测：内联在组件里的三行代码，按对了没人知道，
+ * 按错了（越界/不环回）也只在真机按键时才发现——而沙箱里跑不了浏览器。
+ *
+ * @param dir -1 往左、+1 往右；到头环回
+ * @returns 下一套；列表空或当前项不在表里时返回表里第一项（不是 null，
+ *          按键总要有个去处）
+ */
+export function cycleStyle<T>(order: readonly T[], current: T, dir: -1 | 1): T | null {
+  if (order.length === 0) return null;
+  const at = order.indexOf(current);
+  const next = order[(at + dir + order.length) % order.length];
+  return next ?? order[0]!;
+}
+
 export const ACTIVE_STYLES: StyleId[] = ["breakout", "rebound"];
 /** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;

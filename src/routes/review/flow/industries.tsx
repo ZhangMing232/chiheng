@@ -10,7 +10,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { FlowSectionTabs, List } from "@/components/flow-sections";
+import { flowAmount, FlowSectionTabs, List } from "@/components/flow-sections";
 import { getFlow } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/review/flow/industries")({
@@ -21,7 +21,20 @@ export const Route = createFileRoute("/review/flow/industries")({
 function FlowIndustriesPage() {
   const { book } = Route.useLoaderData();
   return (
-    <Frame aside="资金流向 · 行业">
+    <Frame
+      aside="资金流向 · 行业"
+      ornamentContent={
+        book == null ? (
+          <span className="text-[11px]">行业资金榜没拉到</span>
+        ) : book.sectorsIn.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            行业流入第一 {book.sectorsIn[0]!.name} {flowAmount(book.sectorsIn[0]!.inflow)}
+          </span>
+        ) : (
+          <span className="text-[11px]">今天没有行业资金榜</span>
+        )
+      }
+    >
       <FlowSectionTabs />
       {book ? (
         <div className="flex flex-col gap-3">

@@ -68,7 +68,13 @@ export type CurrentUserState = {
  */
 export function useCurrentUserState(): CurrentUserState {
   if (!authEnabled) return { user: DEV_USER, isPending: false };
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
+  // ⚠️ **这是有意的条件 Hook**：authEnabled 关掉时走不到 useSession。
+  // 安全的前提是 authEnabled 在应用生命周期内不变（它来自构建期环境变量）。
+  // 哪天它变成运行时开关，这里会抛「Rendered fewer hooks than expected」——
+  // 到时候要改成「两个分支都调 Hook、只是参数不同」。
+  // （原来这里挂着 eslint-disable rules-of-hooks，但那个规则认不出
+  // `authClient.useSession()` 这种成员调用，指令被判「unused」——所以改成普通注释，
+  // 风险说明不丢，也不留一条永远不生效的 disable。）
   const { data, isPending } = authClient.useSession();
   const user = data?.user;
   return {

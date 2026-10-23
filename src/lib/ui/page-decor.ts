@@ -136,10 +136,14 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     title: "每日复盘",
     icon: History,
         ornament: "day-rhythm",
-    purpose: "收盘后把今天发生的事理一遍",
+    purpose: "收盘后把今天理一遍：盘面 · 资金 · 事件",
     hue: "blue",
   },
-  "/flow": {
+  // 2026-10-23 资金流向并入复盘后，路由从 /flow/* 变成 /review/flow/*。
+  // **配置表的键必须跟着路由走**：不改的话 decorFor 的前缀匹配会把这些页
+  // 全部判给 /review——标题显示「每日复盘」、专属件变成「今天节奏」，
+  // 而侧栏 aside 还写着「资金流向 · 个股」，两处对不上（实测踩到）。
+  "/review/flow": {
     title: "资金流向",
     icon: Coins,
     purpose: "钱往哪去：个股、板块、游资三条线",

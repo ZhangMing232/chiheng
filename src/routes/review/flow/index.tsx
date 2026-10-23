@@ -19,7 +19,7 @@ import { drawFlowPoster } from "@/lib/market/flow-poster";
 import { getFlow, getIndices, getTrend, getUniverse } from "@/lib/market/quotes.functions";
 import { marketBreadth } from "@/lib/market/slim-universe";
 import type { IndexQuote } from "@/lib/market/types";
-import { cx, FlowSectionTabs, Market, Overview, TrendChart } from "@/components/flow-sections";
+import { cx, flowAmount, FlowSectionTabs, Market, Overview, TrendChart } from "@/components/flow-sections";
 
 export const Route = createFileRoute("/review/flow/")({
   loader: async () => {
@@ -64,6 +64,17 @@ function FlowOverviewPage() {
             ))}
           </div>
         ) : null
+      }
+      ornamentContent={
+        // **真实数据**：book.stocksIn 是东财给的主力净流入榜（已去新股/ST）。
+        // 只报第一名——「第一是谁 + 多少钱」比「前 N 合计」更直观。
+        book && book.stocksIn.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            净流入第一 {book.stocksIn[0]!.name} {flowAmount(book.stocksIn[0]!.inflow)}
+          </span>
+        ) : (
+          <span className="text-[11px]">资金榜暂不可用</span>
+        )
       }
     >
       <FlowSectionTabs />

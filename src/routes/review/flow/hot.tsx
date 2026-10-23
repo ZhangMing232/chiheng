@@ -11,7 +11,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
-import { FlowSectionTabs, Hot } from "@/components/flow-sections";
+import { flowAmount, FlowSectionTabs, Hot } from "@/components/flow-sections";
 import { drawHotPoster } from "@/lib/market/extra-posters";
 import { getHotMoney } from "@/lib/market/quotes.functions";
 
@@ -23,7 +23,20 @@ export const Route = createFileRoute("/review/flow/hot")({
 function FlowHotPage() {
   const { hot } = Route.useLoaderData();
   return (
-    <Frame aside="资金流向 · 游资">
+    <Frame
+      aside="资金流向 · 游资"
+      ornamentContent={
+        // **真实数据**：龙虎榜席位净买第一名（席位榜按金额排，第一个就是今天最大的）。
+        // 「猛」不是跟买理由——这句话页面上本来就写着，装饰件只报数。
+        hot && hot.seats.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            最猛席位 {hot.seats[0]!.name} {flowAmount(hot.seats[0]!.netWan)}
+          </span>
+        ) : (
+          <span className="text-[11px]">今天没有龙虎榜席位数据</span>
+        )
+      }
+    >
       <FlowSectionTabs />
       <PosterButton draw={() => drawHotPoster(hot ?? { date: "", seats: [] })} />
       <Hot book={hot} />

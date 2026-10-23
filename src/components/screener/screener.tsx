@@ -21,7 +21,7 @@ import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { buildLabReport } from "@/lib/market/lab";
 import { isIdleBook } from "@/lib/market/model";
-import { watchList, ACTIVE_STYLES, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
+import { cycleStyle, watchList, ACTIVE_STYLES, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
 import { CollapsibleSection } from "@/components/collapsible";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getStrategyGates, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
@@ -135,6 +135,19 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     },
     onForceRefresh: () => void refresh(true),
     onToggleTheme: cycleTheme,
+    // ← → / 1-6 切策略。**这两个键在 HOTKEYS 键位表里一直承诺着，但之前没有任何
+    // 页面注册**——面板上说有、按下没反应，是最难查的一类不一致
+    // （hotkeys.tsx 文件头第 1 条就是为了防这个）。
+    // 只在 ACTIVE_STYLES 里循环：trend/early 已经不自动建仓，切过去只会看到空榜。
+    // pickStyle 定义在下面（const 晚于本调用）——箭头函数延迟到按键时才求值，安全。
+    onCycleStyle: (dir) => {
+      const next = cycleStyle(ACTIVE_STYLES as readonly string[], prefs.style, dir);
+      if (next) pickStyle(next as Prefs["style"]);
+    },
+    onPickStyle: (n) => {
+      const next = (ACTIVE_STYLES as readonly string[])[n - 1];
+      if (next) pickStyle(next as Prefs["style"]);
+    },
   });
 
   const quotes = universe?.quotes ?? [];
@@ -184,6 +197,16 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         </div>
       }
       onRefresh={() => refresh(true)}
+      ornamentContent={
+        // **真实数据**：quotes 是当前池子里的票（universe?.quotes）。
+        // 池子是全市场快照，不是「选出来的候选」——所以文案写「在池」不写「候选」，
+        // 后者会让人以为已经筛过一遍。
+        quotes.length > 0 ? (
+          <span className="text-[11px] tabular-nums">在池 {quotes.length} 只</span>
+        ) : (
+          <span className="text-[11px]">池子还没拉到</span>
+        )
+      }
       extra={
         // 横条行情：财联社那种一眼扫完的排法。涨跌幅上色块而不是只上字色，
         // 余光扫过去就能分出红绿，不用逐个数字去读。
