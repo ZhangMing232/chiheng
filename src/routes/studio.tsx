@@ -64,6 +64,11 @@ function StudioPage() {
   const [renderNote, setRenderNote] = useState("");
   const [stage, setStage] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  // AI 设计沟通：委托人（用户）和 AI 设计师的对话。user 消息累积成「设计要求」
+  // 注入海报 prompt——聊得越具体，出图越符合想法。页面状态保管，刷新即新会话。
+  const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
 
   // 秒表：busy 期间每秒跳一次，让用户看到「它还在跑」而不是死等
   useEffect(() => {
@@ -102,7 +107,12 @@ function StudioPage() {
         ? fetch("/api/studio/ai-poster", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ kind: topic === "sectorVersus" ? "sector" : "stock", format }),
+            body: JSON.stringify({
+              kind: topic === "sectorVersus" ? "sector" : "stock",
+              format,
+              // 设计沟通里委托人说过的话全部带上（作为审美约束，不进数字校验）
+              direction: chat.filter((m) => m.role === "user").map((m) => m.content).join("\n") || undefined,
+            }),
           })
             .then(
               (r) =>
@@ -186,6 +196,32 @@ function StudioPage() {
     } finally {
       setStage(null);
       setBusy(false);
+    }
+  }
+
+  async function sendChat() {
+    const text = chatInput.trim();
+    if (!text || chatBusy) return;
+    const next = [...chat, { role: "user" as const, content: text }];
+    setChat(next);
+    setChatInput("");
+    setChatBusy(true);
+    try {
+      const r = await fetch("/api/studio/ai-design-chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: topic === "sectorVersus" ? "sector" : "stock",
+          messages: next,
+        }),
+      }).then(
+        (res) => res.json() as Promise<{ ok: true; reply: string } | { ok: false; error: string }>,
+      );
+      setChat((c) => [...c, { role: "assistant", content: r.ok ? r.reply : `（设计师没回上话：${r.error}）` }]);
+    } catch (e) {
+      setChat((c) => [...c, { role: "assistant", content: `（网络没通：${e instanceof Error ? e.message : String(e)}）` }]);
+    } finally {
+      setChatBusy(false);
     }
   }
 
@@ -323,7 +359,7 @@ function StudioPage() {
               disabled={busy}
               className="rounded-full border border-line bg-surface px-3 py-2 text-sm disabled:opacity-40"
             >
-              {busy ? "生成中，别关页面…" : "生成图 + 文"}
+              {busy ? "生成中，别关页面…" : chat.length ? "按设计沟通生成图 + 文" : "生成图 + 文"}
             </button>
           </div>
 
@@ -334,6 +370,61 @@ function StudioPage() {
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
               <span className="text-xs text-fg">{stage ?? "处理中…"}</span>
               <span className="ml-auto text-xs tabular-nums text-muted">{elapsed}s</span>
+            </div>
+          ) : null}
+
+          {/* AI 设计沟通（资金流向题材）：像跟真人设计师聊方案——它看得见今天的真实
+              数据，给的建议落在实际内容上。聊完点上面「生成图 + 文」，说过的话会全部
+              作为设计要求带进出图。 */}
+          {topic === "stockVersus" || topic === "sectorVersus" ? (
+            <div className="rounded border border-line">
+              <div className="border-b border-line px-3 py-2">
+                <span className="text-xs font-medium text-fg">AI 设计师沟通</span>
+                <span className="ml-2 text-[11px] text-muted">
+                  聊设计方向（配色/布局/氛围），它看着今天的真实数据回你 · 聊完点「生成图 + 文」
+                </span>
+              </div>
+              {chat.length ? (
+                <div className="flex max-h-64 flex-col gap-2 overflow-y-auto px-3 py-2">
+                  {chat.map((m, i) => (
+                    <div key={i} className={m.role === "user" ? "self-end text-right" : "self-start text-left"}>
+                      <span
+                        className={
+                          "inline-block max-w-[85%] whitespace-pre-wrap rounded px-2.5 py-1.5 text-xs leading-relaxed " +
+                          (m.role === "user" ? "bg-brand/15 text-fg" : "bg-surface text-fg")
+                        }
+                      >
+                        {m.content}
+                      </span>
+                    </div>
+                  ))}
+                  {chatBusy ? <span className="text-[11px] text-muted">设计师思考中…</span> : null}
+                </div>
+              ) : (
+                <p className="px-3 py-2 text-[11px] text-muted">
+                  试试：「想要科技感暗色风，流入侧用金色强调」或「上半部分太满，标题区留点呼吸」
+                </p>
+              )}
+              <div className="flex items-center gap-2 border-t border-line px-3 py-2">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) void sendChat();
+                  }}
+                  placeholder="跟设计师说你的想法…（回车发送）"
+                  maxLength={300}
+                  className="flex-1 rounded border border-line bg-transparent px-2.5 py-1.5 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
+                />
+                <button
+                  type="button"
+                  onClick={() => void sendChat()}
+                  disabled={chatBusy || !chatInput.trim()}
+                  className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs disabled:opacity-40"
+                >
+                  {chatBusy ? "思考中…" : "发送"}
+                </button>
+              </div>
             </div>
           ) : null}
 

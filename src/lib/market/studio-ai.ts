@@ -64,7 +64,8 @@ function partLine(p: MarketPart): { line: string; facts: string[] } {
 }
 
 /** 组一份「资金流向对比」brief。kind=stock 是个股榜，sector 是板块榜。 */
-export function buildVersusBrief(book: FlowBook, kind: VersusKind): VersusBrief {
+export function buildVersusBrief(book: FlowBook, kind: VersusKind, opts?: { direction?: string }): VersusBrief {
+  const direction = opts?.direction?.trim();
   const dateLine = new Date().toLocaleDateString("zh-CN", {
     month: "long",
     day: "numeric",
@@ -112,6 +113,10 @@ export function buildVersusBrief(book: FlowBook, kind: VersusKind): VersusBrief 
   const dateCore = /(\d{1,2}月\d{1,2}日)/.exec(dateLine)?.[1] ?? dateLine;
   facts.push(dateCore, disclaimer);
 
+  // 委托人的设计要求（和 AI 设计师沟通累积下来的方向）——放进 prompt 但**不进
+  // facts**：这是审美约束不是事实，不做逐字校验（硬校验只会误杀）。
+  const directionBlock = direction ? [`【委托人的设计要求（必须尊重，除非和数据冲突）】`, direction].join("\n") : "";
+
   const prompt = [
     "你是一位顶尖财经自媒体视觉设计师。请设计一张竖版对比海报的 SVG 代码。",
     "",
@@ -119,6 +124,7 @@ export function buildVersusBrief(book: FlowBook, kind: VersusKind): VersusBrief 
     "",
     dataBlock,
     "",
+    directionBlock,
     "铁律（违反任何一条都是失败）：",
     "1. 上面数据块里的名称、金额、涨跌幅、日期必须逐字使用，一个数字都不许改、不许编、不许四舍五入、不许换算单位。",
     "2. 只输出 SVG 代码本身，不要任何解释、markdown 代码块标记或前后文字。",
@@ -203,8 +209,13 @@ export type AIPosterResult = {
  * 出一张 AI 设计的流向对比海报。校验不过自动带反馈重画一次（最多 2 次），
  * 仍不过就抛错——调用方（页面）回退到模板渲染，不给用户看一张数不对的图。
  */
-export async function renderAIVersusPoster(book: FlowBook, kind: VersusKind, format: "vertical" | "square"): Promise<AIPosterResult> {
-  const brief = buildVersusBrief(book, kind);
+export async function renderAIVersusPoster(
+  book: FlowBook,
+  kind: VersusKind,
+  format: "vertical" | "square",
+  opts?: { direction?: string },
+): Promise<AIPosterResult> {
+  const brief = buildVersusBrief(book, kind, opts);
   const started = Date.now();
   let lastMissing: string[] = [];
   let lastIssues: string[] = [];
@@ -228,5 +239,51 @@ export async function renderAIVersusPoster(book: FlowBook, kind: VersusKind, for
   throw new Error(
     "AI 海报两次都没过校验：" +
       [...lastIssues, ...lastMissing.map((f) => `缺 ${f}`)].slice(0, 8).join("；"),
+  );
+}
+
+// ── 设计沟通：和 AI 设计师对话（server-only：调 AI）───────────────────
+
+export type DesignMessage = { role: "user" | "assistant"; content: string };
+
+/**
+ * 委托人和 AI 设计师对话。设计师拿得到真实数据块，所以它的建议落在实际内容上
+ * （「电子流入 67.1 亿那行可以做视觉锚点」而不是空谈）；它也被铁律约束不输出 SVG、
+ * 不改数字。messages 含完整对话历史（最后一条应是委托人的话）。
+ */
+export async function chatWithDesigner(book: FlowBook, kind: VersusKind, messages: DesignMessage[]): Promise<string> {
+  const brief = buildVersusBrief(book, kind);
+  // 数据块给全量（设计师要看着数据给建议），铁律不需要——聊天不产出 SVG。
+  const transcript = messages
+    .map((m) => `${m.role === "user" ? "委托人" : "设计师"}：${m.content}`)
+    .join("\n");
+  const text = await callDesignerAI(
+    [
+      brief.prompt.split("铁律（违反任何一条都是失败）：")[0] ?? brief.prompt,
+      "",
+      "以上是这张海报的主题和真实数据。现在委托人像跟真人设计师一样跟你讨论设计方向。",
+      "对话记录：",
+      transcript,
+      "",
+      "请直接回复委托人：给具体可执行的设计建议（布局/配色/视觉层次/装饰元素），",
+      "可以主动提议 2-3 个不同方向让委托人挑。要求：不输出 SVG 代码、不改任何数字、",
+      "不寒暄超过一句、200 字以内、像资深设计师说话（有判断、有取舍，不当应声虫）。",
+    ].join("\n"),
+    { timeoutMs: 120_000 },
+  );
+  return text.trim().slice(0, 2000);
+}
+
+/** 内部：走 callAIWithFallback 的统一入口（DSH 优先、用量记账、profile 切换全继承）。 */
+async function callDesignerAI(prompt: string, opts: { timeoutMs: number }): Promise<string> {
+  const { callAIWithFallback } = await import("./factor-queue.ts");
+  return callAIWithFallback(
+    prompt,
+    {
+      layer: "studio",
+      trigger: "manual",
+      system: "你是顶尖财经自媒体视觉设计师「赤轨」的设计负责人，只回设计沟通文字，绝不输出 SVG 代码。",
+      timeoutMs: opts.timeoutMs,
+    },
   );
 }

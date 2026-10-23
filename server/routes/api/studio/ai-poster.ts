@@ -19,7 +19,7 @@ import { defineEventHandler, readBody, setResponseStatus } from "h3";
 import { loadFlow } from "../../../../src/lib/market/flow";
 import { renderAIVersusPoster } from "../../../../src/lib/market/studio-ai";
 
-type Body = { kind?: unknown; format?: unknown };
+type Body = { kind?: unknown; format?: unknown; direction?: unknown };
 
 export default defineEventHandler(async (event) => {
   // 先身份闸：非主人直接 403，不碰数据也不碰 AI
@@ -33,10 +33,13 @@ export default defineEventHandler(async (event) => {
   const body = (await readBody<Body>(event).catch(() => ({}))) as Body;
   const kind = body?.kind === "sector" ? ("sector" as const) : ("stock" as const);
   const format = body?.format === "square" ? ("square" as const) : ("vertical" as const);
+  // 委托人的设计要求（和设计师沟通累积的方向）。限长防注入垃圾：只是 prompt 的一段，
+  // 进不了 facts，也不做逐字校验——审美约束靠模型自觉 + 重试收敛。
+  const direction = typeof body?.direction === "string" ? body.direction.trim().slice(0, 1000) : "";
 
   const book = await loadFlow();
   try {
-    const out = await renderAIVersusPoster(book, kind, format);
+    const out = await renderAIVersusPoster(book, kind, format, direction ? { direction } : undefined);
     return {
       ok: true as const,
       dataUrl: "data:image/png;base64," + Buffer.from(out.png).toString("base64"),
