@@ -7,8 +7,6 @@
  * 全市场快照和指数走 providers 适配层：腾讯是主源，东方财富是备份，换源会在日志里留一条记录。
  */
 
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import { readRules, writeRules } from "@/lib/market/rules-file";
 import { parseRules } from "@/lib/market/rules";
@@ -48,10 +46,50 @@ import { ttlOf } from "@/lib/market/fetch-policy";
  * 真正需要最新的只有买卖窗口（9:25–9:30 和 14:40–15:00）和补涨冻结那半小时，
  * 那边由 record-journal 显式要求刷新。
  */
+/**
+ * ⚠️ **不要在 isomorphic 模块里 top-level import node 内置模块**（2026-10-23 实测）：
+ * vite 会把 `import { readFile } from "node:fs/promises"` 转成**顶层解构**
+ * （`const readFile = __vite__cjsImport0_...["readFile"]`），浏览器里一加载模块
+ * 就抛「Module externalized for browser compatibility」——**整站 hydration 崩，
+ * 页面能看不能点**（SSR 正常、测试全绿，肉眼极难发现）。
+ * 10-16 那次只把顶层**调用**改成惰性，import 还在，症状一样。
+ *
+ * 所以这里的规矩：**node 内置模块一律函数内动态 import**（客户端不执行这段，
+ * 服务端照常）。纯服务端文件才允许顶层 import（且文件名带 .server.ts）。
+ */
+const fsApi = () => import("node:fs/promises");
+
+/** 读文本文件（服务端专用）。 */
+const readText = async (path: string): Promise<string> => {
+  const { readFile } = await fsApi();
+  return readFile(path, "utf8");
+};
+
+/** 写文本文件（服务端专用）。 */
+const writeText = async (path: string, data: string): Promise<void> => {
+  const { writeFile } = await fsApi();
+  await writeFile(path, data);
+};
+
+/** 建目录（递归）。 */
+const mkdirp = async (dir: string): Promise<void> => {
+  const { mkdir } = await fsApi();
+  await mkdir(dir, { recursive: true });
+};
+
+/**
+ * 拼路径。**不用 node:path**（理由同上：顶层 import node:path 也会在客户端崩）。
+ * 只处理 POSIX 风格分隔符——本机和部署目标都是 macOS/Linux，够用。
+ */
+const dataPath = (...parts: string[]): string => [process.cwd(), ...parts].join("/");
+
+/** 取父目录（等价 path.dirname，只处理 POSIX 分隔符）。 */
+const parentDir = (path: string): string => path.slice(0, path.lastIndexOf("/"));
+
 const TTL_MS = 3 * 60_000;
 const INDEX_TTL_MS = 20_000;
 /** 快照落盘的位置。进程内的缓存活不过一次记账，落盘才能跨进程复用。 */
-const UNIVERSE_CACHE = () => join(process.cwd(), "data", "universe-cache.json");
+const UNIVERSE_CACHE = () => dataPath("data", "universe-cache.json");
 /** K 线接口的请求头。全市场快照和指数已走 providers 适配层（腾讯主、东财备）。 */
 const KLINE_HEADERS = {
   "user-agent": "Mozilla/5.0",
@@ -71,7 +109,7 @@ type Snapshot = { at: number; payload: Universe };
 
 async function readSnapshot(): Promise<Snapshot | null> {
   try {
-    const text = await readFile(UNIVERSE_CACHE(), "utf8");
+    const text = await readText(UNIVERSE_CACHE());
     const parsed = JSON.parse(text) as Partial<Snapshot>;
     if (typeof parsed?.at !== "number" || !parsed.payload || !Array.isArray(parsed.payload.quotes)) return null;
     return { at: parsed.at, payload: parsed.payload as Universe };
@@ -88,12 +126,12 @@ async function writeSnapshot(snapshot: Snapshot): Promise<void> {
   // 另一个 ENOENT——写失败会被下面 catch 吞掉，表现为「这分钟没刷新」而不是报错。
   const staged = `${target}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
   try {
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(staged, JSON.stringify(snapshot));
-    await rename(staged, target);
+    await mkdirp(parentDir(target));
+    await writeText(staged, JSON.stringify(snapshot));
+    await (await fsApi()).rename(staged, target);
   } catch {
     // 缓存写不进去不算错，最多是下一分钟多拉一次
-    await rm(staged, { force: true }).catch(() => undefined);
+    await (await fsApi()).rm(staged, { force: true }).catch(() => undefined);
   }
 }
 
@@ -439,7 +477,7 @@ export const getHotMoney = createServerFn({ method: "GET" }).handler(async () =>
 /** 两融个股明细（D3）。读 data/risk/margin-latest.json 产物，读不到带 why 不编造。 */
 export const getMargin = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const text = await readFile(join(process.cwd(), "data", "risk", "margin-latest.json"), "utf8");
+    const text = await readText(dataPath("data", "risk", "margin-latest.json"));
     const parsed = JSON.parse(text) as { date: string; rows: MarginRow[]; missing: number; fetchedAt: string };
     return { ...parsed, why: null as string | null };
   } catch (error) {
@@ -565,7 +603,7 @@ export const getOverseasQuote = createServerFn({ method: "GET" })
 /** 读本机记录器状态。返回上次记录时间 at（毫秒，没有是 null）和是否正常 ok。 */
 export const getRecorder = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const text = await readFile(join(process.cwd(), "data", "recorder.json"), "utf8");
+    const text = await readText(dataPath("data", "recorder.json"));
     const parsed = JSON.parse(text) as { at?: unknown; ok?: unknown };
     return {
       at: typeof parsed.at === "number" ? parsed.at : null,
@@ -589,7 +627,7 @@ export const getSellAlerts = createServerFn({ method: "GET" }).handler(async () 
   try {
     const { requireUserId } = await import("@/lib/auth/verify.server");
     const userId = await requireUserId();
-    const text = await readFile(join(process.cwd(), "data", "sell-alerts.json"), "utf8");
+    const text = await readText(dataPath("data", "sell-alerts.json"));
     const parsed = JSON.parse(text) as { sells?: unknown };
     if (!Array.isArray(parsed.sells)) return empty;
     const mine = parsed.sells.filter(
@@ -640,7 +678,7 @@ export const getNavHistory = createServerFn({ method: "GET" }).handler(async () 
   try {
     const { requireUserId } = await import("@/lib/auth/verify.server");
     const userId = await requireUserId();
-    const text = await readFile(join(process.cwd(), "data", "nav-history.json"), "utf8");
+    const text = await readText(dataPath("data", "nav-history.json"));
     const parsed = JSON.parse(text) as Record<string, unknown>;
     const mine = parsed[userId];
     if (!Array.isArray(mine)) return empty;
@@ -728,11 +766,11 @@ export const savePrefs = createServerFn({ method: "POST" })
 // 推送只在记账进程为主人账号发声时触发，所以配置也只许主人动。
 // token 是密钥：服务端只回「是否已配置 + 末四位」，完整值永远不出服务端。
 
-const pushConfigPath = () => join(process.cwd(), "data", "push-config.json");
+const pushConfigPath = () => dataPath("data", "push-config.json");
 
 async function readPushToken(): Promise<string | null> {
   try {
-    const parsed = JSON.parse(await readFile(pushConfigPath(), "utf8"));
+    const parsed = JSON.parse(await readText(pushConfigPath()));
     return typeof parsed.token === "string" && parsed.token.trim() ? parsed.token.trim() : null;
   } catch {
     return null;
@@ -759,8 +797,8 @@ export const getPushStatus = createServerFn({ method: "GET" }).handler(async () 
     const { requirePrincipal } = await import("@/lib/auth/verify.server");
     const { userId, isOwner } = await requirePrincipal();
     if (!isOwner) throw new Error("只有主人账号能改推送配置");
-    await mkdir(join(process.cwd(), "data"), { recursive: true });
-    await writeFile(pushConfigPath(), JSON.stringify({ token: data.token }, null, 2));
+    await mkdirp(dataPath("data"));
+    await writeText(pushConfigPath(), JSON.stringify({ token: data.token }, null, 2));
     return { ok: true as const, configured: data.token !== "", tail: data.token ? data.token.slice(-4) : null };
   });
 
@@ -1175,7 +1213,7 @@ export type StrategyGate = {
 
 export const getStrategyGates = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const text = await readFile(join(process.cwd(), "data", "strategy-gates.json"), "utf8");
+    const text = await readText(dataPath("data", "strategy-gates.json"));
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return { gates: parsed as Record<string, StrategyGate> };

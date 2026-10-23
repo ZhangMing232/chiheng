@@ -10,8 +10,6 @@
  * 页面和记账代码不用动。
  */
 
-import { unlink, writeFile, readFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
 
 import type { IndexQuote, Universe } from "@/lib/market/types";
 import { fetchTencentIndices, fetchTencentUniverse } from "@/lib/market/providers/tencent";
@@ -26,6 +24,16 @@ const MIN_UNIVERSE = 4000;
  * 不然「腾讯源失败（fetch failed）」看不出是 WAF 掐断（ECONNRESET）、
  * 超时（ETIMEDOUT）还是 DNS，下次排障还得现抓。
  */
+/**
+ * ⚠️ **不要 top-level import node 内置模块**（2026-10-23 实测）：vite 会把它转成
+ * 顶层解构，浏览器里一加载模块就抛「Module externalized for browser
+ * compatibility」——整站 hydration 崩，页面能看不能点。改成函数内动态 import。
+ */
+const fsApi = () => import("node:fs/promises");
+
+/** 拼路径（不用 node:path，理由同上）。 */
+const dataPath = (...parts: string[]): string => [process.cwd(), ...parts].join("/");
+
 export function messageOf(error: unknown): string {
   const base = error instanceof Error ? error.message : String(error);
   const cause = (error as { cause?: unknown }).cause;
@@ -70,7 +78,8 @@ function universeOf(quotes: Universe["quotes"], source: Universe["source"]): Uni
 const DEGRADED_IMPACT = "缺近5/20/60日涨幅和量比：放量突破、中期反转两套停摆";
 
 /** 降级状态落盘路径（data/market-degraded.json）。 */
-const degradedPath = () => join(process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data"), "market-degraded.json");
+const degradedPath = () =>
+  [process.env.CHIHENG_DATA_DIR ?? dataPath("data"), "market-degraded.json"].join("/");
 
 /** 降级状态 24 小时内视为「当前正处于降级」。 */
 const DEGRADED_TTL_MS = 24 * 60 * 60 * 1000;
@@ -79,7 +88,8 @@ export type MarketDegraded = { at: string; source: string; impact: string };
 
 async function writeDegraded(source: string): Promise<void> {
   try {
-    await mkdir(join(degradedPath(), ".."), { recursive: true });
+    const { mkdir, writeFile } = await fsApi();
+    await mkdir(degradedPath() + "/..", { recursive: true });
     await writeFile(degradedPath(), JSON.stringify({ at: new Date().toISOString(), source, impact: DEGRADED_IMPACT }));
   } catch {
     // 状态文件是增强项，写失败不影响拉取本身。
@@ -88,6 +98,7 @@ async function writeDegraded(source: string): Promise<void> {
 
 async function clearDegraded(): Promise<void> {
   try {
+    const { unlink } = await fsApi();
     await unlink(degradedPath());
   } catch {
     // 没有文件可删，正常。
@@ -100,7 +111,8 @@ async function clearDegraded(): Promise<void> {
  */
 export async function readMarketDegraded(): Promise<MarketDegraded | null> {
   try {
-    const parsed = JSON.parse(await readFile(degradedPath(), "utf8")) as MarketDegraded;
+    const { readFile } = await fsApi();
+  const parsed = JSON.parse(await readFile(degradedPath(), "utf8")) as MarketDegraded;
     if (typeof parsed.at !== "string" || typeof parsed.source !== "string") return null;
     if (Date.now() - Date.parse(parsed.at) > DEGRADED_TTL_MS) return null;
     return { at: parsed.at, source: parsed.source, impact: typeof parsed.impact === "string" ? parsed.impact : DEGRADED_IMPACT };
