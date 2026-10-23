@@ -18,6 +18,7 @@ import { generateStudioCaption, getBreadth, getFlow, getHotMoney, getIndices, ge
 import { getSignals } from "@/lib/market/limit-up.functions";
 import { buildStudioSpec, defaultTitle, genreOf, titleFromCaption, GENRES, type StudioData, type StudioGenre, type StudioPlatform, type StudioTopic } from "@/lib/market/studio";
 import { drawStudioPoster, type StudioFormat } from "@/lib/market/studio-poster";
+import type { StudioTheme } from "@/lib/market/studio-card";
 import type { FlowBook } from "@/lib/market/flow";
 import type { HotBook } from "@/lib/market/hotmoney";
 import type { NewsItem } from "@/lib/market/news";
@@ -51,6 +52,7 @@ function StudioPage() {
   const [topN, setTopN] = useState(10);
   const [newsIndex, setNewsIndex] = useState(0);
   const [platform, setPlatform] = useState<StudioPlatform>("douyin");
+  const [theme, setTheme] = useState<StudioTheme>("dark");
   const [extra, setExtra] = useState("");
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -91,7 +93,7 @@ function StudioPage() {
       const rendered = await fetch("/api/studio/poster", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ spec: withTitle, format }),
+        body: JSON.stringify({ spec: withTitle, format, theme }),
       })
         .then((r) => r.json() as Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>)
         .catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
@@ -215,6 +217,22 @@ function StudioPage() {
             </div>
           </div>
         ) : null}
+
+        {/* 风格（两套视觉系统：深色行情风 / 浅色杂志风） */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
+          <span className="text-[11px] text-muted">风格</span>
+          {([
+            { id: "dark", label: "深色行情" },
+            { id: "light", label: "浅色杂志" },
+          ] as const).map((x) => (
+            <button key={x.id} type="button" onClick={() => setTheme(x.id)} className={tabClass(theme === x.id)}>
+              {x.label}
+            </button>
+          ))}
+          <span className="text-[11px] text-muted">
+            数据图必须模板渲染——AI 画的数字是编的；AI 只适合封面氛围图
+          </span>
+        </div>
 
         {/* 平台 */}
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">

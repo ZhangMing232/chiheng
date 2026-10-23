@@ -152,6 +152,7 @@ export async function renderPosterPayload(
   spec: { title: string; layout: string; [k: string]: unknown },
   format: "vertical" | "square",
   candidates: readonly FontChoice[] = FONT_CANDIDATES,
+  theme: "dark" | "light" = "dark",
 ): Promise<
   | { ok: true; dataUrl: string; ms: number; font: string }
   | { ok: false; error: string }
@@ -168,7 +169,7 @@ export async function renderPosterPayload(
     }
     // 动态 import 避免循环依赖（studio-card → studio-poster → studio-layout）
     const { specToSvg } = await import("./studio-card.ts");
-    const svg = specToSvg(spec as never, format, font.family);
+    const svg = specToSvg(spec as never, format, font.family, Date.now(), theme);
     const out = await renderSvg(svg, candidates);
     return {
       ok: true,

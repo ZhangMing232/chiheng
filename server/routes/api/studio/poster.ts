@@ -19,7 +19,7 @@ import { defineEventHandler, readBody, setResponseStatus } from "h3";
 import { FONT_CANDIDATES, renderPosterPayload } from "../../../../src/lib/market/studio-svg";
 import type { StudioSpec } from "../../../../src/lib/market/studio-poster";
 
-type Body = { spec?: StudioSpec; format?: "vertical" | "square" };
+type Body = { spec?: StudioSpec; format?: "vertical" | "square"; theme?: "dark" | "light" };
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody<Body>(event).catch(() => ({}))) as Body;
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: "请求里没有 spec" };
   }
   const format = body?.format === "square" ? "square" : "vertical";
-  const out = await renderPosterPayload(spec, format, FONT_CANDIDATES);
+  const out = await renderPosterPayload(spec, format, FONT_CANDIDATES, body?.theme === "light" ? "light" : "dark");
   if (!out.ok) setResponseStatus(event, 500);
   return out;
 });
