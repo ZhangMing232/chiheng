@@ -21,6 +21,7 @@ import {
   Gauge,
   Globe,
   History,
+  Image,
   LayoutDashboard,
   LineChart,
   ListFilter,
@@ -99,9 +100,9 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/butler" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/butler" | "/studio" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/flow" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
 }[] = [
-  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/butler", label: "大管家", icon: Sparkles }] },
+  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/butler", label: "大管家", icon: Sparkles }, { to: "/studio", label: "自媒体图文", icon: Image }] },
   {
     label: "市场",
     items: [

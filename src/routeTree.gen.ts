@@ -35,6 +35,7 @@ import { Route as SectorsRouteImport } from './routes/sectors'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as StrategiesRouteImport } from './routes/strategies'
+import { Route as StudioRouteImport } from './routes/studio'
 import { Route as SymbolRouteImport } from './routes/symbol'
 import { Route as AiIndexRouteImport } from './routes/ai/index'
 import { Route as AiConfigRouteImport } from './routes/ai/config'
@@ -191,6 +192,11 @@ const StrategiesRoute = StrategiesRouteImport.update({
   path: '/strategies',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudioRoute = StudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
@@ -344,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
+  '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
@@ -394,6 +401,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
+  '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
@@ -448,6 +456,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
+  '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
@@ -503,6 +512,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/strategies'
+    | '/studio'
     | '/symbol'
     | '/ai/config'
     | '/ai/rules'
@@ -553,6 +563,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/strategies'
+    | '/studio'
     | '/symbol'
     | '/ai/config'
     | '/ai/rules'
@@ -606,6 +617,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/strategies'
+    | '/studio'
     | '/symbol'
     | '/ai/config'
     | '/ai/rules'
@@ -660,6 +672,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SignalsRoute: typeof SignalsRoute
   StrategiesRoute: typeof StrategiesRouteWithChildren
+  StudioRoute: typeof StudioRoute
   SymbolRoute: typeof SymbolRoute
   FactorsAttribRoute: typeof FactorsAttribRoute
   FactorsBaselineRoute: typeof FactorsBaselineRoute
@@ -851,6 +864,13 @@ declare module '@tanstack/react-router' {
       path: '/strategies'
       fullPath: '/strategies'
       preLoaderRoute: typeof StrategiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/studio': {
+      id: '/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof StudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/symbol': {
@@ -1129,6 +1149,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignalsRoute: SignalsRoute,
   StrategiesRoute: StrategiesRouteWithChildren,
+  StudioRoute: StudioRoute,
   SymbolRoute: SymbolRoute,
   FactorsAttribRoute: FactorsAttribRoute,
   FactorsBaselineRoute: FactorsBaselineRoute,

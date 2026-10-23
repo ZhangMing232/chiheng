@@ -317,6 +317,24 @@ export const askButler = createServerFn({ method: "POST" })
     }
   });
 
+/** 自媒体文案生成。POST { kind: daily|flow, platform: douyin|wechat } → { ok, text }。 */
+export const generateStudioCaption = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { kind?: unknown; platform?: unknown };
+    return {
+      kind: d?.kind === "flow" ? ("flow" as const) : ("daily" as const),
+      platform: d?.platform === "wechat" ? ("wechat" as const) : ("douyin" as const),
+    };
+  })
+  .handler(async ({ data }) => {
+    const { generateCaption } = await import("@/lib/market/studio");
+    try {
+      return { ok: true as const, text: await generateCaption(data.kind, data.platform) };
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+
 /** 给页面用的指数行情。没有参数。 */
 export const getIndices = createServerFn({ method: "GET" }).handler(async () => loadIndices());
 
