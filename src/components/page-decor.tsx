@@ -88,14 +88,13 @@ function toneClass(tone: PageStatus["tone"]): string {
  * 职能句来自 page-decor 配置表。
  */
 export function DecorHeader({
-  title,
   decor,
   status,
   actions,
 }: {
-  /** 页面显示名（通常来自导航表） */
-  title: string;
-  /** 装饰配置。null 时整个页头不渲染 */
+  /** 装饰配置。null 时整个页头不渲染。
+      **标题从 decor.title 取**（配置表是权威来源）——不依赖侧栏导航表：
+      有几个页面没有侧栏入口，靠 navHit 取标题会拿到空字符串，页头成空壳。 */
   decor: PageDecor | null;
   /** 状态药丸。页面 loader 算出来的真实状态 */
   status?: PageStatus | null;
@@ -106,39 +105,45 @@ export function DecorHeader({
   const Icon = decor.icon;
   const pill = status && status.value != null ? status : null;
   return (
-    <div className="relative z-[1] flex flex-wrap items-start gap-x-3 gap-y-2 px-0.5 pt-1 pb-0.5">
-      {/* 图标块：组色相的极淡底 + 细边，不是实心色块（实心太吵） */}
-      <span
-        aria-hidden
-        className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border"
-        style={{
-          color: "var(--decor-hue)",
-          borderColor: "color-mix(in srgb, var(--decor-hue) 30%, transparent)",
-          background: "color-mix(in srgb, var(--decor-hue) 11%, transparent)",
-        }}
-      >
-        <Icon className="size-4" />
-      </span>
+    <div className="relative z-[1] px-0.5 pt-1 pb-0.5">
+      {/* 第一行：图标 + 页面名（+ 药丸）。窄屏用 flex-wrap，
+          药丸放不下就自动掉到下一行，不会把标题挤出去。 */}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        {/* 图标块：组色相的极淡底 + 细边，不是实心色块（实心太吵） */}
+        <span
+          aria-hidden
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg border"
+          style={{
+            color: "var(--decor-hue)",
+            borderColor: "color-mix(in srgb, var(--decor-hue) 30%, transparent)",
+            background: "color-mix(in srgb, var(--decor-hue) 11%, transparent)",
+          }}
+        >
+          <Icon className="size-4" />
+        </span>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h1 className="text-[17px] leading-tight font-medium text-fg">{title}</h1>
-          {pill ? (
-            <span
-              className={
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] " +
-                toneClass(pill.tone)
-              }
-            >
-              {pill.label}
-              <span className="font-medium tabular-nums">{pill.value}</span>
-            </span>
-          ) : null}
-        </div>
-        <p className="mt-0.5 text-[12px] leading-snug text-muted">{decor.purpose}</p>
+        <h1 className="text-[17px] leading-tight font-medium text-fg">{decor.title}</h1>
+
+        {pill ? (
+          <span
+            className={
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] " +
+              toneClass(pill.tone)
+            }
+          >
+            {pill.label}
+            <span className="font-medium tabular-nums">{pill.value}</span>
+          </span>
+        ) : null}
+
+        {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
 
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {/* 第二行：一句话职能。独占一行——窄屏下横排会被挤掉，
+          这是这一行唯一不能丢的信息（它回答"这页是干啥的"）。 */}
+      <p className="mt-1 pl-0.5 text-[12px] leading-snug text-muted md:pl-[38px]">
+        {decor.purpose}
+      </p>
     </div>
   );
 }

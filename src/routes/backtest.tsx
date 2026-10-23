@@ -58,10 +58,24 @@ function BacktestPage() {
   const [sort, setSort] = useState<SortKey>("alpha");
 
   const rows = useMemo(() => (picked ? styleRows(picked, sort) : []), [picked, sort]);
+  // 策略审计（学 VT 自查）：对选中那次运行跑横切检查——共线/覆盖/样本/回撤/撮合口径。
+  //
+  // ⚠️ **这个 useMemo 必须在早退分支之前**（2026-10-23 修）：原来它写在
+  // `if (!picked) return ...` 后面，违反了 Hook 调用顺序——picked 从 null
+  // 变成有值时渲染的 Hook 数量变了，React 直接抛「Rendered fewer hooks
+  // than expected」白屏。eslint 的 rules-of-hooks 能提前抓到，别关它。
+  const auditFindings = useMemo(() => (picked ? auditRun(picked) : null), [picked]);
 
   if (!picked) {
     return (
-      <Frame aside="回测">
+      <Frame
+        aside="回测"
+        status={{
+          label: "记录",
+          value: runs.length > 0 ? `${runs.length} 次` : null,
+          tone: "neutral",
+        }}
+      >
         <Panel title="回测" note="还没有运行记录">
           <StateBlock
             kind="empty"
@@ -75,11 +89,28 @@ function BacktestPage() {
   }
 
   const weak = untested(picked);
-  // 策略审计（学 VT 自查）：对选中那次运行跑横切检查——共线/覆盖/样本/回撤/撮合口径。
-  const auditFindings = useMemo(() => auditRun(picked), [picked]);
 
   return (
-    <Frame aside="回测">
+    <Frame
+      aside="回测"
+      status={{
+        label: "记录",
+        value: runs.length > 0 ? `${runs.length} 次` : null,
+        tone: "neutral",
+      }}
+      ornamentContent={
+        // **真实数据**：选中那次运行里超额最高的一套策略。
+        // rows 已经按当前排序排好了，rows[0] 就是当前排序下的第一。
+        rows.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            {rows[0]!.label} 超额 {rows[0]!.alpha >= 0 ? "+" : ""}
+            {(rows[0]!.alpha * 100).toFixed(2)}% · t {rows[0]!.tStat.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-[11px]">这次运行没有可排的策略</span>
+        )
+      }
+    >
       <Panel title="回测运行" note={`${runs.length} 次记录 · 新的在前`}>
         <table className="data-table w-full">
           <caption className="sr-only">回测运行历史：日期、口径摘要、与当前选中运行的可比性</caption>
@@ -134,7 +165,8 @@ function BacktestPage() {
         bodyClassName="px-3.5 py-3"
       >
         <ul className="flex flex-col gap-1.5">
-          {auditFindings.map((finding: AuditFinding) => (
+          {/* 这里过了早退分支，picked 一定非空，auditFindings 也必然有值 */}
+          {(auditFindings ?? []).map((finding: AuditFinding) => (
             <li key={`${finding.area}-${finding.title}`} className="flex items-baseline gap-2 text-xs">
               <Tag tone="muted">{finding.area}</Tag>
               <AuditLevelTag level={finding.level} />

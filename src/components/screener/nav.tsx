@@ -729,7 +729,8 @@ export function Frame({
   const router = useRouter();
   // 装饰层要拿到「当前路径 + 页面名 + 配置」，这里一次算完传给三个子件。
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const hit = navHit(path);
+  // 页面名不再从 navHit 取（有几个页面没侧栏入口，会拿到空串）——
+  // 标题由 page-decor 配置表负责，那是页头的权威来源。
   const decor = decorFor(path);
   const [refreshing, setRefreshing] = useState(false);
   async function refresh() {
@@ -799,11 +800,7 @@ export function Frame({
               没有配置装饰的页面（不在 page-decor 表里的）不渲染这一段——
               装饰是加分项，不该在某些页面上留个空壳。 */}
           {decor ? (
-            <DecorHeader
-              title={hit?.label ?? ""}
-              decor={decor}
-              status={status}
-            />
+            <DecorHeader decor={decor} status={status} />
           ) : null}
 
           {/* L3 专属装饰件：只有配置表里写了 ornament 的页面才有。 */}

@@ -60,6 +60,10 @@ export type PageStatus = {
 };
 
 export type PageDecor = {
+  /** 页面显示名（页头标题）。**这是页头的权威来源**——不依赖侧栏导航表，
+   *  因为有几个页面没有侧栏入口（/ai、/symbol、/membership、/strategies/positions），
+   *  靠 navHit 取标题会拿到空字符串，页头就成了空壳。 */
+  title: string;
   /** 页面图标（页头左侧） */
   icon: LucideIcon;
   /** 一句话职能——回答"这页是干啥的"。写给用户看，不是写给开发者看。 */
@@ -91,17 +95,20 @@ export type OrnamentKind =
  */
 export const PAGE_DECOR: Record<string, PageDecor> = {
   "/": {
+    title: "主控台",
     icon: LayoutDashboard,
     purpose: "今天的账、信号和钱，一屏看完",
     hue: "brand",
     ornament: "pulse-wave",
   },
   "/butler": {
+    title: "大管家",
     icon: Sparkles,
     purpose: "问它，它先读一遍项目现状再答",
     hue: "brand",
   },
   "/studio": {
+    title: "自媒体图文",
     icon: Image,
     purpose: "把今天的数据做成能发的图和文",
     hue: "brand",
@@ -109,51 +116,60 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   },
 
   "/overview": {
+    title: "股市总览",
     icon: Gauge,
     purpose: "全市场一张快照：指数、广度、资金",
     hue: "blue",
     ornament: "trend-spark",
   },
   "/review": {
+    title: "每日复盘",
     icon: History,
     purpose: "收盘后把今天发生的事理一遍",
     hue: "blue",
   },
   "/flow": {
+    title: "资金流向",
     icon: Coins,
     purpose: "钱往哪去：个股、板块、游资三条线",
     hue: "blue",
     ornament: "flow-arrows",
   },
   "/news": {
+    title: "快讯",
     icon: Newspaper,
     purpose: "7x24 电报，利好利空分开摆",
     hue: "blue",
     ornament: "pulse-wave",
   },
   "/overseas": {
+    title: "港美行情",
     icon: Globe,
     purpose: "港股美股，A股之外的另一个盘",
     hue: "blue",
   },
 
   "/strategies/screener": {
+    title: "策略",
     icon: ListFilter,
     purpose: "按规则筛出候选股，只给名单不给结论",
     hue: "violet",
   },
   "/strategies/positions": {
+    title: "策略追踪",
     icon: Table,
     purpose: "在跟的仓位、当日盈亏、谁在领跑",
     hue: "violet",
   },
   "/factors": {
+    title: "因子发掘",
     icon: FlaskConical,
     purpose: "挖因子：六关判决，过不了就淘汰",
     hue: "violet",
     ornament: "gate-badges",
   },
   "/backtest": {
+    title: "回测",
     icon: LineChart,
     purpose: "拿历史数据跑一遍，看能不能活",
     hue: "violet",
@@ -161,66 +177,78 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   },
 
   "/research": {
+    title: "个股研判",
     icon: FileSearch,
     purpose: "六阶段跑证据，出一份能回查的研判",
     hue: "amber",
     ornament: "evidence-chain",
   },
   "/debate": {
+    title: "多空辩论",
     icon: Scale,
     purpose: "多空各找证据，谁的论据硬听谁的",
     hue: "amber",
     ornament: "debate-split",
   },
   "/reports": {
+    title: "研报库",
     icon: FileText,
     purpose: "存下来的研判，可以并排比",
     hue: "amber",
   },
   "/notes": {
+    title: "笔记",
     icon: NotebookPen,
     purpose: "自己的判断，随手记下来",
     hue: "amber",
   },
 
   "/my-stocks": {
+    title: "自选与持仓",
     icon: Star,
     purpose: "自选和持仓，都在这儿",
     hue: "green",
   },
   "/inbox": {
+    title: "提醒",
     icon: Bell,
     purpose: "该看没看的提醒，都堆在这",
     hue: "green",
   },
   "/settings": {
+    title: "设置与状态",
     icon: Settings,
     purpose: "数据源、记账、显示偏好",
     hue: "green",
   },
   "/admin": {
+    title: "管理系统",
     icon: Users,
     purpose: "用户和档位，站长自己看",
     hue: "green",
   },
 
   "/ai": {
+    title: "AI 管理",
     icon: BrainCircuit,
     purpose: "AI 只能提议，判决永远归预注册函数",
     hue: "violet",
     ornament: "gate-badges",
   },
   "/symbol": {
+    title: "个股",
     icon: ScanSearch,
     purpose: "单只票的全部：行情、研判、持仓",
     hue: "blue",
   },
   "/login": {
+    title: "登录",
     icon: LogIn,
     purpose: "登录赤轨",
     hue: "brand",
   },
   "/membership": {
+    title: "会员",
     icon: CreditCard,
     purpose: "档位、定价、怎么开通",
     hue: "brand",

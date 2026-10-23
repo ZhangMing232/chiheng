@@ -78,3 +78,20 @@ test("每个色相深浅两套色值不同（否则切主题时底纹不变）",
     assert.notEqual(colors.dark, colors.light, `${hue} 深浅同色，切主题时底纹没变化`);
   }
 });
+
+test("🔴 每个配置都有非空标题（页头不能是空壳）", () => {
+  for (const [path, decor] of Object.entries(PAGE_DECOR)) {
+    assert.ok(decor.title.trim().length > 0, `${path} 缺标题——页头会渲染成空 h1`);
+  }
+});
+
+test("🔴 没有侧栏入口的页面也要有标题（不能依赖 navHit）", () => {
+  // 这些页面在侧栏里没有入口，靠导航表取标题会拿到空字符串。
+  // 2026-10-23 实测踩到：/ai、/symbol、/membership、/strategies/positions
+  // 的页头标题全是空的。
+  for (const path of ["/ai", "/symbol", "/membership", "/strategies/positions"]) {
+    const decor = decorFor(path);
+    assert.ok(decor, `${path} 没有装饰配置`);
+    assert.ok(decor!.title.length > 0, `${path} 标题为空`);
+  }
+});
