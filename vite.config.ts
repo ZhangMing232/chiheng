@@ -151,6 +151,9 @@ export default defineConfig(({ command, isPreview }) => ({
     host: "0.0.0.0",
     port: 8080,
     strictPort: true,
+    // 隧道（Cloudflare Tunnel）把 meanwhy.top 转到本机 dev server，Host 头是 meanwhy.top；
+    // Vite 默认只放行 localhost，会返回「Blocked request」，这里放行域名（含子域）。
+    allowedHosts: ["meanwhy.top", ".meanwhy.top"],
   },
   preview: {
     host: "127.0.0.1",
