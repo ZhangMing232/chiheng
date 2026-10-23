@@ -13,8 +13,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { generateStudioCaption, getBreadth, getFlow, getIndices } from "@/lib/market/quotes.functions";
-import { drawDailyPoster } from "@/lib/market/studio-poster";
-import { drawFlowPoster } from "@/lib/market/flow-poster";
+import { drawDailyPoster, drawStudioFlowPoster, type StudioFormat } from "@/lib/market/studio-poster";
 import type { FlowBook } from "@/lib/market/flow";
 import type { IndexQuote } from "@/lib/market/types";
 
@@ -64,12 +63,13 @@ function StudioPage() {
       else setError(res.error);
 
       // 图片（客户端 canvas 画）
+      const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
       let drawn: { canvas: HTMLCanvasElement; filename: string };
       if (kind === "daily") {
-        drawn = drawDailyPoster({ indices, breadth: breadth ?? { up: 0, down: 0, flat: 0, limitUp: 0, limitDown: 0 }, flow: flow as FlowBook | null });
+        drawn = drawDailyPoster({ indices, breadth: breadth ?? { up: 0, down: 0, flat: 0, limitUp: 0, limitDown: 0 }, flow: flow as FlowBook | null }, format);
       } else {
         if (!flow) throw new Error("资金数据暂时拉不下来");
-        drawn = drawFlowPoster(flow);
+        drawn = drawStudioFlowPoster(flow, format);
       }
       drawn.canvas.toBlob((blob) => {
         if (!blob) return;
