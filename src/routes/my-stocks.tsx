@@ -38,6 +38,9 @@ function MyStocksPage() {
   // 服务端画「空名单」、客户端画真数据，水合直接炸 React #418（2026-10-17 实测）。
   const items = (data ?? rows)?.items ?? [];
 
+  // ── 页头装饰用：自选数（真实数据，从本页已有的 items 算）──
+  const watchCount = items.length;
+
   async function add() {
     const term = q.trim();
     if (!term) return;
@@ -69,7 +72,15 @@ function MyStocksPage() {
   }
 
   return (
-    <Frame>
+    <Frame
+      status={{
+        label: "自选",
+        // **真实数据**：本页已有的 items 长度。items 是 [] 时说明确实没有自选
+        // （不是"不知道"），所以显示 0 是对的。
+        value: `${watchCount} 只`,
+        tone: watchCount > 0 ? "brand" : "neutral",
+      }}
+    >
       <Panel
         title="自选与持仓"
         note={

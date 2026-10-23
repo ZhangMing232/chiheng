@@ -119,7 +119,32 @@ function DebatePage() {
   useEffect(() => setValue(search.q), [search.q]);
 
   return (
-    <Frame wide>
+    <Frame
+      wide
+      status={{
+        label: "对照",
+        // **真实数据**：双方共用证据条数。status 是双方各自的状态
+        // （ok / refused / failed / skipped）——有一方没跑出来就说出来，
+        // 不能只显示"看起来辩过了"。
+        value: data.evidenceCount > 0 ? `${data.evidenceCount} 条证据` : null,
+        tone: data.sides?.every((side) => side.status === "ok")
+          ? "ok"
+          : data.sides?.some((side) => side.status === "ok")
+            ? "warn"
+            : "neutral",
+      }}
+      ornamentContent={
+        data.sides ? (
+          <span className="text-[11px] tabular-nums">
+            {data.sides
+              .map((side) => `${side.label} ${side.status === "ok" ? "已出" : side.status === "refused" ? "拒答" : side.status === "skipped" ? "跳过" : "失败"}`)
+              .join(" · ")}
+          </span>
+        ) : (
+          <span className="text-[11px]">还没有辩论结果</span>
+        )
+      }
+    >
       <Panel title="多空辩论" note={<span className="text-xs text-muted">同一份证据 · 双方都只给观察点</span>}>
         <div className="p-3">
           <form

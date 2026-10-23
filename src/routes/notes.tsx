@@ -40,6 +40,9 @@ function NotesPage() {
   const [draft, setDraft] = useState("");
 
   const list = notes ?? loaded;
+
+  // ── 页头装饰用：笔记条数（真实数据）──
+  const noteCount = list.length;
   const shown = filterNotes(list, filter.trim() || null);
 
   async function save() {
@@ -85,7 +88,15 @@ function NotesPage() {
   }
 
   return (
-    <Frame aside="笔记">
+    <Frame
+      aside="笔记"
+      status={{
+        label: "笔记",
+        // **真实数据**：本页已有的 list 长度。
+        value: `${noteCount} 条`,
+        tone: "neutral",
+      }}
+    >
       <Panel title="记一条" note="你自己写的观察，存在本机">
         <div className="space-y-2 border-b border-line px-3.5 py-3">
           <textarea

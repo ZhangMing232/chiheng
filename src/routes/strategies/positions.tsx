@@ -519,6 +519,9 @@ function Positions() {
   );
   const now = Date.now();
 
+  // ── 页头装饰用：未平仓笔数（从本页已有的 rows 算，不额外拉接口）──
+  const openCount = rows.filter((row) => row.exit == null).length;
+
   // 组合体检的输入：现价查询、按开仓日排的合计盈亏（null 天剔除，旧在前）。
   const priceOf = useMemo(() => {
     const byId = new Map((universe?.quotes ?? []).map((quote) => [quote.id, quote]));
@@ -899,6 +902,12 @@ function Positions() {
   return (
     <Frame
       wide
+      status={{
+        label: "在跟",
+        // **真实数据**：未平仓笔数（从本页已有的 rows/journal 算，不额外拉）。
+        value: `${openCount} 只`,
+        tone: openCount > 0 ? "brand" : "neutral",
+      }}
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">持仓</span>

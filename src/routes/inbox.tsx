@@ -73,7 +73,15 @@ function InboxPage() {
   const unread = rows.filter((r) => r.at > mark && r.id !== mark).length;
 
   return (
-    <Frame aside="提醒">
+    <Frame
+      aside="提醒"
+      status={{
+        label: "未读",
+        // **真实数据**：unread 是本页已有的算法（比 readMark 水位新）。
+        value: rows.length > 0 ? `${unread} 条` : null,
+        tone: unread > 0 ? "brand" : "neutral",
+      }}
+    >
       <Panel
         title="收件箱"
         note={`${rows.length} 条${unread > 0 ? ` · ${unread} 条未读` : ""}${rows.length >= ALERT_INBOX_LIMIT ? ` · 已满 ${ALERT_INBOX_LIMIT} 条，最旧的被砍` : ""}`}

@@ -8,6 +8,8 @@
  * 字号和明暗只存在这台浏览器里，不改账，也不改买入价。
  */
 
+import { DecorBackdrop, DecorHeader, DecorOrnament } from "@/components/page-decor";
+import { decorFor } from "@/lib/ui/page-decor";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -707,6 +709,10 @@ export function Frame({
   extra,
   onRefresh,
   wide = false,
+  /** 页头的状态药丸：必须来自本页 loader 的真实数据，没有就不传 */
+  status,
+  /** 页头专属装饰件的额外内容（真实数据，null 就不显示） */
+  ornamentContent,
   children,
 }: {
   aside?: ReactNode;
@@ -714,9 +720,17 @@ export function Frame({
   onRefresh?: () => void | Promise<void>;
   /** 主控台这类一屏一任务的宽页面用 true，其余阅读型页面保持窄栏 */
   wide?: boolean;
+  /** 状态药丸：页面 loader 算出来的真实状态（口径纪律：不许编） */
+  status?: import("@/lib/ui/page-decor").PageStatus | null;
+  /** 专属装饰件的额外内容（真实数据） */
+  ornamentContent?: ReactNode;
   children: ReactNode;
 }) {
   const router = useRouter();
+  // 装饰层要拿到「当前路径 + 页面名 + 配置」，这里一次算完传给三个子件。
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  const hit = navHit(path);
+  const decor = decorFor(path);
   const [refreshing, setRefreshing] = useState(false);
   async function refresh() {
     setRefreshing(true);
@@ -774,11 +788,30 @@ export function Frame({
         </header>
         <main
           className={
-            "mx-auto flex w-full flex-1 flex-col gap-3 px-3 py-3 md:px-4 " +
+            "relative mx-auto flex w-full flex-1 flex-col gap-3 px-3 py-3 md:px-4 " +
             (wide ? "max-w-[1440px]" : "max-w-3xl")
           }
         >
-          {children}
+          {/* L1 底纹：功能组色相的极淡氛围。放在内容区最底层，不拦截点击。 */}
+          {decor ? <DecorBackdrop hue={decor.hue} /> : null}
+
+          {/* L2 页头：图标 + 页面名 + 一句话职能 + 状态药丸。
+              没有配置装饰的页面（不在 page-decor 表里的）不渲染这一段——
+              装饰是加分项，不该在某些页面上留个空壳。 */}
+          {decor ? (
+            <DecorHeader
+              title={hit?.label ?? ""}
+              decor={decor}
+              status={status}
+            />
+          ) : null}
+
+          {/* L3 专属装饰件：只有配置表里写了 ornament 的页面才有。 */}
+          {decor?.ornament ? (
+            <DecorOrnament kind={decor.ornament}>{ornamentContent}</DecorOrnament>
+          ) : null}
+
+          <div className="relative z-[1] flex flex-col gap-3">{children}</div>
         </main>
       </div>
     </div>

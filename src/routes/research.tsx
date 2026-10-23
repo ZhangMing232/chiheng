@@ -165,7 +165,29 @@ function ResearchPage() {
   }
 
   return (
-    <Frame wide>
+    <Frame
+      wide
+      status={{
+        label: "证据链",
+        // **真实数据**：report.chain.evidence 是引用的证据条数，
+        // dangling 是「声称有据可查但那条证据不在账里」的条数——非空要说出来，
+        // 这正是「避免黑箱」的红线所在，不能藏。
+        value: report
+          ? `${report.chain.evidence} 条${report.chain.dangling.length > 0 ? ` · ${report.chain.dangling.length} 条悬空` : ""}`
+          : null,
+        tone: report && report.chain.dangling.length > 0 ? "warn" : report ? "ok" : "neutral",
+      }}
+      ornamentContent={
+        report ? (
+          <span className="text-[11px] tabular-nums">
+            {report.stages.length} 个阶段 · {report.gaps.length} 处缺口
+            {report.numbersReplaced > 0 ? ` · 换掉 ${report.numbersReplaced} 个数字` : ""}
+          </span>
+        ) : (
+          <span className="text-[11px]">还没有研判结果</span>
+        )
+      }
+    >
       <Panel
         title="个股研判"
         note={

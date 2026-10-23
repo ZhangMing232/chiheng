@@ -19,6 +19,13 @@ import type { IndexQuote } from "@/lib/market/types";
 import type { FlowBook } from "@/lib/market/flow";
 import type { NewsItem } from "@/lib/market/news";
 
+/** 万元 → 亿/万，带符号（净流出是负的）。装饰件只显示真实的数。 */
+function fmtYi(wan: number): string {
+  const abs = Math.abs(wan);
+  const sign = wan < 0 ? "-" : "+";
+  return abs >= 1e4 ? `${sign}${(abs / 1e4).toFixed(1)} 亿` : `${sign}${Math.round(abs)} 万`;
+}
+
 export const Route = createFileRoute("/overview")({
   loader: async () => {
     const [indices, breadth, flow, news] = await Promise.all([
@@ -36,7 +43,25 @@ function OverviewPage() {
   const { indices, breadth, flow, news } = Route.useLoaderData();
 
   return (
-    <Frame aside="股市总览">
+    <Frame
+      aside="股市总览"
+      status={{
+        label: "上涨",
+        // **真实数据**：getBreadth 服务端算好的计数。没有快照就是 null，
+        // 页头就少这个药丸——不能拿 0 顶替「不知道」。
+        value: breadth ? `${breadth.up} / ${breadth.down}` : null,
+        tone: breadth ? (breadth.up > breadth.down ? "ok" : "warn") : "neutral",
+      }}
+      ornamentContent={
+        flow && flow.stocksIn.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            第一名 {flow.stocksIn[0]!.name} {fmtYi(flow.stocksIn[0]!.inflow)}
+          </span>
+        ) : (
+          <span className="text-[11px]">资金榜暂不可用</span>
+        )
+      }
+    >
       {/* 指数 */}
       <Panel title="指数" note={indices?.[0]?.time ? `行情时间 ${indices[0].time}` : undefined}>
         {!indices || indices.length === 0 ? (

@@ -48,7 +48,16 @@ function AdminPage() {
   }
 
   return (
-    <Frame aside="管理系统">
+    <Frame
+      aside="管理系统"
+      status={{
+        label: "用户",
+        // **真实数据**：本页已有的 users 长度。users 为 null 表示还没加载出来，
+        // 那就不显示药丸（null ≠ 0）。
+        value: users ? `${users.length} 人` : null,
+        tone: "neutral",
+      }}
+    >
       <Panel title="用户管理" note="站长专用 · 改档位即时生效">
         {users === null ? (
           <StateBlock kind="empty" title="无权限" hint="只有站长（plan=admin）能看这个页面。本机内存库重启后用户清空，要真用请挂 Neon。" />

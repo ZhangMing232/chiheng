@@ -143,7 +143,26 @@ function FactorsIndexPage() {
   const runAt = runs.batch?.at ? new Date(runs.batch.at).toLocaleString("zh-CN", { hour12: false }) : null;
 
   return (
-    <Frame aside={runAt ? `因子批次 ${runAt}` : undefined}>
+    <Frame
+      aside={runAt ? `因子批次 ${runAt}` : undefined}
+      status={{
+        label: "过关",
+        // **真实数据**：batchSummary.passed 是六关全过的因子数。
+        // summary.total 是这批跑过的因子数。没有批次就是 null（不显示 0/0——
+        // 「没跑过」和「跑了但没过」是两件事）。
+        value: summary.total > 0 ? `${summary.passed} / ${summary.total}` : null,
+        tone: summary.passed > 0 ? "ok" : "neutral",
+      }}
+      ornamentContent={
+        summary.strongest ? (
+          <span className="text-[11px] tabular-nums">
+            最强 {summary.strongest.name} · t {summary.strongest.t.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-[11px]">这批没有因子通过全部六关</span>
+        )
+      }
+    >
       <FactorSectionTabs />
       {runs.batch ? <TestControls defaults={{ n: runs.batch.n, buckets: runs.batch.buckets }} /> : null}
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/" />

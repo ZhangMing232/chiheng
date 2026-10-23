@@ -69,7 +69,14 @@ function ReportsPage() {
   const sameSymbol = pickedRows.length === 2 && pickedRows[0]!.symbol === pickedRows[1]!.symbol;
 
   return (
-    <Frame>
+    <Frame
+      status={{
+        label: "报告",
+        // **真实数据**：本页已有的 rows 长度。
+        value: rows.length > 0 ? `${rows.length} 份` : null,
+        tone: "neutral",
+      }}
+    >
       <Panel
         title="我的报告"
         note={<span className="text-xs text-muted">每次研判可存一份 · 按账号存在本机 · 勾选两份同标的可对比</span>}

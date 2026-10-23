@@ -169,7 +169,24 @@ function NewsPage() {
   const ordered = [...news].sort((a, b) => rank(a) - rank(b));
 
   return (
-    <Frame>
+    <Frame
+      status={{
+        label: "快讯",
+        // **真实数据**：tally 出来的利好/利空条数。取不到就是 null。
+        value: news.length > 0 ? `${news.length} 条` : null,
+        tone: "neutral",
+      }}
+      ornamentContent={
+        news.length > 0 ? (
+          <span className="text-[11px] tabular-nums">
+            利好 {good.boards.length + good.stocks.length} · 利空{" "}
+            {bad.boards.length + bad.stocks.length}
+          </span>
+        ) : (
+          <span className="text-[11px]">今天还没抓到快讯</span>
+        )
+      }
+    >
         <PosterButton
           draw={() =>
             drawNewsPoster({

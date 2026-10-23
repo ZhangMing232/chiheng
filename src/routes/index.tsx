@@ -81,8 +81,44 @@ function Dashboard() {
   const mainInflow = flow ? flow.market.reduce((total, part) => total + part.main, 0) : null;
   const recorderDead = recorder.at == null || Date.now() - recorder.at > 3 * 60_000;
 
+  // ── 页头装饰用的真实数据（不额外拉接口，全从已有 loader 数据算）──
+  // 今日信号数 = 今天买入 + 今天卖出的笔数
+  const todaySignalCount = buysToday.length + sellsToday.length;
+  // 资金装饰件：主力净流入前 3 合计（万元 → 亿元，一位小数）
+  const flowTop3Wan = flow
+    ? flow.stocksIn.slice(0, 3).reduce((sum, row) => sum + row.inflow, 0)
+    : null;
+  const flowTop3 = flowTop3Wan != null ? `${(flowTop3Wan / 1e4).toFixed(1)} 亿` : null;
+  // 记账心跳状态（心跳超 3 分钟算异常 → warn 色调）
+  const recorderLabel = recorderDead ? "记账" : "记账";
+  const recorderValue = recorderDead
+    ? "中断"
+    : recorder.at != null
+      ? `${Math.max(0, Math.round((Date.now() - recorder.at) / 60000))} 分钟前`
+      : null;
+
   return (
-    <Frame wide>
+    <Frame
+      wide
+      status={{
+        label: "今日信号",
+        // 真实数据：今天的买卖笔数。journal 读不到时 journal.days 是空数组，
+        // 那就是「今天 0 条」而不是「不知道」——账本是本地的，读得到就是 0。
+        value: `${todaySignalCount} 条`,
+        tone: todaySignalCount > 0 ? "brand" : "neutral",
+      }}
+      ornamentContent={
+        <>
+          <span className="text-[11px] tabular-nums">
+            {flowTop3 != null ? `主力净流入前 3 合计 ${flowTop3}` : "资金榜暂不可用"}
+          </span>
+          <span className="text-[11px] tabular-nums">·</span>
+          <span className={"text-[11px] " + (recorderDead ? "text-warn" : "text-muted")}>
+            {recorderLabel} {recorderValue ?? "状态未知"}
+          </span>
+        </>
+      }
+    >
       {/* 第一行：四张 KPI 卡（PPT：1:4，h 88-92） */}
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         <Kpi label="今日新增信号" value={buysToday.length + sellsToday.length}>
