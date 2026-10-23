@@ -33,7 +33,9 @@ import {
   studioAbsWan,
   studioPct,
   studioTone,
+  type StudioDist,
   type StudioItem,
+  type StudioMini,
   type StudioSpec,
   type StudioStat,
 } from "./studio-poster.ts";
@@ -129,7 +131,7 @@ export type StudioData = {
   hotMoney: HotBook | null;
   news: NewsItem[];
   ladder: { streak: number; count: number }[];
-  /** 炸板率 %（/signals 的汇总，情绪体裁用） */
+  /** 炸板率 %（连板梯队页的补充信息，来自 /signals 的汇总） */
   breakRate: number | null;
 };
 
@@ -139,14 +141,14 @@ export type BuildOpts = {
   newsIndex?: number;
 };
 
+/**
+ * 榜单条目。note 优先用传入的（游资的「买了啥」），否则用涨跌幅——
+ * **榜单只给金额不给涨跌幅是信息缺失**：钱进得多但股价跌，是两种完全不同的故事。
+ */
 function rankingItems(
   rows: { name: string; inflow: number; chg?: number | null }[],
   topN: number,
-  opts?: {
-    note?: (r: { name: string; inflow: number }) => string | undefined;
-    /** 第二行小字带涨跌幅（chg 有才显示，null 不编） */
-    withChg?: boolean;
-  },
+  note?: (r: { name: string; inflow: number; chg?: number | null }) => string | undefined,
 ): StudioItem[] {
   return rows.slice(0, topN).map((r) => ({
     name: r.name,
@@ -155,56 +157,69 @@ function rankingItems(
     // 绿字 + 无负号，读者会以为它在流入）。
     value: `${r.inflow > 0 ? "+" : "-"}${studioAbsWan(r.inflow)}`,
     color: studioTone(r.inflow),
-    ...(opts?.withChg && r.chg != null ? { sub: studioPct(r.chg) } : {}),
-    ...(opts?.note ? { note: opts.note(r) } : {}),
+    ...(note ? { note: note(r) } : r.chg != null ? { note: studioPct(r.chg) } : {}),
   }));
 }
 
-/**
- * 集中度：前 3 名总和 vs 榜上其余（万元）。
- *
- * 口径说清：东财只給 top N，所以"其余"是**榜上第 4-N 名**不是全市场——
- * 分布条只回答"这 N 个里钱有多集中"，不假装知道全市场。
- */
-function concentration(rows: readonly { inflow: number }[]): { top3: number; rest: number; total: number } | null {
-  if (rows.length < 4) return null; // 不足 4 行画不出"集中"，不如不画
-  const top3 = rows.slice(0, 3).reduce((s, r) => s + r.inflow, 0);
+/** 分布条：前 3 名合计 vs 其余合计（单看排名不知道这是不是全部）。 */
+function distOf(rows: { inflow: number }[], label: string): StudioDist | undefined {
+  if (rows.length < 4) return undefined;
+  const top = rows.slice(0, 3).reduce((s, r) => s + r.inflow, 0);
   const rest = rows.slice(3).reduce((s, r) => s + r.inflow, 0);
-  return { top3, rest, total: top3 + rest };
+  return { label, top, rest };
+}
+
+/** 底部补充行：涨跌家数（涨红跌绿的事实行）。 */
+function breadthNote(b: Breadth): string {
+  return `上涨 ${b.up} · 下跌 ${b.down} · 平盘 ${b.flat} · 涨停 ${b.limitUp} · 跌停 ${b.limitDown}`;
 }
 
 /** 按体裁 + 数据源生成海报规格。纯函数，页面直接调用。 */
 export function buildStudioSpec(genre: StudioGenre, topic: StudioTopic, data: StudioData, opts: BuildOpts): StudioSpec {
   const flow = data.flow;
-  const breadthLine = `${data.breadth.up + data.breadth.down + data.breadth.flat} 只在交易 · 涨 ${data.breadth.up} 跌 ${data.breadth.down} · 涨停 ${data.breadth.limitUp} 跌停 ${data.breadth.limitDown}`;
   switch (topic) {
     case "stockIn":
       return {
-        title: TOPIC_LABEL.stockIn, subtitle: "主力资金 · 净流入", layout: "ranking",
-        items: rankingItems(flow?.stocksIn ?? [], opts.topN, { withChg: true }),
-        distrib: concentration(flow?.stocksIn ?? []) ?? undefined,
-        breadthLine,
+        title: TOPIC_LABEL.stockIn,
+        subtitle: "主力资金 · 净流入",
+        layout: "ranking",
+        items: rankingItems(flow?.stocksIn ?? [], opts.topN),
+        dist: distOf(flow?.stocksIn ?? [], "前 3 名合计 / 其余全部"),
+        footNote: breadthNote(data.breadth),
       };
     case "stockOut":
       return {
-        title: TOPIC_LABEL.stockOut, subtitle: "主力资金 · 净流出", layout: "ranking",
-        items: rankingItems(flow?.stocksOut ?? [], opts.topN, { withChg: true }),
-        distrib: concentration(flow?.stocksOut ?? []) ?? undefined,
-        breadthLine,
+        title: TOPIC_LABEL.stockOut,
+        subtitle: "主力资金 · 净流出",
+        layout: "ranking",
+        items: rankingItems(flow?.stocksOut ?? [], opts.topN),
+        dist: distOf(flow?.stocksOut ?? [], "前 3 名合计 / 其余全部"),
+        footNote: breadthNote(data.breadth),
       };
     case "sectorIn":
       return {
-        title: TOPIC_LABEL.sectorIn, subtitle: "板块资金 · 净流入", layout: "ranking",
-        items: rankingItems(flow?.sectorsIn ?? [], opts.topN, { withChg: true }),
-        distrib: concentration(flow?.sectorsIn ?? []) ?? undefined,
-        breadthLine,
+        title: TOPIC_LABEL.sectorIn,
+        subtitle: "板块资金 · 净流入",
+        layout: "ranking",
+        // 板块榜的 note 是领涨股（FlowRow.leader）——**板块排名不带领涨股是半张图**
+        items: rankingItems(flow?.sectorsIn ?? [], opts.topN, (r) => {
+          const row = flow?.sectorsIn.find((x) => x.name === r.name);
+          return row?.leader ? `领涨 ${row.leader}` : undefined;
+        }),
+        dist: distOf(flow?.sectorsIn ?? [], "前 3 名合计 / 其余全部"),
+        footNote: breadthNote(data.breadth),
       };
     case "sectorOut":
       return {
-        title: TOPIC_LABEL.sectorOut, subtitle: "板块资金 · 净流出", layout: "ranking",
-        items: rankingItems(flow?.sectorsOut ?? [], opts.topN, { withChg: true }),
-        distrib: concentration(flow?.sectorsOut ?? []) ?? undefined,
-        breadthLine,
+        title: TOPIC_LABEL.sectorOut,
+        subtitle: "板块资金 · 净流出",
+        layout: "ranking",
+        items: rankingItems(flow?.sectorsOut ?? [], opts.topN, (r) => {
+          const row = flow?.sectorsOut.find((x) => x.name === r.name);
+          return row?.leader ? `领跌 ${row.leader}` : undefined;
+        }),
+        dist: distOf(flow?.sectorsOut ?? [], "前 3 名合计 / 其余全部"),
+        footNote: breadthNote(data.breadth),
       };
     case "seats":
       return {
@@ -214,29 +229,32 @@ export function buildStudioSpec(genre: StudioGenre, topic: StudioTopic, data: St
         items: rankingItems(
           (data.hotMoney?.seats ?? []).map((s) => ({ name: s.name, inflow: s.netWan })),
           opts.topN,
-          {
-            note: (r) => {
-              const seat = data.hotMoney?.seats.find((s) => s.name === r.name);
-              // **最多 2 只**（daily_stock_analysis 的条数纪律：每类 2-3 条逼排序不堆砌）
-              const names = seat?.stocks.slice(0, 2).map((st) => st.name) ?? [];
-              return names.length ? `买了 ${names.join(" · ")}` : undefined;
-            },
+          (r) => {
+            const seat = data.hotMoney?.seats.find((s) => s.name === r.name);
+            // 条数纪律：2 只，不是 3 只（图上只给最相关的）
+            const names = seat?.stocks.slice(0, 2).map((st) => st.name) ?? [];
+            return names.length ? `买了 ${names.join(" · ")}` : undefined;
           },
         ),
+        dist: distOf((data.hotMoney?.seats ?? []).map((s) => ({ inflow: s.netWan })), "前 3 席位合计 / 其余全部"),
+        footNote: breadthNote(data.breadth),
       };
     case "news": {
       const picked = data.news[opts.newsIndex ?? 0] ?? data.news[0];
       if (!picked) {
         return { title: "今日暂无快讯", layout: "event", body: ["（今天还没抓到快讯，换个时间再试）"], meta: "" };
       }
-      // 涉及票带涨跌幅（chg 有才显示，null 不编）
-      const stocks = picked.stocks.slice(0, 4).map((s) => `${s.name}${s.chg != null ? ` ${studioPct(s.chg)}` : ""}`);
+      const stocks = picked.stocks.slice(0, 4);
+      // 涉及票带涨跌幅：只给票名是"提了一嘴"，带涨跌幅才是"这事砸在谁身上"
+      const stockText = stocks.map((s) => `${s.name}${s.chg != null ? ` ${studioPct(s.chg)}` : ""}`).join("、");
+      // 时间只取 HH:MM（NewsItem.time 有时是完整时间戳，图上写一长串没意义）
+      const clock = /(\d{2}:\d{2})/.exec(picked.time)?.[1] ?? picked.time;
       return {
         title: picked.title,
         subtitle: "快讯深读",
         layout: "event",
-        meta: `${picked.time}${stocks.length ? ` · 涉及 ${stocks.join("、")}` : ""}`,
-        body: [picked.summary || picked.title, ...(stocks.length ? [`牵扯到的票：${stocks.join("、")}。`] : [])],
+        meta: `${clock}${stockText ? ` · 涉及 ${stockText}` : ""}`,
+        body: [picked.summary || picked.title, ...(stockText ? [`牵扯到的票：${stockText}。`] : [])],
       };
     }
     case "daily": {
@@ -247,22 +265,30 @@ export function buildStudioSpec(genre: StudioGenre, topic: StudioTopic, data: St
         color: studioTone(i.pct),
       }));
       const b = data.breadth;
-      // 板块 mini 榜：领涨/领跌各 3 条（条数纪律）。flow 没有就整个模块不渲染。
-      const gain = rankingItems(flow?.sectorsIn ?? [], 3);
-      const lose = rankingItems(flow?.sectorsOut ?? [], 3);
-      // 底部事实行：全部从数据算，不写 AI 话（图是同步出的，不等 AI）
-      const facts: string[] = [];
-      const inflowTop3 = (flow?.sectorsIn ?? []).slice(0, 3).reduce((s, r) => s + r.inflow, 0);
-      if (inflowTop3 > 0) facts.push(`领涨三板块主力净流入合计 ${studioAbsWan(inflowTop3)}`);
-      if (b.limitUp + b.limitDown > 0) facts.push(`涨停 ${b.limitUp} · 跌停 ${b.limitDown}`);
+      // 领涨/领跌板块各 3 条（条数纪律抄 daily_stock_analysis）——数据源同 flow，
+      // 板块行自带领涨股名（leader）
+      const mini: StudioMini[] = [];
+      const inRows = (flow?.sectorsIn ?? []).slice(0, 3);
+      if (inRows.length > 0) {
+        mini.push({
+          title: "资金流入前三",
+          rows: inRows.map((r) => ({ name: r.name, value: studioAbsWan(r.inflow), color: studioTone(r.inflow) })),
+        });
+      }
+      const outRows = (flow?.sectorsOut ?? []).slice(0, 3);
+      if (outRows.length > 0) {
+        mini.push({
+          title: "资金流出前三",
+          rows: outRows.map((r) => ({ name: r.name, value: studioAbsWan(r.inflow), color: studioTone(r.inflow) })),
+        });
+      }
       return {
         title: "今日 A 股",
         subtitle: `${b.up + b.down + b.flat} 只在交易`,
         layout: "stat",
         stats,
         breadth: { up: b.up, down: b.down, flat: b.flat, limitUp: b.limitUp, limitDown: b.limitDown },
-        sectorMini: gain.length > 0 || lose.length > 0 ? { gain, lose } : undefined,
-        facts,
+        ...(mini.length > 0 ? { mini } : {}),
       };
     }
     case "ladder": {
@@ -273,9 +299,8 @@ export function buildStudioSpec(genre: StudioGenre, topic: StudioTopic, data: St
         subtitle: "几板有几只 · 情绪的温度计",
         layout: "ladder",
         rungs,
-        breakRate: data.breakRate,
         mood: rungs.length
-          ? `最高 ${top} 板。梯队越厚，愿意接力的钱越多；只有一根独苗，就是情绪的单兵突进。`
+          ? `最高 ${top} 板${data.breakRate != null ? `，炸板率 ${data.breakRate}%` : ""}。梯队越厚，愿意接力的钱越多；只有一根独苗，就是情绪的单兵突进。`
           : "今天没有连板，一板以上的都没有。",
       };
     }

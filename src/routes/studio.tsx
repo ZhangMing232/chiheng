@@ -30,13 +30,13 @@ const PLATFORMS: { id: StudioPlatform; label: string }[] = [
 
 export const Route = createFileRoute("/studio")({
   loader: async () => {
+    // signals 给出连板梯队和炸板率（情绪体裁要用）；拉不到就缺着，不编
     const [indices, breadth, flow, hotMoney, news, signals] = await Promise.all([
       getIndices().catch(() => [] as IndexQuote[]),
       getBreadth().catch(() => null),
       getFlow().catch(() => null),
       getHotMoney().catch(() => null),
       getNews().catch(() => [] as NewsItem[]),
-      // 情绪体裁的原料：连板梯队 + 炸板率（/signals 已拉过涨停池，这里不重复拉）
       getSignals().catch(() => null),
     ]);
     return { indices, breadth, flow, hotMoney, news, signals };
