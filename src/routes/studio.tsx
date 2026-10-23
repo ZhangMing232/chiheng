@@ -1,50 +1,49 @@
 /**
  * 这个文件是干什么的：
- * 「自媒体图文」页（/studio）。选内容类型（每日复盘/资金异动）+ 平台（抖音/公众号），
- * 一键同时生成「图片（海报）+ 文案（AI 初稿）」，图可下载、文可改可复制。
+ * 「自媒体图文」页（/studio）。选内容类型（复盘/个股流入流出/板块/游资/热点）+ 平台（抖音/公众号），
+ * 一键同时生成「图片 + 文案」：图走 studio-poster 的深色行情风，文走 DSH（DeepSeek）的活人感文案。
  *
  * 你需要知道的：
- * - 图片在浏览器里用 canvas 画（复用 poster 主题），文案走 DSH（DeepSeek）生成。
- * - 文案是 AI 初稿、有「活人感」约束，你改一改再发；不荐股、不编数。
+ * - 图片在浏览器里用 canvas 画；文案走服务端 AI。不荐股、不编数。
+ * - 内容类型是灵活的（不是固定复盘模板），每类自动套对应的排名/列表数据。
  */
 
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
-import { generateStudioCaption, getBreadth, getFlow, getIndices } from "@/lib/market/quotes.functions";
-import { drawDailyPoster, drawStudioFlowPoster, type StudioFormat } from "@/lib/market/studio-poster";
+import { generateStudioCaption, getBreadth, getFlow, getHotMoney, getIndices, getNews } from "@/lib/market/quotes.functions";
+import { buildStudioItems, defaultTitle, KIND_LABEL, titleFromCaption, type StudioKind, type StudioPlatform } from "@/lib/market/studio";
+import { drawStudioPoster, type StudioFormat, type StudioSpec } from "@/lib/market/studio-poster";
 import type { FlowBook } from "@/lib/market/flow";
+import type { HotBook } from "@/lib/market/hotmoney";
+import type { NewsItem } from "@/lib/market/news";
 import type { IndexQuote } from "@/lib/market/types";
 
-type Kind = "daily" | "flow";
-type Platform = "douyin" | "wechat";
-
-const KINDS: { id: Kind; label: string }[] = [
-  { id: "daily", label: "每日复盘" },
-  { id: "flow", label: "资金异动" },
-];
-const PLATFORMS: { id: Platform; label: string }[] = [
+const KINDS: StudioKind[] = ["daily", "stockIn", "stockOut", "sector", "hotMoney", "news"];
+const PLATFORMS: { id: StudioPlatform; label: string }[] = [
   { id: "douyin", label: "抖音" },
   { id: "wechat", label: "公众号" },
 ];
 
 export const Route = createFileRoute("/studio")({
   loader: async () => {
-    const [indices, breadth, flow] = await Promise.all([
+    const [indices, breadth, flow, hotMoney, news] = await Promise.all([
       getIndices().catch(() => [] as IndexQuote[]),
       getBreadth().catch(() => null),
       getFlow().catch(() => null),
+      getHotMoney().catch(() => null),
+      getNews().catch(() => [] as NewsItem[]),
     ]);
-    return { indices, breadth, flow };
+    return { indices, breadth, flow, hotMoney, news };
   },
   component: StudioPage,
 });
 
 function StudioPage() {
-  const { indices, breadth, flow } = Route.useLoaderData();
-  const [kind, setKind] = useState<Kind>("daily");
-  const [platform, setPlatform] = useState<Platform>("douyin");
+  const data = Route.useLoaderData();
+  const [kind, setKind] = useState<StudioKind>("daily");
+  const [platform, setPlatform] = useState<StudioPlatform>("douyin");
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [filename, setFilename] = useState("");
@@ -57,26 +56,29 @@ function StudioPage() {
     setError(null);
     setCopied(false);
     try {
-      // 文案（AI）
       const res = await generateStudioCaption({ data: { kind, platform } });
-      if (res.ok) setText(res.text);
-      else setError(res.error);
+      const caption = res.ok ? res.text : "";
+      if (!res.ok) setError(res.error);
 
-      // 图片（客户端 canvas 画）
+      const title = caption ? titleFromCaption(caption, defaultTitle(kind)) : defaultTitle(kind);
+      const items = buildStudioItems(kind, {
+        indices: data.indices,
+        breadth: data.breadth ?? { up: 0, down: 0, flat: 0, limitUp: 0, limitDown: 0 },
+        flow: data.flow as FlowBook | null,
+        hotMoney: data.hotMoney as HotBook | null,
+        news: data.news,
+      });
+      const spec: StudioSpec = { title, items };
       const format: StudioFormat = platform === "douyin" ? "vertical" : "square";
-      let drawn: { canvas: HTMLCanvasElement; filename: string };
-      if (kind === "daily") {
-        drawn = drawDailyPoster({ indices, breadth: breadth ?? { up: 0, down: 0, flat: 0, limitUp: 0, limitDown: 0 }, flow: flow as FlowBook | null }, format);
-      } else {
-        if (!flow) throw new Error("资金数据暂时拉不下来");
-        drawn = drawStudioFlowPoster(flow, format);
-      }
+      const drawn = drawStudioPoster(spec, format);
       drawn.canvas.toBlob((blob) => {
         if (!blob) return;
         if (imageUrl) URL.revokeObjectURL(imageUrl);
         setImageUrl(URL.createObjectURL(blob));
         setFilename(drawn.filename);
       }, "image/png");
+
+      if (caption) setText(caption);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -109,15 +111,17 @@ function StudioPage() {
 
   return (
     <Frame aside="自媒体图文">
-      <Panel title="自媒体图文" note="一键生成「图 + 文」· 图可下载、文可改可复制 · 不荐股不编数">
+      <Panel title="自媒体图文" note="选内容 + 平台 → 一键生成「图 + 文」· 不荐股不编数">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
           <span className="text-[11px] text-muted">内容</span>
           {KINDS.map((k) => (
-            <button key={k.id} type="button" onClick={() => setKind(k.id)} className={tabClass(kind === k.id)}>
-              {k.label}
+            <button key={k} type="button" onClick={() => setKind(k)} className={tabClass(kind === k)}>
+              {KIND_LABEL[k]}
             </button>
           ))}
-          <span className="ml-3 text-[11px] text-muted">平台</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
+          <span className="text-[11px] text-muted">平台</span>
           {PLATFORMS.map((p) => (
             <button key={p.id} type="button" onClick={() => setPlatform(p.id)} className={tabClass(platform === p.id)}>
               {p.label}

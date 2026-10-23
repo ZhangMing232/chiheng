@@ -1,28 +1,60 @@
 /**
  * 这个文件是干什么的：
- * 自媒体「图文」的文案生成。把项目数据（指数/涨跌/资金/快讯）聚合成上下文，
- * 交给 DeepSeek HARNESS（callDSH）写出一段可直接发布的「标题 + 正文 + 标签」。
+ * 自媒体「图文」的内容层：把项目数据变成可发的「图（spec）+ 文（文案）」。
+ * 不绑定单一内容：支持复盘 / 个股流入流出排名 / 板块 / 游资 / 热点 等多种内容类型。
  *
  * 你需要知道的：
- * - 只生成文案，不生成图片（图片走 poster 那一套）；不荐股、不编数。
- * - 平台两种：douyin（抖音，短/口语/emoji/标签多）、wechat（公众号，正式/数据详实）。
- * - 文案是 AI 初稿，用户拿到后自己改再发。
+ * - buildStudioItems 是纯函数，把数据整理成海报条目（给 studio-poster 画图）。
+ * - generateCaption 走 DSH（DeepSeek）生成文案，只写数据里有的、不荐股。
  */
 
 import { loadIndices, loadUniverse } from "./quotes.functions.ts";
 import { loadFlow } from "./flow.ts";
 import { loadNews } from "./news.ts";
+import { loadHotMoney } from "./hotmoney.ts";
 import { marketBreadth } from "./slim-universe.ts";
 import { callDSH } from "./chiheng-dsh-client.ts";
+import type { FlowBook } from "./flow.ts";
+import type { HotBook } from "./hotmoney.ts";
+import type { NewsItem } from "./news.ts";
+import type { IndexQuote } from "./types.ts";
+import type { Breadth } from "./slim-universe.ts";
+import { STUDIO_INK, studioAbsWan, studioPct, studioTone, type StudioItem } from "./studio-poster.ts";
 
-export type StudioKind = "daily" | "flow";
+export type StudioKind = "daily" | "stockIn" | "stockOut" | "sector" | "hotMoney" | "news";
 export type StudioPlatform = "douyin" | "wechat";
+
+export type StudioData = {
+  indices: IndexQuote[];
+  breadth: Breadth;
+  flow: FlowBook | null;
+  hotMoney: HotBook | null;
+  news: NewsItem[];
+};
+
+export const KIND_LABEL: Record<StudioKind, string> = {
+  daily: "每日复盘",
+  stockIn: "个股流入排名",
+  stockOut: "个股流出排名",
+  sector: "板块轮动",
+  hotMoney: "游资动向",
+  news: "热点事件",
+};
+
+const KIND_TITLE: Record<StudioKind, string> = {
+  daily: "今日 A 股",
+  stockIn: "主力净流入 TOP",
+  stockOut: "主力净流出 TOP",
+  sector: "板块净流入 TOP",
+  hotMoney: "游资动向",
+  news: "今日热点",
+};
 
 /** 文案系统提示：像真人博主、口语、有情绪、有观点，去 AI 套话。 */
 const CAPTION_SYSTEM = [
   "你是一个做了三年财经自媒体的真人博主，风格像跟朋友聊盘面，有情绪、有观点、口语化，不是新闻播报、不是研报。",
   "输出格式严格如下（三行，别加多余标题）：",
-  "【标题】一句抓眼球的话，带具体数字或情绪",
+  "【标题】一句抓眼球的话，带具体数字或情绪（10~18 字，能当图片大标题）",
   "【正文】2-4 句口语，先甩结论再补数据，有你的判断和态度",
   "【标签】3-5 个带 # 的话题",
   "铁律：",
@@ -34,20 +66,46 @@ const CAPTION_SYSTEM = [
 ].join("\n");
 
 const PLATFORM_HINT: Record<StudioPlatform, string> = {
-  douyin:
-    "抖音竖版：标题用情绪词+数字抓眼球（例「4700家下跌，主力跑了」「今天这盘面有点东西」）；正文像朋友聊天、短句有节奏、可以带一句调侃或反问；别用书面语；标签 5 个。",
-  wechat:
-    "公众号：标题克制但带悬念和数字（例「今天这 3 个板块，主力在偷偷加仓」）；正文先给结论再摆数据，像财经老手跟读者聊，语气稳但不端着；不堆 emoji；标签 3 个。",
+  douyin: "抖音竖版：标题用情绪词+数字抓眼球；正文像朋友聊天、短句有节奏、可带一句调侃；别用书面语；标签 5 个。",
+  wechat: "公众号：标题克制但带悬念和数字；正文先给结论再摆数据，像财经老手跟读者聊；不堆 emoji；标签 3 个。",
 };
 
-/** 每日复盘上下文：指数 + 涨跌分布 + 主力/北向 + 最新快讯标题。 */
+/** 把数据整理成海报条目（排名列表）。 */
+export function buildStudioItems(kind: StudioKind, data: StudioData): StudioItem[] {
+  const flow = data.flow;
+  switch (kind) {
+    case "daily":
+      return data.indices.slice(0, 6).map((i) => ({ name: i.name, value: studioPct(i.pct), color: studioTone(i.pct) }));
+    case "stockIn":
+      return (flow?.stocksIn ?? []).slice(0, 10).map((r) => ({ name: r.name, value: `${r.inflow > 0 ? "+" : ""}${studioAbsWan(r.inflow)}`, color: studioTone(r.inflow) }));
+    case "stockOut":
+      return (flow?.stocksOut ?? []).slice(0, 10).map((r) => ({ name: r.name, value: `${r.inflow > 0 ? "+" : ""}${studioAbsWan(r.inflow)}`, color: studioTone(r.inflow) }));
+    case "sector":
+      return (flow?.sectorsIn ?? []).slice(0, 10).map((r) => ({ name: r.name, value: `${r.inflow > 0 ? "+" : ""}${studioAbsWan(r.inflow)}`, color: studioTone(r.inflow) }));
+    case "hotMoney":
+      return (data.hotMoney?.seats ?? []).slice(0, 10).map((s) => ({
+        name: s.name,
+        value: `${s.netWan > 0 ? "+" : ""}${studioAbsWan(s.netWan)}`,
+        color: studioTone(s.netWan),
+        note: s.stocks.slice(0, 3).map((st) => st.name).join(" · "),
+      }));
+    case "news":
+      return (data.news ?? []).slice(0, 8).map((n) => ({ name: n.title, value: n.time, color: STUDIO_INK }));
+  }
+}
+
+/** 海报默认标题（AI 标题生成失败时的兜底）。 */
+export function defaultTitle(kind: StudioKind): string {
+  return KIND_TITLE[kind];
+}
+
+// ── 文案上下文（各内容类型）──
+
 async function dailyContext(): Promise<string> {
   const lines: string[] = [];
   try {
     const idx = await loadIndices();
-    if (idx.length) {
-      lines.push("指数：" + idx.map((i) => `${i.name} ${i.price.toFixed(2)}（${i.pct >= 0 ? "+" : ""}${i.pct.toFixed(2)}%）`).join("，"));
-    }
+    if (idx.length) lines.push("指数：" + idx.map((i) => `${i.name} ${i.price.toFixed(2)}（${studioPct(i.pct)}）`).join("，"));
   } catch {
     /* 忽略 */
   }
@@ -60,40 +118,59 @@ async function dailyContext(): Promise<string> {
   }
   try {
     const flow = await loadFlow();
-    const north = flow.north[0];
-    const in3 = flow.sectorsIn.slice(0, 3).map((r) => `${r.name} ${(r.inflow / 1e4).toFixed(1)} 亿`).join("、");
-    lines.push(`资金：主力净流入前 3 板块 ${in3}${north ? `；北向成交额 ${(north.amount / 1e4).toFixed(1)} 亿` : ""}`);
-  } catch {
-    /* 忽略 */
-  }
-  try {
-    const news = await loadNews();
-    if (news.length) lines.push("快讯（前 5 条标题）：" + news.slice(0, 5).map((n) => n.title).join("；"));
+    lines.push("主力净流入前 5 板块：" + flow.sectorsIn.slice(0, 5).map((r) => `${r.name} ${studioAbsWan(r.inflow)}`).join("，"));
   } catch {
     /* 忽略 */
   }
   return lines.join("\n") || "（暂无数据）";
 }
 
-/** 资金异动上下文：主力净流入/流出前几的板块和个股。 */
-async function flowContext(): Promise<string> {
-  const lines: string[] = [];
+async function flowContext(kind: "stockIn" | "stockOut" | "sector"): Promise<string> {
   try {
     const flow = await loadFlow();
-    lines.push("板块主力净流入前 5：" + flow.sectorsIn.slice(0, 5).map((r) => `${r.name} ${(r.inflow / 1e4).toFixed(1)} 亿${r.chg == null ? "" : `（${r.chg >= 0 ? "+" : ""}${r.chg.toFixed(2)}%）`}`).join("，"));
-    lines.push("板块主力净流出前 5：" + flow.sectorsOut.slice(0, 5).map((r) => `${r.name} ${(r.inflow / 1e4).toFixed(1)} 亿`).join("，"));
-    lines.push("个股主力净流入前 5：" + flow.stocksIn.slice(0, 5).map((r) => `${r.name} ${(r.inflow / 1e4).toFixed(1)} 亿`).join("，"));
-    lines.push("个股主力净流出前 5：" + flow.stocksOut.slice(0, 5).map((r) => `${r.name} ${(r.inflow / 1e4).toFixed(1)} 亿`).join("，"));
+    const pick = kind === "stockIn" ? flow.stocksIn : kind === "stockOut" ? flow.stocksOut : flow.sectorsIn;
+    const label = kind === "sector" ? "板块" : "个股";
+    return `${label}主力净${kind === "stockOut" ? "流" : "流入"}前 10：` + pick.slice(0, 10).map((r) => `${r.name} ${studioAbsWan(r.inflow)}`).join("，");
   } catch {
-    /* 忽略 */
+    return "（暂无数据）";
   }
-  return lines.join("\n") || "（暂无数据）";
+}
+
+async function hotMoneyContext(): Promise<string> {
+  try {
+    const book = await loadHotMoney();
+    return "游资席位净买前 10：" + book.seats.slice(0, 10).map((s) => `${s.name} ${studioAbsWan(s.netWan)}${s.stocks.length ? `（${s.stocks.slice(0, 3).map((st) => st.name).join("、")}）` : ""}`).join("，");
+  } catch {
+    return "（暂无数据）";
+  }
+}
+
+async function newsContext(): Promise<string> {
+  try {
+    const news = await loadNews();
+    return "今日热点快讯（前 10 条）：" + news.slice(0, 10).map((n) => n.title).join("；");
+  } catch {
+    return "（暂无数据）";
+  }
 }
 
 /** 生成一段图文文案。返回 AI 写的「标题/正文/标签」三行文本。失败抛错。 */
 export async function generateCaption(kind: StudioKind, platform: StudioPlatform): Promise<string> {
-  const ctx = kind === "daily" ? await dailyContext() : await flowContext();
-  const kindLabel = kind === "daily" ? "每日复盘" : "资金异动";
-  const prompt = `【内容类型】${kindLabel}\n【平台】${PLATFORM_HINT[platform]}\n【今日数据】\n${ctx}\n\n请按格式生成文案。`;
+  const ctx =
+    kind === "daily"
+      ? await dailyContext()
+      : kind === "stockIn" || kind === "stockOut" || kind === "sector"
+        ? await flowContext(kind)
+        : kind === "hotMoney"
+          ? await hotMoneyContext()
+          : await newsContext();
+  const prompt = `【内容类型】${KIND_LABEL[kind]}\n【平台】${PLATFORM_HINT[platform]}\n【今日数据】\n${ctx}\n\n请按格式生成文案。`;
   return callDSH(prompt, { system: CAPTION_SYSTEM });
+}
+
+/** 从文案里抽出「标题」那一行（当图片大标题用）。抽不到就用默认标题。 */
+export function titleFromCaption(caption: string, fallback: string): string {
+  const m = caption.match(/【标题】\s*(.+)/);
+  const title = m?.[1]?.trim();
+  return title && title.length <= 20 ? title : fallback;
 }

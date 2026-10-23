@@ -317,12 +317,14 @@ export const askButler = createServerFn({ method: "POST" })
     }
   });
 
-/** 自媒体文案生成。POST { kind: daily|flow, platform: douyin|wechat } → { ok, text }。 */
+/** 自媒体文案生成。POST { kind, platform } → { ok, text }。kind 见 studio.ts 的 StudioKind。 */
 export const generateStudioCaption = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const d = data as { kind?: unknown; platform?: unknown };
+    const kinds = ["daily", "stockIn", "stockOut", "sector", "hotMoney", "news"] as const;
+    const kind = (kinds as readonly string[]).includes(String(d?.kind)) ? (d?.kind as (typeof kinds)[number]) : "daily";
     return {
-      kind: d?.kind === "flow" ? ("flow" as const) : ("daily" as const),
+      kind,
       platform: d?.platform === "wechat" ? ("wechat" as const) : ("douyin" as const),
     };
   })
