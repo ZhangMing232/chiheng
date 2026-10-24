@@ -91,7 +91,7 @@
 
 | 优先级 | 内容 | 状态 |
 |---|---|---|
-| P3-1 | 冒烟测试日常化——`npm run smoke` 已建好（无头 Chrome 逐页查客户端异常 + 真实点击）。**agent 沙箱里跑不了**（2026-10-16 实测：Chrome 调试端口 45 秒起不来、`--dump-dom` 直接崩退出码 133）——要在用户终端跑。当前只覆盖 8 页（PAGES：/ + screener/positions/review/flow/backtest/calendar/ai），**10-14/15/16 新加的 /signals /reports /sectors /overseas /notes /settings 不在里面，先补上再谈日常化** | ⬜ |
+| P3-1 | 冒烟测试日常化——`npm run smoke` 已建好（无头 Chrome 逐页查客户端异常 + 真实点击）。**agent 沙箱里跑不了**（2026-10-16 实测：Chrome 调试端口 45 秒起不来、`--dump-dom` 直接崩退出码 133）——要在用户终端跑。2026-10-24 修了覆盖漂移：PAGES 从 23 条修到 46 条（10-21 信息架构后的新页面全补上：/review/flow/* 9 个子页、membership/login/admin/butler/studio/reports/overseas/notes/settings/my-stocks/inbox/research/debate、factors 子页、ai/rules；删掉 5 条已重定向的旧 /flow/*），NAV_PAGES 修掉必败的 /flow（侧栏入口已撤），并加守门测试 `scripts/smoke-pages.test.mjs`（活路由漏覆盖/列了不存在的路由/导航项点不到 → 测试红）。**剩余：用户在终端实跑一次 `npm run smoke`**（约 4 分钟，46 页全过才算这项完） | ⬜ |
 | P3-2 | baseline 重跑——成本口径变了旧数字失效，用户说一声就跑（命令在 data/backtest/baseline 文件末尾） | ⬜ |
 | P3-3 | 移动端小屏完整走查——10-16 修完性能后没做：导航、表格、图表在手机上的排版逐页过 | ⬜ |
 | P3-4 | 域名 + 公网访问（meanwhy.top 候选）——等用户买域名；隧道方案已在 REMAINING.md 留档 | ⏸ 等用户 |

@@ -17,13 +17,41 @@ import { join } from "node:path";
 
 const BASE = process.argv[2] ?? "http://localhost:8787";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-// 2026-10-21 整合后：选股+追踪在 /strategies 下，复盘+信号在 /review 下，
-// 资金流向整页拆成子页面（/flow/*）；末尾几个旧地址是重定向页，留着验证旧书签不断链。
-const PAGES = ["/", "/strategies/screener", "/strategies/positions", "/review", "/review/signals", "/review/events", "/flow", "/flow/trend", "/flow/stocks", "/flow/sectors", "/flow/margin", "/factors", "/factors/gates", "/ai", "/ai/config", "/ai/usage", "/backtest", "/screener", "/positions", "/signals", "/calendar", "/events", "/sectors"];
-// 步骤 3 是「从首页点导航链接走 SPA 路由」——只能点侧栏里真实存在的入口；
-// 重定向页（/screener 等）和二级子页（/strategies/positions、/review/signals、
-// /review/events）不在侧栏里，靠子页面内的 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
-const NAV_PAGES = ["/strategies/screener", "/review", "/flow", "/backtest", "/ai"];
+// 2026-10-24 重修：上一版停在 10-21 的信息架构——/flow/* 五个条目全是已并入
+// /review/flow/* 的旧路由（其中 /flow/trend 连重定向白名单都没进），而 10-21 之后
+// 新增的页面（复盘子页、资金流向 9 个子页、membership/login/admin/butler/studio/
+// reports/overseas/notes/settings/my-stocks/inbox/research/debate/factors 子页/
+// ai/rules）一页没覆盖。46 条路由只盖 23 条。
+// 现在按侧栏七组 + 资金流向子页 + AI 子页全列；带 search 默认值的页面
+// （/research?q=、/factors/buckets?batch=-1 等）写裸路径即可，307 浏览器会自己跟随。
+// 末尾五个旧地址是**重定向页**，留一个代表验旧书签不断链（每个合并动作留一个）。
+// 这份清单有守门测试 scripts/smoke-pages.test.mjs：漏覆盖新路由或列了不存在的
+// 路由都会直接红，不会再静默漂移。
+const PAGES = [
+  "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）
+  // 市场
+  "/overview", "/review", "/review/signals", "/review/events", "/news", "/overseas",
+  // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）
+  "/butler", "/studio", "/research", "/debate", "/reports", "/notes",
+  "/my-stocks", "/inbox", "/settings", "/admin", "/membership", "/login",
+  // 策略因子
+  "/strategies/screener", "/strategies/positions",
+  "/factors", "/factors/gates", "/factors/attrib", "/factors/baseline", "/factors/buckets", "/factors/flow",
+  "/backtest",
+  // 资金流向并入复盘后的真实子页（10-23，b183e00）
+  "/review/flow", "/review/flow/stocks", "/review/flow/sectors", "/review/flow/margin",
+  "/review/flow/north", "/review/flow/industries", "/review/flow/hot", "/review/flow/close", "/review/flow/futures",
+  // 个股 + AI（pinned 在侧栏底部）
+  "/symbol", "/ai", "/ai/config", "/ai/rules", "/ai/usage",
+  // 旧书签重定向不断链：/screener /positions（10-21 策略区合并）、/signals /calendar
+  // （复盘区合并）、/flow/stocks（10-23 资金流向合并）各留一个代表
+  "/screener", "/positions", "/signals", "/calendar", "/flow/stocks",
+];
+// 步骤 3 是「从首页点导航链接走 SPA 路由」——只能点侧栏里真实存在的入口
+// （含底部 pinned 的 /ai）。上一版里的 /flow 在 10-23 撤掉侧栏入口后必然点不到，
+// 是漂移的一部分。子页面（/strategies/positions、/review/signals、/review/flow/*
+// 这类）不在侧栏里，靠页面内 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
+const NAV_PAGES = ["/butler", "/studio", "/overview", "/strategies/screener", "/factors", "/research", "/my-stocks", "/backtest", "/ai"];
 
 /** 等 fn 返回非 undefined 值，超时抛错 */
 async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {
