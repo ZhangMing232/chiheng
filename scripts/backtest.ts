@@ -60,6 +60,7 @@ import {
 import type { DailyRow } from "@/lib/market/factors";
 import { detectWyckoffSpring } from "@/lib/market/wyckoff-spring";
 import { decideGate, costDragRows, formatDragRow, klineRef } from "@/lib/market/backtest-gate";
+import { byDay, dayRowsOf, benchRowsOf } from "@/lib/market/backtest-day";
 import { loadQueueFactors, applyVerdictsToQueue } from "@/lib/market/factor-queue";
 import { dsr as dsrOf, perPeriodSharpe, std as trialStd } from "@/lib/market/robustness";
 import { pitValue, recordsOf } from "@/lib/market/fundamentals";
@@ -988,6 +989,10 @@ async function main() {
           results[key].push({
             id: pick.id,
             date: rows[tIdx].date,
+            // 卖出日（收益落袋那天）。2026-10-24 补：518e6c3 给 Trade 加 exitDate 时
+            // 只改了限价口径那处 push，spot 这处漏了——按天聚合全塌成一个 undefined 桶。
+            // scripts/ 不做类型检查，所以这个漏字段跑了 10 天没人报。
+            exitDate: spotFill.date,
             entry: pick.sig.buy,
             exit: spotFill.price,
             reason: spotFill.reason,
@@ -1142,59 +1147,9 @@ async function main() {
   console.log("-".repeat(110));
   }
 
-  /**
-   * 落盘用的日度序列：那天所有平仓的等权平均收益 + 笔数。
-   * 和 byDay 同源（byDay 只给数值，这里要带日期和笔数）。
-   */
-  function dayRowsOf(trades: Trade[]): { date: string; ret: number; n: number }[] {
-    const bucket = new Map<string, { sum: number; n: number }>();
-    for (const t of trades) {
-      // 按**卖出日**聚合：收益是那天落袋的。按信号日会把不同平仓日的收益挤到同一天，
-      // 累计曲线和月度柱子全错（2026-10-14 实测差 20 倍）。
-      const row = bucket.get(t.exitDate) ?? { sum: 0, n: 0 };
-      row.sum += t.ret;
-      row.n += 1;
-      bucket.set(t.date, row);
-    }
-    return [...bucket.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, row]) => ({ date, ret: row.sum / row.n, n: row.n }));
-  }
-
-  /** 同日期的基准（同期全池）平均，给超额曲线用。 */
-  function benchRowsOf(trades: Trade[]): { date: string; ret: number; n: number }[] {
-    const bucket = new Map<string, { sum: number; n: number }>();
-    for (const t of trades) {
-      const row = bucket.get(t.exitDate) ?? { sum: 0, n: 0 };
-      row.sum += t.bench;
-      row.n += 1;
-      bucket.set(t.date, row);
-    }
-    return [...bucket.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, row]) => ({ date, ret: row.sum / row.n, n: row.n }));
-  }
-
-  /**
-   * 每天一个数：那天卖出的所有仓位，当天收益率的平均。
-   *
-   * 是「平均」不是「总和」——一天卖出十笔就等于十个满仓，可实际上它们是十个
-   * 等权的小仓位，组合的当日收益是它们的平均。之前按总和算，一天能算出 +244%，
-   * 净值一年冲到二十几倍，回撤动辄 80% 以上，闸门和停手线完全没法比。
-   */
-  function byDay(trades: Trade[]): number[] {
-    const bucket = new Map<string, { sum: number; n: number }>();
-    for (const t of trades) {
-      // 按**卖出日**聚合（2026-10-14 修）：收益是卖出日落袋的。原来按 date（信号日）
-      // 聚合，把还没实现的收益算到信号日——连亏天数和回撤因此偏乐观/偏悲观，
-      // 而且和线上闸门（按实际盈亏日）不是同一个口径。
-      const row = bucket.get(t.exitDate) ?? { sum: 0, n: 0 };
-      row.sum += t.ret;
-      row.n += 1;
-      bucket.set(t.date, row);
-    }
-    return [...bucket.values()].map((row) => row.sum / row.n);
-  }
+  // 按天聚合（byDay/dayRowsOf/benchRowsOf）2026-10-24 提到 @/lib/market/backtest-day：
+  // 这三个函数在 main() 里写了 10 天没人发现的聚合 bug（get 用 exitDate、set 用 date），
+  // 内部函数没法写单测所以没人拦。口径和守门测试都在那个模块里，别在这里再抄一份。
 
   /**
    * 连亏几天的真实分布，直接从回测里数出来。
