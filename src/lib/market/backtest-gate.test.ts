@@ -66,7 +66,7 @@ describe("decideGate：三问闸口", () => {
     const d = decideGate({ ...BASE, turnoverGateActive: false, turnoverGateForcedOff: false });
     assert.equal(d.kind, "plan");
     if (d.kind !== "plan") return;
-    assert.ok(d.plan.some((line) => line.includes("build-floatcap")));
+    assert.ok(d.plan.some((line) => line.includes("build-caps")));
   });
 });
 

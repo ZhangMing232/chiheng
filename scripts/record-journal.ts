@@ -14,7 +14,7 @@
 // 之后碰到卖出价或止损价就结算；同一天两边都碰到按止损。否则等第 8 个交易日收盘。
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { openSync } from "node:fs";
-import { execFile, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { BACKUP_KEEP_DAYS, backupJournal, pruneBackups } from "@/lib/market/journal-backup";
@@ -773,6 +773,40 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     }
   } catch (error) {
     console.error(`${time} AI 自动进化失败（不影响记账）:`, error);
+  }
+}
+
+// ── 收盘后重建市值快照：每个交易日一次，排在判决回测之前 ─────────────────
+// 为什么挂在记账进程里：这两份（cap.json 总市值 + floatcap.json 流通市值）以前
+// 靠人手跑 build-caps.mjs，10-05 之后没人跑，cap.json 静默腐烂 19 天，数据审计
+// A3 天天喊、登记表的补救命令还指向一个并不建 cap.json 的脚本——没人知道该跑
+// 什么。现在封印后每个交易日重建一次（stamp 去重），且排在判决回测启动之前：
+// 当晚 BT_FACTOR 回测用的就是当天收盘的市值，不带着旧快照出数。
+// 同步跑不起进程：读一份 1.5MB 快照写两个文件，实测不到一秒；同步还能保证
+// 「先于下面 auto-verdict」的顺序，异步起进程就得处理竞态。
+if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+  try {
+    const stampDir = join(process.cwd(), "data", "backtest");
+    const capStamp = join(stampDir, `.caps-${phase.date}.stamp`);
+    try {
+      await access(capStamp);
+    } catch {
+      await mkdir(stampDir, { recursive: true });
+      // stamp 写在成功之后：同步执行能知道成没成，失败了就下一分钟再试——
+      // 先写 stamp 的话，一次抖动（比如快照还没落全）就等于当天不建了，
+      // 那正是这次要修掉的「静默腐烂」形态。真持续性失败会每分钟记一条错，
+      // 错得显眼比悄悄烂一天好。
+      execFileSync(process.execPath, ["scripts/build-caps.mjs"], {
+        cwd: process.cwd(),
+        stdio: ["ignore", "ignore", "pipe"],
+        timeout: 60_000,
+      });
+      await writeFile(capStamp, String(Date.now()));
+      console.log(`${time} 市值快照已重建（${phase.date}：cap.json + floatcap.json）`);
+    }
+  } catch (error) {
+    // 重建失败不挡记账、也不挡判决——今晚回测用旧快照照跑，审计 A3 会记下超龄。
+    console.error(`${time} 市值快照重建失败（不影响记账，今晚判决回测用旧快照）:`, error);
   }
 }
 

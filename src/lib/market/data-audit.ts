@@ -25,7 +25,8 @@ export const AUDIT_RULE = {
   universeMaxAgeMin: { intraday: 30, premarket: 60 * 14 },
   /** K 线缓存至少多少只才算够回测抽样用（抽样 300，留缓冲）。 */
   minKlineCache: 280,
-  /** 市值快照（cap.json）最长多少天没更新。 */
+  /** 市值快照（cap.json 总市值 / floatcap.json 流通市值）最长多少天没更新。
+   *  两份由同一个脚本从同一份行情快照建（scripts/build-caps.mjs），同一条线。 */
   capMaxAgeDays: 7,
   /** 因子判决日志（factor-runs.jsonl）最长多少天没更新算判决过期。 */
   verdictMaxAgeDays: 3,
@@ -45,6 +46,8 @@ export type AuditFacts = {
   klineCount: number | null;
   /** 市值快照年龄（天）。 */
   capAgeDays: number | null;
+  /** 流通市值快照年龄（天）。 */
+  floatCapAgeDays: number | null;
   /** 最近一批因子判决的年龄（天）。没有批次 = null。 */
   verdictAgeDays: number | null;
   /** 财报基本面库年龄（天）。没跑过抓取脚本 = null。 */
@@ -102,11 +105,26 @@ const CHECKS: { id: string; label: string; severity: AuditSeverity; run: (f: Aud
     label: "市值快照新鲜度",
     severity: "warn",
     run: (f) => {
-      if (f.capAgeDays == null) return { pass: false, detail: "cap.json 不存在——市值过滤回退到不滤" };
-      return {
-        pass: f.capAgeDays <= AUDIT_RULE.capMaxAgeDays,
-        detail: `市值快照 ${f.capAgeDays} 天前，上限 ${AUDIT_RULE.capMaxAgeDays} 天`,
-      };
+      // cap.json（总市值，回测 BT_CAP 过滤用）和 floatcap.json（流通市值，换手率闸用）
+      // 是同一个脚本从同一份行情快照建的两份，检查也放一条：哪份出问题就说哪份。
+      const cap = f.capAgeDays;
+      const float = f.floatCapAgeDays;
+      if (cap == null && float == null) {
+        return { pass: false, detail: "cap.json / floatcap.json 都不存在——市值过滤和换手率闸都没了（node scripts/build-caps.mjs 重建）" };
+      }
+      if (cap != null && float != null && cap <= AUDIT_RULE.capMaxAgeDays && float <= AUDIT_RULE.capMaxAgeDays) {
+        const r1 = (d: number) => Math.round(d * 10) / 10;
+        return {
+          pass: true,
+          detail: `总市值 ${r1(cap)} 天前 / 流通市值 ${r1(float)} 天前，上限 ${AUDIT_RULE.capMaxAgeDays} 天`,
+        };
+      }
+      const bad: string[] = [];
+      if (cap == null) bad.push("cap.json 缺失（总市值，BT_CAP 市值过滤回退到不滤）");
+      else if (cap > AUDIT_RULE.capMaxAgeDays) bad.push(`cap.json ${Math.round(cap)} 天前`);
+      if (float == null) bad.push("floatcap.json 缺失（流通市值，换手率闸不生效、放量突破偏宽松）");
+      else if (float > AUDIT_RULE.capMaxAgeDays) bad.push(`floatcap.json ${Math.round(float)} 天前`);
+      return { pass: false, detail: `${bad.join("；")}，上限 ${AUDIT_RULE.capMaxAgeDays} 天` };
     },
   },
   {
@@ -177,6 +195,13 @@ export async function collectFacts(now = Date.now()): Promise<AuditFacts> {
   } catch {
     // null
   }
+  let floatCapAgeDays: number | null = null;
+  try {
+    const s = await stat(join(dataDir(), "backtest", "floatcap.json"));
+    floatCapAgeDays = (now - s.mtimeMs) / DAY_MS;
+  } catch {
+    // null
+  }
   let verdictAgeDays: number | null = null;
   try {
     const raw = await readFile(join(dataDir(), "backtest", "factor-runs.jsonl"), "utf8");
@@ -199,7 +224,7 @@ export async function collectFacts(now = Date.now()): Promise<AuditFacts> {
   const d = new Date(now);
   const mins = d.getHours() * 60 + d.getMinutes();
   const premarket = mins >= 15 * 60 || mins < 9 * 60 + 30;
-  return { universeAgeMin, premarket, klineCount, capAgeDays, verdictAgeDays, fundAgeDays };
+  return { universeAgeMin, premarket, klineCount, capAgeDays, floatCapAgeDays, verdictAgeDays, fundAgeDays };
 }
 
 /** 跑一轮审计并留档。返回判定；写 data/backtest/data-audit.jsonl（只追加）。 */

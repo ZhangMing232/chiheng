@@ -12,6 +12,7 @@ const good: AuditFacts = {
   premarket: false,
   klineCount: 300,
   capAgeDays: 1,
+  floatCapAgeDays: 1,
   verdictAgeDays: 0,
   fundAgeDays: 1,
 };
@@ -48,6 +49,30 @@ test("判决日志缺失只是 warn——不挡当晚跑，但 AI 没账可读�
   const v = auditFromFacts({ ...good, verdictAgeDays: null });
   assert.equal(v.pass, true);
   assert.deepEqual(v.warns.map((c) => c.id), ["A4"]);
+});
+
+test("市值快照：cap 超龄 warn 且点名是哪份、怎么补", () => {
+  const v = auditFromFacts({ ...good, capAgeDays: AUDIT_RULE.capMaxAgeDays + 1 });
+  assert.equal(v.pass, true);
+  assert.deepEqual(v.warns.map((c) => c.id), ["A3"]);
+  const a3 = v.warns[0]!;
+  assert.match(a3.detail, /cap\.json/);
+  assert.match(a3.detail, /build-caps\.mjs|上限/);
+});
+
+test("市值快照：floatcap 单独缺失也 warn——换手率闸会悄悄不生效", () => {
+  const v = auditFromFacts({ ...good, floatCapAgeDays: null });
+  assert.equal(v.pass, true);
+  assert.deepEqual(v.warns.map((c) => c.id), ["A3"]);
+  assert.match(v.warns[0]!.detail, /floatcap\.json 缺失/);
+  assert.match(v.warns[0]!.detail, /换手率闸/);
+});
+
+test("市值快照：两份都没了，一句话说清两道闸一起没", () => {
+  const v = auditFromFacts({ ...good, capAgeDays: null, floatCapAgeDays: null });
+  assert.equal(v.pass, true);
+  assert.deepEqual(v.warns.map((c) => c.id), ["A3"]);
+  assert.match(v.warns[0]!.detail, /都不存在/);
 });
 
 test("财报库缺失/超龄是 warn：基本面已证伪不挡跑，但数据腐烂要记账", () => {

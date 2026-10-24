@@ -89,7 +89,8 @@ AI `/ai`（**侧栏无入口**，入口在设置页）、设置与状态 `/setti
 | 账本 | 记账进程 | `data/books/dev-user.json` | 每次记账 |
 | 日线（回测用） | `fetch-kline.py`（baostock） | `data/backtest/kline/` | 每天 |
 | 财报基本面 | `fetch-fundamentals.py`（akshare→东财） | `fundamentals.json` 2.3MB | 45 天 |
-| 流通市值 | `build-floatcap.mjs`（读本地缓存，不联网） | `floatcap.json` | 7 天 |
+| 总市值 | `build-caps.mjs`（读本地缓存，不联网） | `cap.json` | 7 天 |
+| 流通市值 | `build-caps.mjs`（同一脚本，一起建） | `floatcap.json` | 7 天 |
 | 一致预期 | 东财研报接口直连 | 实时 | 3 天 |
 | 行业分类 | `fetch-industry.mjs` | `industry.json` 496 板块/5659 只 | 6 小时 |
 | 行业月度 | `fetch-industry-monthly.mjs` | `industry-monthly.json` 8928 完整月 | 24 小时 |

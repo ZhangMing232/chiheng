@@ -29,8 +29,9 @@
  *   E 来源标注：每笔 Trade 带 ref（K 线缓存文件@信号日），事后复核能回到原始 bar。
  *
  * 2026-10-06 补上一条：放量突破的**换手率 ≥ 2%** 这道闸以前也缺，现在用
- * 流通市值反推补上了（成交额 ÷ 流通市值，和腾讯的 hsl 同口径，吻合率 99.8%）。
- * 跑 `node scripts/build-floatcap.mjs` 生成缓存；没有缓存时会在开头大声提示
+ * 流通市值反推补上了（成交额 ÷ 流通市值，和腾讯的 hsl 同口径）。
+ * 跑 `node scripts/build-caps.mjs` 生成缓存（同时建 cap.json 总市值和
+ * floatcap.json 流通市值，收盘后每天自动重建）；没有缓存时会在开头大声提示
  * 这道闸没生效，不会静默地退回宽松口径。
  *
  * 用法：node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts
@@ -798,7 +799,7 @@ async function main() {
     try {
       cap = JSON.parse(await readFile(`${CACHE}/../cap.json`, "utf8")) as Record<string, number>;
     } catch {
-      console.log("（没有 cap.json，跳过市值过滤。先跑 node 一遍抓市值的脚本。）");
+      console.log("（没有 cap.json，跳过市值过滤。先跑 node scripts/build-caps.mjs。）");
     }
     let dropped = 0;
     for (const id of [...klines.keys()]) {
@@ -889,7 +890,7 @@ async function main() {
   } else {
     console.log(
       "⚠ 没有 data/backtest/floatcap.json —— 放量突破的换手率闸（线上 ≥2%）这次没生效，\n" +
-        "  回测结果会偏宽松。先跑 node scripts/build-floatcap.mjs（不联网，读本地行情缓存）。\n",
+        "  回测结果会偏宽松。先跑 node scripts/build-caps.mjs（不联网，读本地行情缓存）。\n",
     );
   }
   // 请求闸口（学 Vibe-Research 的 gate.py「三问闸口」）：开跑前回答样本/覆盖/预热三问，

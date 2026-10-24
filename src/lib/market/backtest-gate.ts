@@ -84,7 +84,7 @@ export function decideGate(input: GateInput): GateDecision {
       ? "换手率闸：已生效（floatcap 缓存命中）"
       : input.turnoverGateForcedOff
         ? "换手率闸：被 BT_TURNOVER=0 显式关闭，本次是有意对照，别拿它下结论"
-        : "换手率闸：未生效（floatcap 缓存缺失）——放量突破结果偏宽松，先跑 scripts/build-floatcap.mjs",
+        : "换手率闸：未生效（floatcap 缓存缺失）——放量突破结果偏宽松，先跑 node scripts/build-caps.mjs",
   ];
   return { kind: "plan", plan };
 }

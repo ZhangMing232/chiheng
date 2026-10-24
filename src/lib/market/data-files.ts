@@ -62,10 +62,19 @@ export const DATA_FILES: FileFact[] = [
   },
   {
     path: "data/backtest/cap.json",
+    label: "总市值快照",
+    ttlKey: "cap",
+    refresh: "node scripts/build-caps.mjs（不联网，读本地行情缓存）",
+    required: true,
+  },
+  {
+    path: "data/backtest/floatcap.json",
     label: "流通市值快照",
     ttlKey: "cap",
-    refresh: "node scripts/build-floatcap.mjs（不联网，读本地行情缓存）",
-    required: true,
+    refresh: "node scripts/build-caps.mjs（不联网，读本地行情缓存）",
+    // 缺了不挡页面，但回测的换手率闸会整个不生效（放量突破结果偏宽松）——
+    // 所以是「有就赚」而不是「无所谓」：审计 A6 会盯它的年龄。
+    required: false,
   },
   {
     path: "data/backtest/fundamentals.json",
