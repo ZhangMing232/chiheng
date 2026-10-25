@@ -4,13 +4,14 @@
  * 点一只股票打开详情，点刷新再拉一轮行情。
  *
  * 你需要知道的：
- * 名单在这里算出来。真正记买入卖出的是旁边那个不显示的记账组件。开盘时大约每分钟更新一次。
+ * 名单在这里算出来。买入卖出由服务端记账进程写（data/books，见 record-journal.ts），
+ * 这里只读不写——2026-10-25 两本账对齐后，浏览器那本（Journal 组件，已停写）退役，
+ * 本页原有的 <Journal> 挂载摘除。本地账与服务端账的合并在策略追踪页手动触发。
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { Journal } from "@/components/screener/paper";
 import { LabPanel } from "@/components/screener/lab-panel";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
@@ -20,7 +21,6 @@ import { SectionTabs } from "@/components/section-tabs";
 import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { buildLabReport } from "@/lib/market/lab";
-import { isIdleBook } from "@/lib/market/model";
 import { cycleStyle, watchList, ACTIVE_STYLES, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
 import { CollapsibleSection } from "@/components/collapsible";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
@@ -74,6 +74,11 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   const [prefs, setPrefs] = useState(initial.prefs);
   const [recorder, setRecorder] = useState(initial.recorder);
   const [journal, setJournal] = useState(initial.journal);
+  // personal/why 跟 journal 是一套的：refresh 每分钟都会重读服务端账，
+  // 只换 days 不换这两个，会话过期后页面会拿着旧 personal=true 显示空账，
+  // 看起来像「今天没开仓」——所以提升成 state 一起更新。
+  const [personal, setPersonal] = useState(initial.personal);
+  const [journalWhy, setJournalWhy] = useState(initial.journalWhy);
   const [now, setNow] = useState(() => Date.now());
   const [relay, setRelay] = useState<Listed[]>([]);
   const rules = initial.rules;
@@ -89,7 +94,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       setIndices(nextIndices);
       setRelay(nextRelay);
       setRecorder(await getRecorder());
-      setJournal((await getServerJournal()).days);
+      const nextJournal = await getServerJournal();
+      setJournal(nextJournal.days);
+      setPersonal(nextJournal.personal);
+      setJournalWhy(nextJournal.why);
       setError(nextUniverse.stale ? "行情源不稳定，先显示上一轮数据" : null);
       setPhase(sessionPhase());
     } catch (err) {
@@ -151,7 +159,6 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   });
 
   const quotes = universe?.quotes ?? [];
-  const live = !isIdleBook(quotes);
   const ranked = useMemo(() => {
     if (prefs.style === "relay") return relay.filter((row) => matchPrefs(row.quote, prefs));
     return watchList(quotes, prefs.style, rules, (quote) => matchPrefs(quote, prefs));
@@ -191,7 +198,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">{phase.label}</span>
           <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</span>
-          <AccountStatus personal={initial.personal} why={initial.journalWhy} />
+          <AccountStatus personal={personal} why={journalWhy} />
           <DataStatusBadge universe={universe} now={now} onRefresh={() => void refresh(true)} />
           <RecordLine at={recorder.at} ok={recorder.ok} now={now} />
         </div>
@@ -233,18 +240,6 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           ]}
         />
         <LabPanel report={labReport} />
-        <Journal
-          quotes={quotes}
-          live={live}
-          matching={phase.matching}
-          date={phase.date}
-          signalTime={formatClock(Date.now())}
-          bookReady={Boolean(universe && !universe.stale && !universe.partial)}
-          indexPrice={indices.find((item) => item.id === "sh000300")?.price ?? null}
-          rules={rules}
-          prefs={prefs}
-          relay={relay}
-        />
         {error ? (
           <StateBlock
             kind="error"
@@ -370,7 +365,8 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
               block: row.block,
             }))}
             serverDays={journal}
-            personal={initial.personal}
+            personal={personal}
+            serverWhy={journalWhy}
             rules={rules}
             style={prefs.style}
             marketOpen={phase.open}

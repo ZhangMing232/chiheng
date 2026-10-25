@@ -17,7 +17,7 @@ import { MAX_POSITIONS, STYLES, styleOf } from "@/lib/market/strategies";
 import { limitTag, planExit } from "@/lib/market/model";
 import type { EarlyRules } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
-import { usePaper, type PaperDay } from "@/lib/paper";
+import type { PaperDay } from "@/lib/paper";
 import { StateBlock } from "@/components/state-block";
 import { Panel, Table, Tag, pctClass, tdClass, thClass } from "@/components/terminal";
 
@@ -53,6 +53,7 @@ export function Picks({
   quotes,
   serverDays,
   personal,
+  serverWhy,
   rules,
   style,
   marketOpen,
@@ -67,6 +68,8 @@ export function Picks({
   quotes: Quote[];
   serverDays: PaperDay[];
   personal: boolean;
+  /** 服务端账本读不到时的原因（getServerJournal 的 why）。personal 为 true 时是 null。 */
+  serverWhy: string | null;
   rules: EarlyRules;
   style: "early" | "trend" | "breakout" | "value" | "relay" | "rebound";
   benchmark: { name: string; price: number; pct: number } | null;
@@ -78,7 +81,6 @@ export function Picks({
   onStyle: (style: "early" | "trend" | "breakout" | "value" | "relay" | "rebound") => void;
   onOpen: (id: string) => void;
 }) {
-  const browserDays = usePaper((state) => state.days);
   const navigate = useNavigate();
   const rowMenu = useRowMenu();
   // 右键菜单三项：看个股开抽屉，资金流向跳资金区个股子页，复制代码进剪贴板。
@@ -87,7 +89,11 @@ export function Picks({
     { label: "看资金流向", onClick: () => void navigate({ to: "/review/flow/stocks" }) },
     { label: "复制代码", onClick: () => void navigator.clipboard?.writeText(pick.quote.code) },
   ];
-  const source = personal || serverDays.length > 0 ? serverDays : browserDays;
+  // 2026-10-25 两本账对齐：只认服务端账。读不到时不拿本机浏览器账顶替——
+  // 2026-10-05 顶替过一次，页面显示成「账本全是 0 / 当前持有 0 只」，
+  // 真实原因是没登录，服务端 71 笔好好地躺着（quotes.functions.ts 头注有档）。
+  // 本机那份已停写（选股页 Journal 组件退役），就算读得到也是冻结旧账。
+  const source = serverDays;
   // 名额是按「天」算的：昨天进的那批占昨天的名额，不影响今天。
   // 所以标签上的数字和「仓位已满」都只看当天建了几只，
   // 账上还拿着几只（含前几天没卖出的）单独统计。
@@ -102,7 +108,7 @@ export function Picks({
   const days = source
     .map((day) => ({ ...day, trades: day.trades.filter((trade) => styleOf(trade) === style) }))
     .filter((day) => day.trades.length > 0);
-  const onServer = personal || serverDays.length > 0;
+  const onServer = personal;
 
   const byId = new Map(quotes.map((quote) => [quote.id, quote]));
   const open = days.flatMap((day) =>
@@ -305,7 +311,7 @@ export function Picks({
         <p className="text-xs text-muted">
           名额按天算，每天最多 {MAX_POSITIONS} 只。打到买入价才记，当天不能卖，跌停卖不出就顺延。
           持有 {open.length} 只
-          {onServer ? "" : "（本机浏览器的账）"}
+          {onServer ? "" : "（服务端账本读不到，见顶栏状态）"}
         </p>
         {/* 今天建的仓逐条列出——只说「3/10」不说是哪 3 只，用户还得跳去持仓页找。 */}
         {todayTrades.length > 0 ? (
@@ -326,6 +332,10 @@ export function Picks({
               );
             })}
           </ul>
+        ) : !onServer ? (
+          <p className="mt-2 text-xs text-up">
+            服务端账本读不到（{serverWhy ?? "原因未知"}），今天是空账不是真没建仓。本机浏览器那份旧账已停写，不拿来顶替；登录恢复后数据自己回来。
+          </p>
         ) : (
           <p className="mt-2 text-xs text-muted">今天还没有建仓——上面精选表里「已到买入价」的票，盘中打到买入价会自动记进来。</p>
         )}

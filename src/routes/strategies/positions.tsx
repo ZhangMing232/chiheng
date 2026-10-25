@@ -11,7 +11,7 @@
  * 折算名义金额**，不是投入的钱。收益率一律扣费。已实现和浮动分开显示。
  */
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { Bar, BarChart, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
@@ -41,6 +41,8 @@ import { loadIndustry } from "@/lib/market/industry-store";
 import { finestIndustry } from "@/lib/market/industry";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { healthChecks } from "@/lib/market/portfolio-health";
+import { mergeBrowserJournal } from "@/lib/market/journal-merge.functions";
+import { previewMerge } from "@/lib/market/journal-merge";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
@@ -504,8 +506,44 @@ function Positions() {
     else setReady(true);
   }, []);
 
+  // ── 两本账对齐（浏览器本地账 → 服务端账）─────────────────────
+  // 本地账是这台浏览器的影子（选股页开着时才记），服务端账才是正账。
+  // 规则和预览统计都来自 previewMerge（和 serverFn 里的 mergeBooks 同一套），
+  // 确认弹窗显示的数字就是会发生的事。
+  const router = useRouter();
+  const [alignOpen, setAlignOpen] = useState(false);
+  const [alignBusy, setAlignBusy] = useState(false);
+  const [alignMsg, setAlignMsg] = useState<string | null>(null);
+  const alignPreview = useMemo(
+    () => (ready && browserDays.length > 0 ? previewMerge(journal.days, browserDays) : null),
+    [ready, browserDays, journal.days],
+  );
+  const runAlign = async () => {
+    setAlignBusy(true);
+    setAlignMsg(null);
+    try {
+      const res = await mergeBrowserJournal({ data: browserDays });
+      await router.invalidate();
+      const s = res.stats;
+      const parts = [`补入 ${s.addedTrades} 笔（${s.addedDays} 个服务器没有的整天）`];
+      if (s.duplicatedTrades > 0) parts.push(`${s.duplicatedTrades} 笔两边都有，已按服务端保留`);
+      if (s.stylessTrades > 0) parts.push(`${s.stylessTrades} 笔无 style 的旧账未合并（recordDay 历来就跳它们）`);
+      if (res.dropped > 0) parts.push(`${res.dropped} 天结构不对已跳过`);
+      setAlignMsg(`对齐完成：${parts.join("，")}。合并前已自动备份到 ~/chiheng-backup，页面数据已刷新。`);
+      setAlignOpen(false);
+    } catch (err) {
+      setAlignMsg(err instanceof Error ? err.message : "合并失败");
+    } finally {
+      setAlignBusy(false);
+    }
+  };
+
+  // 2026-10-25 两本账对齐后：服务端账是唯一正账，读不到就明示空态+原因，
+  // 不再拿本机浏览器账顶替。顶替过一次的代价见 quotes.functions.ts
+  // getServerJournal 头注（2026-10-05：页面显示成「账本全是 0」，
+  // 真实原因是没登录，服务端那边 71 笔好好地躺着）。
   const onServer = journal.personal;
-  const days = onServer || journal.days.length > 0 ? journal.days : browserDays;
+  const days = journal.days;
   const rows = useMemo(() => buildRows(days, universe, rules), [days, universe, rules]);
   const groups = useMemo(() => groupByDay(rows), [rows]);
   const total = useMemo(() => overallOf(groups), [groups]);
@@ -579,6 +617,65 @@ function Positions() {
 
   const holdTab = (
     <div className="flex flex-col gap-2">
+        {/* 两本账对齐入口：只有本地账还有数据时才出现。合并一次之后本地账
+            不再长新数据（选股页的 Journal 已停写），这个面板大概率点过一次
+            就再也不出现——这是故意的，它不是日常动作。 */}
+        {alignPreview ? (
+          <Panel
+            title="两本账对齐"
+            note={<span>这台浏览器的本地账和服务器账各记各的；合并后只认服务器账</span>}
+            bodyClassName="px-3.5 py-3"
+          >
+            {alignOpen ? (
+              <div className="space-y-2 text-xs">
+                <p className="text-muted">
+                  以服务器账为准：同一天同一笔两边都有，保留服务器的，只用本地补服务器没有的。合并前自动备份到 ~/chiheng-backup，可回滚。
+                </p>
+                <p>
+                  预览：补入 <b className="num">{alignPreview.addedTrades}</b> 笔
+                  （{alignPreview.addedDays} 个服务器没有的整天），{alignPreview.duplicatedTrades} 笔重复按服务器保留
+                  {alignPreview.stylessTrades > 0 ? `，${alignPreview.stylessTrades} 笔无 style 旧账不合并不统计` : ""}
+                  {alignPreview.invalidDays > 0 ? `，${alignPreview.invalidDays} 天结构不对跳过` : ""}。
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={alignBusy}
+                    onClick={() => void runAlign()}
+                    className="shrink-0 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {alignBusy ? "合并中…" : "确认合并"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={alignBusy}
+                    onClick={() => setAlignOpen(false)}
+                    className="shrink-0 rounded border border-line px-2.5 py-1 text-xs font-medium text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-muted">
+                  本地账还有 {browserDays.length} 天，其中 {alignPreview.addedDays} 天服务器账里没有。
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAlignOpen(true)}
+                  className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white"
+                >
+                  对齐两本账
+                </button>
+              </div>
+            )}
+            {alignMsg ? (
+              <p className={`mt-2 text-xs ${alignMsg.startsWith("对齐完成") ? "text-up" : "text-warn"}`}>{alignMsg}</p>
+            ) : null}
+          </Panel>
+        ) : null}
+
         {/* 合计用一格一格的排法：分隔线是 1px 的 gap 垫出来的（gap-px + bg-line），
             不加阴影。和「资金」页概览、策略卡同一套版式。 */}
         <Panel
@@ -586,7 +683,7 @@ function Positions() {
           note={
             <span>
               {total.openCount} 只在拿 · {total.closedCount} 只已卖
-              {!onServer && ready ? " · 本机浏览器的账" : ""}
+              {!onServer && ready ? " · 服务端账本读不到，下面是空账不是真空" : ""}
             </span>
           }
           bodyClassName="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 lg:grid-cols-6"
@@ -644,8 +741,18 @@ function Positions() {
           <Panel>
             <StateBlock
               kind="empty"
-              title={ready || onServer ? "还没有开过仓" : "正在读取记录"}
-              hint="打到买入价才记一笔。名额按天算，每套策略每天最多 10 只；当天不能卖，跌停卖不出会顺延。"
+              title={
+                !onServer && ready
+                  ? "服务端账本读不到"
+                  : ready || onServer
+                    ? "还没有开过仓"
+                    : "正在读取记录"
+              }
+              hint={
+                !onServer && ready
+                  ? `${journal.why ?? "原因未知"}。本机浏览器那份旧账已停写，不拿来顶替——2026-10-05 顶替过一次，页面显示成「账本全是 0」，真实原因是没登录。登录状态恢复后自然就有数据；想把本机旧账并进来，用上面的「两本账对齐」。`
+                  : "打到买入价才记一笔。名额按天算，每套策略每天最多 10 只；当天不能卖，跌停卖不出会顺延。"
+              }
             />
           </Panel>
         ) : (
