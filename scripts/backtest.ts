@@ -189,11 +189,24 @@ async function fetchKline(id: string, noFq = false): Promise<Row[]> {
   return out;
 }
 
-async function loadKlines(ids: string[]): Promise<Map<string, Row[]>> {
+/**
+ * 取一批票的日线（缓存 + 保鲜刷新）。
+ *
+ * freshThrough：缓存保鲜尺子（窗口脊上某个日期）。缓存里最后一根 K 线早于它就
+ * 重抓——以前缓存只抓不刷，10 月补抓的文件带 09-30 后除权重述、冻住的没有，
+ * **同一套样本两套 qfq 口径**，60 日跌幅跨股排名不可比（10-24 基线问题②，
+ * 用户已拍板修）。尺子传空 = 不刷新（老行为）。
+ *
+ * 重抓失败留着旧缓存：旧口径好歹是真数据；若因此把票从样本里删掉，样本就变了，
+ * 三批互换（BT_OFFSET）的对照基准跟着晃，比口径旧更伤。
+ */
+async function loadKlines(ids: string[], freshThrough = ""): Promise<Map<string, Row[]>> {
   await mkdir(CACHE, { recursive: true });
   const out = new Map<string, Row[]>();
   let done = 0;
   let notedError = false;
+  let refreshed = 0;
+  let keptStale = 0;
   const queue = [...ids];
   async function worker() {
     for (;;) {
@@ -207,11 +220,14 @@ async function loadKlines(ids: string[]): Promise<Map<string, Row[]>> {
       } catch {
         rows = null;
       }
-      if (!rows) {
-        for (let attempt = 0; attempt < 3 && !rows; attempt += 1) {
+      const lastBar = rows && rows.length > 0 ? rows[rows.length - 1].date : "";
+      const stale = rows != null && freshThrough !== "" && lastBar < freshThrough;
+      if (!rows || stale) {
+        let fresh: Row[] | null = null;
+        for (let attempt = 0; attempt < 3 && !fresh; attempt += 1) {
           try {
-            rows = await fetchKline(id);
-            if (rows.length > 0) await writeFile(`${CACHE}/${id}.json`, JSON.stringify(rows));
+            const got = await fetchKline(id);
+            if (got.length > 0) fresh = got;
           } catch (error) {
             if (attempt === 2 && !notedError) {
               notedError = true;
@@ -220,14 +236,27 @@ async function loadKlines(ids: string[]): Promise<Map<string, Row[]>> {
             await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
           }
         }
+        if (fresh) {
+          if (stale) refreshed += 1;
+          rows = fresh;
+          await writeFile(`${CACHE}/${id}.json`, JSON.stringify(fresh));
+        } else if (stale) {
+          keptStale += 1;
+        }
       }
-      if (done < 3) process.stderr.write(`  [诊断] ${id} -> ${rows ? rows.length + " 根" : "空"}\n`);
+      if (done < 3) process.stderr.write(`  [诊断] ${id} -> ${rows ? rows.length + " 根" : "空"}${stale ? "（超龄重抓）" : ""}\n`);
       if (rows && rows.length > LOOKBACK) out.set(id, rows);
       done += 1;
       if (done % 50 === 0) process.stderr.write(`  已取 ${done}/${ids.length} 只\n`);
     }
   }
   await Promise.all(Array.from({ length: 4 }, () => worker()));
+  if (refreshed > 0 || keptStale > 0) {
+    console.log(
+      `缓存保鲜：超龄重抓 ${refreshed} 只（最后 K 线早于 ${freshThrough}）` +
+        `${keptStale > 0 ? `，${keptStale} 只重抓失败留用旧缓存` : ""}\n`,
+    );
+  }
   return out;
 }
 
@@ -237,7 +266,13 @@ async function loadKlines(ids: string[]): Promise<Map<string, Row[]>> {
  * 返回因子检验需要的全部：klines、idxOf、dates、benchOver。
  */
 async function factorPrep(sampleIds: string[], capFloor: number) {
-  const klines = await loadKlines(sampleIds);
+  // 窗口脊和 main 一个口径：锚指数交易日日历（见 main 里 dates 那段注释）。
+  // 以前这里取 klines Map 第一只股票，worker 完成顺序非确定性，G4 换样本的
+  // 窗口和主样本可能不是同一段日子，两段对照就失去了「同窗口」这个前提。
+  const bench = await fetchKline("sh000300", true);
+  const dates = bench.map((r) => r.date);
+  const freshThrough = dates[Math.max(0, dates.length - 3)] ?? "";
+  const klines = await loadKlines(sampleIds, freshThrough);
   if (capFloor > 0) {
     let cap: Record<string, number> = {};
     try {
@@ -257,7 +292,6 @@ async function factorPrep(sampleIds: string[], capFloor: number) {
     rows.forEach((row, i) => map.set(row.date, i));
     idxOf.set(id, map);
   }
-  const dates = [...(klines.values().next().value as Row[] | undefined ?? [])].map((r) => r.date);
   const uniRet = new Float64Array(dates.length);
   for (let i = 1; i < dates.length; i += 1) {
     let sum = 0;
@@ -768,11 +802,25 @@ async function main() {
   // 股票池：用新浪全市场快照拿代码（东财 clist 在这台机器不通）
   const ids: string[] = [];
   // 新浪按代码升序排，bj 段会排在 sh/sz 前面，所以要多翻几页；北交所票日线太短，排除。
+  // 翻页加重试 + 截断即拒跑：今天四次运行里两次死在这一步（连接超时直接抛，
+  // 十分钟取数的功夫全白费）；而 !res.ok 时静默 break 更糟——会拿一个截断的池
+  // 跑完基线（按代码升序，截断丢的是 sz 尾部，样本整个变形），数字看着像结论。
+  // 池拿不全就不跑：诚实的失败好过假的成功。
   for (let page = 1; page <= 30 && ids.length < 5000; page += 1) {
     const url = `https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=${page}&num=100&sort=symbol&asc=1&node=hs_a`;
-    const res = await fetch(url, { headers: KLINE_HEADERS, signal: AbortSignal.timeout(15000) });
-    if (!res.ok) break;
-    const list = (await res.json()) as { symbol?: string }[];
+    let list: { symbol?: string }[] | null = null;
+    for (let attempt = 0; attempt < 3 && !list; attempt += 1) {
+      try {
+        const res = await fetch(url, { headers: KLINE_HEADERS, signal: AbortSignal.timeout(15000) });
+        if (res.ok) list = (await res.json()) as { symbol?: string }[];
+      } catch {
+        // 超时/被挡：重试。间隔递增，给对面的限流留恢复时间。
+      }
+      if (!list) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+    if (!list) {
+      throw new Error(`股票池第 ${page} 页三次都没拿到，池可能被截断——不跑。基线要可复现，拿不全池子的数字不算数`);
+    }
     if (list.length === 0) break;
     for (const row of list) {
       const s = row.symbol ?? "";
@@ -786,7 +834,21 @@ async function main() {
   const sample = ids.filter((_, i) => (i + offset) % step === 0).slice(0, SAMPLE);
   console.log(`股票池 ${ids.length} 只，抽样 ${sample.length} 只\n`);
 
-  const klines = await loadKlines(sample);
+  // 指数先抓：一身三职——① 窗口脊（下面的 dates）② 缓存保鲜的尺子 ③ 基准。
+  // 以前 klines 取完才抓指数，② 这把尺子根本用不上。
+  const bench = await fetchKline("sh000300", true);
+  // 窗口脊锚在指数交易日历上。以前取 klines Map 的第一只股票——4 个 worker 谁先
+  // 完成谁排第一，是**非确定性**的：两次都凑巧冻在 09-30 的文件先回来，窗口才没滑；
+  // 缓存一清理（另一批文件先完成）窗口就变，同代码两次跑出不同区间（10-24 基线
+  // 问题①，用户已拍板修）。指数日历完整、确定，且和基准同一根轴——基准窗口跟着
+  // 策略窗口走，不再各滑各的。
+  const dates = bench.map((r) => r.date);
+  // 保鲜尺子：最后 K 线早于脊上倒数第 3 个交易日的缓存算超龄（3 个交易日容差，
+  // 停牌两三天的票不会被无意义重抓；长假也不会天天重抓——脊的末尾就是最后一个
+  // 交易日，不是跑题当天的日历日）。
+  const freshThrough = dates[Math.max(0, dates.length - 3)] ?? "";
+
+  const klines = await loadKlines(sample, freshThrough);
   console.log(`取到日线 ${klines.size} 只\n`);
 
   // 线上 tradable 硬性要求总市值 40 亿以上，回测里没有市值字段（K 线不带），
@@ -820,16 +882,17 @@ async function main() {
     idxOf.set(id, map);
   }
 
-  const bench = await fetchKline("sh000300", true);
-  const benchStart = bench.length > LOOKBACK ? bench[bench.length - LOOKBACK].c : null;
-  const benchEnd = bench.length > 0 ? bench[bench.length - 1].c : null;
-  const benchRet = benchStart && benchEnd ? (benchEnd - benchStart) / benchStart : 0;
-
-  // 逐日推进：t 日收盘后选股，t+1 日成交
-  const dates = [...(klines.values().next().value as Row[] | undefined ?? [])].map((r) => r.date);
+  // 基准按策略窗口起止切片。以前是「抓最近 250 根算指数收益」——窗口随跑动日期滑，
+  // 和策略窗口（冻在缓存里）不同期：10-12 那轮 -5.1%、10-24 这轮 -9.6% 是这么来的，
+  // 不是行情变了（10-24 基线问题③，用户已拍板修）。现在脊就是指数，同一起止。
   const startIdx = Math.max(0, dates.length - LOOKBACK);
   const endDate = dates[dates.length - 1] ?? "";
   const startDate = dates[startIdx] ?? "";
+  const benchStart = bench[startIdx]?.c ?? null;
+  const benchEnd = bench[bench.length - 1]?.c ?? null;
+  const benchRet = benchStart && benchEnd ? (benchEnd - benchStart) / benchStart : 0;
+
+  // 逐日推进：t 日收盘后选股，t+1 日成交
   console.log(`回测区间 ${startDate} ~ ${endDate}（${dates.length - startIdx} 个交易日）\n`);
 
   // 同期「抽样池全体等权」的日收益。沪深 300 只能说明大盘怎么样，说明不了
