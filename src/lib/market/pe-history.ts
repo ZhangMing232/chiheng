@@ -17,10 +17,21 @@
  * 3. **样本太少不给数**。少于 `MIN_POINTS` 个有效点返回 null，不是返回 50 假装「中间」。
  *    样本不够就说不够，这比一个看起来合理的假数字强。
  * 4. 纯逻辑不碰 fs（除了 `loadValuationHistory` 这一个读文件的函数），好单测。
+ *
+ * ⚠️ **不要顶层 import node 内置模块**（2026-10-25 实测，第三次踩）：
+ * 本文件被 research / debate / strategies 路由**静态引用**，会进客户端
+ * bundle。vite 把 `import { readFile } from "node:fs/promises"` 转成
+ * **顶层解构**浏览器空壳桩，模块一求值就抛「Module externalized for
+ * browser compatibility」——**整站 hydration 崩，页面能看、所有按钮
+ * 按不动**（SSR 正常、测试全绿；dev 模式下 routeTree 静态引全部路由，
+ * 任何路由链上的雷都炸全站）。规矩同 quotes.functions.ts：node 内置
+ * 一律函数内动态 import；拼路径用 POSIX join。
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+const fsApi = () => import("node:fs/promises");
+
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 /** 一个交易日的估值快照。字段名沿用 baostock 原始列，不做重命名——方便反查。 */
 export type ValuationPoint = {
@@ -99,7 +110,8 @@ export async function loadValuationHistory(
   dir = process.cwd(),
 ): Promise<ValuationHistory | null> {
   try {
-    const raw = await readFile(join(dir, "data", "fundamentals", `pe-${code}.json`), "utf-8");
+    const { readFile } = await fsApi();
+    const raw = await readFile(posixJoin(dir, "data", "fundamentals", `pe-${code}.json`), "utf-8");
     const parsed = JSON.parse(raw) as ValuationHistory;
     if (!parsed || !Array.isArray(parsed.series) || parsed.series.length === 0) return null;
     return parsed;
