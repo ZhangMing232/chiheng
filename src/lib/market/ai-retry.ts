@@ -27,9 +27,20 @@
  *    的范式：读不到/坏了就当空账，写失败只打日志不影响调用结果。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { createHash } from "node:crypto";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 factor-queue.ts（debate/research 路由文件静态引用链）进客户端闭包，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ * **fingerprint 因此从同步改异步**：浏览器里没有同步的 sha256。算法不变
+ * （还是 model+prompt 的 sha256 前 16 位，磁盘上的旧指纹继续有效），
+ * 调用方 factor-queue.callAI 本来就在 async 函数里，await 一下即可。
+ */
+const fsApi = () => import("node:fs/promises");
+const cryptoApi = () => import("node:crypto");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 /** 同一指纹连续失败多少次后拒绝再发。2 = 允许重试 1 次，之后拒绝。 */
 export const AI_MAX_SAME_FAILURE = 2;
@@ -51,7 +62,8 @@ export type AIFailure = {
 export type AIFailureBook = Record<string, AIFailure>;
 
 /** 指纹：model + prompt 的 sha256 前 16 位。不含 baseUrl / key，理由见文件头第 3 条。 */
-export function fingerprint(model: string, prompt: string): string {
+export async function fingerprint(model: string, prompt: string): Promise<string> {
+  const { createHash } = await cryptoApi();
   return createHash("sha256").update(`${model}\n${prompt}`).digest("hex").slice(0, 16);
 }
 
@@ -120,14 +132,15 @@ export function clearFailure(book: AIFailureBook, fp: string): AIFailureBook {
 // ── 落盘（照 ai-usage.ts 的范式）────────────────────────────────────
 
 function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+  return process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
 }
 
-const failuresPath = () => join(dataDir(), "ai-failures.json");
+const failuresPath = () => posixJoin(dataDir(), "ai-failures.json");
 
 /** 读熔断账。文件不存在或坏了 → 空账，绝不抛错。 */
 export async function readAIFailures(): Promise<AIFailureBook> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(failuresPath(), "utf8")) as Record<string, unknown>;
     const out: AIFailureBook = {};
     for (const [key, value] of Object.entries(parsed)) {
@@ -144,6 +157,7 @@ export async function readAIFailures(): Promise<AIFailureBook> {
 /** 写熔断账。写失败只打日志——它是护栏，护栏自己不能把主流程带崩。 */
 export async function writeAIFailures(book: AIFailureBook): Promise<void> {
   try {
+    const { mkdir, writeFile } = await fsApi();
     await mkdir(dataDir(), { recursive: true });
     await writeFile(failuresPath(), JSON.stringify(book, null, 2));
   } catch (error) {

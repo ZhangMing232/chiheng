@@ -6,9 +6,19 @@
  * 现在没开注册，这台电脑用的用户是 dev-user。
  * 以前的 data/journal.json 只会复制到 dev-user 一次。新用户从加入当天记空账，不会继承旧成交。
  */
-import { mkdir, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { shanghaiDate } from "./session.ts";
+
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 quotes.functions.ts / symbol-panel.functions.ts / challenger-samples.ts
+ * 进客户端闭包（.functions.ts 是服务端终端，challenger-samples.ts 不是），
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 /** 未开登录时的本机账。打开注册后，每个会话用自己的用户 id，不再写这一本。 */
 export const OWNER_ID = "dev-user";
@@ -19,8 +29,8 @@ export type StoredBook<T> = {
   nextSettleAt?: number;
 };
 
-const booksDir = () => join(process.cwd(), "data", "books");
-const legacyPath = () => join(process.cwd(), "data", "journal.json");
+const booksDir = () => posixJoin(process.cwd(), "data", "books");
+const legacyPath = () => posixJoin(process.cwd(), "data", "journal.json");
 
 /** 用户 id 只允许字母、数字、下划线和减号，避免被人写成 ../ 去读别的文件。 */
 export function safeUserId(id: string): string {
@@ -29,11 +39,12 @@ export function safeUserId(id: string): string {
 }
 
 export function bookPath(userId: string): string {
-  return join(booksDir(), `${safeUserId(userId)}.json`);
+  return posixJoin(booksDir(), `${safeUserId(userId)}.json`);
 }
 
 async function migrateOwner(): Promise<void> {
   const dest = bookPath(OWNER_ID);
+  const { mkdir, readFile, writeFile } = await fsApi();
   try {
     await readFile(dest, "utf8");
     return;
@@ -54,6 +65,7 @@ async function migrateOwner(): Promise<void> {
 /** 读这一本账。文件还没有时返回空的天数列表，加入日写成今天。 */
 export async function readUserBook<T>(userId: string): Promise<StoredBook<T>> {
   await migrateOwner();
+  const { readFile } = await fsApi();
   try {
     const parsed = JSON.parse(await readFile(bookPath(userId), "utf8")) as StoredBook<T>;
     return {
@@ -73,6 +85,7 @@ export async function readUserBook<T>(userId: string): Promise<StoredBook<T>> {
  * 不会出现写了一半的坏文件——坏文件会被 readUserBook 当成「没有账」而整本消失。
  */
 export async function writeUserBook<T>(userId: string, book: StoredBook<T>): Promise<void> {
+  const { mkdir, open, rename, rm } = await fsApi();
   await mkdir(booksDir(), { recursive: true });
   const target = bookPath(userId);
   // 临时文件名字里带上 pid 和随机数。两个进程同时记账时（用户的 .app 自己拉起一份、
@@ -97,6 +110,7 @@ export async function writeUserBook<T>(userId: string, book: StoredBook<T>): Pro
 /** 第一次打开时建一本空账。加入日是当天，不复制别人已经记下的成交。 */
 export async function ensureUserBook(userId: string): Promise<void> {
   await migrateOwner();
+  const { readFile } = await fsApi();
   try {
     await readFile(bookPath(userId), "utf8");
   } catch {
@@ -107,6 +121,7 @@ export async function ensureUserBook(userId: string): Promise<void> {
 /** 列出已经有账本的用户。dev-user 永远在名单里，方便这台 Mac 先用。 */
 export async function listUserIds(): Promise<string[]> {
   await migrateOwner();
+  const { readdir } = await fsApi();
   let ids: string[] = [];
   try {
     const names = await readdir(booksDir());

@@ -12,8 +12,17 @@
  * 停用只停「新开仓」：持仓的止损止盈照跑（和 hardGate 同一立场）。
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 challenger.ts / agent-loop.ts（factor-queue → debate/research
+ * 路由链）进客户端闭包，node API 必须函数内动态 import；
+ * 路径拼接用 posixJoin 替代 node:path（gatesPath 是同步导出，posixJoin 也是同步的）。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 import { isTradingDay } from "./session.ts";
 
 /** 预先登记的判决标准。改这里等于改规则本身，要带着理由改。 */
@@ -44,11 +53,12 @@ export type GateRecord = {
 export type GatesFile = Record<string, GateRecord>;
 
 export function gatesPath(): string {
-  return join(process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data"), "strategy-gates.json");
+  return posixJoin(process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data"), "strategy-gates.json");
 }
 
 export async function readStrategyGates(): Promise<GatesFile> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(gatesPath(), "utf8"));
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as GatesFile;
   } catch {
@@ -58,7 +68,8 @@ export async function readStrategyGates(): Promise<GatesFile> {
 }
 
 export async function writeStrategyGates(gates: GatesFile) {
-  await mkdir(process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data"), { recursive: true });
+  const { mkdir, writeFile } = await fsApi();
+  await mkdir(process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data"), { recursive: true });
   await writeFile(gatesPath(), JSON.stringify(gates, null, 2));
 }
 

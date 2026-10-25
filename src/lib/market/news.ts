@@ -6,8 +6,15 @@
  * 利好、利空只看标题里的用词，不是研报。涨跌幅是百分数，正涨负跌。大约一分钟更新一次。
  */
 
-import https from "node:https";
 import { loadCninfoAnnouncements } from "@/lib/market/cninfo";
+
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node:https 会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 studio.ts → studio.tsx 路由链进客户端闭包，https 必须函数内
+ * 动态 import（getText 因此改成 async——它本来就返回 Promise，调用方无感）。
+ */
 
 /** 快讯点到的一个板块。code 是板块代码（BKxxxx），name 是板块名。 */
 export type NewsBoard = {
@@ -43,7 +50,8 @@ const BAD = ["利空", "减持", "预亏", "亏损", "下滑", "处罚", "立案
 let cache: { at: number; rows: NewsItem[] } | null = null;
 const boardNames = new Map<string, string>();
 
-function getText(url: string, referer = "https://kuaixun.eastmoney.com/"): Promise<string> {
+async function getText(url: string, referer = "https://kuaixun.eastmoney.com/"): Promise<string> {
+  const https = await import("node:https");
   return new Promise((resolve, reject) => {
     const req = https.get(
       url,

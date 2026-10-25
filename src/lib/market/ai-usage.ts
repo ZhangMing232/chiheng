@@ -14,8 +14,16 @@
  * 5. 纯函数（统计聚合）不依赖 fs，直接单测。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 factor-queue.ts（debate/research 路由文件静态引用链）进客户端闭包，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
@@ -47,16 +55,17 @@ export const AI_USAGE_CAP = 2000;
 // ── 文件 IO（node:fs，server-only）─────────────────────────────
 
 function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+  return process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
 }
 
-const aiUsagePath = () => join(dataDir(), "ai-usage.json");
+const aiUsagePath = () => posixJoin(dataDir(), "ai-usage.json");
 
 /** 读用量账。文件不存在或坏了 → 空数组，绝不抛错。
  *  老条目缺后加的字段（profileId/价快照/cost/error）时按缺省补齐——账本是
  *  追加式的，新字段不能让旧账读崩或页面算出 NaN。 */
 export async function readAIUsage(): Promise<AIUsageEntry[]> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(aiUsagePath(), "utf8")) as { entries?: unknown };
     if (!Array.isArray(parsed.entries)) return [];
     return (parsed.entries as Partial<AIUsageEntry>[]).map((e) => ({
@@ -85,6 +94,7 @@ export async function appendAIUsage(entry: AIUsageEntry): Promise<void> {
   try {
     const entries = [...(await readAIUsage()), entry];
     const trimmed = entries.length > AI_USAGE_CAP ? entries.slice(entries.length - AI_USAGE_CAP) : entries;
+    const { mkdir, writeFile } = await fsApi();
     await mkdir(dataDir(), { recursive: true });
     await writeFile(aiUsagePath(), JSON.stringify({ entries: trimmed }, null, 2));
   } catch (error) {

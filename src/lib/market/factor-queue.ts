@@ -24,8 +24,18 @@
  *    fs 和 fetch 包在最外层。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 debate.tsx / research.tsx 路由文件静态引用（routeTree 静态引全部路由），
+ * 且整条 factor 链（ai-log / factor-runs-file / tombstones / ai-profiles /
+ * ai-usage / ai-retry / agent-loop）都挂在它下面，node API 必须函数内动态
+ * import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 import { FACTOR_EXPR_FUNCS, FACTOR_EXPR_VARS, validateFactorExpr } from "./factor-expr.ts";
 import { appendAILog, factorSelfHistory, readAILog } from "./ai-log.ts";
 import type { Factor, MetricRow } from "./factors.ts";
@@ -370,14 +380,15 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?:
 // ── 文件 IO（node:fs，server-only）─────────────────────────────
 
 function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+  return process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
 }
 
-const queuePath = () => join(dataDir(), "factor-queue.json");
+const queuePath = () => posixJoin(dataDir(), "factor-queue.json");
 
 /** 读队列。文件不存在或坏了 → 空队列 + missing 原因，绝不抛错（prefs-file 同一取舍）。 */
 export async function readQueue(): Promise<QueuePayload> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(queuePath(), "utf8")) as { entries?: unknown };
     const entries = Array.isArray(parsed.entries) ? (parsed.entries as QueueEntry[]) : [];
     return { entries, missing: null };
@@ -387,6 +398,7 @@ export async function readQueue(): Promise<QueuePayload> {
 }
 
 export async function writeQueue(entries: QueueEntry[]): Promise<void> {
+  const { mkdir, writeFile } = await fsApi();
   await mkdir(dataDir(), { recursive: true });
   await writeFile(queuePath(), JSON.stringify({ entries }, null, 2));
 }
@@ -505,7 +517,7 @@ export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}
   // **拒绝时不记 ai-usage**：请求根本没发出去，记一笔失败会是假账。留痕交给
   // 上层闭环的 ai-log（「半吊子结果不入账，但记忆要留」）。
   const retry = await import("./ai-retry.ts");
-  const fp = retry.fingerprint(config.model, prompt);
+  const fp = await retry.fingerprint(config.model, prompt);
   const failureBook = await retry.readAIFailures();
   const verdict = retry.canAttempt(failureBook, fp);
   if (!verdict.ok) throw new Error(`[AI 熔断] ${verdict.reason}`);

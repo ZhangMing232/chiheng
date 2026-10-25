@@ -18,8 +18,16 @@
  * 5. jsonl 坏行跳过并计数，不能让一行坏数据废掉整份日志（gate-log.ts 同一取舍）。
  */
 
-import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 factor-queue.ts（debate/research 路由文件静态引用链）进客户端闭包，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 /** 一次因子检验里，单个因子的结果（factor-runs.jsonl 的一行）。 */
 export type FactorRunRow = {
@@ -174,7 +182,7 @@ export type FactorBaselinePayload = {
 };
 
 function backtestDir(): string {
-  return join(process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data"), "backtest");
+  return posixJoin(process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data"), "backtest");
 }
 
 /** JSONL → 对象数组，坏行跳过并计数。 */
@@ -235,8 +243,9 @@ export function emptyBaseline(missing: string | null): FactorBaselinePayload {
  * 由 batches 列表的位置决定，传错了也只是越界回退到最新一批。
  */
 export async function readFactorRuns(batchIndex?: number): Promise<FactorRunsPayload> {
-  const path = join(backtestDir(), "factor-runs.jsonl");
+  const path = posixJoin(backtestDir(), "factor-runs.jsonl");
   try {
+    const { readFile } = await fsApi();
     const { rows, badLines } = parseLines<FactorRunRow>(await readFile(path, "utf8"));
     const batchesRaw = clusterByBatch(rows);
     const fallback = batchesRaw.length - 1;
@@ -276,8 +285,9 @@ export async function readFactorRuns(batchIndex?: number): Promise<FactorRunsPay
  * 读不到返回空数组：分析是增强项，不阻断调用方。
  */
 export async function readAllRunRows(): Promise<FactorRunRow[]> {
-  const path = join(backtestDir(), "factor-runs.jsonl");
+  const path = posixJoin(backtestDir(), "factor-runs.jsonl");
   try {
+    const { readFile } = await fsApi();
     const { rows } = parseLines<FactorRunRow>(await readFile(path, "utf8"));
     return rows;
   } catch {
@@ -287,8 +297,9 @@ export async function readAllRunRows(): Promise<FactorRunRow[]> {
 
 /** 读归因与资金流探路。三种 kind 各自取最新一条；flowProbe 按持有期分组。 */
 export async function readFactorDiag(): Promise<FactorDiagPayload> {
-  const path = join(backtestDir(), "factor-diag.jsonl");
+  const path = posixJoin(backtestDir(), "factor-diag.jsonl");
   try {
+    const { readFile } = await fsApi();
     const { rows, badLines } = parseLines<DiagRow>(await readFile(path, "utf8"));
     let shrinkFlip: ShrinkFlipDiag | null = null;
     let shrinkBull: ShrinkBullDiag | null = null;
@@ -321,11 +332,12 @@ export async function readFactorDiag(): Promise<FactorDiagPayload> {
  */
 export async function readBaseline(): Promise<FactorBaselinePayload> {
   try {
+    const { readFile, readdir } = await fsApi();
     const dir = backtestDir();
     const files = (await readdir(dir)).filter((f) => f.startsWith("baseline-") && f.endsWith(".txt"));
     if (files.length === 0) return emptyBaseline("backtest 目录里没有 baseline-*.txt");
     const name = files.sort().at(-1) as string;
-    const text = await readFile(join(dir, name), "utf8");
+    const text = await readFile(posixJoin(dir, name), "utf8");
     return { name, text, bytes: Buffer.byteLength(text, "utf8"), missing: null };
   } catch (error) {
     return emptyBaseline(`baseline 读不到（${(error as Error).message}）`);

@@ -9,9 +9,18 @@
  * - `data/` 不在 git 里，读不到就是没有，返回 null，调用方写缺口。
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { EarningsPoint } from "./earnings-sop.ts";
+
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经路由文件静态引用（routeTree 静态引全部路由），node API 必须
+ * 函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 type RawRow = { ann?: unknown; roe?: unknown; dtYoy?: unknown; gm?: unknown; debt?: unknown };
 
@@ -22,7 +31,8 @@ function num(v: unknown): number | null {
 /** 读一只票的财报序列。找不到返回 null（没跑脚本 / 这只票没数据 / 换了机器）。 */
 export async function loadEarnings(code: string, root = process.cwd()): Promise<EarningsPoint[] | null> {
   try {
-    const raw = await readFile(join(root, "data", "backtest", "fundamentals.json"), "utf-8");
+    const { readFile } = await fsApi();
+    const raw = await readFile(posixJoin(root, "data", "backtest", "fundamentals.json"), "utf-8");
     const book = JSON.parse(raw) as { byCode?: Record<string, RawRow[]> };
     const rows = book.byCode?.[code];
     if (!Array.isArray(rows) || rows.length === 0) return null;

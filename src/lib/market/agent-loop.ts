@@ -19,8 +19,19 @@
  *    能在账本里看到，不能静默。token 走 callAIWithFallback 同一本账。
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 factor-queue.ts（debate/research 路由文件静态引用链）进客户端闭包，
+ * 且它拖着 challenger / strategy-gate / vt-tools / challenger-samples 一整串，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
+/** POSIX 风格取父目录。同上，node:path 的 dirname 也不能顶层 import。 */
+const posixDirname = (p: string): string => p.slice(0, p.lastIndexOf("/"));
 
 import { callAIWithFallback, readAIConfig, readQueue } from "./factor-queue.ts";
 import { appendAILog, evolveStats, readAILog } from "./ai-log.ts";
@@ -319,14 +330,15 @@ export function verifyDiagnosisNumbers(d: AgentDiagnosis, snap: LedgerSnapshot):
 // ── 收集 + 运行（server-only：fs + fetch） ──────────────────────
 
 function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+  return process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
 }
 
-export const agentDiagnosisPath = () => join(dataDir(), "agent-diagnosis.json");
+export const agentDiagnosisPath = () => posixJoin(dataDir(), "agent-diagnosis.json");
 
 /** 读最近一次诊断报告（文件没有/坏了 → null）。给页面用。 */
 export async function readAgentDiagnosis(): Promise<(AgentDiagnosis & { at: string; numberCheck?: DiagnosisNumberCheck | null }) | null> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(agentDiagnosisPath(), "utf8")) as AgentDiagnosis & { at?: unknown; numberCheck?: DiagnosisNumberCheck | null };
     if (typeof parsed.summary === "string" && typeof parsed.at === "string") return parsed as AgentDiagnosis & { at: string; numberCheck?: DiagnosisNumberCheck | null };
   } catch {
@@ -468,7 +480,8 @@ export async function runAgentDiagnosis(trigger: "manual" | "auto" = "manual"): 
     numberCheck = null;
   }
 
-  await mkdir(dirname(agentDiagnosisPath()), { recursive: true });
+  const { mkdir, writeFile } = await fsApi();
+  await mkdir(posixDirname(agentDiagnosisPath()), { recursive: true });
   await writeFile(agentDiagnosisPath(), JSON.stringify({ at, ...diagnosis, numberCheck }, null, 2));
   await appendAILog({
     at,

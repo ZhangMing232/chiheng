@@ -19,16 +19,16 @@ function withEnv(key: string, value: string | undefined, fn: () => Promise<void>
   });
 }
 
-test("vtToolsPrerequisite：默认路径在项目根下可探到文件", () => {
+test("vtToolsPrerequisite：默认路径在项目根下可探到文件", async () => {
   // 本机 vendor/ 已就位时 ok；不存在时 why 非空——两种都合法，只钉「不抛 + 布尔与 why 一致」。
-  const pre = vtToolsPrerequisite();
+  const pre = await vtToolsPrerequisite();
   assert.equal(typeof pre.ok, "boolean");
   assert.equal(pre.ok, pre.why === null);
 });
 
 test("vtToolsPrerequisite：python 路径不存在时给出直说 why", async () => {
   await withEnv("CHIHENG_VT_MCP_PY", "/nonexistent/bin/python", async () => {
-    const pre = vtToolsPrerequisite();
+    const pre = await vtToolsPrerequisite();
     assert.equal(pre.ok, false);
     assert.match(pre.why ?? "", /python 不存在/);
   });
@@ -37,7 +37,7 @@ test("vtToolsPrerequisite：python 路径不存在时给出直说 why", async ()
 test("vtToolsPrerequisite：script 路径不存在时给出直说 why", async () => {
   await withEnv("CHIHENG_VT_MCP_PY", "/bin/echo", async () => {
     await withEnv("CHIHENG_VT_MCP_SCRIPT", "/nonexistent/mcp_server.py", async () => {
-      const pre = vtToolsPrerequisite();
+      const pre = await vtToolsPrerequisite();
       assert.equal(pre.ok, false);
       assert.match(pre.why ?? "", /mcp_server\.py 不存在/);
     });

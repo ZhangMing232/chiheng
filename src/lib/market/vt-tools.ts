@@ -20,10 +20,23 @@
  *   判决规则写死，本文件不在 prompt 层做任何放行。
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import type { ChildProcess } from "node:child_process";
+
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件原来还有更狠的：DEFAULT_HOME / DEFAULT_SCRIPT 是**模块顶层常量**，
+ * 顶层调 homedir()/join() 就是 10-16 那类「一加载就崩」。它只该在服务端存在
+ * （spawn python 子进程），但 agent-loop 的动态 import 把它带进静态闭包——
+ * 休眠雷。node API 全部惰性化；DEFAULT_HOME/pyPath/scriptPath/
+ * vtToolsPrerequisite 因此从同步改异步（调用方全在 async 函数里，await 即可）。
+ */
+const fsApi = () => import("node:fs");
+const cpApi = () => import("node:child_process");
+const osApi = () => import("node:os");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 /** tools/list 里的单个工具（只取展示和调度要用的字段，schema 原样透传）。 */
 export type VtTool = { name: string; description: string };
@@ -38,8 +51,17 @@ export type VtToolsReport = {
   error: string | null;
 };
 
-const DEFAULT_HOME = join(homedir(), ".chiheng", "vt-venv");
-const DEFAULT_SCRIPT = join(process.cwd(), "vendor", "vt-mcp", "Vibe-Trading", "mcp_server.py");
+let defaultHomeCache: string | null = null;
+/** venv 根目录。懒计算 + 缓存：homedir() 是 node:os 的，不能出现在模块顶层。 */
+async function defaultHome(): Promise<string> {
+  if (defaultHomeCache == null) {
+    const { homedir } = await osApi();
+    defaultHomeCache = posixJoin(homedir(), ".chiheng", "vt-venv");
+  }
+  return defaultHomeCache;
+}
+/** mcp_server.py 默认位置（项目根下 vendor/）。同步：只碰 process.cwd()，服务端之外没人调。 */
+const defaultScript = (): string => posixJoin(process.cwd(), "vendor", "vt-mcp", "Vibe-Trading", "mcp_server.py");
 
 /** 闲置超过这么久就杀掉子进程（下次调用重新 spawn；省着常驻吃内存）。 */
 const IDLE_KILL_MS = 5 * 60 * 1000;
@@ -50,18 +72,21 @@ const INIT_TIMEOUT_MS = 30_000;
 /** probeVtTools 的结果缓存：5 分钟内不重复 spawn 探测（/ai 页反复看不该每次都起进程）。 */
 const STATUS_CACHE_MS = 5 * 60 * 1000;
 
-function pyPath(): string {
+async function pyPath(): Promise<string> {
   if (process.env.CHIHENG_VT_MCP_PY) return process.env.CHIHENG_VT_MCP_PY;
-  return join(process.env.CHIHENG_VT_MCP_HOME ?? DEFAULT_HOME, "bin", "python");
+  return posixJoin(process.env.CHIHENG_VT_MCP_HOME ?? (await defaultHome()), "bin", "python");
 }
-function scriptPath(): string {
-  return process.env.CHIHENG_VT_MCP_SCRIPT ?? DEFAULT_SCRIPT;
+async function scriptPath(): Promise<string> {
+  return process.env.CHIHENG_VT_MCP_SCRIPT ?? defaultScript();
 }
 
 /** 静态体检：python 和脚本在不在。不在就不用 spawn 了，why 直说。 */
-export function vtToolsPrerequisite(): { ok: boolean; why: string | null } {
-  if (!existsSync(pyPath())) return { ok: false, why: `python 不存在：${pyPath()}（venv 未装？见 design/AI-BRAIN.md）` };
-  if (!existsSync(scriptPath())) return { ok: false, why: `mcp_server.py 不存在：${scriptPath()}（vendor 未拉？）` };
+export async function vtToolsPrerequisite(): Promise<{ ok: boolean; why: string | null }> {
+  const { existsSync } = await fsApi();
+  const py = await pyPath();
+  const script = await scriptPath();
+  if (!existsSync(py)) return { ok: false, why: `python 不存在：${py}（venv 未装？见 design/AI-BRAIN.md）` };
+  if (!existsSync(script)) return { ok: false, why: `mcp_server.py 不存在：${script}（vendor 未拉？）` };
   return { ok: true, why: null };
 }
 
@@ -80,7 +105,8 @@ class VtMcpProcess {
   async ensure(): Promise<void> {
     if (this.child && this.child.exitCode === null) return;
     this.kill();
-    this.child = spawn(pyPath(), [scriptPath()], { stdio: ["pipe", "pipe", "pipe"] });
+    const { spawn } = await cpApi();
+    this.child = spawn(await pyPath(), [await scriptPath()], { stdio: ["pipe", "pipe", "pipe"] });
     this.child.stdout!.setEncoding("utf8");
     this.child.stdout!.on("data", (chunk: string) => this.onData(chunk));
     this.child.stderr!.on("data", () => void 0); // stderr 是 VT 的日志，不进协议流
@@ -172,7 +198,7 @@ function proc(): VtMcpProcess {
 export async function probeVtTools(force = false): Promise<VtToolsReport> {
   const now = Date.now();
   if (!force && now - statusCache.at < STATUS_CACHE_MS) return statusCache.report;
-  const pre = vtToolsPrerequisite();
+  const pre = await vtToolsPrerequisite();
   const report: VtToolsReport = pre.ok
     ? await probeLive()
     : { online: false, toolCount: 0, tools: [], checkedAt: new Date().toISOString(), error: pre.why };
@@ -214,7 +240,7 @@ async function probeLive(): Promise<VtToolsReport> {
  * （agent-loop / strategy-ai）自己 try/catch 降级。
  */
 export async function invokeVtTool(name: string, args: Record<string, unknown>, timeoutMs = DEFAULT_CALL_TIMEOUT_MS): Promise<string> {
-  const pre = vtToolsPrerequisite();
+  const pre = await vtToolsPrerequisite();
   if (!pre.ok) throw new Error(pre.why ?? "VT MCP 未就绪");
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {

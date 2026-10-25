@@ -17,8 +17,16 @@
  * 4. 读取时校验：结构不对的行**跳过并打日志**，不整份报废。
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 backtest.tsx 路由文件静态引用（routeTree 静态引全部路由），
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 /** 一套策略在一次运行里的指标。比率都是 0-1 的小数（页面负责 ×100 显示）。 */
 export type BacktestStyleStat = {
@@ -115,7 +123,8 @@ export function checkBacktestRun(value: unknown): BacktestRun | null {
 export async function loadBacktestRuns(root = process.cwd(), limit = 60): Promise<{ runs: BacktestRun[]; bad: number }> {
   let text: string;
   try {
-    text = await readFile(join(root, RUNS_PATH), "utf-8");
+    const { readFile } = await fsApi();
+    text = await readFile(posixJoin(root, RUNS_PATH), "utf-8");
   } catch {
     return { runs: [], bad: 0 };
   }

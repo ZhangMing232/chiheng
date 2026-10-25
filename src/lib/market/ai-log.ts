@@ -14,10 +14,19 @@
  * 4. 纯函数（自我历史组装、统计）不依赖 fs，直接单测。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { QueueEntry } from "./factor-queue.ts";
 import type { Challenger } from "./challenger.ts";
+
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 factor-queue.ts（debate/research 路由文件静态引用链）进客户端闭包，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
@@ -45,14 +54,15 @@ export const AI_LOG_CAP = 500;
 // ── 文件 IO（node:fs，server-only）─────────────────────────────
 
 function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+  return process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
 }
 
-const aiLogPath = () => join(dataDir(), "ai-log.json");
+const aiLogPath = () => posixJoin(dataDir(), "ai-log.json");
 
 /** 读账本。文件不存在或坏了 → 空数组，绝不抛错。 */
 export async function readAILog(): Promise<AILogEntry[]> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(aiLogPath(), "utf8")) as { entries?: unknown };
     if (Array.isArray(parsed.entries)) return parsed.entries as AILogEntry[];
   } catch {
@@ -66,6 +76,7 @@ export async function appendAILog(entry: AILogEntry): Promise<void> {
   try {
     const entries = [...(await readAILog()), entry];
     const trimmed = entries.length > AI_LOG_CAP ? entries.slice(entries.length - AI_LOG_CAP) : entries;
+    const { mkdir, writeFile } = await fsApi();
     await mkdir(dataDir(), { recursive: true });
     await writeFile(aiLogPath(), JSON.stringify({ entries: trimmed }, null, 2));
   } catch (error) {

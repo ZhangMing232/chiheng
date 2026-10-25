@@ -15,10 +15,19 @@
  * 4. data/ 在 .gitignore 里，CHIHENG_DATA_DIR 可换数据目录（测试靠它）。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { referencePriceOf } from "./ai-prices.ts";
 import type { AIConfig } from "./factor-queue.ts";
+
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 factor-queue.ts（debate/research 路由文件静态引用链）进客户端闭包，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
@@ -194,14 +203,15 @@ export async function readActiveMeta(): Promise<{ profileId: string; pricePrompt
 // ── 文件 IO（node:fs，server-only）─────────────────────────────
 
 function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+  return process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
 }
 
-const aiConfigPath = () => join(dataDir(), "ai-config.json");
+const aiConfigPath = () => posixJoin(dataDir(), "ai-config.json");
 
 /** 读档案。旧格式（顶层三件套、无 profiles）自动迁移成单档案；坏了 → 空档案夹。 */
 export async function readProfiles(): Promise<AIProfilesFile> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(aiConfigPath(), "utf8")) as Partial<AIProfilesFile> & Partial<AIConfig>;
     if (Array.isArray(parsed.profiles)) {
       return { activeId: typeof parsed.activeId === "string" ? parsed.activeId : null, profiles: parsed.profiles as AIProfile[] };
@@ -226,6 +236,7 @@ export async function readProfiles(): Promise<AIProfilesFile> {
 }
 
 export async function writeProfiles(file: AIProfilesFile): Promise<void> {
+  const { mkdir, writeFile } = await fsApi();
   await mkdir(dataDir(), { recursive: true });
   await writeFile(aiConfigPath(), JSON.stringify(file, null, 2));
 }

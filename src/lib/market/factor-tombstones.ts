@@ -19,9 +19,18 @@
  *    原因看 note）。两种都是 tombstone，但死因档案里要分得开。
  */
 
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { QueueEntry, QueueVerdict } from "./factor-queue.ts";
+
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 factor-queue.ts（debate/research 路由文件静态引用链）进客户端闭包，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 
 /** 一条淘汰档案。 */
 export type TombstoneRecord = {
@@ -79,21 +88,23 @@ export function buildRecord(entry: QueueEntry, verdict: QueueVerdict | undefined
 // ── 文件 IO（node:fs，server-only）─────────────────────────────
 
 function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+  return process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
 }
 
-const tombstonePath = () => join(dataDir(), "backtest", "factor-tombstones.jsonl");
+const tombstonePath = () => posixJoin(dataDir(), "backtest", "factor-tombstones.jsonl");
 
 /** 追加一批档案。读不到旧文件不影响追加（从头建）。 */
 export async function appendTombstones(records: TombstoneRecord[]): Promise<void> {
   if (records.length === 0) return;
-  await mkdir(join(dataDir(), "backtest"), { recursive: true });
+  const { appendFile, mkdir } = await fsApi();
+  await mkdir(posixJoin(dataDir(), "backtest"), { recursive: true });
   await appendFile(tombstonePath(), records.map((r) => JSON.stringify(r)).join("\n") + "\n", "utf8");
 }
 
 /** 读全部档案。文件不存在/坏了 → 空数组，绝不抛错（和 readQueue 同一取舍）。 */
 export async function readTombstones(): Promise<TombstoneRecord[]> {
   try {
+    const { readFile } = await fsApi();
     const raw = await readFile(tombstonePath(), "utf8");
     return raw
       .split("\n")

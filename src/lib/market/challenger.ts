@@ -13,8 +13,16 @@
  * 注册挑战者 = 编辑 data/challengers.json（见 README「策略进化」）。
  */
 
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node: 内置模块会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 agent-loop.ts（factor-queue → debate/research 路由链）进客户端闭包，
+ * node API 必须函数内动态 import；路径拼接用 posixJoin 替代 node:path。
+ */
+const fsApi = () => import("node:fs/promises");
+/** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
+const posixJoin = (...parts: string[]): string => parts.join("/");
 import { tStat } from "./strategy-gate.ts";
 import { dayReliable, netReturn } from "./journal-book.ts";
 import { styleOf } from "./strategies.ts";
@@ -59,13 +67,14 @@ export type ChallengersFile = { list: Challenger[] };
 /** 每套策略当前生效的参数版本。"champion" = 代码里的默认参数。 */
 export type ChampionsFile = Record<string, string>;
 
-const dataDir = () => process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
-export const challengersPath = () => join(dataDir(), "challengers.json");
-export const championsPath = () => join(dataDir(), "champions.json");
-export const championLogPath = () => join(dataDir(), "champion-log.jsonl");
+const dataDir = () => process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data");
+export const challengersPath = () => posixJoin(dataDir(), "challengers.json");
+export const championsPath = () => posixJoin(dataDir(), "champions.json");
+export const championLogPath = () => posixJoin(dataDir(), "champion-log.jsonl");
 
 export async function readChallengers(): Promise<ChallengersFile> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(challengersPath(), "utf8"));
     if (parsed && Array.isArray(parsed.list)) return parsed as ChallengersFile;
   } catch {
@@ -75,12 +84,14 @@ export async function readChallengers(): Promise<ChallengersFile> {
 }
 
 export async function writeChallengers(file: ChallengersFile) {
+  const { mkdir, writeFile } = await fsApi();
   await mkdir(dataDir(), { recursive: true });
   await writeFile(challengersPath(), JSON.stringify(file, null, 2));
 }
 
 export async function readChampions(): Promise<ChampionsFile> {
   try {
+    const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(championsPath(), "utf8"));
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as ChampionsFile;
   } catch {
@@ -90,12 +101,14 @@ export async function readChampions(): Promise<ChampionsFile> {
 }
 
 export async function writeChampions(file: ChampionsFile) {
+  const { mkdir, writeFile } = await fsApi();
   await mkdir(dataDir(), { recursive: true });
   await writeFile(championsPath(), JSON.stringify(file, null, 2));
 }
 
 /** 每次参数切换/回滚追加一行留档。回滚靠它知道上一任是谁。 */
 export async function appendChampionLog(entry: { at: number; style: string; from: string; to: string; reason: string }) {
+  const { appendFile, mkdir } = await fsApi();
   await mkdir(dataDir(), { recursive: true });
   await appendFile(championLogPath(), JSON.stringify(entry) + "\n");
 }

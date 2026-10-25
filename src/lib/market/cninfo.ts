@@ -25,7 +25,13 @@
  * 6. `column` 参数（szse/sse）**可以不传**，不传时返回条数更多（含两市）。
  */
 
-import https from "node:https";
+/**
+ * ⚠️ 浏览器兼容（2026-10-25，同类坑第三次）：
+ * 顶层 import node:https 会被 vite 转成空壳桩顶层解构，模块一求值就抛
+ * 「Module externalized」→ hydration 跑不了 → 整站按钮失灵（页面能看、点不动）。
+ * 本文件经 news.ts（studio 路由链）进客户端闭包，https 必须函数内动态
+ * import（postForm 因此改成 async——它本来就返回 Promise，调用方无感）。
+ */
 
 /** 巨潮的 orgId：同代码不同档期格式不一样，只能查出来缓存住。 */
 const orgIdCache = new Map<string, string | null>();
@@ -49,7 +55,8 @@ const UA =
 const DISCLOSURE_REFERER = "https://www.cninfo.com.cn/new/disclosure";
 
 /** POST 表单。失败一律 reject，由调用方决定降级——这里不吞异常。 */
-function postForm(url: string, body: string, referer = DISCLOSURE_REFERER): Promise<string> {
+async function postForm(url: string, body: string, referer = DISCLOSURE_REFERER): Promise<string> {
+  const https = await import("node:https");
   return new Promise((resolve, reject) => {
     const payload = Buffer.from(body, "utf8");
     const req = https.request(
