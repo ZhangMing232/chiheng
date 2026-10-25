@@ -9,6 +9,8 @@
  * 结果写在 data/books，并复制一份到用户目录下的 chiheng-backup。主人账号会收到 Mac 通知。
  * 收盘封印后还会每个交易日发一封每日复盘邮件（诊断摘要/挑战者战况/明日验证，
  * 配了 data/mail-config.json 才发；没配静默跳过）。
+ * 选股候选（含没成交的）每天留痕在 data/signals.jsonl——账本只有成交，
+ * 那份日志补上「选了没买」的分母，用来量选择偏差。
  * 不会连接券商，不会下真实委托。改选股规则不要从这里下手。
  */
 
@@ -36,6 +38,7 @@ import {
   type Challenger,
 } from "../src/lib/market/challenger.ts";
 import { appendGateLog } from "../src/lib/market/gate-log.ts";
+import { appendSignals } from "../src/lib/market/signal-log.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
@@ -436,6 +439,25 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
       // 假释中的策略限 1 只/天：它是带罪观察，不是无罪释放。
       const allBuys = takeBuys(list, held, style, todayTrades);
       const buys = gateParoled.has(style) ? allBuys.slice(0, 1) : allBuys;
+
+      // 信号留痕：观察名单前 10 只当天第一次出现就记，**没成交的也记**。
+      // 不记的话账本里只有「现价打到买入价」那一批——所有绩效样本都自带
+      // 「价格找上门」这个条件，选择偏差（价格跑飞 away / 涨停 limit 两种
+      // 死法）没有分母可量。放在闸门判断之前：闸门拦不拦是风控的事，
+      // 候选出现过是选股的事，两件事互不担保。
+      appendSignals(
+        phase.date!,
+        style,
+        list.map((row) => ({
+          id: row.quote.id,
+          code: row.quote.code,
+          name: row.quote.name,
+          score: row.score,
+          buy: row.buy,
+          hit: row.hit,
+          block: row.block,
+        })),
+      );
 
       if (!hard.ok) {
         // 拦下之前先把「本来想买什么」记下来。不记的话事后只知道「今天没开仓」，
