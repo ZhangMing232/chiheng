@@ -7,6 +7,8 @@
  * 只在交易日、行情对得上的时候才会按计划价记入新的买入。买入价写下后不再改。
  * 同一天卖出价和止损价都碰到，按止损结算；都没碰到，就等到第 8 个交易日收盘再结算。
  * 结果写在 data/books，并复制一份到用户目录下的 chiheng-backup。主人账号会收到 Mac 通知。
+ * 收盘封印后还会每个交易日发一封每日复盘邮件（诊断摘要/挑战者战况/明日验证，
+ * 配了 data/mail-config.json 才发；没配静默跳过）。
  * 不会连接券商，不会下真实委托。改选股规则不要从这里下手。
  */
 
@@ -839,6 +841,35 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     }
   } catch (error) {
     console.error(`${time} 判决回测触发失败（不影响记账）:`, error);
+  }
+}
+
+// ── 每日复盘邮件：收盘封印后每个交易日一封（PRODUCT-PLAN §6 留存钩子）────────
+// 三块内容：今日诊断摘要 / 挑战者战况 / 明日验证（昨天提的因子今天什么下场）。
+// 钩子是「没看完的实验」不是行情——所以没有盈亏榜，只有实验进度。
+// best-effort：没配 data/mail-config.json 静默跳过；配了发不出去只记日志，
+// 不挡记账。stamp 写在成功之后——失败了下一分钟再试，邮件是钩子，
+// 静默不发等于没有。
+if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+  try {
+    const mailStamp = join(process.cwd(), "data", `.daily-mail-${phase.date}.stamp`);
+    try {
+      await access(mailStamp);
+    } catch {
+      const { sendDailyMail } = await import("../src/lib/market/daily-mail.ts");
+      const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
+      const result = await sendDailyMail({ date: phase.date, days: ownerBook?.days ?? [] });
+      if (result.sent) {
+        await mkdir(join(process.cwd(), "data"), { recursive: true });
+        await writeFile(mailStamp, String(Date.now()));
+        console.log(`${time} 每日复盘邮件已发（${phase.date}）`);
+      } else if (result.reason && result.reason !== "没配 mail-config.json") {
+        // 没配是常态，静默；配了发不出去要显眼——每分钟一条直到发出去或人来看
+        console.error(`${time} 每日复盘邮件发送失败（不影响记账，下分钟重试）: ${result.reason}`);
+      }
+    }
+  } catch (error) {
+    console.error(`${time} 每日复盘邮件失败（不影响记账）:`, error);
   }
 }
 
