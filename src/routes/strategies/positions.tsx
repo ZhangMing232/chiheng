@@ -617,10 +617,13 @@ function Positions() {
 
   const holdTab = (
     <div className="flex flex-col gap-2">
-        {/* 两本账对齐入口：只有本地账还有数据时才出现。合并一次之后本地账
-            不再长新数据（选股页的 Journal 已停写），这个面板大概率点过一次
-            就再也不出现——这是故意的，它不是日常动作。 */}
-        {alignPreview ? (
+        {/* 两本账对齐入口：**只有本地账里真有服务器没有的记录时才出现**。
+            光是「本地还有数据」不提示——合并后 localStorage 不会清（留着当回滚
+            路标），按那个条件面板会永远挂在那儿求着人点，而点了也只是 0 笔补入。
+            本地账已停写（选股页 Journal 退役），合过一次就不会再有新东西可并，
+            这个面板点过一次就再也不出现——这是故意的，它不是日常动作。
+            合并完成的那一瞬间面板还留一会儿（alignMsg 挂着成功记录），刷新即走。 */}
+        {alignPreview != null && (alignPreview.addedTrades > 0 || alignMsg != null) ? (
           <Panel
             title="两本账对齐"
             note={<span>这台浏览器的本地账和服务器账各记各的；合并后只认服务器账</span>}
@@ -656,10 +659,10 @@ function Positions() {
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : alignPreview.addedTrades > 0 ? (
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="text-muted">
-                  本地账还有 {browserDays.length} 天，其中 {alignPreview.addedDays} 天服务器账里没有。
+                  本地账还有 {browserDays.length} 天，有 {alignPreview.addedTrades} 笔服务器账里没有。
                 </span>
                 <button
                   type="button"
@@ -669,6 +672,12 @@ function Positions() {
                   对齐两本账
                 </button>
               </div>
+            ) : (
+              /* 走到这儿 = alignMsg 刚报完「对齐完成」但 0 笔补入（本地账全是服务器
+                 已有的记录）。留一行说明，刷新后整块消失。 */
+              <p className="text-xs text-muted">
+                本机旧账都已并入服务端账——没有服务器缺少的记录，不用再点，刷新后这里就不显示了。
+              </p>
             )}
             {alignMsg ? (
               <p className={`mt-2 text-xs ${alignMsg.startsWith("对齐完成") ? "text-up" : "text-warn"}`}>{alignMsg}</p>
