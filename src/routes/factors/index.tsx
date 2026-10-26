@@ -226,6 +226,7 @@ function FactorsIndexPage() {
 
   return (
     <Frame
+      wide
       aside={runAt ? `因子批次 ${runAt}` : undefined}
       status={{
         label: "过关",
@@ -248,8 +249,12 @@ function FactorsIndexPage() {
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
       <FactorSectionTabs />
       {runs.batch ? <FactorLabCard summary={summary} tombstones={tombstones} batchIndex={runs.batchIndex} /> : null}
-      {runs.batch ? <TestControls defaults={{ n: runs.batch.n, buckets: runs.batch.buckets }} /> : null}
-      <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/" />
+
+      {/* 检验参数 + 批次选择器：横向铺满（像首页那样双栏用宽），不再挤成一条瘦列 */}
+      <div className="grid gap-2 lg:grid-cols-2">
+        {runs.batch ? <TestControls defaults={{ n: runs.batch.n, buckets: runs.batch.buckets }} /> : null}
+        <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/" />
+      </div>
 
       {/* 1 结论 */}
       <Section
