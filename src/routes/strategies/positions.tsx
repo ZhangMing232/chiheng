@@ -550,6 +550,7 @@ function Positions() {
   const onServer = journal.personal;
   const days = journal.days;
   const rows = useMemo(() => buildRows(days, universe, rules), [days, universe, rules]);
+  const openRows = useMemo(() => rows.filter((row) => row.exit == null), [rows]);
   const groups = useMemo(() => groupByDay(rows), [rows]);
   const total = useMemo(() => overallOf(groups), [groups]);
   // 盘中第 ② 步是最高频动作：每 60 秒扫一眼「谁到止损/目标价了」。
@@ -628,67 +629,129 @@ function Positions() {
             本地账已停写（选股页 Journal 退役），合过一次就不会再有新东西可并，
             这个面板点过一次就再也不出现——这是故意的，它不是日常动作。
             合并完成的那一瞬间面板还留一会儿（alignMsg 挂着成功记录），刷新即走。 */}
-        {alignPreview != null && (alignPreview.addedTrades > 0 || alignMsg != null) ? (
+        {/* 当前持仓 + 两本账对齐：照效果图「组合」页的 1.6fr/1fr 双栏。
+            右栏沿用原本的「两本账对齐」逻辑——只有本地账真有服务器没有的记录才弹操作面板，
+            否则显示「无需合并」卡（真实状态，不编「12·16」那种假数）。 */}
+        <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
           <Panel
-            title="两本账对齐"
-            note={<span>这台浏览器的本地账和服务器账各记各的；合并后只认服务器账</span>}
+            title="当前持仓"
+            note={<span>{openRows.length} 只在拿 · 每笔 1 手</span>}
             bodyClassName="px-3.5 py-3"
           >
-            {alignOpen ? (
-              <div className="space-y-2 text-xs">
-                <p className="text-muted">
-                  以服务器账为准：同一天同一笔两边都有，保留服务器的，只用本地补服务器没有的。合并前自动备份到 ~/chiheng-backup，可回滚。
-                </p>
-                <p>
-                  预览：补入 <b className="num">{alignPreview.addedTrades}</b> 笔
-                  （{alignPreview.addedDays} 个服务器没有的整天），{alignPreview.duplicatedTrades} 笔重复按服务器保留
-                  {alignPreview.stylessTrades > 0 ? `，${alignPreview.stylessTrades} 笔无 style 旧账不合并不统计` : ""}
-                  {alignPreview.invalidDays > 0 ? `，${alignPreview.invalidDays} 天结构不对跳过` : ""}。
-                </p>
-                <div className="flex gap-2">
+            {openRows.length > 0 ? (
+              <Table className="data-table" caption="当前未平仓持仓">
+                <thead>
+                  <tr className="border-b border-line">
+                    <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>名称</th>
+                    <th className={thClass()}>代码</th>
+                    <th className={thClass()}>持仓</th>
+                    <th className={thClass()}>成本</th>
+                    <th className={thClass()}>现价</th>
+                    <th className={thClass()}>盈亏</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openRows.map((row) => (
+                    <tr
+                      key={`${row.day}-${row.id}-open`}
+                      className="border-b border-line last:border-0 hover:bg-surface-2"
+                    >
+                      <td data-l="名称" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
+                        <StockName id={row.id} name={row.name} source="positions" className="font-medium" />
+                      </td>
+                      <td data-l="代码" className={tdClass("tabular-nums")}>{row.code}</td>
+                      <td data-l="持仓" className={tdClass()}>1 手</td>
+                      <td data-l="成本" className={tdClass()}>{fmtPrice(row.entry)}</td>
+                      <td data-l="现价" className={tdClass("font-medium")}>{row.live ? fmtPrice(row.live.price) : "—"}</td>
+                      <td data-l="盈亏" className={tdClass(row.ret == null ? "text-muted" : pctClass(row.ret * 100))}>
+                        {row.ret == null ? "—" : signedPct(row.ret * 100)}
+                        {row.pnl != null ? <span className="ml-1 text-[11px] text-muted">{row.pnl.toFixed(2)}/股</span> : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            ) : (
+              <StateBlock kind="empty" title="当前没有未平仓的持仓" hint="打到买入价才记一笔；想看历史去「战绩」tab。" />
+            )}
+          </Panel>
+
+          {alignPreview != null && (alignPreview.addedTrades > 0 || alignMsg != null) ? (
+            <Panel
+              title="两本账对齐"
+              note={<span>这台浏览器的本地账和服务器账各记各的；合并后只认服务器账</span>}
+              bodyClassName="px-3.5 py-3"
+            >
+              {alignOpen ? (
+                <div className="space-y-2 text-xs">
+                  <p className="text-muted">
+                    以服务器账为准：同一天同一笔两边都有，保留服务器的，只用本地补服务器没有的。合并前自动备份到 ~/chiheng-backup，可回滚。
+                  </p>
+                  <p>
+                    预览：补入 <b className="num">{alignPreview.addedTrades}</b> 笔
+                    （{alignPreview.addedDays} 个服务器没有的整天），{alignPreview.duplicatedTrades} 笔重复按服务器保留
+                    {alignPreview.stylessTrades > 0 ? `，${alignPreview.stylessTrades} 笔无 style 旧账不合并不统计` : ""}
+                    {alignPreview.invalidDays > 0 ? `，${alignPreview.invalidDays} 天结构不对跳过` : ""}。
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={alignBusy}
+                      onClick={() => void runAlign()}
+                      className="shrink-0 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {alignBusy ? "合并中…" : "确认合并"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={alignBusy}
+                      onClick={() => setAlignOpen(false)}
+                      className="shrink-0 rounded border border-line px-2.5 py-1 text-xs font-medium text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : alignPreview.addedTrades > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="text-muted">
+                    本地账还有 {browserDays.length} 天，有 {alignPreview.addedTrades} 笔服务器账里没有。
+                  </span>
                   <button
                     type="button"
-                    disabled={alignBusy}
-                    onClick={() => void runAlign()}
-                    className="shrink-0 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => setAlignOpen(true)}
+                    className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white"
                   >
-                    {alignBusy ? "合并中…" : "确认合并"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={alignBusy}
-                    onClick={() => setAlignOpen(false)}
-                    className="shrink-0 rounded border border-line px-2.5 py-1 text-xs font-medium text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    取消
+                    对齐两本账
                   </button>
                 </div>
-              </div>
-            ) : alignPreview.addedTrades > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-muted">
-                  本地账还有 {browserDays.length} 天，有 {alignPreview.addedTrades} 笔服务器账里没有。
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setAlignOpen(true)}
-                  className="shrink-0 rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white"
-                >
-                  对齐两本账
-                </button>
-              </div>
-            ) : (
-              /* 走到这儿 = alignMsg 刚报完「对齐完成」但 0 笔补入（本地账全是服务器
-                 已有的记录）。留一行说明，刷新后整块消失。 */
-              <p className="text-xs text-muted">
-                本机旧账都已并入服务端账——没有服务器缺少的记录，不用再点，刷新后这里就不显示了。
+              ) : (
+                /* 走到这儿 = alignMsg 刚报完「对齐完成」但 0 笔补入（本地账全是服务器
+                   已有的记录）。留一行说明，刷新后整块消失。 */
+                <p className="text-xs text-muted">
+                  本机旧账都已并入服务端账——没有服务器缺少的记录，不用再点，刷新后这里就不显示了。
+                </p>
+              )}
+              {alignMsg ? (
+                <p className={`mt-2 text-xs ${alignMsg.startsWith("对齐完成") ? "text-up" : "text-warn"}`}>{alignMsg}</p>
+              ) : null}
+            </Panel>
+          ) : ready ? (
+            <Panel title="两本账对齐" bodyClassName="px-3.5 py-3">
+              <p className="text-xs leading-relaxed text-muted">
+                服务端账（data/books）为唯一正账。浏览器本地账已停止写入，合并后无新增可并记录。
               </p>
-            )}
-            {alignMsg ? (
-              <p className={`mt-2 text-xs ${alignMsg.startsWith("对齐完成") ? "text-up" : "text-warn"}`}>{alignMsg}</p>
-            ) : null}
-          </Panel>
-        ) : null}
+              <div className="mt-2 flex items-center gap-2">
+                <Tag tone="up">无需合并</Tag>
+                <span className="text-xs text-muted">本地无新增</span>
+              </div>
+            </Panel>
+          ) : (
+            <Panel title="两本账对齐" bodyClassName="px-3.5 py-3">
+              <StateBlock kind="loading" title="正在核对两本账" />
+            </Panel>
+          )}
+        </div>
 
         {/* 合计用一格一格的排法：分隔线是 1px 的 gap 垫出来的（gap-px + bg-line），
             不加阴影。和「资金」页概览、策略卡同一套版式。 */}

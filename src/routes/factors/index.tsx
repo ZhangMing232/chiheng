@@ -15,17 +15,18 @@
  */
 
 import { useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { FactorLoopPanels } from "@/components/screener/factor-loop-panels";
-import { Stat } from "@/components/terminal";
+import { Stat, Panel, Tag, Prog } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { SourceLine } from "@/components/source-line";
 import { signedPct } from "@/lib/market/format";
-import { getFactorRuns, runFactorTest } from "@/lib/market/quotes.functions";
+import { getFactorRuns, getTombstones, runFactorTest } from "@/lib/market/quotes.functions";
 import { PARAM_BOUNDS } from "@/lib/market/factor-test-runner";
-import { batchSummary } from "@/lib/market/factors-view";
+import { batchSummary, type BatchSummary } from "@/lib/market/factors-view";
 import type { FactorRunsPayload } from "@/lib/market/factor-runs-file";
+import type { TombstoneRecord } from "@/lib/market/factor-tombstones";
 import {
   BatchPicker,
   FactorSectionTabs,
@@ -39,16 +40,19 @@ export const Route = createFileRoute("/factors/")({
   validateSearch: (search: Record<string, unknown>) => ({ batch: parseBatch(search) }),
   loaderDeps: ({ search }) => ({ batch: search.batch }),
   loader: async ({ deps }) => {
-    const runs = await getFactorRuns({ data: { batch: deps.batch } }).catch(
-      (e: unknown): FactorRunsPayload => ({
-        batch: null,
-        batches: [],
-        batchIndex: -1,
-        badLines: 0,
-        missing: messageOf(e),
-      }),
-    );
-    return { runs };
+    const [runs, tombstones] = await Promise.all([
+      getFactorRuns({ data: { batch: deps.batch } }).catch(
+        (e: unknown): FactorRunsPayload => ({
+          batch: null,
+          batches: [],
+          batchIndex: -1,
+          badLines: 0,
+          missing: messageOf(e),
+        }),
+      ),
+      getTombstones().catch((): TombstoneRecord[] => []),
+    ]);
+    return { runs, tombstones };
   },
   component: FactorsIndexPage,
 });
@@ -135,8 +139,86 @@ function TestControls({ defaults }: { defaults: { n: number; buckets: number } }
   );
 }
 
+/**
+ * 因子实验室速览卡：照效果图「因子实验室」三栏（门控结果 / 因子成色 / 因子墓碑）。
+ * 全部接真实数据——效果图里那几条「IC 均值 / IC IR / 换手率 / 覆盖度」是草图占位，
+ * 赤轨没有这些数，硬填=编假数，违反纪律；所以第二栏换成真实可算的成色指标，
+ * 第三栏接真实死因档案（factor-tombstones.ts）的前 3 条。
+ */
+function FactorLabCard({ summary, tombstones, batchIndex }: { summary: BatchSummary; tombstones: TombstoneRecord[]; batchIndex: number }) {
+  const { total, passed, strongest, nearMiss, familyClashes } = summary;
+  const passRate = total > 0 ? passed / total : 0;
+  const nearRate = total > 0 ? nearMiss.length / total : 0;
+  const tBar = strongest ? Math.min(1, Math.abs(strongest.t) / 3) : 0;
+  const headCls = "mb-2 flex items-center gap-2 border-l-2 border-brand pl-2 text-xs font-medium";
+  return (
+    <Panel
+      title="因子实验室"
+      action={<Link to="/factors/gates" search={{ batch: batchIndex }} className="text-xs text-muted transition hover:text-fg">查看 6 关明细 →</Link>}
+      bodyClassName="px-3.5 py-3"
+    >
+      <div className="grid gap-5 sm:grid-cols-3">
+        {/* ① 门控结果 */}
+        <div>
+          <div className={headCls}>门控结果</div>
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-muted">当前批次</span>
+              <Tag tone={passed > 0 ? "up" : "warn"}>{passed > 0 ? "部分通过" : "未通过"}</Tag>
+            </div>
+            <div>
+              <div className="flex justify-between"><span className="text-muted">通过率</span><span className="tabular-nums">{passed}/{total}</span></div>
+              <Prog value={passRate} />
+            </div>
+            <div className="flex justify-between"><span className="text-muted">最强因子 |t|</span><span className="tabular-nums">{strongest ? strongest.t.toFixed(2) : "—"}</span></div>
+            <div className="flex justify-between"><span className="text-muted">同族冲突</span><span className="tabular-nums">{familyClashes.length} 组</span></div>
+          </div>
+        </div>
+        {/* ② 因子成色（真实指标，非 IC 占位） */}
+        <div>
+          <div className={headCls}>因子成色</div>
+          <div className="space-y-2 text-xs">
+            <div>
+              <div className="flex justify-between"><span className="text-muted">全过因子</span><span className="tabular-nums">{passed} 个</span></div>
+              <Prog value={passRate} />
+            </div>
+            <div>
+              <div className="flex justify-between"><span className="text-muted">接近过关（差≤1关）</span><span className="tabular-nums">{nearMiss.length} 个</span></div>
+              <Prog value={nearRate} />
+            </div>
+            <div>
+              <div className="flex justify-between"><span className="text-muted">最强 |t| 强度</span><span className="tabular-nums">{strongest ? `${strongest.t.toFixed(2)} / 3` : "—"}</span></div>
+              <Prog value={tBar} />
+            </div>
+          </div>
+        </div>
+        {/* ③ 因子墓碑（真实死因档案前 3 条） */}
+        <div>
+          <div className={headCls}>因子墓碑</div>
+          {tombstones.length > 0 ? (
+            <ul className="space-y-1.5">
+              {tombstones.slice(0, 3).map((r) => (
+                <li key={`${r.id}-${r.diedAt}`} className="rounded border border-line bg-surface px-2 py-1.5">
+                  <div className="text-xs font-medium">{r.name}</div>
+                  <div className="text-[11px] text-muted">
+                    {r.diedAt}
+                    {r.failedGates.length ? ` · 败于 ${r.failedGates.join("/")}` : " · 衰退休退"}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted">还没有被淘汰的因子。</p>
+          )}
+          <p className="mt-2 text-[11px] text-muted">完整死因档案见下方「决策者记分牌」。</p>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function FactorsIndexPage() {
-  const { runs } = Route.useLoaderData();
+  const { runs, tombstones } = Route.useLoaderData();
 
   const summary = useMemo(() => batchSummary(runs.batch?.rows ?? []), [runs.batch]);
 
@@ -165,6 +247,7 @@ function FactorsIndexPage() {
     >
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
       <FactorSectionTabs />
+      {runs.batch ? <FactorLabCard summary={summary} tombstones={tombstones} batchIndex={runs.batchIndex} /> : null}
       {runs.batch ? <TestControls defaults={{ n: runs.batch.n, buckets: runs.batch.buckets }} /> : null}
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/" />
 
