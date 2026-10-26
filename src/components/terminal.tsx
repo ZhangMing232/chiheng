@@ -46,7 +46,12 @@ export function Panel({
     <section id={id} className={`overflow-hidden rounded border border-line bg-surface ${className}`}>
       {title ? (
         <header className="flex items-baseline justify-between gap-3 border-b border-line px-3 py-2">
-          <h2 className="text-sm font-medium text-fg">{title}</h2>
+          {/* 效果图签名：标题前的朱砂竖条。品牌色四用法之一（顶栏线 / 名字旁竖条 /
+              焦点环 / 选中垫底），这里统一给全站卡片标题加，整站立刻「像效果图」。 */}
+          <h2 className="flex items-center gap-2 text-sm font-medium text-fg">
+            <span className="h-3.5 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
+            {title}
+          </h2>
           <div className="flex items-baseline gap-2 text-xs text-muted">
             {note}
             {action}
@@ -55,6 +60,37 @@ export function Panel({
       ) : null}
       <div className={bodyClassName}>{children}</div>
     </section>
+  );
+}
+
+/**
+ * 进度条。挑战者进化 / 因子实验这类「跑到第几步」的地方用，
+ * 比单纯一行「n/30」更一眼能看出进度。颜色走 token，不写死。
+ * value 是 0–1 的比例（不是百分比），自动夹到 [0,1]。
+ */
+export function Prog({
+  value,
+  tone = "brand",
+  className = "",
+}: {
+  value: number;
+  tone?: "brand" | "accent";
+  className?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, value * 100));
+  return (
+    <div
+      className={`h-1.5 w-full overflow-hidden rounded-full bg-surface-2 ${className}`}
+      role="progressbar"
+      aria-valuenow={Math.round(pct)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <div
+        className={"h-full " + (tone === "accent" ? "bg-accent" : "bg-brand")}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
   );
 }
 

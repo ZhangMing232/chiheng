@@ -18,7 +18,7 @@ import { Frame } from "@/components/screener/nav";
 import { DataStatusBadge, AccountStatus } from "@/components/screener/data-status";
 import { StateBlock } from "@/components/state-block";
 import { RowMenuPortal, useRowMenu, type RowMenuItem } from "@/components/row-menu";
-import { Panel, Stat, Tag, Table, tdClass, thClass, pctClass } from "@/components/terminal";
+import { Panel, Stat, Tag, Prog, Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { signedPct, fmtPrice, fmtMoney, toneClass } from "@/lib/market/format";
 import { dayReliable, liveGate, recentMean } from "@/lib/market/journal-book";
 import { TRACK_NEED } from "@/lib/market/model";
@@ -247,42 +247,47 @@ function ChallengerPanel({
     const sample = samples[c.id];
     const rb = robust[c.id];
     return (
-      <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
-        <span className={`shrink-0 ${st.className}`}>{st.label}</span>
-        <span className="font-medium">
-          {c.name}
-          {isChampion ? <span className="ml-1 text-[10px] text-brand-text">现任冠军</span> : null}
-        </span>
-        <span className="text-muted">
-          {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
-          {c.targetPct ?? "沿用冠军"}%
-        </span>
+      <li key={c.id} className="py-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
+          <span className={`shrink-0 ${st.className}`}>{st.label}</span>
+          <span className="font-medium">
+            {c.name}
+            {isChampion ? <span className="ml-1 text-[10px] text-brand-text">现任冠军</span> : null}
+          </span>
+          <span className="text-muted">
+            {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
+            {c.targetPct ?? "沿用冠军"}%
+          </span>
+          {rb ? (
+            <span
+              className={
+                rb.fragile === true
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-muted"
+              }
+              title={rb.note}
+            >
+              {rb.fragile === true ? "⚠️ 参数悬崖" : rb.fragile === false ? "参数平台" : "敏感度样本不足"}
+            </span>
+          ) : null}
+          {rb?.pbo != null ? (
+            <span
+              className={rb.pbo >= 0.5 ? "text-amber-600 dark:text-amber-400" : "text-muted"}
+              title={`PBO（回测过拟合概率，CSCV ${rb.pboSplits} 切分）：这套参数是数据挖掘出来的运气成分占比。越低越好，≥50% 说明参数大概率是拟合出来的，转正判决要打个问号。只标注，不改判决。`}
+            >
+              PBO {Math.round(rb.pbo * 100)}%
+            </span>
+          ) : null}
+          {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
+        </div>
+        {/* 挑战者进化进度条：用真实样本数 / 目标数，和上面「样本 n/target」同一口径。
+            没攒到样本的挑战者不画条（样本本身就是空，画 0 条是假进度）。 */}
         {sample ? (
-          <span className="tabular-nums text-muted">
-            样本 {sample.n}/{sample.target} · 冠军 {sample.champN}/{sample.target}
-          </span>
+          <div className="mt-1.5 flex items-center gap-2">
+            <Prog value={sample.n / sample.target} />
+            <span className="num shrink-0 text-[11px] text-muted">样本 {sample.n}/{sample.target} · 冠军 {sample.champN}/{sample.target}</span>
+          </div>
         ) : null}
-        {rb ? (
-          <span
-            className={
-              rb.fragile === true
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-muted"
-            }
-            title={rb.note}
-          >
-            {rb.fragile === true ? "⚠️ 参数悬崖" : rb.fragile === false ? "参数平台" : "敏感度样本不足"}
-          </span>
-        ) : null}
-        {rb?.pbo != null ? (
-          <span
-            className={rb.pbo >= 0.5 ? "text-amber-600 dark:text-amber-400" : "text-muted"}
-            title={`PBO（回测过拟合概率，CSCV ${rb.pboSplits} 切分）：这套参数是数据挖掘出来的运气成分占比。越低越好，≥50% 说明参数大概率是拟合出来的，转正判决要打个问号。只标注，不改判决。`}
-          >
-            PBO {Math.round(rb.pbo * 100)}%
-          </span>
-        ) : null}
-        {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
       </li>
     );
   };

@@ -20,7 +20,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
-import { Panel, Tag, pctClass } from "@/components/terminal";
+import { Panel, Tag, Prog, pctClass } from "@/components/terminal";
 import { SentimentGauge } from "@/components/sentiment-gauge";
 import { sessionPhase } from "@/lib/market/session";
 import { journalTradeIds, slimUniverse as slimUniverseByIds } from "@/lib/market/slim-universe";
@@ -324,6 +324,29 @@ function Dashboard() {
               hint={journal.why ?? undefined}
             />
           </div>
+          {/* 挑战者进化进度：效果图「总览」里的进度卡，用真实样本数 / 目标数画条。
+              没在跑的挑战者整段不显示——空转时不编「0/30 进度」。 */}
+          {runningChallengers.length > 0 ? (
+            <div className="border-t border-line px-3 pb-3 pt-3">
+              <div className="mb-2 text-xs font-medium text-muted">挑战者进化进度</div>
+              <div className="flex flex-col gap-2">
+                {runningChallengers.slice(0, 4).map((c) => {
+                  const s = challengerSamples[c.id];
+                  const n = s?.n ?? 0;
+                  const target = s?.target ?? 30;
+                  return (
+                    <div key={c.id}>
+                      <div className="flex items-baseline justify-between text-xs">
+                        <span className="text-fg">{STYLE_LABEL[c.id] ?? c.id}</span>
+                        <span className="num text-muted">{n}/{target}</span>
+                      </div>
+                      <Prog value={n / target} className="mt-1" />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </Panel>
       </div>
 
