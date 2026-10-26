@@ -1011,6 +1011,12 @@ export const getChallengers = createServerFn({ method: "GET" }).handler(async ()
   return { list: chal.list, champions };
 });
 
+/** 因子死因档案（最近 100 条，新的在前）。UI 升级 2026-10：进化页 ⓘ 点开可见判决依据。 */
+export const getTombstones = createServerFn({ method: "GET" }).handler(async () => {
+  const { readTombstones } = await import("@/lib/market/factor-tombstones");
+  return (await readTombstones()).slice(0, 100);
+});
+
 /** 在跑挑战者各自攒到的已平仓样本数（判决要 30 笔，冠军那边也要 30 笔）。和记账进程同一个分桶口径。 */
 export const getChallengerSamples = createServerFn({ method: "GET" }).handler(async () => {
   const { OWNER_ID, readUserBook } = await import("@/lib/market/book-file");

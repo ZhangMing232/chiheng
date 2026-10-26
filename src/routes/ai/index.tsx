@@ -88,6 +88,7 @@ function AIConsolePage() {
   return (
     <Frame aside="AI 管理 · 进化控制台">
       <AISectionTabs />
+      <h1 className="font-display text-xl font-medium tracking-wide">进化控制台</h1>
       <Section
         id="ai-console"
         title="进化控制台"

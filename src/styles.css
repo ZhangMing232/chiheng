@@ -3,40 +3,43 @@
 @theme {
   --font-sans: "WenQuanYi Zen Hei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
     "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
-  --font-serif: "WenQuanYi Zen Hei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
-    "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
-  /* 深色基调按《赤轨 UI 重设计方案》PPT 对齐（2026-10-08）：
-     页面底 #0B0E15、卡片 #131926、悬停 #1A2233、
-     涨/买入 #F2495C、跌/卖出 #0BB97B、链接/辅助 #3D8BFF、品牌赤 #E63C4F。 */
-  --color-bg: #0b0e15;
-  --color-fg: #eef2f6;
-  --color-muted: #8b95a6;
-  --color-surface: #131926;
-  --color-surface-2: #1a2233;
-  --color-line: #242f45;
-  --color-up: #f2495c;
-  --color-down: #0bb97b;
-  --color-up-soft: #2e1f2c;
-  --color-down-soft: #173730;
-  /* 品牌赤（PPT #E63C4F）：只给大面积装饰——2px 品牌条、焦点环、导航激活垫底、
-     名字旁竖条。小字号品牌文字用 --color-brand-text（见下），那个才过 AA。 */
-  --color-brand: #e63c4f;
-  /* 品牌色的小字号文字版。#E63C4F 在 surface-2 上只有 3.88，不达 AA 4.5；
-     提亮到 #F0566A 后是 4.73 / 4.90，合格。两处肉眼几乎看不出差别。 */
-  --color-brand-text: #f0566a;
-  --color-brand-soft: #2c1d2b;
-  /* 链接与可点击强调（PPT #3D8BFF）：跳转、次级数据系列、可点提示。 */
-  --color-accent: #3d8bff;
-  --color-accent-soft: #182740;
+  /* 展示衬线：H1 页面题与杂志式标题专用，全站唯一衬线入口。系统栈，零网络加载。 */
+  --font-display: "Songti SC", "STSong", "Noto Serif SC", "SimSun", Georgia, serif;
+  --font-serif: var(--font-display);
+  /* 深色基调 2026-10-26 按《UI 升级方案》（design/ui-upgrade-2026-10.md）重映射：
+     墨黑 #0C0D10 / 面板 #12141A / 抬升 #1A1D25（中性墨调，去蓝），
+     涨 #E84D4D / 跌 #43A583（红涨绿跌，压掉荧光感），
+     朱砂 #E64B33 只做关键状态点缀，冰蓝 #5B8DB8 做信息/链接（与温度计冷端同源）。 */
+  --color-bg: #0c0d10;
+  --color-fg: #edeff4;
+  --color-muted: #9aa1ad;
+  --color-surface: #12141a;
+  --color-surface-2: #1a1d25;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-up: #e84d4d;
+  --color-down: #43a583;
+  --color-up-soft: rgba(232, 77, 77, 0.12);
+  --color-down-soft: rgba(67, 165, 131, 0.12);
+  /* 品牌朱砂（升级方案 #E64B33）：只给关键状态——品牌条、焦点环、导航激活垫底、
+     温度计热端。小字号品牌文字用 --color-brand-text（AA 版），那个才过 4.5。 */
+  --color-brand: #e64b33;
+  /* 朱砂的小字号文字版：#E64B33 在 surface-2 上对比度不足，
+     提亮到 #E8654C 后约 5.2:1，合格。两处肉眼几乎看不出差别。 */
+  --color-brand-text: #e8654c;
+  --color-brand-soft: rgba(230, 75, 51, 0.14);
+  /* 链接与可点击强调（冰蓝 #5B8DB8）：跳转、次级数据系列、可点提示。
+     和温度计「冰点」同色系，信息色有唯一出处。 */
+  --color-accent: #5b8db8;
+  --color-accent-soft: rgba(91, 141, 184, 0.14);
   /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
      也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
-  --color-warn: #e8a33d;
-  --color-warn-soft: #33260f;
+  --color-warn: #d9a441;
+  --color-warn-soft: rgba(217, 164, 65, 0.14);
   --color-navy: #2b3245;
-  /* 评分星级专用色。不能用 warn（那是「出问题了」）也不能用 brand（和涨跌红太近，
-     一眼扫过去像涨停）。PPT 视觉规范里定的 #C9A869。 */
+  /* 评分/冠军专用色。不能用 warn（那是「出问题了」）也不能用 brand（和涨跌红太近，
+     一眼扫过去像涨停）。 */
   --color-gold: #c9a869;
-  --color-gold-soft: #332a16;
+  --color-gold-soft: rgba(201, 168, 105, 0.14);
   --shadow-card: 0 8px 24px rgb(0 0 0 / 0.28);
   --shadow-pop: 0 6px 18px rgb(0 0 0 / 0.28);
 }
@@ -67,8 +70,12 @@ html[data-theme="light"] {
   --color-down: #0b7040;
   --color-up-soft: #fdecee;
   --color-down-soft: #e7f6ef;
-  --color-brand: #c62016;
+  /* 朱砂在浅底的 AA 版。 */
+  --color-brand: #c62b1a;
   --color-brand-soft: #fdecea;
+  /* 信息/链接（冰蓝的浅底版）。 */
+  --color-accent: #3a6ea5;
+  --color-accent-soft: #e8f0f7;
   /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
      也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
   --color-warn: #8f5c00;
@@ -91,8 +98,10 @@ html[data-theme="light"] {
     --color-down: #0b7040;
     --color-up-soft: #fdecee;
     --color-down-soft: #e7f6ef;
-    --color-brand: #c62016;
+    --color-brand: #c62b1a;
     --color-brand-soft: #fdecea;
+    --color-accent: #3a6ea5;
+    --color-accent-soft: #e8f0f7;
     /* 「出问题了但不致命」专用色。不能用 up（那是涨）、down（那是跌），
        也不能用 brand（和 up 太接近，一眼看过去像涨停）。 */
     --color-warn: #8f5c00;
@@ -295,4 +304,39 @@ main th.sticky {
 
 main tbody tr:hover td.sticky {
   background: var(--color-surface-2);
+}
+
+/* === 杂志层（2026-10-26 定，design/ui-upgrade-2026-10.md）===
+ *
+ * 三个工具类，给首页与进化控制台的「数据杂志排版」用：
+ *
+ * .font-display — H1 页面题专用衬线（系统栈）。全站唯一衬线入口，
+ *   别处不许用，用多了就不值钱了。
+ * .num — 表格数字与 hero 数字强制等宽数字（tabular-nums）。
+ *   大数字的信任感来自对齐，不来自字号。
+ * .hero — hero 数字：40px 起、300 字重、紧行高。只给首页 Zone A
+ *   与温度计分数这类「一眼要数」的位置。
+ * .stale — 数据过期降权：透明度 .55。配合「截至 HH:mm」徽标使用，
+ *   单独用等于没标（用户不知道它为什么灰）。
+ */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.hero {
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.stale {
+  opacity: 0.55;
 }

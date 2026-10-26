@@ -163,6 +163,7 @@ function FactorsIndexPage() {
         )
       }
     >
+      <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
       <FactorSectionTabs />
       {runs.batch ? <TestControls defaults={{ n: runs.batch.n, buckets: runs.batch.buckets }} /> : null}
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/" />

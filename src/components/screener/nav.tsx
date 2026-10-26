@@ -16,6 +16,8 @@ import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-ro
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  Bot,
+  CalendarDays,
   ChevronDown,
   Coins,
   FileSearch,
@@ -26,6 +28,7 @@ import {
   History,
   Image,
   LayoutDashboard,
+  LayoutList,
   LineChart,
   ListFilter,
   Menu,
@@ -35,9 +38,9 @@ import {
   Scale,
   Search,
   Settings,
+  Settings2,
   Sparkles,
   Star,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
@@ -79,51 +82,47 @@ function AccountChip() {
 
 
 /**
- * 左侧分组导航。2026-10-16 按用户「页面太多」的反馈二次整合（此前 10-13 已学
- * Vibe-Research 的 nav.ts 做过一轮）：
+ * 左侧分组导航。2026-10-26 按《UI 升级方案》（design/ui-upgrade-2026-10.md）
+ * 重组成七组信息架构：
  *
- * 信息架构约定（三级）：
- *   一级 = 侧边栏分组（5 组）· 二级 = 组内页面（共 18 项）· 三级 = 页内 tab
- *   （首例：日历与事件页 ?tab=plan|events，原 /events 独立页并入）。
+ *   总览 / 市场 / 资讯 / 研究 / 组合 / 进化 / AI，外加设置。
  *
- * 这轮动了什么：
- *   - 原 4 组 21 项 → 5 组 19 项；「市场情报」组太杂，按用途拆成「市场 / 实验室 / 研究」
- *   - 「个股查询」从导航撤掉：顶栏 ⌘K 全局搜索就是干这个的，独立入口重复
- *   - 「事件」页并入「日历与事件」页（页内 tab），/events 旧路由重定向不断链
- *   - AI 入口仍 pinned 在侧栏底部（学 Vibe），不混进分组
+ * 这轮动了什么（对照上一版 5 组）：
+ *   - 新增「总览」组承载首页（当前指向 /，P0-4 首页落地后由新首页接管）
+ *   - 「资讯」独立成组：快讯 / 消息提醒 / 自媒体图文（老板拍板：studio 保持独立入口）
+ *   - 「进化」从「策略因子」改名并收编策略看板：策略看板 / 因子实验室 / 回测
+ *     （挑战者、进化日志两个入口等 P0-6 的独立页落地后再加，不挂死链）
+ *   - AI 从底部 pinned 单链扩成整组：工作台 / 大管家 / 接口与模型 / 行为边界
+ *   - admin / membership 按方案藏出侧栏（直链可达，会员功能落地后再亮出）
+ *   - 板块、日历、模拟持仓维持重定向现状：它们的真实页面在资金流向/复盘/策略追踪下，
+ *     侧栏不再单列，避免和二级子页撞车
  *
- * 2026-10-21 又两轮：复盘区整合（/review 下每日复盘+信号+公司事件）、策略区整合
- * （/strategies 下选股+追踪）、日历页撤销、板块并入资金流向，
- * 二级项 19 → 18；旧路由（/sectors 等）都留重定向文件，书签不断链。
- *
- * 2026-10-23：资金流向整体并入每日复盘（/review/flow 子区，九个二级页搬过去），
- * 侧栏「资金流向」入口撤掉；旧 /flow 路由留重定向，书签不断链。
- *
- * 保留 Vibe 的三条原则：
+ * 保留的三条老原则：
  *   1. 最多两级（分组 + 页面）；第三级只许在页面里切，不占侧栏
- *   2. 顺序按炒股的人每天的先后：先看主控台 → 看盘情报 → 实验 → 研究 → 我的
- *   3. 接入 AI 固定在侧栏底部（pinned）
+ *   2. 顺序按每天使用先后：先看总览 → 市场 → 资讯 → 研究 → 组合 → 进化 → AI
+ *   3. 旧路由全部留重定向文件，书签不断链
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/butler" | "/studio" | "/strategies" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/news" | "/research" | "/reports" | "/debate" | "/my-stocks" | "/review" | "/review/signals" | "/review/events" | "/inbox" | "/backtest" | "/notes" | "/settings" | "/admin" | "/overseas"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/review" | "/review/signals" | "/review/events" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/debate" | "/reports" | "/notes" | "/my-stocks" | "/strategies/positions" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/ai/rules" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
-  { label: "工作台", items: [{ to: "/", label: "主控台", icon: LayoutDashboard }, { to: "/butler", label: "大管家", icon: Sparkles }, { to: "/studio", label: "自媒体图文", icon: Image }] },
+  { label: "总览", items: [{ to: "/", label: "总览", icon: LayoutDashboard }] },
   {
     label: "市场",
     items: [
       { to: "/overview", label: "股市总览", icon: Gauge },
-      { to: "/review", label: "每日复盘", icon: History },
-      { to: "/news", label: "快讯", icon: Newspaper },
-      { to: "/overseas", label: "港美行情", icon: Globe },
+      { to: "/review", label: "复盘与资金", icon: History },
+      { to: "/review/signals", label: "情绪信号", icon: Coins },
+      { to: "/review/events", label: "日历事件", icon: CalendarDays },
+      { to: "/overseas", label: "全球行情", icon: Globe },
     ],
   },
   {
-    label: "策略因子",
+    label: "资讯",
     items: [
-      { to: "/strategies/screener", label: "策略", icon: ListFilter },
-      { to: "/factors", label: "因子发掘", icon: FlaskConical },
-      { to: "/backtest", label: "回测", icon: LineChart },
+      { to: "/news", label: "快讯", icon: Newspaper },
+      { to: "/inbox", label: "消息与提醒", icon: Bell },
+      { to: "/studio", label: "自媒体图文", icon: Image },
     ],
   },
   {
@@ -136,14 +135,30 @@ const SIDEBAR: {
     ],
   },
   {
-    label: "我的",
+    label: "组合",
     items: [
-      { to: "/my-stocks", label: "自选与持仓", icon: Star },
-      { to: "/inbox", label: "提醒", icon: Bell },
-      { to: "/settings", label: "设置与状态", icon: Settings },
-      { to: "/admin", label: "管理系统", icon: Users },
+      { to: "/my-stocks", label: "自选", icon: Star },
+      { to: "/strategies/positions", label: "持仓与追踪", icon: ListFilter },
     ],
   },
+  {
+    label: "进化",
+    items: [
+      { to: "/strategies/screener", label: "策略看板", icon: LayoutList },
+      { to: "/factors", label: "因子实验室", icon: FlaskConical },
+      { to: "/backtest", label: "回测", icon: LineChart },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      { to: "/ai", label: "工作台", icon: Sparkles },
+      { to: "/butler", label: "大管家", icon: Bot },
+      { to: "/ai/config", label: "接口与模型", icon: Settings2 },
+      { to: "/ai/rules", label: "行为边界", icon: Scale },
+    ],
+  },
+  { label: "设置", items: [{ to: "/settings", label: "设置与状态", icon: Settings }] },
 ];
 
 /** 所有分组项摊平，按路径查「当前在哪儿」。顶栏页面名和边栏激活态共用这一张表。 */
@@ -225,18 +240,6 @@ function SideNav() {
           );
         })}
       </nav>
-      {/* 边栏底部常驻 AI 入口（学 Vibe-Research 的「接入 AI」）。
-          这里的 brand-soft 垫底和激活项同语汇：全站正文其余区域仍是中性灰。 */}
-      <div className="border-t border-line p-2">
-        <Link
-          to="/ai"
-          className="flex items-center gap-2 rounded bg-brand-soft px-3 py-2 text-sm font-medium text-brand-text transition hover:opacity-80"
-        >
-          <Sparkles className="size-3.5 shrink-0" aria-hidden />
-          接入 AI
-          <span className="ml-auto text-[10px] font-normal text-muted">提议 · 闸门判决</span>
-        </Link>
-      </div>
     </aside>
   );
 }
@@ -258,21 +261,59 @@ function PageTitle() {
 }
 
 /**
- * 顶栏全局搜索（⌘K）。输入名称或六位代码，下拉出最多 8 只，回车或点选跳到个股页。
+ * 顶栏全局搜索（⌘K）。两种模式：
+ * - 默认：输名称或六位代码，下拉出最多 8 只股票，回车或点选跳到个股页。
+ * - 命令模式：输入以 > 开头，匹配站内页面（路由跳转），回车去第一个匹配。
  * 数据走 getQuickSearch（服务端在缓存的全市场名单里过滤），不打断当前页。
  */
+const COMMANDS: { label: string; keywords: string; to: string; search?: Record<string, unknown> }[] = [
+  { label: "总览", keywords: "home dashboard 首页", to: "/" },
+  { label: "市场总览", keywords: "market overview 大盘", to: "/overview" },
+  { label: "复盘与资金", keywords: "review flow 资金流向", to: "/review" },
+  { label: "情绪信号", keywords: "signals 涨停 情绪", to: "/review/signals" },
+  { label: "公司事件", keywords: "events 日历 业绩", to: "/review/events" },
+  { label: "全球市场", keywords: "overseas hk us 港美", to: "/overseas", search: { tab: "indices", market: "hk", page: 1, sort: "chg" } },
+  { label: "热点资讯", keywords: "news 快讯", to: "/news" },
+  { label: "消息与提醒", keywords: "inbox 提醒", to: "/inbox" },
+  { label: "自媒体", keywords: "studio 海报", to: "/studio" },
+  { label: "AI 个股分析", keywords: "research ai 研究", to: "/research" },
+  { label: "多空辩论", keywords: "debate 辩论", to: "/debate" },
+  { label: "研报", keywords: "reports", to: "/reports" },
+  { label: "笔记", keywords: "notes", to: "/notes" },
+  { label: "自选", keywords: "watchlist my-stocks", to: "/my-stocks" },
+  { label: "持仓与追踪", keywords: "positions 持仓", to: "/strategies/positions" },
+  { label: "策略看板", keywords: "screener 策略 选股", to: "/strategies/screener" },
+  { label: "因子实验室", keywords: "factors 因子", to: "/factors" },
+  { label: "回测", keywords: "backtest", to: "/backtest" },
+  { label: "AI 工作台", keywords: "ai 智能", to: "/ai" },
+  { label: "大管家", keywords: "butler", to: "/butler" },
+  { label: "接口与模型", keywords: "ai config 配置 token", to: "/ai/config" },
+  { label: "行为边界", keywords: "ai rules 规则", to: "/ai/rules" },
+  { label: "设置", keywords: "settings", to: "/settings" },
+];
+
 function QuickSearch() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cmdMode = q.startsWith(">");
+  const cmdQuery = q.slice(1).trim().toLowerCase();
   const { data } = useQuery({
     queryKey: ["quick-search", q],
     queryFn: () => getQuickSearch({ data: { q } }),
-    enabled: q.trim().length > 0,
+    enabled: q.trim().length > 0 && !cmdMode,
     staleTime: 30_000,
   });
   const matches = data?.matches ?? [];
+  const commands = cmdMode
+    ? COMMANDS.filter(
+        (c) =>
+          cmdQuery.length === 0 ||
+          c.label.toLowerCase().includes(cmdQuery) ||
+          c.keywords.toLowerCase().includes(cmdQuery),
+      ).slice(0, 8)
+    : [];
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -292,6 +333,12 @@ function QuickSearch() {
     void navigate({ to: "/symbol", search: { q: code } });
   }
 
+  function jumpCommand(cmd: (typeof COMMANDS)[number]) {
+    setOpen(false);
+    setQ("");
+    void navigate({ to: cmd.to, search: (cmd.search ?? {}) as never });
+  }
+
   return (
     <div className="relative min-w-0 flex-1 md:max-w-sm">
       <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted" aria-hidden />
@@ -305,14 +352,17 @@ function QuickSearch() {
         onFocus={() => setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 150)}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && matches[0]) jump(matches[0].code);
+          if (event.key === "Enter") {
+            if (cmdMode && commands[0]) jumpCommand(commands[0]);
+            else if (!cmdMode && matches[0]) jump(matches[0].code);
+          }
           if (event.key === "Escape") {
             setQ("");
             setOpen(false);
             inputRef.current?.blur();
           }
         }}
-        placeholder="搜索股票代码或名称"
+        placeholder="搜索股票，或 > 跳转页面"
         aria-label="全局搜索"
         className="w-full rounded border border-line bg-surface py-1.5 pr-12 pl-8 text-sm text-fg placeholder:text-muted focus:border-accent"
       />
@@ -321,7 +371,24 @@ function QuickSearch() {
       </kbd>
       {open && q.trim() && (
         <div className="absolute z-30 mt-1 w-full min-w-56 overflow-hidden rounded border border-line bg-surface shadow-pop">
-          {matches.length === 0 ? (
+          {cmdMode ? (
+            commands.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-muted">没有匹配的页面</div>
+            ) : (
+              commands.map((cmd) => (
+                <button
+                  key={cmd.to}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => jumpCommand(cmd)}
+                  className="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2"
+                >
+                  <span className="text-fg">{cmd.label}</span>
+                  <span className="text-xs text-muted">{cmd.to}</span>
+                </button>
+              ))
+            )
+          ) : matches.length === 0 ? (
             <div className="px-3 py-2 text-xs text-muted">没有匹配的股票</div>
           ) : (
             matches.map((item) => (
@@ -379,7 +446,7 @@ function applyTheme(mode: string) {
   if (mode === "light" || mode === "dark") root.dataset.theme = mode;
   else delete root.dataset.theme;
   const dark = mode === "dark" || (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0b0e15" : "#f5f6f8");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0c0d10" : "#f5f6f8");
 }
 
 /**
@@ -690,13 +757,6 @@ export function MobileNav() {
               })}
             </div>
           ))}
-          <Link
-            to="/ai"
-            className="flex items-center gap-2 bg-brand-soft px-3 py-2.5 text-sm font-medium text-brand-text"
-          >
-            <Sparkles className="size-3.5 shrink-0" aria-hidden />
-            接入 AI
-          </Link>
         </div>
       )}
     </div>

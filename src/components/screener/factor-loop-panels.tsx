@@ -21,13 +21,17 @@ import {
   getChallengers,
   getDecisionLedger,
   getFactorQueue,
+  getServerJournal,
+  getTombstones,
   runFactorAI,
   runStrategyAI,
 } from "@/lib/market/quotes.functions";
 import type { DecisionLedger } from "@/lib/market/decision-ledger";
 import type { QueueEntry, QueuePayload } from "@/lib/market/factor-queue";
 import type { Challenger } from "@/lib/market/challenger";
+import type { TombstoneRecord } from "@/lib/market/factor-tombstones";
 import { STYLES } from "@/lib/market/strategies";
+import { MAX_POSITIONS_DEFAULT } from "@/lib/market/sizing";
 
 /** 区块外壳（ai.tsx 的 Section 是页面私有组件，这里自带一份同款）。 */
 function Section({ id, title, hint, children }: { id?: string; title: string; hint?: string; children: React.ReactNode }) {
@@ -69,10 +73,77 @@ type Loader = {
   /** 在跑挑战者攒到的已平仓样本数（判决双方各要 30 笔），id → {n, target, champN}。 */
   samples: Record<string, { n: number; target: number; champN: number }>;
   ledger: { allowed: boolean; ledger: DecisionLedger | null };
+  /** 各策略当前未平仓只数（策略池饱和度：满池时挑战者成交会被挤掉）。 */
+  openByStyle: Record<string, number>;
+  /** 因子死因档案（最近 100 条，新的在前）。 */
+  tombstones: TombstoneRecord[];
 };
 
-/** 决策者记分牌（区块代码从 ai.tsx 原样搬来）。 */
-function LedgerSection({ ledger }: { ledger: Loader["ledger"] }) {
+/** 判决进度环：x/30，环满才够 Welch 双样本判决。两边（挑战者/冠军）各画一个。 */
+function ProgressRing({ n, target, label }: { n: number; target: number; label: string }) {
+  const pct = Math.min(1, n / target);
+  const R = 8;
+  const C = 2 * Math.PI * R;
+  return (
+    <span className="inline-flex items-center gap-1" title={`${label} ${n}/${target} 笔`}>
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden className="-rotate-90">
+        <circle cx="10" cy="10" r={R} fill="none" stroke="var(--color-surface-2)" strokeWidth="3" />
+        <circle
+          cx="10"
+          cy="10"
+          r={R}
+          fill="none"
+          stroke={pct >= 1 ? "var(--color-up)" : "var(--color-accent)"}
+          strokeWidth="3"
+          strokeDasharray={C}
+          strokeDashoffset={C * (1 - pct)}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span className="tabular-nums text-muted">
+        {label} {n}/{target}
+      </span>
+    </span>
+  );
+}
+
+/** 因子死因档案：每个被淘汰的因子留一行，点开看败在哪几关、当初为什么信它。
+ *  可观测性原则——死因不摊开，「AI 在进化」就只是一句口号。 */
+function DeathsArchive({ records }: { records: TombstoneRecord[] }) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? records : records.slice(0, 3);
+  return (
+    <div className="border-t border-line px-3.5 py-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-baseline justify-between gap-2 text-xs text-muted transition hover:text-fg"
+        aria-expanded={open}
+      >
+        <span>
+          死因档案 <span className="tabular-nums">{records.length}</span> 条
+          <span className="ml-2 text-[11px] text-muted/70">败在哪几关、当初的经济逻辑，全留底</span>
+        </span>
+        <span className="shrink-0">{open ? "收起 ▲" : "展开 ▼"}</span>
+      </button>
+      <ul className="mt-1.5 space-y-1.5">
+        {shown.map((r) => (
+          <li key={`${r.id}-${r.diedAt}`} className="text-[11px] leading-relaxed">
+            <span className="font-medium text-fg">{r.name}</span>
+            <span className="ml-2 text-muted">
+              {r.source === "ai" ? "AI 提" : "人工提"} · 跑 {r.runs} 轮 · 连败 {r.failCount}
+              {r.failedGates.length ? ` · 败于 ${r.failedGates.join("/")}` : " · 衰减退役（非 6 关打死的）"}
+            </span>
+            <span className="mt-0.5 block text-muted">{r.note}</span>
+            {r.rationale ? <span className="mt-0.5 block text-muted/70">当初的逻辑：{r.rationale}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** 决策者记分牌（区块代码从 ai.tsx 原样搬来）。 */function LedgerSection({ ledger }: { ledger: Loader["ledger"] }) {
   if (!ledger.allowed) {
     return <p className="px-3.5 py-3 text-xs text-muted">只有主人账号能看记分牌。</p>;
   }
@@ -117,15 +188,27 @@ export function FactorLoopPanels() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [queue, chalRes, samplesRes, ledgerRes, aiRes] = await Promise.all([
+      const [queue, chalRes, samplesRes, ledgerRes, aiRes, journal, tombstones] = await Promise.all([
         getFactorQueue().catch((e: unknown): QueuePayload => ({ entries: [], missing: messageOf(e) })),
         getChallengers().then((res) => res.list).catch((): Challenger[] => []),
         getChallengerSamples().catch((): Loader["samples"] => ({})),
         getDecisionLedger().catch((): Loader["ledger"] => ({ allowed: false, ledger: null })),
         getAIStatus().catch(() => ({ allowed: false, configured: false })),
+        getServerJournal().catch(() => ({ days: [], personal: false, why: null })),
+        getTombstones().catch((): TombstoneRecord[] => []),
       ]);
       if (!alive) return;
-      setData({ queue, chal: chalRes, samples: samplesRes, ledger: ledgerRes, ai: { allowed: aiRes.allowed, configured: aiRes.configured } });
+      // 策略池饱和度：每套策略未平仓只数（池满 = 挑战者今天大概率挤不进成交）。
+      const openByStyle: Record<string, number> = {};
+      for (const day of journal.days) {
+        for (const trade of day.trades) {
+          if (trade.exit == null) {
+            const style = trade.style ?? "other";
+            openByStyle[style] = (openByStyle[style] ?? 0) + 1;
+          }
+        }
+      }
+      setData({ queue, chal: chalRes, samples: samplesRes, ledger: ledgerRes, ai: { allowed: aiRes.allowed, configured: aiRes.configured }, openByStyle, tombstones });
     })();
     return () => {
       alive = false;
@@ -133,7 +216,7 @@ export function FactorLoopPanels() {
   }, []);
 
   if (!data) return <StateBlock kind="loading" title="正在读闭环数据" hint="队列、挑战者、记分牌" />;
-  const { queue, chal, samples, ledger, ai } = data;
+  const { queue, chal, samples, ledger, ai, openByStyle, tombstones } = data;
 
   const runFactor = async () => {
     setBusy("factor");
@@ -185,6 +268,7 @@ export function FactorLoopPanels() {
         hint="同一个问题用记账回答：AI 做的决策到底行不行。因子层看 6 关过关率，策略层看挑战者转正率，两列对照——AI 列长期难看就该怀疑闭环，不该怀疑判据。数据缺哪边就空哪边，不补 0 冒充。"
       >
         <LedgerSection ledger={ledger} />
+        {tombstones.length > 0 ? <DeathsArchive records={tombstones} /> : null}
       </Section>
 
       <Section
@@ -328,17 +412,29 @@ export function FactorLoopPanels() {
             <ul className="space-y-1">
               {chal.slice(-12).reverse().map((c) => {
                 const st = CHAL_STATUS[c.status];
+                const smp = samples[c.id];
+                const open = openByStyle[c.style] ?? 0;
+                const poolFull = c.status === "running" && open >= MAX_POSITIONS_DEFAULT;
                 return (
-                  <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                  <li key={c.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                     <span className={`shrink-0 ${st.className}`}>{st.label}</span>
                     <span className="font-medium">{c.name}</span>
+                    {poolFull ? (
+                      <span
+                        className="rounded bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn"
+                        title={`${styleName(c.style)}池 ${open} 仓已满（上限 ${MAX_POSITIONS_DEFAULT}），挑战者成交会变慢`}
+                      >
+                        池满 · 成交缓慢
+                      </span>
+                    ) : null}
                     <span className="text-muted">
                       {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标
                       {c.targetPct ?? "沿用冠军"}% · {c.since} 开跑
                     </span>
-                    {samples[c.id] ? (
-                      <span className="tabular-nums text-muted">
-                        样本 {samples[c.id].n}/{samples[c.id].target} · 冠军 {samples[c.id].champN}/{samples[c.id].target}
+                    {smp ? (
+                      <span className="flex flex-wrap items-center gap-x-3">
+                        <ProgressRing n={smp.n} target={smp.target} label="挑战者" />
+                        <ProgressRing n={smp.champN} target={smp.target} label="冠军" />
                       </span>
                     ) : null}
                     {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}

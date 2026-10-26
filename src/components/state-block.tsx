@@ -94,3 +94,31 @@ export function StateBlock({
     </div>
   );
 }
+
+/** 骨架屏：整块内容还没回来的时候先立个形，别一片空白。高度按内容区估。 */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={
+        "animate-pulse rounded bg-surface-2 " + className
+      }
+    />
+  );
+}
+
+/** 数据过期标记：挂在某个分区标题行，说明这份数据多久没动了。 */
+export function StaleBadge({ at, staleMs = 10 * 60_000 }: { at: number | null; staleMs?: number }) {
+  if (at == null) {
+    return <span className="text-[11px] text-warn">时间未知，数据可能过期</span>;
+  }
+  const age = Date.now() - at;
+  if (age < staleMs) {
+    return <span className="num text-[11px] text-muted">更新于 {new Date(at).toTimeString().slice(0, 5)}</span>;
+  }
+  return (
+    <span className="num text-[11px] text-warn">
+      更新于 {new Date(at).toTimeString().slice(0, 5)}（已 {Math.round(age / 60_000)} 分钟未动，可能过期）
+    </span>
+  );
+}

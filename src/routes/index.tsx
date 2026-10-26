@@ -1,12 +1,19 @@
 /**
  * 这个文件是干什么的：
- * 主控台——每天打开的第一页（《赤轨 UI 重设计方案》里的 01 工作台）。
- * 一屏看完：今日信号、追踪中的策略、大盘分时、行业资金，全部用真账真行情，
- * 数字造不出来就不放（设计稿里的演示数字一律不抄）。
+ * 总览首页（《赤轨 UI 升级方案 2026-10》首页 Zone A–D，直接替换旧主控台）。
+ * 目标：30 秒看懂「市场怎么样 + 系统正不正常」，全站第一屏的成品感在这页立住。
  *
- * 你需要知道的：
- * - 数据来自五个现成接口：指数、账本、资金流向、行情名单、记账心跳。
- * - 资金流向拉不下来时那一块显示说明，不造假数。
+ * 分区：
+ * - Zone A 市场核心：指数条 + 情绪温度计（签名组件）+ 今日关键数字 + 大盘分时
+ * - Zone B 资金与结构：资金快照三格 + 行业资金 Top5 双色条
+ * - Zone C 全球对照 + 产品状态：全球指数迷你列表 + 服务/开平仓/挑战者进度
+ * - Zone D 轻量延伸：今日信号 + 热点快讯
+ *
+ * 纪律：
+ * - 全部复用现成接口，任何一块拉失败都降级成说明，不造假数。
+ * - 全市场快照照旧在 loader 里瘦身（~5300 只进 SSR HTML 会把手机端卡死），
+ *   涨跌家数用现成的 getBreadth（服务端算好，不塞全量快照给浏览器）。
+ * - 不放任何买卖建议。
  */
 
 import { createFileRoute } from "@tanstack/react-router";
@@ -14,31 +21,46 @@ import { Link } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, pctClass } from "@/components/terminal";
+import { SentimentGauge } from "@/components/sentiment-gauge";
 import { sessionPhase } from "@/lib/market/session";
 import { journalTradeIds, slimUniverse as slimUniverseByIds } from "@/lib/market/slim-universe";
+import { computeSentiment } from "@/lib/market/sentiment";
+import type { Breadth } from "@/lib/market/slim-universe";
 import type { IndexQuote, Quote, SessionInfo } from "@/lib/market/types";
+import type { NewsItem } from "@/lib/market/news";
 import type { PaperDay } from "@/lib/paper";
 import type { FlowBook } from "@/lib/market/flow";
 import {
+  getBreadth,
+  getChallengerSamples,
+  getChallengers,
   getFlow,
   getIndices,
+  getNews,
   getRecorder,
   getServerJournal,
   getTrend,
   getUniverse,
 } from "@/lib/market/quotes.functions";
+import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 
-/** 主控台要的数据一次取齐。任何一块拉失败都降级成空，不让整页打不开。 */
+/** 首页要的数据一次取齐。任何一块拉失败都降级成空，不让整页打不开。 */
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow] = await Promise.all([
-      getIndices().catch(() => [] as IndexQuote[]),
-      getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
-      getUniverse({ data: { refresh: false } }).catch(() => null),
-      getRecorder().catch(() => ({ at: null, ok: false })),
-      getFlow().catch(() => null as FlowBook | null),
-    ]);
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news] =
+      await Promise.all([
+        getIndices().catch(() => [] as IndexQuote[]),
+        getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
+        getUniverse({ data: { refresh: false } }).catch(() => null),
+        getRecorder().catch(() => ({ at: null, ok: false })),
+        getFlow().catch(() => null as FlowBook | null),
+        getBreadth().catch(() => null as Breadth | null),
+        getChallengers().catch(() => ({ list: [], champions: {} })),
+        getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
+        getOverseasIndices().catch(() => ({ quotes: [] as IndexQuote[], gaps: [] as string[] })),
+        getNews().catch(() => [] as NewsItem[]),
+      ]);
     // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
     const trend = indices[0]
       ? await getTrend({ data: { id: indices[0].id } }).catch(() => null)
@@ -46,7 +68,28 @@ export const Route = createFileRoute("/")({
     // 全市场快照 ~5300 只、进 SSR HTML 有 1.2MB，手机端解析时会卡到点不动。
     // 首页只用持仓相关的几只（priceOf 按 id 查现价/涨跌），先按账本 id 瘦身再返回。
     const slimUniverse = slimUniverseByIds(universe, journalTradeIds(journal));
-    return { phase, indices, journal, universe: slimUniverse, recorder, trend, flow };
+    // 情绪温度计在服务端算好（分量全是上面的真实数据，计算本身在 lib 里有测试钉着）。
+    const sentiment = breadth
+      ? computeSentiment(
+          breadth,
+          indices.map((item) => item.pct),
+          flow ? flow.market.reduce((total, part) => total + part.main, 0) : null,
+        )
+      : null;
+    // 数据时间脚注：指数行情的时间戳最可靠；没有就标未知。
+    const stamp =
+      phase.date && indices[0]?.time
+        ? new Date(`${phase.date}T${indices[0].time}`).getTime()
+        : null;
+    return {
+      phase, indices, journal, universe: slimUniverse, recorder, trend, flow,
+      breadth, sentiment, stamp,
+      runningChallengers: challengers.list.filter((c) => c.status === "running"),
+      challengerSamples: samples,
+      overseas: overseas.quotes.slice(0, 6),
+      overseasGaps: overseas.gaps,
+      news: news.slice(0, 6),
+    };
   },
   component: Dashboard,
 });
@@ -64,90 +107,93 @@ function todayStr(phase: SessionInfo): string {
   return phase.date ?? "";
 }
 
+/** 万元 → 「x.x 亿」 */
+function yi(wan: number | null): string {
+  return wan == null ? "—" : `${(wan / 10_000).toFixed(1)} 亿`;
+}
+
 function Dashboard() {
-  const { phase, indices, journal, universe, recorder, trend, flow } = Route.useLoaderData();
+  const {
+    phase, indices, journal, universe, recorder, trend, flow,
+    breadth, sentiment, stamp,
+    runningChallengers, challengerSamples, overseas, overseasGaps, news,
+  } = Route.useLoaderData();
   const date = todayStr(phase);
-  // 账本按天、新的在前；今天那天的信号是「今日新增」
   const todayDay = journal.days.find((day) => day.date === date) ?? null;
   const buysToday = todayDay?.trades ?? [];
-  // 今天卖出的散落在所有历史天里（exitDate 是卖出那天）
   const sellsToday = journal.days.flatMap((day) =>
     day.trades.filter((trade) => trade.exit != null && trade.exitDate === date),
   );
-  // 手上还持有的（跨所有天），按策略分组
   const openTrades = journal.days.flatMap((day) => day.trades.filter((trade) => trade.exit == null));
   const styles = [...new Set(openTrades.map((trade) => trade.style ?? "other"))];
   const priceOf = (id: string): Quote | null => universe?.quotes.find((quote) => quote.id === id) ?? null;
   const mainInflow = flow ? flow.market.reduce((total, part) => total + part.main, 0) : null;
-  const recorderDead = recorder.at == null || Date.now() - recorder.at > 3 * 60_000;
-
-  // ── 页头装饰用的真实数据（不额外拉接口，全从已有 loader 数据算）──
-  // 今日信号数 = 今天买入 + 今天卖出的笔数
-  const todaySignalCount = buysToday.length + sellsToday.length;
-  // 资金装饰件：主力净流入前 3 合计（万元 → 亿元，一位小数）
-  const flowTop3Wan = flow
-    ? flow.stocksIn.slice(0, 3).reduce((sum, row) => sum + row.inflow, 0)
+  const northAmount = flow && flow.north.length ? flow.north.reduce((total, leg) => total + leg.amount, 0) : null;
+  const tapeAmount = flow && flow.tape.length ? flow.tape.reduce((total, row) => total + row.amount, 0) : null;
+  const prevTape = flow && flow.tape.length
+    ? flow.tape.reduce((total, row) => total + (row.prevAmount ?? 0), 0)
     : null;
-  const flowTop3 = flowTop3Wan != null ? `${(flowTop3Wan / 1e4).toFixed(1)} 亿` : null;
-  // 记账心跳状态（心跳超 3 分钟算异常 → warn 色调）
-  const recorderLabel = recorderDead ? "记账" : "记账";
-  const recorderValue = recorderDead
-    ? "中断"
-    : recorder.at != null
-      ? `${Math.max(0, Math.round((Date.now() - recorder.at) / 60000))} 分钟前`
-      : null;
+  const recorderDead = recorder.at == null || Date.now() - recorder.at > 3 * 60_000;
 
   return (
     <Frame
       wide
       status={{
         label: "今日信号",
-        // 真实数据：今天的买卖笔数。journal 读不到时 journal.days 是空数组，
-        // 那就是「今天 0 条」而不是「不知道」——账本是本地的，读得到就是 0。
-        value: `${todaySignalCount} 条`,
-        tone: todaySignalCount > 0 ? "brand" : "neutral",
+        value: `${buysToday.length + sellsToday.length} 条`,
+        tone: buysToday.length + sellsToday.length > 0 ? "brand" : "neutral",
       }}
-      ornamentContent={
-        <>
-          <span className="text-[11px] tabular-nums">
-            {flowTop3 != null ? `主力净流入前 3 合计 ${flowTop3}` : "资金榜暂不可用"}
-          </span>
-          <span className="text-[11px] tabular-nums">·</span>
-          <span className={"text-[11px] " + (recorderDead ? "text-warn" : "text-muted")}>
-            {recorderLabel} {recorderValue ?? "状态未知"}
-          </span>
-        </>
-      }
     >
-      {/* 第一行：四张 KPI 卡（PPT：1:4，h 88-92） */}
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-        <Kpi label="今日新增信号" value={buysToday.length + sellsToday.length}>
-          买入 {buysToday.length} · 卖出 {sellsToday.length}
-        </Kpi>
-        <Kpi label="追踪中策略" value={styles.length} suffix="套">
-          持仓 {openTrades.length} 只
-        </Kpi>
-        <Kpi label="主力净流入 · 全市场" value={mainInflow == null ? null : (mainInflow / 10_000).toFixed(1)} suffix="亿" tone={mainInflow == null ? undefined : mainInflow > 0 ? "text-up" : mainInflow < 0 ? "text-down" : undefined}>
-          {flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂时拉不下来"}
-        </Kpi>
-        <Kpi
-          label="记账状态"
-          value={recorderDead ? "中断" : "正常"}
-          tone={recorderDead ? "text-warn" : "text-down"}
-        >
-          {recorder.at ? `更新于 ${new Date(recorder.at).toTimeString().slice(0, 5)}` : "心跳丢失"}
-        </Kpi>
-      </div>
+      {/* ── Zone A 市场核心状态 ── */}
+      <h1 className="font-display text-xl font-medium tracking-wide">总览</h1>
 
-      {/* 第二行：大盘分时（左 2/3）+ 今日信号（右 1/3） */}
+      <Panel title="指数" note={stamp != null ? `更新于 ${new Date(stamp).toTimeString().slice(0, 5)}` : undefined}>
+        <div className="flex overflow-x-auto scroll-slim">
+          {indices.slice(0, 6).map((item) => (
+            <div key={item.id} className="flex min-w-32 shrink-0 flex-col gap-0.5 border-r border-line px-3 py-2 last:border-r-0">
+              <span className="truncate text-xs text-muted">{item.name}</span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="num text-sm font-medium">{item.price.toFixed(2)}</span>
+                <span className={"num text-xs " + pctClass(item.pct)}>{item.pct > 0 ? "+" : ""}{item.pct.toFixed(2)}%</span>
+              </span>
+            </div>
+          ))}
+          {indices.length === 0 ? <div className="px-3 py-2 text-sm text-muted">指数暂时拉不下来</div> : null}
+        </div>
+      </Panel>
+
       <div className="grid gap-2 lg:grid-cols-3">
-        <Panel
-          className="lg:col-span-2"
-          title="大盘分时"
-          note={indices[0] ? `${indices[0].name} ${indices[0].price.toFixed(2)}` : "指数暂时拉不下来"}
-        >
+        <SentimentGauge reading={sentiment} updatedAt={stamp} />
+
+        <Panel title="今日关键数字" note={breadth ? `全市场 ${breadth.up + breadth.down + breadth.flat} 只` : undefined}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 p-3">
+            <KeyNum
+              label="上涨 / 下跌"
+              value={breadth ? `${breadth.up} / ${breadth.down}` : null}
+              hint={breadth ? `平盘 ${breadth.flat}` : "涨跌家数暂不可用"}
+            />
+            <KeyNum
+              label="涨停 / 跌停"
+              value={breadth ? `${breadth.limitUp} / ${breadth.limitDown}` : null}
+              hint="涨跌停是情绪极值"
+            />
+            <KeyNum
+              label="两市成交额"
+              value={tapeAmount != null ? yi(tapeAmount) : null}
+              hint={prevTape ? `昨日 ${yi(prevTape)}` : "成交额暂不可用"}
+            />
+            <KeyNum
+              label="主力净流入 · 全市场"
+              value={mainInflow == null ? null : yi(mainInflow)}
+              tone={mainInflow == null ? undefined : mainInflow > 0 ? "text-up" : mainInflow < 0 ? "text-down" : undefined}
+              hint={flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂不可用"}
+            />
+          </div>
+        </Panel>
+
+        <Panel title="大盘分时" note={indices[0] ? `${indices[0].name} ${indices[0].price.toFixed(2)}` : "指数暂时拉不下来"}>
           {trend && trend.points.length > 1 ? (
-            <div className="h-64 px-2 py-2">
+            <div className="h-[150px] px-2 py-2">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend.points} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   <defs>
@@ -169,10 +215,120 @@ function Dashboard() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex h-64 items-center justify-center text-sm text-muted">分时数据暂时拉不下来</div>
+            <div className="flex h-[150px] items-center justify-center text-sm text-muted">分时数据暂时拉不下来</div>
           )}
         </Panel>
+      </div>
 
+      {/* ── Zone B 资金与结构 ── */}
+      <div className="grid gap-2 lg:grid-cols-2">
+        <Panel title="资金快照" note={flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂不可用"}>
+          <div className="grid grid-cols-1 gap-x-3 p-3 sm:grid-cols-3">
+            <KeyNum
+              label="主力净额 · 全市场"
+              value={mainInflow == null ? null : yi(mainInflow)}
+              tone={mainInflow == null ? undefined : mainInflow > 0 ? "text-up" : mainInflow < 0 ? "text-down" : undefined}
+              hint="主力 = 超大单 + 大单"
+            />
+            <KeyNum
+              label="北向成交额"
+              value={northAmount != null ? yi(northAmount) : null}
+              hint="沪深股通双腿合计；净流入自 2024-08 起不再公布"
+            />
+            <KeyNum
+              label="两市成交额"
+              value={tapeAmount != null ? yi(tapeAmount) : null}
+              hint={prevTape ? `昨日 ${yi(prevTape)}${tapeAmount != null && prevTape ? `（${tapeAmount >= prevTape ? "+" : ""}${(((tapeAmount - prevTape) / prevTape) * 100).toFixed(1)}%）` : ""}` : undefined}
+            />
+          </div>
+        </Panel>
+
+        <Panel title="行业主力净流入 TOP5" note={<Link to="/review/flow" className="text-accent hover:underline">资金流向 →</Link>}>
+          <div className="flex flex-col gap-1 p-2">
+            {flow
+              ? [...flow.sectorsIn.slice(0, 5).map((row) => ({ row, side: 1 as const })),
+                 ...flow.sectorsOut.slice(0, 5).map((row) => ({ row, side: -1 as const }))]
+                  .sort((a, b) => Math.abs(b.row.inflow) - Math.abs(a.row.inflow))
+                  .slice(0, 8)
+                  .map(({ row, side }) => (
+                    <div key={row.id + side} className="flex items-center gap-2 text-sm">
+                      <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                      <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-surface-2">
+                        <div
+                          className={side > 0 ? "h-full bg-up" : "h-full bg-down"}
+                          style={{ width: `${Math.min(100, (Math.abs(row.inflow) / 10_000 / Math.max(1, ...flow.sectorsIn.slice(0, 5).map((r) => Math.abs(r.inflow) / 10_000))) * 100).toFixed(0)}%` }}
+                        />
+                      </div>
+                      <span className={"num w-20 shrink-0 text-right " + (side > 0 ? "text-up" : "text-down")}>
+                        {side > 0 ? "+" : ""}{(row.inflow / 10_000).toFixed(1)} 亿
+                      </span>
+                    </div>
+                  ))
+              : <div className="py-6 text-center text-sm text-muted">资金流向暂时拉不下来</div>}
+            {flow && flow.sectorsIn.length === 0 ? <div className="py-6 text-center text-sm text-muted">今天没有行业资金数据</div> : null}
+          </div>
+        </Panel>
+      </div>
+
+      {/* ── Zone C 全球对照 + 产品状态 ── */}
+      <div className="grid gap-2 lg:grid-cols-2">
+        <Panel title="全球市场" note={<Link to="/overseas" search={{ tab: "indices", market: "hk", page: 1, sort: "chg" }} className="text-accent hover:underline">全部行情 →</Link>}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2 p-3 sm:grid-cols-3">
+            {overseas.map((item) => (
+              <KeyNum
+                key={item.id}
+                label={item.name}
+                value={item.price != null ? item.price.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : null}
+                tone={item.chg != null ? (item.chg > 0 ? "text-up" : item.chg < 0 ? "text-down" : undefined) : undefined}
+                hint={item.chg != null ? `${item.chg > 0 ? "+" : ""}${item.chg.toFixed(2)}%` : "休市/暂无新价"}
+              />
+            ))}
+            {overseas.length === 0 ? (
+              <div className="col-span-full py-4 text-center text-sm text-muted">
+                {overseasGaps[0] ?? "全球市场行情暂不可用"}
+              </div>
+            ) : null}
+          </div>
+        </Panel>
+
+        <Panel title="产品与进化状态" note={recorderDead ? <span className="text-warn">记账异常</span> : "系统正常"}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 p-3">
+            <KeyNum
+              label="记账心跳"
+              value={recorderDead ? "中断" : "正常"}
+              tone={recorderDead ? "text-warn" : "text-down"}
+              hint={recorder.at ? `更新于 ${new Date(recorder.at).toTimeString().slice(0, 5)}` : "心跳丢失"}
+            />
+            <KeyNum
+              label="今日开 / 平仓"
+              value={`${buysToday.length} / ${sellsToday.length}`}
+              hint={`追踪中策略 ${styles.length} 套 · 持仓 ${openTrades.length} 只`}
+            />
+            <KeyNum
+              label="在跑挑战者"
+              value={runningChallengers.length}
+              suffix="个"
+              hint={
+                runningChallengers.length
+                  ? runningChallengers
+                      .slice(0, 2)
+                      .map((c) => `${c.id} ${challengerSamples[c.id]?.n ?? 0}/${challengerSamples[c.id]?.target ?? 30}`)
+                      .join(" · ") + (runningChallengers.length > 2 ? ` 等` : "")
+                  : "进化闭环在空转"
+              }
+            />
+            <KeyNum
+              label="持仓策略"
+              value={styles.length}
+              suffix="套"
+              hint={journal.why ?? undefined}
+            />
+          </div>
+        </Panel>
+      </div>
+
+      {/* ── Zone D 轻量延伸 ── */}
+      <div className="grid gap-2 lg:grid-cols-2">
         <Panel title="今日信号" note={<Link to="/strategies/positions" className="text-accent hover:underline">全部持仓 →</Link>}>
           <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto scroll-slim p-2">
             {sellsToday.map((trade) => (
@@ -197,150 +353,55 @@ function Dashboard() {
             ) : null}
           </div>
         </Panel>
-      </div>
 
-      {/* 第三行：策略表现（左）+ 行业资金（右） */}
-      <div className="grid gap-2 lg:grid-cols-2">
-        <Panel title="追踪中策略" note={<Link to="/strategies/positions" className="text-accent hover:underline">策略追踪 →</Link>}>
-          <table className="w-full text-sm">
-            <caption className="sr-only">各策略持仓与今日新进</caption>
-            <thead>
-              <tr className="text-xs text-muted">
-                <th className="px-2.5 py-1.5 text-left font-normal">策略</th>
-                <th className="px-2.5 py-1.5 text-right font-normal">持仓</th>
-                <th className="px-2.5 py-1.5 text-right font-normal">今日新进</th>
-                <th className="px-2.5 py-1.5 text-right font-normal">距止损空间</th>
-              </tr>
-            </thead>
-            <tbody>
-              {styles.map((style) => {
-                const held = openTrades.filter((trade) => (trade.style ?? "other") === style);
-                const fresh = buysToday.filter((trade) => (trade.style ?? "other") === style);
-                const rooms = held
-                  .map((trade) => {
-                    const quote = priceOf(trade.id);
-                    if (!quote || trade.stop == null || trade.stop === 0) return null;
-                    return ((quote.price - trade.stop) / trade.stop) * 100;
-                  })
-                  .filter((value): value is number => value != null);
-                const avgRoom = rooms.length ? rooms.reduce((a, b) => a + b, 0) / rooms.length : null;
-                return (
-                  <tr key={style} className="border-t border-line">
-                    <td className="px-2.5 py-1.5">{STYLE_LABEL[style] ?? style}</td>
-                    <td className="px-2.5 py-1.5 text-right tabular-nums">{held.length} 只</td>
-                    <td className="px-2.5 py-1.5 text-right tabular-nums">{fresh.length} 只</td>
-                    <td className={"px-2.5 py-1.5 text-right tabular-nums " + (avgRoom == null ? "text-muted" : pctClass(-avgRoom))}>
-                      {avgRoom == null ? "—" : `${avgRoom.toFixed(1)}%`}
-                    </td>
-                  </tr>
-                );
-              })}
-              {styles.length === 0 ? (
-                <tr><td colSpan={4} className="px-2.5 py-6 text-center text-muted">持仓为空，去策略选股页跑一轮</td></tr>
-              ) : null}
-            </tbody>
-          </table>
-        </Panel>
-
-        <Panel title="行业主力净流入 TOP6" note={<Link to="/review/flow" className="text-accent hover:underline">资金流向 →</Link>}>
-          <div className="flex flex-col gap-1 p-2">
-            {(flow?.sectorsIn ?? []).slice(0, 6).map((row) => (
-              <div key={row.id} className="flex items-baseline justify-between gap-2 text-sm">
-                <span className="min-w-0 truncate">{row.name}</span>
-                <span className="shrink-0 tabular-nums text-up">+{(row.inflow / 10_000).toFixed(1)} 亿</span>
+        <Panel title="热点快讯" note={<Link to="/news" className="text-accent hover:underline">全部资讯 →</Link>}>
+          <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto scroll-slim p-2">
+            {news.map((item) => (
+              <div key={item.id} className="flex items-baseline gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-2">
+                <span
+                  className="h-1.5 w-1.5 shrink-0 self-center rounded-full"
+                  style={{ background: item.tone === "good" ? "var(--color-up)" : item.tone === "bad" ? "var(--color-down)" : "var(--color-muted)" }}
+                  aria-label={item.tone === "good" ? "利好" : item.tone === "bad" ? "利空" : "中性"}
+                />
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                <span className="num shrink-0 text-xs text-muted">{item.time}</span>
               </div>
             ))}
-            {flow == null ? <div className="py-6 text-center text-sm text-muted">资金流向暂时拉不下来</div> : null}
-            {flow && flow.sectorsIn.length === 0 ? <div className="py-6 text-center text-sm text-muted">今天没有行业流入数据</div> : null}
+            {news.length === 0 ? <div className="px-2 py-6 text-center text-sm text-muted">快讯暂不可用</div> : null}
           </div>
         </Panel>
       </div>
-
-      {/* 指数横带（PPT：行情是一条横带，余光扫红绿） */}
-      <Panel title="指数">
-        <div className="flex overflow-x-auto scroll-slim">
-          {indices.map((item) => (
-            <div key={item.id} className="flex min-w-32 shrink-0 flex-col gap-0.5 border-r border-line px-3 py-2 last:border-r-0">
-              <span className="truncate text-xs text-muted">{item.name}</span>
-              <span className="flex items-baseline gap-1.5">
-                <span className="text-sm font-medium tabular-nums">{item.price.toFixed(2)}</span>
-                <span className={"text-xs tabular-nums " + pctClass(item.pct)}>{item.pct > 0 ? "+" : ""}{item.pct.toFixed(2)}%</span>
-              </span>
-            </div>
-          ))}
-          {indices.length === 0 ? <div className="px-3 py-2 text-sm text-muted">指数暂时拉不下来</div> : null}
-        </div>
-      </Panel>
-
-      {/* AI 控制台（UI-STANDARD v1.1 U5，学 Vibe-Research 的示例卡入口）：
-          每张卡对应 /ai 上一个真实动作，带锚点跳过去。不做假对话输入——
-          赤轨的 AI 是它提议、闸门说了算的闭环，入口只指真实能力。
-          视觉学 Vibe-Research 首页那张「今天想研究什么」大卡：全站唯一一处
-          大面积品牌垫底，白卡浮在上面；正文其余区域仍是中性灰。 */}
-      <section className="rounded border border-line bg-brand-soft px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="h-4 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
-          <h2 className="text-base font-medium">今天，想让 AI 做什么？</h2>
-          <Link to="/ai" className="ml-auto shrink-0 text-xs text-accent hover:underline">
-            全部 AI 管理 →
-          </Link>
-        </div>
-        <p className="mt-1 text-xs text-muted">
-          AI 只提议，6 关检验和挑战者判决说了算；进化闭环每晚自动跑，早上看下场。
-        </p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {AI_CARDS.map((card) => (
-            <Link
-              key={card.to}
-              to={card.to}
-              className="rounded border border-line bg-surface px-3 py-2.5 transition hover:bg-surface-2"
-            >
-              <div className="text-sm font-medium">{card.title}</div>
-              <p className="mt-1 text-xs leading-relaxed text-muted">{card.hint}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
     </Frame>
   );
 }
 
-/** 首页 AI 控制台的示例卡。to 必须是真实子页地址——AI 管理 2026-10-21 拆成
- *  真实子页（/ai、/ai/config、/ai/usage），待验队列在因子页，这里指过去。 */
-const AI_CARDS = [
-  { to: "/ai", title: "跑一轮进化", hint: "AI 提议新因子/新参数，6 关和挑战者判决说了算，下一轮自动读到这轮的下场" },
-  { to: "/factors", title: "待验队列", hint: "AI 提的假设排队进 6 关检验，连续 2 次不过自动淘汰" },
-  { to: "/ai/usage", title: "Token 用量", hint: "每次调 AI 的 tokens、耗时、成败、哪条链路烧的，全记账" },
-  { to: "/ai/config", title: "接口配置", hint: "多套 API 档案并存，启用一套跑所有闭环；key 只回尾号" },
-] as const;
-
-/** KPI 卡。value 为 null 显示 ——（拉不到），hint 行放口径说明。 */
-function Kpi({
+/** 关键数字格：label + 大数字 + 口径 hint。value 为 null 显示 ——（拉不到）。 */
+function KeyNum({
   label,
   value,
   suffix,
   tone,
-  children,
+  hint,
 }: {
   label: string;
   value: number | string | null;
   suffix?: string;
   tone?: string;
-  children?: React.ReactNode;
+  hint?: string;
 }) {
   return (
-    <div className="rounded border border-line bg-surface px-3 py-2.5">
+    <div>
       <div className="text-xs text-muted">{label}</div>
-      <div className={"mt-1 text-2xl font-medium tabular-nums " + (tone ?? "text-fg")}>
+      <div className={"num mt-0.5 text-xl font-medium " + (tone ?? "text-fg")}>
         {value ?? "—"}
         {suffix ? <span className="ml-1 text-xs font-normal text-muted">{suffix}</span> : null}
       </div>
-      <div className="mt-0.5 text-xs text-muted">{children}</div>
+      {hint ? <div className="mt-0.5 text-[11px] leading-snug text-muted">{hint}</div> : null}
     </div>
   );
 }
 
-/** 今日信号的一行。side 决定颜色：A 股约定红买绿卖只是标签色，盈亏另算。 */
+/** 今日信号的一行。side 决定标签色：红买绿卖只是标签约定，盈亏另算。 */
 function SignalRow({
   name,
   side,
@@ -362,8 +423,8 @@ function SignalRow({
         <span className="truncate">{name}</span>
       </span>
       <span className="flex shrink-0 items-baseline gap-2 text-xs">
-        {price != null ? <span className="tabular-nums text-muted">{(price).toFixed(2)}</span> : null}
-        {pnl != null ? <span className={"tabular-nums " + pctClass(pnl)}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : null}
+        {price != null ? <span className="num text-muted">{(price).toFixed(2)}</span> : null}
+        {pnl != null ? <span className={"num " + pctClass(pnl)}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : null}
         {hint ? <span className="text-muted">{hint}</span> : null}
       </span>
     </div>
