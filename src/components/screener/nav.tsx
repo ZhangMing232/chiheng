@@ -37,7 +37,7 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
-import { getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
+import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
 import { isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { snapshotAge } from "@/lib/market/format";
@@ -239,21 +239,24 @@ function SideNav() {
 
 /**
  * 侧栏底部的系统状态块（对齐参考图「系统状态」区）。
+ * 全部接真实数据源，不编假数：
  * - 系统状态 / 记账心跳：data/recorder.json（经 getRecorder），心跳 5 分钟没更新算超时。
- * - 数据延迟：真实数据源是行情快照时间戳 universe.asOf（getUniverse 返回），
- *   延迟 = now - asOf，即「行情比实时慢了多少秒」。settings.functions 也用同一字段算 ageMin。
- * - 计算节点：代码里没有「计算节点池」的数字来源，保持诚实标注「暂无数据源」，
- *   不编 12/16 这类假数；等指明来源（比如某指标端点 / worker 池状态文件）再接。
+ * - 数据延迟：行情快照时间戳 universe.asOf（getUniverse 返回），延迟 = now - asOf。
+ * - 因子待验：因子队列里还没过关、仍在管道中的条目数（pending + tested，来自 getFactorQueue）。
+ * - AI 今日轮数：ai-log 里 at 落在今天（本地日期）的闭环次数（来自 getAILog）。
+ * 之前占位的「计算节点 12/16」是效果图的假数，代码里无此数据源，已撤掉。
  */
 function SystemStatus() {
   const { data } = useQuery({
     queryKey: ["sys-status"],
     queryFn: async () => {
-      const [rec, uni] = await Promise.all([
+      const [rec, uni, queue, log] = await Promise.all([
         getRecorder(),
         getUniverse({ data: { refresh: false } }).catch(() => null),
+        getFactorQueue().catch(() => null),
+        getAILog().catch(() => null),
       ]);
-      return { rec, uni };
+      return { rec, uni, queue, log };
     },
     refetchInterval: 60_000,
   });
@@ -268,6 +271,11 @@ function SystemStatus() {
   const stateText = online ? "运行中" : ok ? "心跳超时" : "离线";
   const asOf = uni?.asOf ?? null;
   const delaySec = asOf != null ? Math.max(0, Math.round((Date.now() - asOf) / 1000)) : null;
+  const entries = data?.queue?.entries ?? [];
+  const pending = entries.filter((e) => e.status === "pending" || e.status === "tested").length;
+  const allEntries = data?.log?.allowed ? data.log.entries : [];
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRounds = allEntries.filter((e) => (e.at ?? "").slice(0, 10) === today).length;
   return (
     <div className="mt-auto shrink-0 space-y-1.5 border-t border-line px-4 py-3 text-xs">
       <div className="flex items-center justify-between">
@@ -286,8 +294,12 @@ function SystemStatus() {
         <span className="tabular-nums">{delaySec != null ? `${delaySec}s` : "—"}</span>
       </div>
       <div className="flex items-center justify-between text-muted">
-        <span>计算节点</span>
-        <span className="text-muted/70">暂无数据源</span>
+        <span>因子待验</span>
+        <span className="tabular-nums">{entries.length ? `${pending} 只` : "—"}</span>
+      </div>
+      <div className="flex items-center justify-between text-muted">
+        <span>AI 今日</span>
+        <span className="tabular-nums">{allEntries.length ? `${todayRounds} 轮` : "—"}</span>
       </div>
     </div>
   );
