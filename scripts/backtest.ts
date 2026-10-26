@@ -714,6 +714,34 @@ function rebound(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null
   return { buy, stop, sell, score: -m.d60, atClose: spot };
 }
 
+/**
+ * 假设 A：流动性与质量过滤（rebound-liq5000）。
+ * 预登记见 data/experiments/rebound-improve-2026-10.md——阈值在结果出来前写死：
+ * 成交额 ≥ 5000 万、流通市值 ≥ 50 亿、单日换手率 ∈ [0.3%, 15%]；
+ * floatCap/turnover 缓存缺失的票不入选（宁可少样本，不静默放宽）。
+ * 只在 BT_REBOUND_EXP=1 时注册进 STRATEGIES，日常回测不受影响。
+ */
+function reboundLiq5000(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  const base = rebound(m, stopPct);
+  if (!base) return null;
+  if (m.amountWan < 5000) return null;
+  if (m.floatCap == null || m.floatCap < 50) return null;
+  if (m.turnover == null || m.turnover < 0.3 || m.turnover > 15) return null;
+  return base;
+}
+
+/**
+ * 假设 B：反转确认过滤（rebound-confirm5）。
+ * 预登记同上：在 d60 最差候选里要求近 5 日跌幅不超过 3%（d5 > -3），
+ * 过滤单边阴跌里还没止跌的票。同样只在 BT_REBOUND_EXP=1 时注册。
+ */
+function reboundConfirm5(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  const base = rebound(m, stopPct);
+  if (!base) return null;
+  if (m.d5 == null || m.d5 <= -3) return null;
+  return base;
+}
+
 /** 更严的一版：除了收阳，还要求当天最低价没有跌破前一日最低价（真正企稳），且缩量更狠。 */
 function reversal3(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
   if (m.d5 == null || m.d20 == null || m.d60 == null) return null;
@@ -743,6 +771,15 @@ const STRATEGIES = {
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
   // 天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写死 10。
   rebound: { label: "中期反转", fn: rebound, hold: holdOf("rebound") },
+  // 中期反转受控改进实验的 A/B 变体（rebound-improve-2026-10.md 预登记）。
+  // 只在这个开关下注册：日常回测/页面账本不带它们，实验数据也不混进 runs.jsonl
+  // （跑实验时另带 BT_NO_LOG=1 双保险）。
+  ...(process.env.BT_REBOUND_EXP === "1"
+    ? {
+        "rebound-liq5000": { label: "中期反转·流动性过滤", fn: reboundLiq5000, hold: holdOf("rebound") },
+        "rebound-confirm5": { label: "中期反转·止跌确认", fn: reboundConfirm5, hold: holdOf("rebound") },
+      }
+    : {}),
   // 威科夫 Spring。只在回测里跑 —— ACTIVE_STYLES 在 strategies.ts:274，
   // 那一行是实盘记账的唯一开关，本方案绝不碰它。
   spring: { label: "Spring·威科夫", fn: springBuy, hold: holdOf("rebound") },
@@ -1860,6 +1897,29 @@ async function main() {
     const results = runPass(stopOverride);
     // 主结果这次要落 JSONL（页面读它）；止损扫描那次不落——中间数字不是「一次运行的结果」
     report(results, process.env.BT_HALF ? `区间：${process.env.BT_HALF} 段` : "", true);
+    // 实验用逐笔落盘（BT_DUMP=<路径>）：bootstrap / 事后复核要逐笔序列，
+    // 汇总指标不够。带 BT_NO_LOG=1 时也不会污染 runs.jsonl。
+    if (process.env.BT_DUMP) {
+      const { dirname } = await import("node:path");
+      await mkdir(dirname(process.env.BT_DUMP), { recursive: true });
+      await writeFile(
+        process.env.BT_DUMP,
+        JSON.stringify({
+          ranAt: new Date().toISOString(),
+          env: {
+            half: process.env.BT_HALF ?? null,
+            offset: Number(process.env.BT_OFFSET ?? 0),
+            buyMode: process.env.BT_BUYMODE ?? "limit",
+            hold: process.env.BT_HOLD ?? null,
+            stop: process.env.BT_RSTOP ?? null,
+            target: process.env.BT_RTARGET ?? null,
+            experiment: process.env.BT_REBOUND_EXP === "1",
+          },
+          trades: results,
+        }),
+      );
+      console.log(`\n逐笔明细已落盘 ${process.env.BT_DUMP}（bootstrap/复核用）`);
+    }
     console.log("出场原因拆解：");
     for (const key of Object.keys(STRATEGIES)) breakdown(results, key);
     console.log("");
