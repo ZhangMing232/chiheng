@@ -10,16 +10,15 @@
  * - 看好处的四档可信度跟着每条结论显示，读者知道自己信的是数据还是推断。
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { Frame } from "@/components/screener/nav";
 import { RESEARCH_TABS, SectionTabs } from "@/components/section-tabs";
-import { CollapsibleSection } from "@/components/collapsible";
-import { Panel, Table, Tag, thClass, tdClass } from "@/components/terminal";
+import { Panel, Tag, pctClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { knowledgeFromReport, runResearch, type StageResult } from "@/lib/market/research";
-import { collectEvidence, runAiSynthesis } from "@/lib/market/research-ai";
+import { knowledgeFromReport, runResearch, type StageResult, type ResearchReport } from "@/lib/market/research";
+import { collectEvidence, runAiSynthesis, type AiSynthesis } from "@/lib/market/research-ai";
 import { linkifyEvidenceText } from "@/lib/market/evidence";
 import { loadEarnings } from "@/lib/market/earnings-store";
 import { loadFinancials } from "@/lib/market/financials-store";
@@ -29,7 +28,7 @@ import { loadKnowledge, saveKnowledge } from "@/lib/market/knowledge-store";
 import { loadKlines } from "@/lib/market/kline-store";
 import { loadBoardMonthly, loadIndustry } from "@/lib/market/industry-store";
 import { finestIndustry } from "@/lib/market/industry";
-import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
+import { loadValuationHistory, valuationPosition, rankPhrase, type ValuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
 import { saveResearchReport } from "@/lib/market/reports.functions";
 import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
@@ -144,6 +143,7 @@ function ResearchPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"structured" | "raw" | "data" | "log">("structured");
   useEffect(() => setValue(search.q), [search.q]);
 
   // 报告在 loader 里算好（那里还要顺手跑 AI 综合）。q 为空时没有报告。
@@ -277,55 +277,6 @@ function ResearchPage() {
         </div>
       ) : null}
 
-      {/* AI 综合。四种状态都明说，不许把模板结论说成 AI 说的——
-          那比没有 AI 更糟。 */}
-      {ai && ai.status !== "skipped" ? (
-        <section
-          className={
-            "rounded border px-3 py-2.5 " +
-            (ai.status === "ok"
-              ? "border-line bg-brand-soft"
-              : ai.status === "refused"
-                ? "border-warn/60 bg-warn-soft"
-                : "border-line bg-surface")
-          }
-        >
-          <div className="flex items-baseline gap-2">
-            <span className="h-4 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
-            <h2 className="text-sm font-medium">AI 综合</h2>
-            <span className="text-xs text-muted">
-              {ai.status === "ok" ? `基于上面的证据 · ${(ai.ms / 1000).toFixed(1)} 秒` : "本轮没有 AI 产出"}
-            </span>
-          </div>
-          {ai.status === "ok" ? (
-            <>
-              <p className="mt-1.5 text-sm leading-relaxed">
-                <LinkifiedText text={ai.text ?? ""} knownIds={knownEvidenceIds} />
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] text-muted">
-                {ai.chain ? <code className="font-mono">{ai.chain}</code> : null}
-                {ai.numbersReplaced > 0 ? (
-                  <span className="text-warn">{ai.numbersReplaced} 个数字在证据里找不到出处，已换成（略※）</span>
-                ) : null}
-              </div>
-              {ai.refs.length > 0 ? (
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                  <span className="text-[10px] text-muted">引用证据：</span>
-                  {ai.refs.map((id) => (
-                    <EvidenceRefChip key={id} id={id} />
-                  ))}
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className={"mt-1.5 text-xs leading-relaxed " + (ai.status === "refused" ? "text-warn" : "text-muted")}>
-              {ai.why}
-              {ai.status === "failed" ? "（上面六个阶段是规则推出来的，与 AI 无关）" : ""}
-            </p>
-          )}
-        </section>
-      ) : null}
-
       {saved ? (
         <div className="rounded border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
           已存成本机报告（id {saved}）。<Link to="/reports" className="text-accent hover:underline">去「我的报告」看</Link>
@@ -333,11 +284,43 @@ function ResearchPage() {
         </div>
       ) : null}
 
-      {data.q ? <StepFlow stages={report.stages} /> : null}
+      {data.q ? (
+        <StepFlow
+          stages={report.stages}
+          onSelect={() => {
+            setTab("structured");
+            requestAnimationFrame(() =>
+              document.getElementById("research-structured")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+            );
+          }}
+        />
+      ) : null}
 
-      {report.stages.map((stage, index) => (
-        <StageCard key={stage.id} stage={stage} index={index} hidden={!data.quote && stage.evidence.length === 0} />
-      ))}
+      {data.q ? (
+        <div className="flex flex-col gap-3">
+          <div role="tablist" aria-label="研判视图" className="flex flex-wrap gap-1.5">
+            {RESEARCH_VIEW_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={
+                  "rounded border px-2.5 py-1 text-xs transition " +
+                  (tab === t.key ? "border-brand font-medium text-fg" : "border-line text-muted hover:text-fg")
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {tab === "structured" ? <StructuredView stages={report.stages} gaps={report.gaps} /> : null}
+          {tab === "raw" ? <RawInfo articles={data.articles} /> : null}
+          {tab === "data" ? <DataCards quote={data.quote} valuation={data.valuation} /> : null}
+          {tab === "log" ? <ResearchLog ai={ai} report={report} saved={saved} knownIds={knownEvidenceIds} /> : null}
+        </div>
+      ) : null}
 
       <p className="px-1 text-xs leading-relaxed text-muted">
         这一页的七阶段套用 Vibe-Research 的个股研究 SOP，每条结论按四档可信度标注。
@@ -398,6 +381,260 @@ function LinkifiedText({ text, knownIds }: { text: string; knownIds: ReadonlySet
   );
 }
 
+/* ===== 重设计：Tab + 事实/推断/待验证 三栏（2026-10-26） ===== */
+
+const RESEARCH_VIEW_TABS = [
+  { key: "structured", label: "结构化分析" },
+  { key: "raw", label: "原始信息" },
+  { key: "data", label: "数据卡片" },
+  { key: "log", label: "研究日志" },
+] as const;
+
+const TIER_LABEL: Record<string, string> = {
+  confirmed: "已披露证实",
+  inferred: "有依据的推断",
+  unverified: "未核实线索",
+  refuted: "被反证",
+};
+const TIER_TONE: Record<string, "brand" | "warn"> = {
+  confirmed: "brand",
+  inferred: "brand",
+  unverified: "warn",
+  refuted: "warn",
+};
+
+function ColHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 border-b border-line pb-2">
+      <span className="h-3.5 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
+      <span className="text-sm font-medium">{label}</span>
+    </div>
+  );
+}
+
+/**
+ * 把七阶段摊平成三栏：事实（证据+算出数）、推断（结论）、待验证（缺口）。
+ * 证据锚点 id 与 collectEvidence 同格式（ev-${stage.id}-${label}），derived 用
+ * d.evidenceId；AI 正文里点的引用照样能跳回来。
+ */
+function StructuredView({ stages, gaps }: { stages: StageResult[]; gaps: string[] }) {
+  const facts = stages.flatMap((s) => s.evidence.map((e) => ({ s, e })));
+  const derived = stages.flatMap((s) => s.derived.map((d) => ({ s, d })));
+  const inferences = stages.flatMap((s) => s.findings.map((f) => ({ s, f })));
+  const todos = [
+    ...stages.flatMap((s) => s.gaps.map((g) => ({ stage: s.title, g }))),
+    ...gaps.map((g) => ({ stage: "", g })),
+  ];
+  return (
+    <Panel id="research-structured" title="结构化分析" note={<span className="text-xs text-muted">事实 · 推断 · 待验证，按七阶段汇总</span>}>
+      <div className="grid grid-cols-1 gap-4 p-3 md:grid-cols-3">
+        <div>
+          <ColHeader label="事实" />
+          <div className="mt-2 flex flex-col">
+            {facts.length === 0 && derived.length === 0 ? (
+              <p className="text-xs text-muted">这一阶段没有可核实的事实。</p>
+            ) : null}
+            {facts.map(({ s, e }) => (
+              <div key={`${s.id}-${e.label}`} id={`ev-${s.id}-${e.label}`} className="scroll-mt-16 border-b border-dashed border-line py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-muted">{e.label}</span>
+                  <span className="shrink-0 text-sm font-medium tabular-nums text-fg">{e.value}</span>
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted">{e.source}</div>
+              </div>
+            ))}
+            {derived.map(({ s, d }) => (
+              <div key={d.calcId} id={d.evidenceId} className="scroll-mt-16 border-b border-dashed border-line py-2">
+                <div className="flex items-baseline gap-2 text-sm">
+                  <span className="h-3 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
+                  <span className="shrink-0 text-muted">{d.label}</span>
+                  <span className="font-medium tabular-nums">{d.value}</span>
+                  <Tag tone={TIER_TONE[d.tier] ?? "muted"}>{TIER_LABEL[d.tier] ?? d.tier}</Tag>
+                </div>
+                <code className="pl-[11px] font-mono text-[10px] leading-relaxed text-muted">{d.chain}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <ColHeader label="推断" />
+          <div className="mt-2 flex flex-col gap-2">
+            {inferences.length === 0 ? (
+              <p className="text-xs text-muted">这一阶段没有推断结论。</p>
+            ) : (
+              inferences.map(({ s, f }, i) => (
+                <div key={`${s.id}-${i}`} className="flex items-baseline gap-2 text-sm leading-relaxed">
+                  <Tag tone={TIER_TONE[f.tier] ?? "muted"}>{TIER_LABEL[f.tier] ?? f.tier}</Tag>
+                  <span className="min-w-0 flex-1">{f.text}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div>
+          <ColHeader label="待验证" />
+          <div className="mt-2 flex flex-col gap-1.5">
+            {todos.length === 0 ? (
+              <p className="text-xs text-muted">这一阶段没有明确的待验证项。</p>
+            ) : (
+              todos.map(({ stage, g }, i) => (
+                <div key={i} className="rounded border border-line bg-surface-2 px-2.5 py-1.5 text-xs leading-relaxed">
+                  {stage ? <span className="text-muted">[{stage}] </span> : null}
+                  <span className="text-fg">{g}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function RawInfo({ articles }: { articles: StockArticle[] }) {
+  if (articles.length === 0) {
+    return (
+      <Panel title="原始信息">
+        <StateBlock kind="empty" title="没有拉到这只票的资讯或公告" hint="资讯接口暂时拉不下来，或这只票近期没有公告。" />
+      </Panel>
+    );
+  }
+  const TONE: Record<string, { tone: "up" | "down" | "muted"; label: string }> = {
+    good: { tone: "up", label: "利好" },
+    bad: { tone: "down", label: "利空" },
+    flat: { tone: "muted", label: "中性" },
+  };
+  return (
+    <Panel title={`原始信息 · ${articles.length} 条`} note={<span className="text-xs text-muted">标题用词自动分档，机器读不出反讽</span>}>
+      <ul className="divide-y divide-line">
+        {articles.map((a) => {
+          const t = TONE[a.tone] ?? TONE.flat;
+          return (
+            <li key={a.id} className="flex items-baseline gap-2 px-3 py-2">
+              <span className="w-28 shrink-0 text-[11px] tabular-nums text-muted">{a.time.slice(0, 16)}</span>
+              <Tag tone={t.tone}>{t.label}</Tag>
+              <span className="min-w-0 flex-1 text-sm">{a.title}</span>
+              {a.url ? (
+                <a href={a.url} target="_blank" rel="noreferrer" className="shrink-0 text-[11px] text-accent hover:underline">原文</a>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
+  );
+}
+
+function DataCards({ quote, valuation }: { quote: Quote | null; valuation: ValuationPosition | null }) {
+  if (!quote) {
+    return (
+      <Panel title="数据卡片">
+        <StateBlock kind="empty" title="没有行情快照" hint="行情接口拉不到这只票，数据卡片无内容。" />
+      </Panel>
+    );
+  }
+  const q = quote;
+  const cells: { label: string; value: ReactNode; tone?: string }[] = [
+    { label: "现价", value: q.price.toFixed(2) },
+    { label: "涨跌幅", value: q.chg != null ? `${q.chg > 0 ? "+" : ""}${q.chg.toFixed(2)}%` : "—", tone: pctClass(q.chg) },
+    { label: "总市值", value: `${q.cap.toFixed(0)} 亿` },
+    { label: "流通市值", value: `${q.floatCap.toFixed(0)} 亿` },
+    { label: "换手率", value: `${q.turnover.toFixed(2)}%` },
+    { label: "量比", value: q.volRatio.toFixed(2) },
+    { label: "振幅", value: `${q.amp.toFixed(2)}%` },
+    { label: "市盈率 TTM", value: q.pe != null ? `${q.pe.toFixed(2)} 倍` : "—" },
+    { label: "市净率", value: q.pb != null ? `${q.pb.toFixed(2)} 倍` : "—" },
+    { label: "近 5 日", value: q.d5 != null ? `${q.d5 > 0 ? "+" : ""}${q.d5.toFixed(2)}%` : "—", tone: pctClass(q.d5) },
+    { label: "近 20 日", value: q.d20 != null ? `${q.d20 > 0 ? "+" : ""}${q.d20.toFixed(2)}%` : "—", tone: pctClass(q.d20) },
+    { label: "近 60 日", value: q.d60 != null ? `${q.d60 > 0 ? "+" : ""}${q.d60.toFixed(2)}%` : "—", tone: pctClass(q.d60) },
+    { label: "今年以来", value: q.ytd != null ? `${q.ytd > 0 ? "+" : ""}${q.ytd.toFixed(2)}%` : "—", tone: pctClass(q.ytd) },
+    { label: "主力净流入", value: `${(q.inflow / 1e4).toFixed(2)} 亿` },
+    { label: "成交额", value: `${(q.amount / 1e4).toFixed(2)} 亿` },
+  ];
+  if (valuation) {
+    if (valuation.peRank != null) cells.push({ label: "PE 历史分位", value: rankPhrase(valuation.peRank) });
+    if (valuation.pbRank != null) cells.push({ label: "PB 历史分位", value: rankPhrase(valuation.pbRank) });
+  }
+  return (
+    <Panel title="数据卡片" note={<span className="text-xs text-muted">行情快照（腾讯/新浪）+ 估值分位（baostock）</span>}>
+      <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3">
+        {cells.map((c) => (
+          <div key={c.label} className="bg-surface px-3 py-2">
+            <div className="text-xs text-muted">{c.label}</div>
+            <div className={`mt-0.5 text-sm font-medium tabular-nums ${c.tone ?? "text-fg"}`}>{c.value}</div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function ResearchLog({ ai, report, saved, knownIds }: { ai: AiSynthesis | null; report: ResearchReport; saved: string | null; knownIds: ReadonlySet<string> }) {
+  return (
+    <Panel title="研究日志" note={<span className="text-xs text-muted">AI 综合 · 引用链 · 本轮元数据</span>}>
+      <div className="flex flex-col gap-3 p-3">
+        {ai && ai.status !== "skipped" ? (
+          <section className={"rounded border px-3 py-2.5 " + (ai.status === "ok" ? "border-line bg-brand-soft" : ai.status === "refused" ? "border-warn/60 bg-warn-soft" : "border-line bg-surface")}>
+            <div className="flex items-baseline gap-2">
+              <span className="h-4 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
+              <h2 className="text-sm font-medium">AI 综合</h2>
+              <span className="text-xs text-muted">{ai.status === "ok" ? `基于上面的证据 · ${(ai.ms / 1000).toFixed(1)} 秒` : "本轮没有 AI 产出"}</span>
+            </div>
+            {ai.status === "ok" ? (
+              <>
+                <p className="mt-1.5 text-sm leading-relaxed">
+                  <LinkifiedText text={ai.text ?? ""} knownIds={knownIds} />
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] text-muted">
+                  {ai.chain ? <code className="font-mono">{ai.chain}</code> : null}
+                  {ai.numbersReplaced > 0 ? (
+                    <span className="text-warn">{ai.numbersReplaced} 个数字在证据里找不到出处，已换成（略※）</span>
+                  ) : null}
+                </div>
+                {ai.refs.length > 0 ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <span className="text-[10px] text-muted">引用证据：</span>
+                    {ai.refs.map((id) => (
+                      <EvidenceRefChip key={id} id={id} />
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className={"mt-1.5 text-xs leading-relaxed " + (ai.status === "refused" ? "text-warn" : "text-muted")}>
+                {ai.why}
+                {ai.status === "failed" ? "（上面六个阶段是规则推出来的，与 AI 无关）" : ""}
+              </p>
+            )}
+          </section>
+        ) : (
+          <p className="text-xs text-muted">本轮跳过 AI 综合（未配置或已关闭）。</p>
+        )}
+
+        <div className="rounded border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>阶段 {report.stages.length}</span>
+            <span>缺口 {report.gaps.length}</span>
+            <span>被红线拦下 {report.blocked}</span>
+            <span>数字换掉 {report.numbersReplaced}</span>
+            <span>
+              引用链 {report.chain.evidence} 证据 / {report.chain.calculations} 计算
+              {report.chain.dangling.length > 0 ? ` · ${report.chain.dangling.length} 悬空` : " · 无悬空"}
+            </span>
+          </div>
+          {saved ? (
+            <div className="mt-1">
+              已存报告（id {saved}）。<Link to="/reports" className="text-accent hover:underline">去「我的报告」看</Link>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 /**
  * 七步研判流程条（效果图签名元素）。完全由真实 report.stages 派生，
  * 不编任何「当前步」——每步状态按该阶段 evidence+findings+derived 与 gaps 算：
@@ -405,7 +642,7 @@ function LinkifiedText({ text, knownIds }: { text: string; knownIds: ReadonlySet
  * active 指向第一个还没 done 的阶段（分析前沿）。点任一步跳到对应阶段卡
  * （StageCard 根挂了 id=stage-<id> 锚点）。
  */
-function StepFlow({ stages }: { stages: StageResult[] }) {
+function StepFlow({ stages, onSelect }: { stages: StageResult[]; onSelect?: () => void }) {
   if (stages.length === 0) return null;
   const statusOf = (s: StageResult): "done" | "partial" | "gap" | "empty" => {
     const hasContent = s.evidence.length + s.findings.length + s.derived.length > 0;
@@ -425,8 +662,10 @@ function StepFlow({ stages }: { stages: StageResult[] }) {
     gap: "border-up/50 text-up",
     empty: "border-line text-muted",
   };
-  const jump = (id: string) =>
-    document.getElementById(`stage-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const jump = (_id: string) => {
+    onSelect?.();
+    document.getElementById("research-structured")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
   return (
     <nav className="flex flex-wrap items-stretch gap-1.5 rounded border border-line bg-surface p-2.5" aria-label="研判流程">
       {stages.map((s, i) => {
@@ -456,94 +695,6 @@ function StepFlow({ stages }: { stages: StageResult[] }) {
   );
 }
 
-/**
- * 一个阶段。
- *
- * 顺序：问题（已经有标题右侧那句）→ 证据表 → 结论 → 缺口。
- * 缺口放在最后一行但**不是灰字小到看不见**：它是「这一段能不能信」的一部分，
- * 藏起来等于让读者以为都查到了。
- */
-function StageCard({ stage, index, hidden }: { stage: StageResult; index: number; hidden: boolean }) {
-  if (hidden) return null;
-  // 2026-10-16 用户要求页面可折叠：七个阶段默认只展开第一段，其余点开看。
-  // 折叠状态记在 localStorage，看过哪段保持哪段。
-  return (
-    <div id={`stage-${stage.id}`} className="scroll-mt-16">
-      <CollapsibleSection
-        storageKey={`ch-collapse-research-${stage.id}`}
-      defaultOpen={index === 0}
-      header={
-        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="text-xs font-normal text-muted tabular-nums">{String(index + 1).padStart(2, "0")}</span>
-          <span className="text-sm font-medium">{stage.title}</span>
-          <span className="text-xs text-muted">{stage.question}</span>
-        </span>
-      }
-    >
-      {stage.evidence.length > 0 ? (
-        <Table caption={`${stage.title}阶段的证据`}>
-          <thead>
-            <tr>
-              <th className={thClass("text-left")}>项</th>
-              <th className={thClass("text-left")}>值</th>
-              <th className={thClass("text-left")}>来源</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stage.evidence.map((row, i) => (
-              // id 与 collectEvidence（research-ai.ts）给 AI 的行内 id 同格式：
-              // AI 正文里引用 ev-xxx 时才能跳回这一行。
-              <tr key={`${row.label}-${i}`} id={`ev-${stage.id}-${row.label}`} className="border-t border-line scroll-mt-16">
-                <td className={tdClass("text-left text-muted")}>{row.label}</td>
-                <td className={tdClass("text-left text-fg")}>{row.value}</td>
-                <td className={tdClass("text-left text-xs text-muted")}>{row.source}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      ) : null}
-
-      {stage.findings.length > 0 ? (
-        <div className="flex flex-col gap-2 border-t border-line px-3 py-2">
-          {stage.findings.map((finding, i) => (
-            <div key={i} className="flex items-baseline gap-2 text-sm leading-relaxed">
-              <Tag tone={finding.tier === "未核实线索" ? "warn" : "brand"}>{finding.tier}</Tag>
-              <span className="min-w-0 flex-1">{finding.text}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {/* 算出来的数字（带引用链）。只有经过运算的才配拥有它——直接读来的数本身就是证据。 */}
-      {stage.derived.length > 0 ? (
-        <div className="flex flex-col gap-2 border-t border-line px-3 py-2">
-          {stage.derived.map((d) => (
-            <div key={d.calcId} id={d.evidenceId} className="flex flex-col gap-0.5 scroll-mt-16">
-              <div className="flex items-baseline gap-2 text-sm">
-                <span className="h-3 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
-                <span className="shrink-0 text-muted">{d.label}</span>
-                <span className="font-medium tabular-nums">{d.value}</span>
-                <Tag tone="brand">{d.tier}</Tag>
-              </div>
-              <code className="pl-[11px] font-mono text-[10px] leading-relaxed text-muted">{d.chain}</code>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {stage.gaps.length > 0 ? (
-        <div className="border-t border-line bg-warn-soft/40 px-3 py-2">
-          <div className="text-xs text-warn">这一段缺数据</div>
-          <ul className="mt-1 flex flex-col gap-1">
-            {stage.gaps.map((gap, i) => (
-              <li key={i} className="text-xs leading-relaxed text-muted">
-                · {gap}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </CollapsibleSection>
-    </div>
-  );
-}
+// 2026-10-26：竖向可折叠阶段卡（StageCard）改为「Tab + 事实/推断/待验证 三栏」
+// （StructuredView），对齐重设计效果图。证据锚点 ev-${stage.id}-${label} 与
+// derived 的 id=${d.evidenceId} 仍在 StructuredView 里保留，AI 跳转不失效。
