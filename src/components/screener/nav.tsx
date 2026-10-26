@@ -37,7 +37,7 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
-import { getPushStatus, getQuickSearch, getRecorder, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
+import { getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
 import { isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { snapshotAge } from "@/lib/market/format";
@@ -239,23 +239,35 @@ function SideNav() {
 
 /**
  * 侧栏底部的系统状态块（对齐参考图「系统状态」区）。
- * 只有「系统状态 / 记账心跳」两项有真实数据源（data/recorder.json，经 getRecorder）；
- * 参考图里的「数据延迟 / 计算节点」在代码里没有任何数据源——按纪律不编数字，
- * 标「暂无数据源」，等主人指明来源再接。心跳 5 分钟没更新算超时（进程可能挂了）。
+ * - 系统状态 / 记账心跳：data/recorder.json（经 getRecorder），心跳 5 分钟没更新算超时。
+ * - 数据延迟：真实数据源是行情快照时间戳 universe.asOf（getUniverse 返回），
+ *   延迟 = now - asOf，即「行情比实时慢了多少秒」。settings.functions 也用同一字段算 ageMin。
+ * - 计算节点：代码里没有「计算节点池」的数字来源，保持诚实标注「暂无数据源」，
+ *   不编 12/16 这类假数；等指明来源（比如某指标端点 / worker 池状态文件）再接。
  */
 function SystemStatus() {
   const { data } = useQuery({
-    queryKey: ["recorder-status"],
-    queryFn: () => getRecorder(),
+    queryKey: ["sys-status"],
+    queryFn: async () => {
+      const [rec, uni] = await Promise.all([
+        getRecorder(),
+        getUniverse({ data: { refresh: false } }).catch(() => null),
+      ]);
+      return { rec, uni };
+    },
     refetchInterval: 60_000,
   });
-  const at = data?.at ?? null;
-  const ok = data?.ok ?? false;
+  const rec = data?.rec ?? null;
+  const uni = data?.uni ?? null;
+  const at = rec?.at ?? null;
+  const ok = rec?.ok ?? false;
   const beat = at != null ? snapshotAge(at) : "无心跳";
   const fresh = at != null && Date.now() - at < 5 * 60_000;
   const online = ok && fresh;
   const dotClass = online ? "bg-down" : ok ? "bg-warn" : "bg-up";
   const stateText = online ? "运行中" : ok ? "心跳超时" : "离线";
+  const asOf = uni?.asOf ?? null;
+  const delaySec = asOf != null ? Math.max(0, Math.round((Date.now() - asOf) / 1000)) : null;
   return (
     <div className="mt-auto shrink-0 space-y-1.5 border-t border-line px-4 py-3 text-xs">
       <div className="flex items-center justify-between">
@@ -271,7 +283,7 @@ function SystemStatus() {
       </div>
       <div className="flex items-center justify-between text-muted">
         <span>数据延迟</span>
-        <span className="text-muted/70">暂无数据源</span>
+        <span className="tabular-nums">{delaySec != null ? `${delaySec}s` : "—"}</span>
       </div>
       <div className="flex items-center justify-between text-muted">
         <span>计算节点</span>
