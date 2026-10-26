@@ -48,6 +48,10 @@ import { Route as FactorsBucketsRouteImport } from './routes/factors/buckets'
 import { Route as FactorsFlowRouteImport } from './routes/factors/flow'
 import { Route as FactorsGatesRouteImport } from './routes/factors/gates'
 import { Route as FlowSplatRouteImport } from './routes/flow.$'
+import { Route as ResearchIndexRouteImport } from './routes/research/index'
+import { Route as ResearchDebateRouteImport } from './routes/research/debate'
+import { Route as ResearchNotesRouteImport } from './routes/research/notes'
+import { Route as ResearchReportsRouteImport } from './routes/research/reports'
 import { Route as ReviewIndexRouteImport } from './routes/review/index'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewFlowRouteImport } from './routes/review/flow'
@@ -259,6 +263,26 @@ const FlowSplatRoute = FlowSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => FlowRoute,
 } as any)
+const ResearchIndexRoute = ResearchIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ResearchRoute,
+} as any)
+const ResearchDebateRoute = ResearchDebateRouteImport.update({
+  id: '/debate',
+  path: '/debate',
+  getParentRoute: () => ResearchRoute,
+} as any)
+const ResearchNotesRoute = ResearchNotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
+  getParentRoute: () => ResearchRoute,
+} as any)
+const ResearchReportsRoute = ResearchReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => ResearchRoute,
+} as any)
 const ReviewIndexRoute = ReviewIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -355,7 +379,7 @@ export interface FileRoutesByFullPath {
   '/overview': typeof OverviewRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
-  '/research': typeof ResearchRoute
+  '/research': typeof ResearchRouteWithChildren
   '/review': typeof ReviewRouteWithChildren
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
@@ -373,6 +397,9 @@ export interface FileRoutesByFullPath {
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
   '/flow/$': typeof FlowSplatRoute
+  '/research/debate': typeof ResearchDebateRoute
+  '/research/notes': typeof ResearchNotesRoute
+  '/research/reports': typeof ResearchReportsRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
@@ -380,6 +407,7 @@ export interface FileRoutesByFullPath {
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
+  '/research/': typeof ResearchIndexRoute
   '/review/': typeof ReviewIndexRoute
   '/review/flow/close': typeof ReviewFlowCloseRoute
   '/review/flow/futures': typeof ReviewFlowFuturesRoute
@@ -410,7 +438,6 @@ export interface FileRoutesByTo {
   '/overview': typeof OverviewRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
-  '/research': typeof ResearchRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
@@ -427,12 +454,16 @@ export interface FileRoutesByTo {
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
   '/flow/$': typeof FlowSplatRoute
+  '/research/debate': typeof ResearchDebateRoute
+  '/research/notes': typeof ResearchNotesRoute
+  '/research/reports': typeof ResearchReportsRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/ai': typeof AiIndexRoute
   '/factors': typeof FactorsIndexRoute
+  '/research': typeof ResearchIndexRoute
   '/review': typeof ReviewIndexRoute
   '/review/flow/close': typeof ReviewFlowCloseRoute
   '/review/flow/futures': typeof ReviewFlowFuturesRoute
@@ -465,7 +496,7 @@ export interface FileRoutesById {
   '/overview': typeof OverviewRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
-  '/research': typeof ResearchRoute
+  '/research': typeof ResearchRouteWithChildren
   '/review': typeof ReviewRouteWithChildren
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
@@ -483,6 +514,9 @@ export interface FileRoutesById {
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
   '/flow/$': typeof FlowSplatRoute
+  '/research/debate': typeof ResearchDebateRoute
+  '/research/notes': typeof ResearchNotesRoute
+  '/research/reports': typeof ResearchReportsRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
@@ -490,6 +524,7 @@ export interface FileRoutesById {
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
+  '/research/': typeof ResearchIndexRoute
   '/review/': typeof ReviewIndexRoute
   '/review/flow/close': typeof ReviewFlowCloseRoute
   '/review/flow/futures': typeof ReviewFlowFuturesRoute
@@ -541,6 +576,9 @@ export interface FileRouteTypes {
     | '/factors/flow'
     | '/factors/gates'
     | '/flow/$'
+    | '/research/debate'
+    | '/research/notes'
+    | '/research/reports'
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
@@ -548,6 +586,7 @@ export interface FileRouteTypes {
     | '/strategies/screener'
     | '/ai/'
     | '/factors/'
+    | '/research/'
     | '/review/'
     | '/review/flow/close'
     | '/review/flow/futures'
@@ -578,7 +617,6 @@ export interface FileRouteTypes {
     | '/overview'
     | '/positions'
     | '/reports'
-    | '/research'
     | '/screener'
     | '/sectors'
     | '/settings'
@@ -595,12 +633,16 @@ export interface FileRouteTypes {
     | '/factors/flow'
     | '/factors/gates'
     | '/flow/$'
+    | '/research/debate'
+    | '/research/notes'
+    | '/research/reports'
     | '/review/events'
     | '/review/signals'
     | '/strategies/positions'
     | '/strategies/screener'
     | '/ai'
     | '/factors'
+    | '/research'
     | '/review'
     | '/review/flow/close'
     | '/review/flow/futures'
@@ -650,6 +692,9 @@ export interface FileRouteTypes {
     | '/factors/flow'
     | '/factors/gates'
     | '/flow/$'
+    | '/research/debate'
+    | '/research/notes'
+    | '/research/reports'
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
@@ -657,6 +702,7 @@ export interface FileRouteTypes {
     | '/strategies/screener'
     | '/ai/'
     | '/factors/'
+    | '/research/'
     | '/review/'
     | '/review/flow/close'
     | '/review/flow/futures'
@@ -689,7 +735,7 @@ export interface RootRouteChildren {
   OverviewRoute: typeof OverviewRoute
   PositionsRoute: typeof PositionsRoute
   ReportsRoute: typeof ReportsRoute
-  ResearchRoute: typeof ResearchRoute
+  ResearchRoute: typeof ResearchRouteWithChildren
   ReviewRoute: typeof ReviewRouteWithChildren
   ScreenerRoute: typeof ScreenerRoute
   SectorsRoute: typeof SectorsRoute
@@ -981,6 +1027,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FlowSplatRouteImport
       parentRoute: typeof FlowRoute
     }
+    '/research/': {
+      id: '/research/'
+      path: '/'
+      fullPath: '/research/'
+      preLoaderRoute: typeof ResearchIndexRouteImport
+      parentRoute: typeof ResearchRoute
+    }
+    '/research/debate': {
+      id: '/research/debate'
+      path: '/debate'
+      fullPath: '/research/debate'
+      preLoaderRoute: typeof ResearchDebateRouteImport
+      parentRoute: typeof ResearchRoute
+    }
+    '/research/notes': {
+      id: '/research/notes'
+      path: '/notes'
+      fullPath: '/research/notes'
+      preLoaderRoute: typeof ResearchNotesRouteImport
+      parentRoute: typeof ResearchRoute
+    }
+    '/research/reports': {
+      id: '/research/reports'
+      path: '/reports'
+      fullPath: '/research/reports'
+      preLoaderRoute: typeof ResearchReportsRouteImport
+      parentRoute: typeof ResearchRoute
+    }
     '/review/': {
       id: '/review/'
       path: '/'
@@ -1115,6 +1189,24 @@ const FlowRouteChildren: FlowRouteChildren = {
 
 const FlowRouteWithChildren = FlowRoute._addFileChildren(FlowRouteChildren)
 
+interface ResearchRouteChildren {
+  ResearchDebateRoute: typeof ResearchDebateRoute
+  ResearchNotesRoute: typeof ResearchNotesRoute
+  ResearchReportsRoute: typeof ResearchReportsRoute
+  ResearchIndexRoute: typeof ResearchIndexRoute
+}
+
+const ResearchRouteChildren: ResearchRouteChildren = {
+  ResearchDebateRoute: ResearchDebateRoute,
+  ResearchNotesRoute: ResearchNotesRoute,
+  ResearchReportsRoute: ResearchReportsRoute,
+  ResearchIndexRoute: ResearchIndexRoute,
+}
+
+const ResearchRouteWithChildren = ResearchRoute._addFileChildren(
+  ResearchRouteChildren,
+)
+
 interface ReviewFlowRouteChildren {
   ReviewFlowCloseRoute: typeof ReviewFlowCloseRoute
   ReviewFlowFuturesRoute: typeof ReviewFlowFuturesRoute
@@ -1194,7 +1286,7 @@ const rootRouteChildren: RootRouteChildren = {
   OverviewRoute: OverviewRoute,
   PositionsRoute: PositionsRoute,
   ReportsRoute: ReportsRoute,
-  ResearchRoute: ResearchRoute,
+  ResearchRoute: ResearchRouteWithChildren,
   ReviewRoute: ReviewRouteWithChildren,
   ScreenerRoute: ScreenerRoute,
   SectorsRoute: SectorsRoute,

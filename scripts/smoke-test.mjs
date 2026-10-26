@@ -32,7 +32,7 @@ const PAGES = [
   // 市场
   "/overview", "/review", "/review/signals", "/review/events", "/news", "/overseas",
   // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）
-  "/butler", "/studio", "/research", "/debate", "/reports", "/notes",
+  "/butler", "/studio", "/research", "/debate", "/research/debate", "/research/reports", "/research/notes",
   "/my-stocks", "/inbox", "/settings", "/admin", "/membership", "/login",
   // 策略因子
   "/strategies/screener", "/strategies/positions",

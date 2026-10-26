@@ -87,7 +87,7 @@ function SymbolPage() {
               去七阶段研判 →
             </Link>
             {" · "}
-            <Link to="/debate" search={{ q: data.picked.code }} className="text-accent hover:underline">
+            <Link to="/research/debate" search={{ q: data.picked.code }} className="text-accent hover:underline">
               去多空辩论 →
             </Link>
           </>

@@ -35,6 +35,9 @@ const LEGACY_ALIASES = [
   "/events", // 10-21 复盘区合并 → /review/events
   "/sectors", // 10-23 资金流向合并 → /review/flow/sectors
   "/flow", // 10-23 资金流向合并 → /review/flow
+  "/debate", // 10-26 研究区合并 → /research/debate
+  "/reports", // 10-26 研究区合并 → /research/reports
+  "/notes", // 10-26 研究区合并 → /research/notes
 ];
 
 /** 不进 PAGES 的路由，理由写清楚（别让跳过变成静默）。 */
@@ -44,7 +47,7 @@ const SKIP_WITH_REASON = {
 };
 
 /** 每个合并动作留一个重定向代表，验旧书签不断链。 */
-const BOOKMARK_SAMPLES = ["/screener", "/positions", "/signals", "/calendar", "/flow/stocks"];
+const BOOKMARK_SAMPLES = ["/screener", "/positions", "/signals", "/calendar", "/flow/stocks", "/debate"];
 
 // ── 从 routeTree.gen.ts 的 import 清单推全部路由 URL ──────────────────────
 function routeUrls() {

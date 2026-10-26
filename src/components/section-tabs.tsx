@@ -21,7 +21,9 @@ export function SectionTabs({ tabs, ariaLabel }: { tabs: SectionTab[]; ariaLabel
       {tabs.map((tab) => {
         // 索引子页的地址是 "/review/"，落到 location 上是 "/review"——比较前把尾斜杠剥掉。
         const target = tab.to.replace(/\/+$/, "");
-        const active = path === target || path.startsWith(target + "/");
+        // 索引 tab（to 以 / 结尾）只允许精确匹配：不然 /research/reports 会同时
+        // 点亮「个股研判」（/research 是它的前缀），两个 tab 同亮，读者不知道自己在哪。
+        const active = tab.to.endsWith("/") ? path === target : path === target || path.startsWith(target + "/");
         return (
           <Link
             key={tab.to}
@@ -42,3 +44,11 @@ export function SectionTabs({ tabs, ariaLabel }: { tabs: SectionTab[]; ariaLabel
     </div>
   );
 }
+
+/** 「研究」区的二级 tab（2026-10-26 四个平级页合成一页：个股研判/多空辩论/研报库/笔记）。 */
+export const RESEARCH_TABS: SectionTab[] = [
+  { to: "/research/", label: "个股研判" },
+  { to: "/research/debate", label: "多空辩论" },
+  { to: "/research/reports", label: "研报库" },
+  { to: "/research/notes", label: "笔记" },
+];

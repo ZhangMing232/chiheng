@@ -149,7 +149,7 @@ function MyStocksPage() {
                       <Link to="/research" search={{ q: row.code }} className="text-xs text-accent hover:underline">
                         研判
                       </Link>
-                      <Link to="/debate" search={{ q: row.code }} className="text-xs text-accent hover:underline">
+                      <Link to="/research/debate" search={{ q: row.code }} className="text-xs text-accent hover:underline">
                         辩论
                       </Link>
                       <button type="button" onClick={() => void remove(row.id)} className="text-xs text-muted hover:text-fg">

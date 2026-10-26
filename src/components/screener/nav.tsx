@@ -17,11 +17,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Bot,
-  CalendarDays,
   ChevronDown,
-  Coins,
   FileSearch,
-  FileText,
   FlaskConical,
   Gauge,
   Globe,
@@ -30,12 +27,9 @@ import {
   LayoutDashboard,
   LayoutList,
   LineChart,
-  ListFilter,
   Menu,
   Newspaper,
-  NotebookPen,
   RefreshCw,
-  Scale,
   Search,
   Settings,
   Settings2,
@@ -104,16 +98,16 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/review" | "/review/signals" | "/review/events" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/debate" | "/reports" | "/notes" | "/my-stocks" | "/strategies/positions" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/ai/rules" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "总览", items: [{ to: "/", label: "总览", icon: LayoutDashboard }] },
   {
     label: "市场",
     items: [
       { to: "/overview", label: "涨跌分布", icon: Gauge },
-      { to: "/review", label: "复盘与资金", icon: History },
-      { to: "/review/signals", label: "情绪信号", icon: Coins },
-      { to: "/review/events", label: "日历事件", icon: CalendarDays },
+      // 2026-10-26 三合一：每日复盘 / 资金流向 / 信号 / 公司事件合成一个「每日复盘」页，
+      // 里面二级 tab 切换（SectionTabs），侧栏不再平铺四个入口。
+      { to: "/review", label: "每日复盘", icon: History },
       { to: "/overseas", label: "全球行情", icon: Globe },
     ],
   },
@@ -127,19 +121,15 @@ const SIDEBAR: {
   },
   {
     label: "研究",
-    items: [
-      { to: "/research", label: "个股研判", icon: FileSearch },
-      { to: "/debate", label: "多空辩论", icon: Scale },
-      { to: "/reports", label: "研报库", icon: FileText },
-      { to: "/notes", label: "笔记", icon: NotebookPen },
-    ],
+    // 2026-10-26 四合一：个股研判 / 多空辩论 / 研报库 / 笔记合成一个「研究」页，
+    // 里面二级 tab 切换；旧地址 /debate /reports /notes 保留重定向。
+    items: [{ to: "/research", label: "研究", icon: FileSearch }],
   },
   {
     label: "组合",
-    items: [
-      { to: "/my-stocks", label: "自选", icon: Star },
-      { to: "/strategies/positions", label: "持仓与追踪", icon: ListFilter },
-    ],
+    // 2026-10-26 去掉「持仓与追踪」：持仓明细在首页与策略看板都有出口，
+    // 平铺入口重复率太高；/strategies/positions 路由保留，直链仍可达。
+    items: [{ to: "/my-stocks", label: "自选", icon: Star }],
   },
   {
     label: "进化",
@@ -155,7 +145,8 @@ const SIDEBAR: {
       { to: "/ai", label: "工作台", icon: Sparkles },
       { to: "/butler", label: "大管家", icon: Bot },
       { to: "/ai/config", label: "接口与模型", icon: Settings2 },
-      { to: "/ai/rules", label: "行为边界", icon: Scale },
+      // 2026-10-26 去掉「行为边界」侧栏入口：AI 能做什么全文在 AI-BOUNDARY.md，
+      // 页面直链 /ai/rules 仍可达。
     ],
   },
   { label: "设置", items: [{ to: "/settings", label: "设置与状态", icon: Settings }] },
@@ -270,25 +261,23 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "总览", keywords: "home dashboard 首页", to: "/" },
   { label: "涨跌分布", keywords: "market overview 大盘 广度", to: "/overview" },
   { label: "复盘与资金", keywords: "review flow 资金流向", to: "/review" },
-  { label: "情绪信号", keywords: "signals 涨停 情绪", to: "/review/signals" },
+  { label: "情绪信号", keywords: "signals 涨停", to: "/review/signals" },
   { label: "公司事件", keywords: "events 日历 业绩", to: "/review/events" },
   { label: "全球市场", keywords: "overseas hk us 港美", to: "/overseas", search: { tab: "indices", market: "hk", page: 1, sort: "chg" } },
   { label: "热点资讯", keywords: "news 快讯", to: "/news" },
   { label: "消息与提醒", keywords: "inbox 提醒", to: "/inbox" },
   { label: "自媒体", keywords: "studio 海报", to: "/studio" },
-  { label: "AI 个股分析", keywords: "research ai 研究", to: "/research" },
-  { label: "多空辩论", keywords: "debate 辩论", to: "/debate" },
-  { label: "研报", keywords: "reports", to: "/reports" },
-  { label: "笔记", keywords: "notes", to: "/notes" },
+  { label: "研究", keywords: "research 个股研判", to: "/research/" },
+  { label: "多空辩论", keywords: "debate 辩论", to: "/research/debate" },
+  { label: "研报库", keywords: "reports", to: "/research/reports" },
+  { label: "笔记", keywords: "notes", to: "/research/notes" },
   { label: "自选", keywords: "watchlist my-stocks", to: "/my-stocks" },
-  { label: "持仓与追踪", keywords: "positions 持仓", to: "/strategies/positions" },
-  { label: "策略看板", keywords: "screener 策略 选股", to: "/strategies/screener" },
+  { label: "策略看板", keywords: "screener 策略 选股 持仓", to: "/strategies/screener" },
   { label: "因子实验室", keywords: "factors 因子", to: "/factors" },
   { label: "回测", keywords: "backtest", to: "/backtest" },
   { label: "AI 工作台", keywords: "ai 智能", to: "/ai" },
   { label: "大管家", keywords: "butler", to: "/butler" },
   { label: "接口与模型", keywords: "ai config 配置 token", to: "/ai/config" },
-  { label: "行为边界", keywords: "ai rules 规则", to: "/ai/rules" },
   { label: "设置", keywords: "settings", to: "/settings" },
 ];
 
