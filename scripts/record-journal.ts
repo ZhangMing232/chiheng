@@ -748,11 +748,22 @@ for (const userId of ids) {
 if (!any) console.log(`${time} ${phase.label} no change`);
 if (alertsChanged) await writeAlerts(alerts);
 
-// ── AI 自动进化：收盘后每天最多一轮（开关在 /ai 页，去重看 ai-log 里今天的 auto 记录）──
+// ── AI 自动进化：收盘后每天最多一轮，失败的层当天按 AUTO_RETRY 间隔补跑
+//    （开关在 /ai 页；去重粒度是「层」不是「天」，判据见 evolve-breaker.autoLayerDue）──
 if (phase.sealed && phase.date && isTradingDay(phase.date)) {
   try {
     const [prefs, config, aiLog] = await Promise.all([readAIPrefs(), readAIConfig(), readAILog()]);
-    if (prefs.autoEvolve && config && !aiLog.some((e) => e.trigger === "auto" && e.at.slice(0, 10) === phase.date)) {
+    // 去重粒度是「层」不是「天」：一天一轮的口径不变，但失败的轮次不算跑过——
+    // 10-20 / 10-22 各有一次超时让整个交易日白跑（ai-log 里 ok:false 也占掉了
+    // 「今天已跑」的名额）。现在按 autoLayerDue 每层独立判：今天这层成功过就不跑，
+    // 失败则按 AUTO_RETRY 的间隔/上限当天补跑。
+    const todayAuto = aiLog.filter((e) => e.trigger === "auto" && e.at.slice(0, 10) === phase.date);
+    const { autoLayerDue } = await import("../src/lib/market/evolve-breaker.ts");
+    const dueFactor = autoLayerDue(todayAuto, "factor");
+    const dueStrategy = autoLayerDue(todayAuto, "strategy");
+    // 诊断（observe 层）跟着第一轮跑：任一层要跑且今天还没诊断过才诊断。
+    const dueDiagnosis = (dueFactor || dueStrategy) && !todayAuto.some((e) => e.layer === "agent");
+    if (prefs.autoEvolve && config && (dueFactor || dueStrategy)) {
       // 熔断器：已断电的状态直接跳过（开关应该已被关掉，这里是双保险 + 审计）。
       const { readBreaker, nextBreakerState, writeBreaker, BREAKER_RULE } = await import(
         "../src/lib/market/evolve-breaker.ts"
@@ -764,19 +775,27 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
         // ① 观察：全局诊断先行——建议落 agent-diagnosis.json，本轮两层提议的
         // prompt 经 fetchDiagnosisHints 就能读到（observe → plan → act）。
         // 只诊断不行动；挂了记 ai-log，不连坐下面的提议层。
-        try {
-          const { runAgentDiagnosis } = await import("../src/lib/market/agent-loop.ts");
-          const diag = await runAgentDiagnosis("auto");
-          console.log(`${time} AI 全局诊断：${diag.ok ? diag.diagnosis?.summary ?? "ok" : `没跑成（${diag.error ?? "?"}）`}`);
-        } catch (diagError) {
-          console.error(`${time} AI 全局诊断失败（不影响提议）:`, diagError);
+        if (dueDiagnosis) {
+          try {
+            const { runAgentDiagnosis } = await import("../src/lib/market/agent-loop.ts");
+            const diag = await runAgentDiagnosis("auto");
+            console.log(`${time} AI 全局诊断：${diag.ok ? diag.diagnosis?.summary ?? "ok" : `没跑成（${diag.error ?? "?"}）`}`);
+          } catch (diagError) {
+            console.error(`${time} AI 全局诊断失败（不影响提议）:`, diagError);
+          }
         }
-        console.log(`${time} AI 自动进化开始`);
-        const factor = await runFactorAILoop(
-          { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
-          "auto",
-        );
-        const strategy = await runStrategyAILoop("auto");
+        const retrying = [dueFactor && "因子层", dueStrategy && "策略层"].filter(Boolean).join("、");
+        console.log(`${time} AI 自动进化开始${retrying === "因子层、策略层" ? "" : `（补跑：${retrying}）`}`);
+        // 没到点的那层不跑，交给熔断器的 outcome 记 ok——今天这层已有产出，
+        // 不能让补跑的另一层把整天算成「双败」。
+        const skipOutcome = { ok: true, proposed: 0, rejected: 0, rejectReasons: [] };
+        const factor = dueFactor
+          ? await runFactorAILoop(
+              { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
+              "auto",
+            )
+          : skipOutcome;
+        const strategy = dueStrategy ? await runStrategyAILoop("auto") : skipOutcome;
         console.log(
           `${time} AI 自动进化：因子层 ${factor.ok ? `提议 ${factor.proposed}` : `没跑成（${factor.error ?? "?"}）`} · 策略层 ${strategy.ok ? `提名 ${strategy.proposed}` : `没跑成（${strategy.error ?? "?"}）`}`,
         );

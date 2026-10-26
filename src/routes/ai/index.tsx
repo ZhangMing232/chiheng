@@ -75,7 +75,7 @@ function AIConsolePage() {
     }
   };
 
-  /** 自动进化开关：收盘后记账进程每天自动跑一轮（ai-log 去重，每天最多一轮）。 */
+  /** 自动进化开关：收盘后记账进程每天自动跑一轮；失败的层当天自动补跑（上限 3 次、间隔 30 分钟），成功的层不再重复跑。 */
   const toggleAuto = async (next: boolean) => {
     try {
       await saveAIPrefs({ data: { autoEvolve: next } });

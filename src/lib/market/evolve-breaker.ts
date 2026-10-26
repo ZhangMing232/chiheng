@@ -26,6 +26,44 @@ export const BREAKER_RULE = {
   maxConsecutiveErrors: 3,
 } as const;
 
+/**
+ * 失败补跑纪律（2026-10-26 补：之前一轮失败当天就整层空转——
+ * ai-log 记一条 ok:false 也算「今天跑过了」，10-20 / 10-22 的超时
+ * 把整个交易日的进化白送掉，没人发现。现在：失败不算跑过，按下面的
+ * 间隔和上限当天补跑，当天有任一层成功就停）。
+ */
+export const AUTO_RETRY = {
+  /** 每层每天最多尝试几次（首轮 + 补跑）。AI 服务商整晚抽风时
+   *  不会每分钟重试烧钱——熔断器（BREAKER_RULE）是更外层的总闸。 */
+  maxAttemptsPerDay: 3,
+  /** 两次尝试之间至少隔多久。给瞬时故障（超时 / 网络抖）自己恢复的时间；
+   *  也避免同一分钟里 record-journal 的多个 tick 连打三枪。 */
+  minGapMs: 30 * 60 * 1000,
+} as const;
+
+/** 一层今天的自动尝试（record-journal 从 ai-log 筛出今天的 trigger=auto 条目）。 */
+export type AutoAttempt = { layer: string; ok: boolean; at: string };
+
+/**
+ * 这一层现在该不该跑。判据（按序）：
+ * 1. 今天这层已成功过 → 不跑（成功的轮次才是「跑过了」，失败的只算尝试）；
+ * 2. 尝试次数到上限 → 不跑；
+ * 3. 距上次尝试不足最小间隔 → 不跑（含首次：无尝试 → 跑）。
+ * 纯函数不碰 fs；调用方负责把「今天」的条目筛好传进来
+ * （ai-log 的时间是 UTC ISO，record-journal 用 phase.date 对齐交易日）。
+ */
+export function autoLayerDue(attempts: AutoAttempt[], layer: "factor" | "strategy", now: number = Date.now()): boolean {
+  const mine = attempts.filter((a) => a.layer === layer);
+  if (mine.some((a) => a.ok)) return false;
+  if (mine.length >= AUTO_RETRY.maxAttemptsPerDay) return false;
+  const last = mine[mine.length - 1];
+  if (last) {
+    const lastAt = Date.parse(last.at);
+    if (Number.isFinite(lastAt) && now - lastAt < AUTO_RETRY.minGapMs) return false;
+  }
+  return true;
+}
+
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 

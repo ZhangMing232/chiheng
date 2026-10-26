@@ -9,8 +9,9 @@
  * 1. 这是 AI 自我进化的核心闭环：提议 → 判决 → 回读下场 → 下一轮提议。
  *    没有这本账，AI 永远不知道自己上周提了啥、后来怎么样了。
  * 2. 账本最多留 500 条，满了丢最旧的（FIFO）；data/ 在 .gitignore 里。
- * 3. 自动进化（记账进程收盘后触发）靠账本去重：今天已有 trigger=auto 的记录
- *    就不再跑，保证每天最多一轮。
+ * 3. 自动进化（记账进程收盘后触发）靠账本去重——但口径是「层」不是「天」：
+ *    今天这层已有 **ok=true** 的记录才不再跑；ok=false 只算一次失败尝试，
+ *    当天按 AUTO_RETRY（evolve-breaker.ts）的间隔和上限补跑（上限 3 次、间隔 30 分钟）。
  * 4. 纯函数（自我历史组装、统计）不依赖 fs，直接单测。
  */
 
@@ -115,16 +116,25 @@ export function factorSelfHistory(log: AILogEntry[], entries: QueueEntry[], maxR
   return log
     .filter((e) => e.layer === "factor")
     .slice(-maxRounds)
-    .flatMap((e) => e.proposed.map((p) => `- ${roundLabel(e)}：你提议「${p.name}」（${p.id}）——${outcomeOfQueue(byId.get(p.id))}`));
+    .flatMap((e) => [
+      ...e.proposed.map((p) => `- ${roundLabel(e)}：你提议「${p.name}」（${p.id}）——${outcomeOfQueue(byId.get(p.id))}`),
+      // 校验被拒的提案（表达式不过编译 / 撞名 / 类别非法）也要回读：
+      // 2026-10-21 一天 f_dtyoy 幻觉被拒 3 次，但历史里只看得见「提了谁」，看不见
+      // 「谁被编译器打回」——AI 下一轮继续幻觉白名单外的字段，一轮检验白跑。
+      ...e.rejected.map((r) => `- ${roundLabel(e)}：你的提案被校验打回——${r}`),
+    ]);
 }
 
-/** 策略层的自我历史，逻辑同 factorSelfHistory。 */
+/** 策略层的自我历史，逻辑同 factorSelfHistory（含提名被拒的回读）。 */
 export function strategySelfHistory(log: AILogEntry[], chals: Challenger[], maxRounds = 8): string[] {
   const byId = new Map(chals.map((c) => [c.id, c]));
   return log
     .filter((e) => e.layer === "strategy")
     .slice(-maxRounds)
-    .flatMap((e) => e.proposed.map((p) => `- ${roundLabel(e)}：你提名「${p.name}」（${p.id}）——${outcomeOfChallenger(byId.get(p.id))}`));
+    .flatMap((e) => [
+      ...e.proposed.map((p) => `- ${roundLabel(e)}：你提名「${p.name}」（${p.id}）——${outcomeOfChallenger(byId.get(p.id))}`),
+      ...e.rejected.map((r) => `- ${roundLabel(e)}：你的提名被校验打回——${r}`),
+    ]);
 }
 
 // ── 纯函数：进化统计（/ai 页看板）───────────────────────────────

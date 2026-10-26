@@ -8,7 +8,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  AUTO_RETRY,
   BREAKER_RULE,
+  autoLayerDue,
   initialBreakerState,
   isDoubleFailure,
   nextBreakerState,
@@ -75,4 +77,52 @@ test("IO：写读回一致；坏文件 → 初始态；reset 清空", async () =
     delete process.env.CHIHENG_DATA_DIR;
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+// ── 失败补跑判据（autoLayerDue）─────────────────────────────
+const T0 = Date.parse("2026-10-26T07:00:00Z");
+const att = (layer: string, ok: boolean, at: string) => ({ layer, ok, at });
+
+test("autoLayerDue：今天没跑过 → 该跑", () => {
+  assert.equal(autoLayerDue([], "factor", T0), true);
+});
+
+test("autoLayerDue：今天已成功过 → 不再跑（ok 的轮次才算跑过）", () => {
+  const attempts = [att("factor", true, "2026-10-26T06:00:00Z")];
+  assert.equal(autoLayerDue(attempts, "factor", T0), false);
+});
+
+test("autoLayerDue：失败不算跑过——间隔够了就该补跑", () => {
+  const attempts = [att("factor", false, "2026-10-26T06:00:00Z")];
+  assert.equal(autoLayerDue(attempts, "factor", T0), true); // 距上次 1 小时 > 30 分钟
+});
+
+test("autoLayerDue：距上次失败不足最小间隔 → 不跑（防同分钟连打）", () => {
+  const attempts = [att("factor", false, "2026-10-26T06:50:00Z")];
+  assert.equal(autoLayerDue(attempts, "factor", T0), false); // 只有 10 分钟
+});
+
+test("autoLayerDue：尝试次数到上限 → 不跑（防整晚抽风每分钟重试）", () => {
+  const attempts = [
+    att("factor", false, "2026-10-26T06:00:00Z"),
+    att("factor", false, "2026-10-26T06:31:00Z"),
+    att("factor", false, "2026-10-26T07:02:00Z"),
+  ];
+  assert.equal(attempts.length, AUTO_RETRY.maxAttemptsPerDay);
+  assert.equal(autoLayerDue(attempts, "factor", T0 + 60 * 60 * 1000), false);
+});
+
+test("autoLayerDue：只认自己这一层——策略层成败不影响因子层", () => {
+  const attempts = [
+    att("strategy", true, "2026-10-26T06:00:00Z"),
+    att("agent", true, "2026-10-26T06:01:00Z"),
+    att("factor", false, "2026-10-26T06:02:00Z"),
+  ];
+  assert.equal(autoLayerDue(attempts, "factor", T0), true);
+  assert.equal(autoLayerDue(attempts, "strategy", T0), false);
+});
+
+test("autoLayerDue：一次成功后又有失败 → 仍以成功为准不再跑", () => {
+  const attempts = [att("factor", false, "2026-10-26T06:00:00Z"), att("factor", true, "2026-10-26T06:31:00Z")];
+  assert.equal(autoLayerDue(attempts, "factor", T0 + 60 * 60 * 1000), false);
 });

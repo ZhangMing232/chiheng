@@ -186,3 +186,33 @@ test("evolveStats：只数 AI 来源的产物，轮数按层分", () => {
     chalRejected: 1,
   });
 });
+
+test("factorSelfHistory：校验被拒的提案（如编译不过白名单）也回读给 AI", () => {
+  const log = [
+    logEntry({
+      at: "2026-10-21T10:00:00.000Z",
+      rejected: ["表达式不过编译：「f_dtyoy」不在白名单里（只许用 MetricRow 字段和 abs/log/sqrt）"],
+    }),
+    logEntry({ at: "2026-10-22T10:00:00.000Z", proposed: [{ id: "q_new", name: "新因子" }] }),
+  ];
+  const lines = factorSelfHistory(log, []);
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /被校验打回/);
+  assert.match(lines[0], /f_dtyoy/);
+  assert.match(lines[1], /新因子/);
+});
+
+test("strategySelfHistory：提名被拒也回读给 AI", () => {
+  const log = [
+    logEntry({
+      layer: "strategy",
+      at: "2026-10-21T10:00:00.000Z",
+      proposed: [{ id: "c_ok", name: "正常提名" }],
+      rejected: ["style 必须是 ACTIVE_STYLES 里的现成风格，不许自造"],
+    }),
+  ];
+  const lines = strategySelfHistory(log, []);
+  assert.equal(lines.length, 2);
+  assert.match(lines[1], /被校验打回/);
+  assert.match(lines[1], /ACTIVE_STYLES/);
+});
