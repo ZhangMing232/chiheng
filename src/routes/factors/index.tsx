@@ -201,7 +201,7 @@ function FactorLabCard({ summary, tombstones, batchIndex }: { summary: BatchSumm
                 <li key={`${r.id}-${r.diedAt}`} className="rounded border border-line bg-surface px-2 py-1.5">
                   <div className="text-xs font-medium">{r.name}</div>
                   <div className="text-[11px] text-muted">
-                    {r.diedAt}
+                    {r.diedAt.slice(0, 10)}
                     {r.failedGates.length ? ` · 败于 ${r.failedGates.join("/")}` : " · 衰退休退"}
                   </div>
                 </li>
