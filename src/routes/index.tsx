@@ -162,11 +162,9 @@ function Dashboard() {
         </div>
       </Panel>
 
-      <div className="grid gap-2 lg:grid-cols-3">
-        <SentimentGauge reading={sentiment} updatedAt={stamp} />
-
+      <div className="grid gap-2 lg:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)]">
         <Panel title="今日关键数字" note={breadth ? `全市场 ${breadth.up + breadth.down + breadth.flat} 只` : undefined}>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 p-3">
+          <div className="flex flex-col gap-2.5 p-3">
             <KeyNum
               label="上涨 / 下跌"
               value={breadth ? `${breadth.up} / ${breadth.down}` : null}
@@ -190,6 +188,8 @@ function Dashboard() {
             />
           </div>
         </Panel>
+
+        <SentimentGauge reading={sentiment} updatedAt={stamp} />
 
         <Panel title="大盘分时" note={indices[0] ? `${indices[0].name} ${indices[0].price.toFixed(2)}` : "指数暂时拉不下来"}>
           {trend && trend.points.length > 1 ? (
@@ -392,7 +392,7 @@ function KeyNum({
   return (
     <div>
       <div className="text-xs text-muted">{label}</div>
-      <div className={"num mt-0.5 text-xl font-medium " + (tone ?? "text-fg")}>
+      <div className={"num mt-0.5 text-lg font-medium " + (tone ?? "text-fg")}>
         {value ?? "—"}
         {suffix ? <span className="ml-1 text-xs font-normal text-muted">{suffix}</span> : null}
       </div>

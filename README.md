@@ -17,10 +17,12 @@ A 股选股。六套策略分开记账，每套每天最多 10 只。名额按�
 | `src/lib/market/rules.ts` | 启动前期的门槛 |
 | `src/lib/market/journal-book.ts` | T+1、涨跌停卖不掉、手续费 |
 | `src/lib/market/session.ts` | 现在是早盘、午休还是尾盘 |
-| `src/routes/` | 每个页面。选股、资金、消息、个股 |
+| `src/routes/` | 每个页面。总览、市场、资讯、研究、组合、进化、AI、设置（侧边栏七组） |
 | `scripts/record-journal.ts` | 后台记账。只写本机账，不下单 |
 
 登录、脚手架、预览相关的文件开头写了「日常选股不用改这里」。
+
+界面规范以 `design/ui-upgrade-2026-10.md` 为准（侧边栏七组 IA、朱砂/红涨绿跌令牌、情绪温度计签名组件）；`design/archive/` 里的旧稿（UI 方案 v3、旧页头装饰、HTML 原型）是历史版本，勿按此施工。
 
 ## 回测：结论和怎么用
 

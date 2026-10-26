@@ -110,7 +110,7 @@ const SIDEBAR: {
   {
     label: "市场",
     items: [
-      { to: "/overview", label: "股市总览", icon: Gauge },
+      { to: "/overview", label: "涨跌分布", icon: Gauge },
       { to: "/review", label: "复盘与资金", icon: History },
       { to: "/review/signals", label: "情绪信号", icon: Coins },
       { to: "/review/events", label: "日历事件", icon: CalendarDays },
@@ -268,7 +268,7 @@ function PageTitle() {
  */
 const COMMANDS: { label: string; keywords: string; to: string; search?: Record<string, unknown> }[] = [
   { label: "总览", keywords: "home dashboard 首页", to: "/" },
-  { label: "市场总览", keywords: "market overview 大盘", to: "/overview" },
+  { label: "涨跌分布", keywords: "market overview 大盘 广度", to: "/overview" },
   { label: "复盘与资金", keywords: "review flow 资金流向", to: "/review" },
   { label: "情绪信号", keywords: "signals 涨停 情绪", to: "/review/signals" },
   { label: "公司事件", keywords: "events 日历 业绩", to: "/review/events" },

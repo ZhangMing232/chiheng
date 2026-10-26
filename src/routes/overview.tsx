@@ -62,6 +62,7 @@ function OverviewPage() {
         )
       }
     >
+      <h1 className="font-display text-xl font-medium tracking-wide">涨跌分布</h1>
       {/* 指数 */}
       <Panel title="指数" note={indices?.[0]?.time ? `行情时间 ${indices[0].time}` : undefined}>
         {!indices || indices.length === 0 ? (
