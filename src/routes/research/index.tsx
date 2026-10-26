@@ -333,6 +333,8 @@ function ResearchPage() {
         </div>
       ) : null}
 
+      {data.q ? <StepFlow stages={report.stages} /> : null}
+
       {report.stages.map((stage, index) => (
         <StageCard key={stage.id} stage={stage} index={index} hidden={!data.quote && stage.evidence.length === 0} />
       ))}
@@ -397,6 +399,64 @@ function LinkifiedText({ text, knownIds }: { text: string; knownIds: ReadonlySet
 }
 
 /**
+ * 七步研判流程条（效果图签名元素）。完全由真实 report.stages 派生，
+ * 不编任何「当前步」——每步状态按该阶段 evidence+findings+derived 与 gaps 算：
+ * 有数据无缺口=已核验，有数据有缺口=有缺口，无数据有缺口=缺数据，全空=未触及。
+ * active 指向第一个还没 done 的阶段（分析前沿）。点任一步跳到对应阶段卡
+ * （StageCard 根挂了 id=stage-<id> 锚点）。
+ */
+function StepFlow({ stages }: { stages: StageResult[] }) {
+  if (stages.length === 0) return null;
+  const statusOf = (s: StageResult): "done" | "partial" | "gap" | "empty" => {
+    const hasContent = s.evidence.length + s.findings.length + s.derived.length > 0;
+    const hasGap = s.gaps.length > 0;
+    if (hasContent && !hasGap) return "done";
+    if (hasContent && hasGap) return "partial";
+    if (!hasContent && hasGap) return "gap";
+    return "empty";
+  };
+  const statuses = stages.map(statusOf);
+  const activeIdx = statuses.findIndex((st) => st !== "done");
+  const dot: Record<string, string> = { done: "bg-down", partial: "bg-warn", gap: "bg-up", empty: "bg-muted" };
+  const label: Record<string, string> = { done: "已核验", partial: "有缺口", gap: "缺数据", empty: "未触及" };
+  const ring: Record<string, string> = {
+    done: "border-down/50 text-down",
+    partial: "border-warn/50 text-warn",
+    gap: "border-up/50 text-up",
+    empty: "border-line text-muted",
+  };
+  const jump = (id: string) =>
+    document.getElementById(`stage-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  return (
+    <nav className="flex flex-wrap items-stretch gap-1.5 rounded border border-line bg-surface p-2.5" aria-label="研判流程">
+      {stages.map((s, i) => {
+        const st = statuses[i];
+        const isActive = i === activeIdx;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => jump(s.id)}
+            className={
+              "flex min-w-[92px] flex-1 flex-col gap-1 rounded border px-2.5 py-1.5 text-left transition hover:bg-surface-2 " +
+              ring[st] +
+              (isActive ? " ring-1 ring-brand" : "")
+            }
+          >
+            <span className="flex items-center gap-1.5">
+              <span className={"h-1.5 w-1.5 rounded-full " + dot[st]} aria-hidden />
+              <span className="text-[10px] tabular-nums text-muted">{String(i + 1).padStart(2, "0")}</span>
+            </span>
+            <span className="text-xs font-medium leading-tight">{s.title}</span>
+            <span className="text-[10px]">{label[st]}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
  * 一个阶段。
  *
  * 顺序：问题（已经有标题右侧那句）→ 证据表 → 结论 → 缺口。
@@ -408,8 +468,9 @@ function StageCard({ stage, index, hidden }: { stage: StageResult; index: number
   // 2026-10-16 用户要求页面可折叠：七个阶段默认只展开第一段，其余点开看。
   // 折叠状态记在 localStorage，看过哪段保持哪段。
   return (
-    <CollapsibleSection
-      storageKey={`ch-collapse-research-${stage.id}`}
+    <div id={`stage-${stage.id}`} className="scroll-mt-16">
+      <CollapsibleSection
+        storageKey={`ch-collapse-research-${stage.id}`}
       defaultOpen={index === 0}
       header={
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -483,5 +544,6 @@ function StageCard({ stage, index, hidden }: { stage: StageResult; index: number
         </div>
       ) : null}
     </CollapsibleSection>
+    </div>
   );
 }
