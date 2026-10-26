@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
+import { CollapsibleSection } from "@/components/collapsible";
 import {
   getAIStatus,
   getChallengerSamples,
@@ -177,6 +178,70 @@ function DeathsArchive({ records }: { records: TombstoneRecord[] }) {
   );
 }
 
+/** 待验队列表头（在跑表与「已淘汰 / 失效」折叠表共用）。 */
+function QueueHead() {
+  return (
+    <thead>
+      <tr className="border-b border-line">
+        <th className={thClass()}>状态</th>
+        <th className={thClass("text-left")}>因子</th>
+        <th className={thClass()}>方向</th>
+        <th className={thClass("text-left")}>表达式</th>
+        <th className={thClass("text-left")}>经济逻辑</th>
+        <th className={thClass()}>跑过/失败</th>
+        <th className={thClass()}>运气线 DSR</th>
+        <th className={thClass()}>IC / ICIR</th>
+      </tr>
+    </thead>
+  );
+}
+
+/** 待验队列的一行。划线淘汰的（tombstone/decayed）不走这里——它们被收进下方默认折叠的
+ *  「已淘汰 / 失效因子」区，照 lab-panel 里「失效策略」的做法：失效的东西不和正常的混在一起。 */
+function QueueRow({ e }: { e: QueueEntry }) {
+  const st = QUEUE_STATUS[e.status];
+  return (
+    <tr key={e.id} className="border-b border-line last:border-b-0">
+      <td data-l="状态" className={`px-2.5 py-1.5 ${st.className}`}>{st.label}</td>
+      <td data-l="因子" className="px-2.5 py-1.5 text-left">
+        <span className="font-medium">{e.name}</span>
+        <span className="ml-1.5 text-[11px] text-muted">{e.id}</span>
+        {e.note ? <span className="ml-1.5 text-[11px] text-muted">（{e.note}）</span> : null}
+      </td>
+      <td data-l="方向" className="px-2.5 py-1.5">{e.direction > 0 ? "正向" : "反向"}</td>
+      <td data-l="表达式" className="px-2.5 py-1.5 font-mono text-[11px] text-muted">{e.expr}</td>
+      <td data-l="经济逻辑" className="max-w-[36ch] px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">{e.rationale}</td>
+      <td data-l="跑过/失败" className="px-2.5 py-1.5 text-[11px] text-muted">{e.runs} 次{e.failCount > 0 ? ` · 连续失败 ${e.failCount}` : ""}</td>
+      <td data-l="运气线 DSR" className="px-2.5 py-1.5 text-[11px]" title="试 N 个因子时运气最好的显著性基准线：per-period 夏普高过这条线=不像是搜出来的。只展示，不改 6 关判决。">
+        {e.lastDsr ? (
+          <span className={e.lastDsr.survives ? "text-emerald-500" : "text-amber-500"}>
+            {(e.lastDsr.value * 100).toFixed(0)}%{e.lastDsr.survives ? " ✓" : ""}
+            <span className="ml-1 text-muted">线 {(e.lastDsr.expectedMax * 100).toFixed(0)}% · N={e.lastDsr.nTrials}</span>
+          </span>
+        ) : (
+          <span className="text-muted">—</span>
+        )}
+      </td>
+      <td data-l="IC / ICIR" className="px-2.5 py-1.5 text-[11px]" title="逐日横截面「因子值 vs 未来超额」的 Spearman 秩相关：IC=均值，ICIR=均值/标准差（日频）。读数按原始方向存，对照「方向」列看正负。只展示，不改 6 关判决。">
+        {e.lastIc && e.lastIc.mean != null ? (
+          <span>
+            <span className={e.lastIc.mean * e.direction > 0 ? "text-emerald-500" : "text-amber-500"}>
+              IC {e.lastIc.mean >= 0 ? "+" : ""}
+              {e.lastIc.mean.toFixed(3)}
+            </span>
+            {e.lastIc.icir != null ? (
+              <span className="ml-1 text-muted">ICIR {e.lastIc.icir >= 0 ? "+" : ""}{e.lastIc.icir.toFixed(2)}</span>
+            ) : null}
+            <span className="ml-1 text-muted">{e.lastIc.days} 天</span>
+          </span>
+        ) : (
+          <span className="text-muted">{e.lastIc ? "样本不足" : "—"}</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 /** 因子 + 策略两层 AI 闭环（队列 / 记分牌 / 挑战者）。挂在因子发掘页。 */
 export function FactorLoopPanels() {
   const router = useRouter();
@@ -217,6 +282,12 @@ export function FactorLoopPanels() {
 
   if (!data) return <StateBlock kind="loading" title="正在读闭环数据" hint="队列、挑战者、记分牌" />;
   const { queue, chal, samples, ledger, ai, openByStyle, tombstones } = data;
+
+  // 划线淘汰的（tombstone/decayed）单独收起，照 lab-panel「失效策略」的折叠做法：
+  // 失效的东西不和正常的混在一起，默认折起来，展开可见完整死因。
+  const deadStatuses = new Set<QueueEntry["status"]>(["tombstone", "decayed"]);
+  const activeEntries = queue.entries.filter((e) => !deadStatuses.has(e.status));
+  const deadEntries = queue.entries.filter((e) => deadStatuses.has(e.status));
 
   const runFactor = async () => {
     setBusy("factor");
@@ -294,87 +365,21 @@ export function FactorLoopPanels() {
           )}
         </div>
         <div className="px-3.5 py-3">
-          {queue.entries.length > 0 ? (
+          {activeEntries.length > 0 ? (
             <Table className="data-table" caption="待验队列：AI 或人工预登记的因子，跑 BT_FACTOR=1 时附加进 6 关检验">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className={thClass()}>状态</th>
-                  <th className={thClass("text-left")}>因子</th>
-                  <th className={thClass()}>方向</th>
-                  <th className={thClass("text-left")}>表达式</th>
-                  <th className={thClass("text-left")}>经济逻辑</th>
-                  <th className={thClass()}>跑过/失败</th>
-                  <th className={thClass()}>运气线 DSR</th>
-                  <th className={thClass()}>IC / ICIR</th>
-                </tr>
-              </thead>
+              <QueueHead />
               <tbody>
-                {[...queue.entries].reverse().map((e) => {
-                  const st = QUEUE_STATUS[e.status];
-                  return (
-                    <tr key={e.id} className={`border-b border-line last:border-b-0 ${e.status === "tombstone" ? "opacity-50" : ""}`}>
-                      <td data-l="状态" className={`px-2.5 py-1.5 ${st.className}`}>
-                        {st.label}
-                      </td>
-                      <td data-l="因子" className="px-2.5 py-1.5 text-left">
-                        <span className="font-medium">{e.name}</span>
-                        <span className="ml-1.5 text-[11px] text-muted">{e.id}</span>
-                        {e.note ? <span className="ml-1.5 text-[11px] text-muted">（{e.note}）</span> : null}
-                      </td>
-                      <td data-l="方向" className="px-2.5 py-1.5">
-                        {e.direction > 0 ? "正向" : "反向"}
-                      </td>
-                      <td data-l="表达式" className="px-2.5 py-1.5 font-mono text-[11px] text-muted">
-                        {e.expr}
-                      </td>
-                      <td data-l="经济逻辑" className="max-w-[36ch] px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">
-                        {e.rationale}
-                      </td>
-                      <td data-l="跑过/失败" className="px-2.5 py-1.5 text-[11px] text-muted">
-                        {e.runs} 次{e.failCount > 0 ? ` · 连续失败 ${e.failCount}` : ""}
-                      </td>
-                      <td
-                        data-l="运气线 DSR"
-                        className="px-2.5 py-1.5 text-[11px]"
-                        title="试 N 个因子时运气最好的显著性基准线：per-period 夏普高过这条线=不像是搜出来的。只展示，不改 6 关判决。"
-                      >
-                        {e.lastDsr ? (
-                          <span className={e.lastDsr.survives ? "text-emerald-500" : "text-amber-500"}>
-                            {(e.lastDsr.value * 100).toFixed(0)}%{e.lastDsr.survives ? " ✓" : ""}
-                            <span className="ml-1 text-muted">线 {(e.lastDsr.expectedMax * 100).toFixed(0)}% · N={e.lastDsr.nTrials}</span>
-                          </span>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </td>
-                      <td
-                        data-l="IC / ICIR"
-                        className="px-2.5 py-1.5 text-[11px]"
-                        title="逐日横截面「因子值 vs 未来超额」的 Spearman 秩相关：IC=均值，ICIR=均值/标准差（日频）。读数按原始方向存，对照「方向」列看正负。只展示，不改 6 关判决。"
-                      >
-                        {e.lastIc && e.lastIc.mean != null ? (
-                          <span>
-                            <span className={e.lastIc.mean * e.direction > 0 ? "text-emerald-500" : "text-amber-500"}>
-                              IC {e.lastIc.mean >= 0 ? "+" : ""}
-                              {e.lastIc.mean.toFixed(3)}
-                            </span>
-                            {e.lastIc.icir != null ? (
-                              <span className="ml-1 text-muted">
-                                ICIR {e.lastIc.icir >= 0 ? "+" : ""}
-                                {e.lastIc.icir.toFixed(2)}
-                              </span>
-                            ) : null}
-                            <span className="ml-1 text-muted">{e.lastIc.days} 天</span>
-                          </span>
-                        ) : (
-                          <span className="text-muted">{e.lastIc ? "样本不足" : "—"}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {[...activeEntries].reverse().map((e) => (
+                  <QueueRow key={e.id} e={e} />
+                ))}
               </tbody>
             </Table>
+          ) : deadEntries.length > 0 ? (
+            <StateBlock
+              kind="empty"
+              title="待验队列里没有在跑的因子"
+              hint="淘汰与失效的因子收在下方「已淘汰 / 失效因子」折叠区。"
+            />
           ) : (
             <StateBlock
               kind="empty"
@@ -382,6 +387,31 @@ export function FactorLoopPanels() {
               hint={ai.allowed ? "点上面的「让 AI 提议一轮新因子」；进队列后收盘自动判决，过关/淘汰会推微信。开自动进化后每晚自己转。" : "主人账号配置 AI 接口后可以自动补充新因子。"}
             />
           )}
+          {deadEntries.length > 0 ? (
+            <CollapsibleSection
+              className="mt-3"
+              storageKey="ch-collapse-dead-factors"
+              defaultOpen={false}
+              headerClassName="bg-surface-2"
+              header={
+                <>
+                  <h2 className="text-sm font-medium">已淘汰 / 失效因子</h2>
+                  <p className="text-xs text-muted">
+                    {deadEntries.length} 个 · 划线停跑或淘汰，不再进回测，死因见下方「决策者记分牌」
+                  </p>
+                </>
+              }
+            >
+              <Table className="data-table" caption="已淘汰 / 失效因子（划线）：不再进回测，死因见下方「决策者记分牌」">
+                <QueueHead />
+                <tbody>
+                  {[...deadEntries].reverse().map((e) => (
+                    <QueueRow key={e.id} e={e} />
+                  ))}
+                </tbody>
+              </Table>
+            </CollapsibleSection>
+          ) : null}
           {queue.missing ? <p className="mt-2 text-[11px] text-muted">{queue.missing}（还没跑过，正常）</p> : null}
         </div>
       </Section>
