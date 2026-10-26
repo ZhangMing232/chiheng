@@ -37,9 +37,10 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
-import { getPushStatus, getQuickSearch, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
+import { getPushStatus, getQuickSearch, getRecorder, getSellAlerts, savePushConfig } from "@/lib/market/quotes.functions";
 import { isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { snapshotAge } from "@/lib/market/format";
 
 /** 顶栏账号入口：已登录显示邮箱（或名字）+ 付费档位徽章，点进 /membership 看档位与定价；
  *  未登录显示「登录」。会话解析中渲染空，不闪。 */
@@ -231,7 +232,52 @@ function SideNav() {
           );
         })}
       </nav>
+      <SystemStatus />
     </aside>
+  );
+}
+
+/**
+ * 侧栏底部的系统状态块（对齐参考图「系统状态」区）。
+ * 只有「系统状态 / 记账心跳」两项有真实数据源（data/recorder.json，经 getRecorder）；
+ * 参考图里的「数据延迟 / 计算节点」在代码里没有任何数据源——按纪律不编数字，
+ * 标「暂无数据源」，等主人指明来源再接。心跳 5 分钟没更新算超时（进程可能挂了）。
+ */
+function SystemStatus() {
+  const { data } = useQuery({
+    queryKey: ["recorder-status"],
+    queryFn: () => getRecorder(),
+    refetchInterval: 60_000,
+  });
+  const at = data?.at ?? null;
+  const ok = data?.ok ?? false;
+  const beat = at != null ? snapshotAge(at) : "无心跳";
+  const fresh = at != null && Date.now() - at < 5 * 60_000;
+  const online = ok && fresh;
+  const dotClass = online ? "bg-down" : ok ? "bg-warn" : "bg-up";
+  const stateText = online ? "运行中" : ok ? "心跳超时" : "离线";
+  return (
+    <div className="mt-auto shrink-0 space-y-1.5 border-t border-line px-4 py-3 text-xs">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-muted">
+          <span className={"h-2 w-2 rounded-full " + dotClass} aria-hidden />
+          系统状态
+        </span>
+        <span className={online ? "text-down" : "text-muted"}>{stateText}</span>
+      </div>
+      <div className="flex items-center justify-between text-muted">
+        <span>记账心跳</span>
+        <span className="tabular-nums">{beat}</span>
+      </div>
+      <div className="flex items-center justify-between text-muted">
+        <span>数据延迟</span>
+        <span className="text-muted/70">暂无数据源</span>
+      </div>
+      <div className="flex items-center justify-between text-muted">
+        <span>计算节点</span>
+        <span className="text-muted/70">暂无数据源</span>
+      </div>
+    </div>
   );
 }
 
