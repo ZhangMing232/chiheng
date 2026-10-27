@@ -6,10 +6,12 @@
 
 import { useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { Swords, Plus, Trash2, Sparkles, WandIcon, Zap, AlertTriangle, CheckCircle } from "lucide-react";
-import { expressNaturalLanguage } from "@/lib/market/quotes.functions";
+import { expressNaturalLanguage, getSignalCandidates, getSignalReviewed } from "@/lib/market/quotes.functions";
+import type { SignalCandidate, SignalReviewed as SignalReviewedType } from "@/lib/market/quotes.functions";
 import { validateFactorExpr } from "@/lib/market/factor-expr";
 
 const SIGNALS_DIR = "data/signals";
@@ -22,38 +24,19 @@ interface UserStrategy {
   stopPct: number | null; targetPct: number | null; note: string; source: "ai" | "manual"; createdAt: string;
 }
 
-interface SignalItem {
-  id: string; code: string; name: string; strategy: string;
-  buyPrice: number; score: number; reason: string;
-  auctionPrice?: number | null; auctionGap?: number | null;
-  verdict?: "ok" | "warn" | "skip"; verdictReason?: string;
-}
-
-interface SignalFile {
-  date: string;
-  signals: SignalItem[];
-  ok?: number; warn?: number; skip?: number;
-}
-
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
 export const Route = createFileRoute("/arena")({
   loader: async () => {
     let strategies: UserStrategy[] = [];
-    let candidates: SignalItem[] = [];
-    let reviewed: SignalItem[] = [];
-
-    // 只在服务端读文件（浏览器里 import("node:fs") 不存在）
+    // 策略仍在 loader 里读（需要 node:fs），但有 typeof window 守卫
     if (typeof window === "undefined") {
       try {
         const { readFile } = await import("node:fs/promises");
         try { const raw = await readFile(STRATEGIES_FILE, "utf8"); strategies = JSON.parse(raw); if (!Array.isArray(strategies)) strategies = []; } catch {}
-        try { const raw = await readFile(`${SIGNALS_DIR}/reviewed.json`, "utf8"); const data: SignalFile = JSON.parse(raw); reviewed = data.signals ?? []; } catch {}
-        try { const raw = await readFile(`${SIGNALS_DIR}/candidates.json`, "utf8"); const data: SignalFile = JSON.parse(raw); candidates = data.signals ?? []; } catch {}
       } catch {}
     }
-
-    return { strategies, candidates, reviewed };
+    return { strategies };
   },
   component: ArenaPage,
 });
@@ -66,7 +49,7 @@ async function saveStrategies(list: UserStrategy[]) {
 
 // ---- 信号卡片组件 ----
 
-function SignalCards({ title, signals, variant }: { title: string; signals: SignalItem[]; variant: "candidate" | "reviewed" }) {
+function SignalCards({ title, signals, variant }: { title: string; signals: SignalCandidate[] | SignalReviewedType[]; variant: "candidate" | "reviewed" }) {
   if (signals.length === 0) return null;
   const isReviewed = variant === "reviewed";
 
@@ -77,10 +60,13 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
         <span>{title} ({signals.length})</span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {signals.map((s, i) => (
+        {signals.map((s, i) => {
+          const r = s as SignalReviewedType;
+          const hasReview = isReviewed && r.verdict;
+          return (
           <div key={`${s.id}-${i}`} className={`flex flex-col gap-1 rounded border p-2.5 text-xs ${
-            isReviewed
-              ? s.verdict === "ok" ? "border-up/40 bg-up/5" : s.verdict === "warn" ? "border-yellow-500/40 bg-yellow-500/5" : "border-line bg-surface"
+            hasReview
+              ? r.verdict === "ok" ? "border-up/40 bg-up/5" : r.verdict === "warn" ? "border-yellow-500/40 bg-yellow-500/5" : "border-line bg-surface"
               : "border-line bg-surface"
           }`}>
             <div className="flex items-center justify-between">
@@ -88,29 +74,30 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
                 <span className="font-medium text-sm">{s.name}</span>
                 <span className="text-[10px] text-muted tabular-nums">{s.code}</span>
               </div>
-              {isReviewed && s.verdict === "ok" && <CheckCircle size={12} className="text-up" />}
-              {isReviewed && s.verdict === "warn" && <AlertTriangle size={12} className="text-yellow-500" />}
+              {hasReview && r.verdict === "ok" && <CheckCircle size={12} className="text-up" />}
+              {hasReview && r.verdict === "warn" && <AlertTriangle size={12} className="text-yellow-500" />}
             </div>
             <div className="flex items-center gap-2 text-muted">
               <span className="rounded bg-surface2 px-1 py-0.5 text-[10px]">{s.strategy}</span>
               <span className="tabular-nums">挂 {s.buyPrice}</span>
             </div>
             <p className="text-[11px] text-muted">{s.reason}</p>
-            {isReviewed && s.verdictReason && (
-              <p className={`text-[11px] ${s.verdict === "ok" ? "text-up" : "text-yellow-500"}`}>
-                {s.verdict === "ok" ? "✓ " : "⚠ "}{s.verdictReason}
+            {hasReview && r.verdictReason && (
+              <p className={`text-[11px] ${r.verdict === "ok" ? "text-up" : "text-yellow-500"}`}>
+                {r.verdict === "ok" ? "✓ " : "⚠ "}{r.verdictReason}
               </p>
             )}
-            {isReviewed && s.auctionGap != null && (
+            {hasReview && r.auctionGap != null && (
               <div className="flex gap-2 text-[10px] text-muted">
-                <span>竞价 {s.auctionPrice}</span>
-                <span className={s.auctionGap > 0 ? "text-up" : "text-down"}>
-                  {s.auctionGap > 0 ? "+" : ""}{s.auctionGap}%
+                <span>竞价 {r.auctionPrice}</span>
+                <span className={r.auctionGap > 0 ? "text-up" : "text-down"}>
+                  {r.auctionGap > 0 ? "+" : ""}{r.auctionGap}%
                 </span>
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -119,8 +106,20 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
 // ---- 页面主体 ----
 
 function ArenaPage() {
-  const { strategies: initial, candidates, reviewed } = Route.useLoaderData();
+  const { strategies: initial } = Route.useLoaderData();
   const [list, setList] = useState<UserStrategy[]>(initial);
+
+  // 信号数据走 server function（客户端也可用）
+  const { data: candidates = [] } = useQuery({
+    queryKey: ["signalCandidates"],
+    queryFn: async () => (await getSignalCandidates()).signals,
+    staleTime: 60_000,
+  });
+  const { data: reviewed = [] } = useQuery({
+    queryKey: ["signalReviewed"],
+    queryFn: async () => (await getSignalReviewed()).signals,
+    staleTime: 60_000,
+  });
   const [mode, setMode] = useState<"ai" | "manual">("ai");
   const [showForm, setShowForm] = useState(false);
   const [nl, setNl] = useState(""); const [aiExpr, setAiExpr] = useState(""); const [aiBusy, setAiBusy] = useState(false); const [aiError, setAiError] = useState("");

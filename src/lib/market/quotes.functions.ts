@@ -1270,3 +1270,39 @@ export const expressNaturalLanguage = createServerFn({ method: "POST" })
 
     return { ok: true as const, expr: text.trim() };
   });
+
+// ── 竞技场信号数据（server function，客户端可安全调）──────────────────────
+
+export interface SignalCandidate {
+  id: string; code: string; name: string; strategy: string;
+  buyPrice: number; score: number; reason: string;
+}
+
+export interface SignalReviewed extends SignalCandidate {
+  auctionPrice: number | null; auctionGap: number | null;
+  verdict: "ok" | "warn" | "skip"; verdictReason: string;
+}
+
+/** 收盘初筛候选信号。 */
+export const getSignalCandidates = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const raw = await readFile(dataPath("signals", "candidates.json"), "utf8");
+    const parsed = JSON.parse(raw) as { date: string; signals: SignalCandidate[] };
+    return { date: parsed.date, signals: parsed.signals ?? [] };
+  } catch {
+    return { date: "", signals: [] as SignalCandidate[] };
+  }
+});
+
+/** 竞价审核结果。 */
+export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const raw = await readFile(dataPath("signals", "reviewed.json"), "utf8");
+    const parsed = JSON.parse(raw) as { date: string; ok: number; warn: number; skip: number; signals: SignalReviewed[] };
+    return { date: parsed.date, ok: parsed.ok ?? 0, warn: parsed.warn ?? 0, skip: parsed.skip ?? 0, signals: parsed.signals ?? [] };
+  } catch {
+    return { date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] };
+  }
+});
