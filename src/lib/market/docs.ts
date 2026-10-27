@@ -82,7 +82,7 @@ export function termsOf(query: string): string[] {
   const quoted = [...query.matchAll(/"([^"]+)"/g)].map((m) => m[1]!.trim());
   const rest = query.replace(/"[^"]+"/g, " ");
   const loose = rest
-    .split(/[\s,，。；;、:：!！?？()（）【】\[\]]+/)
+    .split(/[\s,，。；;、:：!！?？()（）【】[\]]+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
   return [...new Set([...quoted, ...loose])];

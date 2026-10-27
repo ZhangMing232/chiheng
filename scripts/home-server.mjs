@@ -48,12 +48,12 @@ function isOurServe(pid) {
   } catch { return false; }
 }
 async function killTree(pid) {
-  try { process.kill(pid, "SIGTERM"); } catch {}
+  try { process.kill(pid, "SIGTERM"); } catch { /* 进程已退出，没东西可杀 */ }
   for (let i = 0; i < 50; i++) {
     if (!isAlive(pid)) return;
     await new Promise((r) => setTimeout(r, 100));
   }
-  try { process.kill(pid, "SIGKILL"); } catch {}
+  try { process.kill(pid, "SIGKILL"); } catch { /* 同上，已退出 */ }
 }
 function parentOf(pid) {
   try { return Number(execFileSync("ps", ["-p", String(pid), "-o", "ppid="], { encoding: "utf8" }).trim()); } catch { return NaN; }
@@ -72,12 +72,12 @@ async function ensureSoleInstance() {
       if (!isOurServe(h)) continue;
       const ppid = parentOf(h);
       if (Number.isFinite(ppid) && ppid !== process.pid && isOurServe(ppid)) {
-        try { process.kill(ppid, "SIGTERM"); } catch {} // 让外层自己干净地退出（它会顺带带走子进程）
+        try { process.kill(ppid, "SIGTERM"); } catch { /* 外层已不在 */ } // 让外层自己干净地退出（它会顺带带走子进程）
       }
-      try { process.kill(h, "SIGKILL"); } catch {} // 立刻释放 8787，不等外层慢吞吞收尾
+      try { process.kill(h, "SIGKILL"); } catch { /* 已退出 */ } // 立刻释放 8787，不等外层慢吞吞收尾
     }
     if (holders.length) await new Promise((r) => setTimeout(r, 500));
-  } catch {}
+  } catch { /* lsof 探不到监听者 = 没有要清的 */ }
 }
 
 let recording = false;
@@ -312,7 +312,7 @@ main();
 
 let shuttingDown = false;
 function shutdown() {
-  try { unlinkSync(PID_FILE); } catch {}
+  try { unlinkSync(PID_FILE); } catch { /* pid 文件已不在 */ }
   // 收到停止信号就把自己也带走。早先这里只 kill 子进程、自己不退出，
   // 于是留下一个「以为自己在守着、其实端口已经空了」的进程——
   // 2026-10-05 下午 8787 打不开、日志却在刷「重新拉起」，就是这么来的。

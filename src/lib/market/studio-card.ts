@@ -339,7 +339,7 @@ export function specToSvg(
   const th = THEMES[theme];
   const head = chrome(family, spec, W, at, th);
   let body = "";
-  let y = head.y;
+  const y = head.y;
   switch (spec.layout) {
     case "stat":
       body = statLayout(family, spec, W, y, th).svg;

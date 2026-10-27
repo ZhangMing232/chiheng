@@ -139,7 +139,7 @@ export function linkifyEvidenceText(text: string, knownIds: ReadonlySet<string>)
   // id 的两种形态：账本哈希（ev-a1b2c3，纯 base36）和 prompt 里的行内 id
   // （ev-identity-收盘价，标签部分含中文）。按「非空白非标点」贪心切，
   // 是否成链接只看 knownIds——AI 随口编的 id 永远不会在集合里。
-  const re = /(?:ev|calc)-[^\s,，.。、;；:：?!?（）()\[\]{}<>"'“”‘’—–]+/g;
+  const re = /(?:ev|calc)-[^\s,，.。、;；:：?!?（）()[\]{}<>"'“”‘’—–]+/g;
   const out: EvidenceTextSegment[] = [];
   let last = 0;
   for (let m = re.exec(text); m; m = re.exec(text)) {

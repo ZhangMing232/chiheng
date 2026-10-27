@@ -371,7 +371,7 @@ function renderHtml(report: DailyMailReport, subject: string): string {
           .map((c) => {
             const verdict = c.need > 0 ? `<b>还差 ${c.need} 笔</b>判决` : "样本已够，等判决";
             return `<div style="padding:8px 0;border-bottom:1px solid #eee">
-              <div><b>${esc(c.name)}</b><span style="color:#888;font-size:12px">　${esc(c.style)}｜${esc(c.params)}</span></div>
+              <div><b>${esc(c.name)}</b><span style="color:#888;font-size:12px">\u3000${esc(c.style)}｜${esc(c.params)}</span></div>
               <div style="color:#444;font-size:13px">账本里有 ${c.days} 个交易日 · 挑战者 ${esc(sampleText(c.chalClosed, c.chalMean))} · 冠军 ${esc(sampleText(c.champClosed, c.champMean))} · ${verdict}</div>
             </div>`;
           })

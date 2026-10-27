@@ -51,8 +51,8 @@ export function moneyOf(wan: number): string {
 function rowLine(rank: number, r: FlowRow, side: "in" | "out"): { line: string; facts: string[] } {
   const money = moneyOf(r.inflow);
   const chg = r.chg != null ? studioPct(r.chg) : null;
-  const chgPart = chg ? `　${chg}` : "";
-  const line = `${rank}. ${r.name}　${side === "in" ? "净流入" : "净流出"} ${money}${chgPart}`;
+  const chgPart = chg ? `\u3000${chg}` : "";
+  const line = `${rank}. ${r.name}\u3000${side === "in" ? "净流入" : "净流出"} ${money}${chgPart}`;
   const facts = [r.name, money, ...(chg ? [chg] : [])];
   return { line, facts };
 }
