@@ -1229,3 +1229,44 @@ export const getStrategyGates = createServerFn({ method: "GET" }).handler(async 
   }
   return { gates: {} as Record<string, StrategyGate> };
 });
+
+// ── 策略竞技场：自然语言 → 因子表达式 ──────────────────────────────────────
+
+/**
+ * 用 DSH 把人的自然语言翻译成 factor-expr 表达式。
+ * 前端传 { q: "我想找低位放量的票" }，后端编译、验证、返回。
+ */
+export const expressNaturalLanguage = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const d = data as { q?: unknown };
+    if (typeof d?.q !== "string" || !d.q.trim()) throw new Error("请先描述选股思路");
+    return { q: d.q.slice(0, 400) };
+  })
+  .handler(async ({ data }) => {
+    const { callDSH } = await import("@/lib/market/chiheng-dsh-client");
+    const { validateFactorExpr, FACTOR_EXPR_VARS, FACTOR_EXPR_FUNCS } = await import("@/lib/market/factor-expr");
+
+    const system = [
+      "你是一个精确的量化因子翻译器。用户用自然语言描述选股思路，你输出一个数值因子表达式。",
+      "因子值越大=越值得买入。不要写比较表达式（如 > < ==）。",
+      "",
+      `允许的变量：${FACTOR_EXPR_VARS.join(", ")}`,
+      `允许的函数：${FACTOR_EXPR_FUNCS.join(", ")}。运算符：+ - * / ( )`,
+      "只输出单行表达式本身。不解释、不输出JSON。",
+      "",
+      "典型映射：",
+      "- d20/d60/d10/d5 是涨跌幅，正则涨，负则跌。d60* -1 把跌得多的票排前面",
+      "- volRatio 是量比，volShrink 是缩量",
+      "- std20/std60 是波动率，低波动=安全",
+      "- 想「放量攻击」：volRatio 大 → 因子值大",
+      "- 想「超跌+缩量」：abs(d60)*volShrink 大 → 因子值大",
+    ].join("\n");
+
+    const text = await callDSH(`用户说：「${data.q}」。对应的因子表达式是：`, { system });
+
+    // 编译验证
+    const result = validateFactorExpr(text.trim());
+    if (!result.ok) return { ok: false as const, error: `表达式编译失败: ${result.error}。DSH给出的原文:「${text}」` };
+
+    return { ok: true as const, expr: text.trim() };
+  });
