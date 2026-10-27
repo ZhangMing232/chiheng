@@ -300,3 +300,39 @@ test("buildPrompt：表达式白名单逐字写进铁律（防 AI 再编 f_dtyoy
   assert.ok(prompt.includes("springAge springLow springRangeHigh"), "白名单尾部字段也要在");
   assert.ok(prompt.includes("abs/log/sqrt"), "函数白名单必须列出");
 });
+
+// ── 家族多样性限额（DECISIONS #2 落地结论的提议层配套）──────────────
+
+test("家族限额：死因档案 ≥5 条的类别一轮只收 1 个，第二个拒并写明原因", () => {
+  const raw = JSON.stringify([
+    { id: "q_v1", name: "甲", category: "量能", direction: -1, expr: "shrinkDays", rationale: "足够长的经济逻辑说明" },
+    { id: "q_v2", name: "乙", category: "量能", direction: -1, expr: "volShrink", rationale: "足够长的经济逻辑说明" },
+    { id: "q_w1", name: "丙", category: "波动率", direction: -1, expr: "std20 / amp20", rationale: "足够长的经济逻辑说明" },
+  ]);
+  const { accepted, rejected } = parseAIProposals(raw, empty(), { tombsByCategory: { 量能: 5 } });
+  // 量能只收第一个（第二个撞家族限额）；波动率家族档案为 0，不受影响
+  assert.deepEqual(accepted.map((a) => a.id), ["q_v1", "q_w1"]);
+  assert.equal(rejected.length, 1);
+  assert.match(rejected[0].reason, /量能/);
+  assert.match(rejected[0].reason, /只收 1 个/);
+});
+
+test("家族限额：档案未达 5 条的类别同轮可以收多个", () => {
+  const raw = JSON.stringify([
+    { id: "q_v1", name: "甲", category: "量能", direction: -1, expr: "shrinkDays", rationale: "足够长的经济逻辑说明" },
+    { id: "q_v2", name: "乙", category: "量能", direction: -1, expr: "volShrink", rationale: "足够长的经济逻辑说明" },
+  ]);
+  const { accepted, rejected } = parseAIProposals(raw, empty(), { tombsByCategory: { 量能: 4 } });
+  assert.equal(accepted.length, 2);
+  assert.equal(rejected.length, 0);
+});
+
+test("家族限额：不传死因档案时行为与旧版完全一致（限额不触发）", () => {
+  const raw = JSON.stringify([
+    { id: "q_v1", name: "甲", category: "量能", direction: -1, expr: "shrinkDays", rationale: "足够长的经济逻辑说明" },
+    { id: "q_v2", name: "乙", category: "量能", direction: -1, expr: "volShrink", rationale: "足够长的经济逻辑说明" },
+  ]);
+  const { accepted, rejected } = parseAIProposals(raw, empty());
+  assert.equal(accepted.length, 2);
+  assert.equal(rejected.length, 0);
+});

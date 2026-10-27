@@ -270,9 +270,16 @@ function extractJsonArray(raw: string): unknown[] {
  * AI 的产出**永远不直接信**：表达式要过白名单编译、id/name 不许撞已存在的
  * （注册表 FACTORS + 队列 + 本次批次内互相）、方向必须是 ±1、类别必须在词表里。
  */
+/** 家族多样性限额：死因档案（6 关打死，不含衰减退役）里同一类别达到这个数，
+ *  一轮只收 1 个新提议。阈值依据 2026-10-26 诊断——量能 11 / 动量 9 / 形态 9 条
+ *  死因在档时，同形状复合变体仍被反复提出（10-21 反事实已证明换更严的判决关
+ *  只会死更多，饿死队列的是因子没 edge，所以约束加在提议端不碰 6 关）。 */
+export const FAMILY_DEATH_CAP = 5;
+
 export function parseAIProposals(
   raw: string,
   existing: { ids: Set<string>; names: Set<string> },
+  deathStats?: { tombsByCategory?: Record<string, number> },
 ): ProposalCheck {
   let arr: unknown[];
   try {
@@ -284,6 +291,7 @@ export function parseAIProposals(
   const rejected: ProposalCheck["rejected"] = [];
   const ids = new Set(existing.ids);
   const names = new Set(existing.names);
+  const usedByCategory = new Map<string, number>();
   for (const item of arr) {
     const p = item as Partial<AIProposal>;
     const fail = (reason: string) => rejected.push({ proposal: item, reason });
@@ -300,8 +308,20 @@ export function parseAIProposals(
     const compiled = validateFactorExpr(p.expr);
     if (!compiled.ok) { fail(`表达式不过编译：${compiled.error}`); continue; }
     if (typeof p.rationale !== "string" || p.rationale.trim().length < 10) { fail("rationale（经济逻辑）太短，少于 10 字"); continue; }
+    // 家族多样性限额（DECISIONS #2 落地结论的提议层配套）：重度死亡家族一轮只收
+    // 1 个。放在全部字段校验之后——格式不对的提案先按真实原因拒，限额只消耗合法提案。
+    const tombsInFamily = deathStats?.tombsByCategory?.[category] ?? 0;
+    const usedInFamily = usedByCategory.get(category) ?? 0;
+    if (tombsInFamily >= FAMILY_DEATH_CAP && usedInFamily >= 1) {
+      fail(
+        `「${category}」家族死因档案已有 ${tombsInFamily} 条（≥${FAMILY_DEATH_CAP}），一轮只收 1 个——` +
+          `这条被家族多样性限额拒了：换个家族再提，或说清这次的形状和档案里的死法差在哪`,
+      );
+      continue;
+    }
     ids.add(p.id);
     names.add(p.name.trim());
+    usedByCategory.set(category, usedInFamily + 1);
     accepted.push({
       id: p.id,
       name: p.name.trim(),
@@ -653,6 +673,13 @@ export async function runFactorAILoop(
   // 死因档案喂给下一轮：26 个死因子躺在档案里，不读就是每轮从零猜。
   const tombs = await readTombstones();
   const necropsy = necropsyLines(tombs);
+  // 家族多样性限额的原料：6 关打死的按类别计数（衰减退役不算——那不是「提议错了」）。
+  // 口径和 necropsyLines 面的统计一致，prompt 里看得见数字，解析端用同一把尺执行。
+  const tombsByCategory: Record<string, number> = {};
+  for (const tomb of tombs) {
+    if (tomb.failedGates.length === 0) continue;
+    tombsByCategory[tomb.category] = (tombsByCategory[tomb.category] ?? 0) + 1;
+  }
   // 「临门一脚家族」：历史某批五关全过、独挂 g5 的死因子（edgeFamilyLines 纯函数，
   // 需要全量 runs 行——只看最近一批会漏）。读不到档案/行就空数组，增强项不阻断。
   let edgeFamilies: string[] = [];
@@ -690,7 +717,7 @@ export async function runFactorAILoop(
   }
   const ids = new Set([...deps.existingFactors.map((f) => f.id), ...entries.map((e) => e.id)]);
   const names = new Set([...deps.existingFactors.map((f) => f.name), ...entries.map((e) => e.name)]);
-  const { accepted, rejected } = parseAIProposals(raw, { ids, names });
+  const { accepted, rejected } = parseAIProposals(raw, { ids, names }, { tombsByCategory });
   if (accepted.length > 0) {
     const now = new Date().toISOString();
     await writeQueue([
