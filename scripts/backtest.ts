@@ -458,6 +458,8 @@ function metrics(
     hotNetBuy: null,
     mainFlow: null,
     sectorFlow: null,
+    newsTone: null,
+    annCount: null,
   };
 }
 

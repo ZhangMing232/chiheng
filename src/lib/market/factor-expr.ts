@@ -64,6 +64,8 @@ const VARS: (keyof MetricRow)[] = [
   "hotNetBuy",
   "mainFlow",
   "sectorFlow",
+  "newsTone",
+  "annCount",
 ];
 
 /** 表达式里允许出现的函数。键是名字，值是 (x)=>y，定义域外的输入返回 NaN。

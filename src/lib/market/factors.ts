@@ -102,6 +102,11 @@ export interface MetricRow {
   mainFlow: number | null;
   /** 板块资金：该票所属板块当日主力净流入（万元） */
   sectorFlow: number | null;
+  /** 事件驱动：当日公告/快讯乐观度。来自 news.ts 的 tone 分类（good +1, bad -1, flat 0）。
+   *  回测里为 null（历史快讯数据不可得），实盘策略信号可注入。 */
+  newsTone: number | null;
+  /** 事件密度：当日该票的公告数（cninfo）。越多说明信披密集，可能有大动作。 */
+  annCount: number | null;
 }
 
 /**
@@ -267,6 +272,33 @@ export const FACTORS: Factor[] = [
   { id: "sector_flow", name: "板块资金", category: "量能", direction: 1, family: "资金流",
     rationale: "所属板块主力净流入=板块共振，个股在强势板块里更容易涨。预注册方向+1。",
     get: (m) => m.sectorFlow },
+  // ===== 事件因子（2026-10-27 新增）=====
+  {
+    id: "news_tone",
+    name: "快讯情绪",
+    category: "基本面",
+    direction: 1,
+    family: "事件",
+    rationale:
+      "当日快讯利好→买盘涌入（A股散户跟消息买卖的特征非常显著）。预注册方向+1。" +
+      "⚠️ 预登记局限：快讯情绪一天一变，横截面区分度集中在小票（龙头利好早就定价了）；" +
+      "且利好当天股价往往已反应，次日可能反转。预期回测里两段翻号风险高（G3 可能挂）。",
+    get: (m) => m.newsTone,
+  },
+  {
+    id: "ann_count",
+    name: "公告密度",
+    category: "基本面",
+    direction: 1,
+    family: "事件",
+    rationale:
+      "当日公告数多=信披密集→可能有大动作（业绩修正、并购重组、股权激励）。" +
+      "A 股经验：公告密集期和股价波动正相关，机会和风险并存。" +
+      "预注册方向+1（公告多=信息量大→定价效率提升→正向预期）。" +
+      "⚠️ 预登记局限：公告性质不区分（利好利空混在一起），裸看数量噪声大；" +
+      "建议后续用 cninfo 公告标题做 NLP 分类后替代裸计数。",
+    get: (m) => m.annCount,
+  },
 ];
 
 /** 一次因子检验里，单个因子的分档结果（某一段区间、某一份样本）。 */
