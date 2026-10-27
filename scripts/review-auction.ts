@@ -56,26 +56,17 @@ async function main() {
     const s = candidates.signals[ci];
     const secid = s.id.startsWith("sh") ? `1.${s.code}` : `0.${s.code}`;
     let auctionPrice: number | null = null;
-    let auctionVol = 0;
 
     try {
-      const url = `https://push2his.eastmoney.com/api/qt/stock/trends2/get?fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&secid=${secid}&ndays=1`;
-      const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", Referer: "https://quote.eastmoney.com/" }, signal: AbortSignal.timeout(8000) });
-      const body = (await res.json()) as { data?: { trends?: string[] } };
-      const trends = body.data?.trends ?? [];
-
-      // 找 09:20-09:25 的竞价数据
-      const auctionRows = trends.filter(t => {
-        const parts = t.split(",");
-        return parts[0] >= "09:20" && parts[0] <= "09:25";
-      });
-      // 找 09:25 这根（竞价出清点）
-      const settle = trends.find(t => t.startsWith("09:25"));
-      if (settle) {
-        const p = settle.split(",");
-        auctionPrice = Number(p[2]) || null;  // 收盘价=出清价
-        auctionVol = auctionRows.reduce((sum, t) => sum + (Number(t.split(",")[5]) || 0), 0);
-      }
+      // 用腾讯快照接口（东财被墙）拿开盘价作为竞价审核依据
+      const prefix = s.id.startsWith("sh") ? "sh" : "sz";
+      const url = `https://web.sqt.gtimg.cn/utf8/q=${prefix}${s.code}`;
+      const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) });
+      const text = await res.text();
+      const fields = text.split("~");
+      // 腾讯快照格式：0=name, 3=现价, 4=昨收, 5=开盘(竞价出清价)
+      const openPrice = Number(fields[5]);
+      if (openPrice > 0) auctionPrice = openPrice;
     } catch (e) {
       console.log(`  ${s.code} ${s.name} 竞价数据拉取失败: ${e instanceof Error ? e.message : String(e)}`);
     }
