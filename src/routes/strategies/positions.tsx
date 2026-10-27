@@ -498,6 +498,34 @@ function attrRow(row: AttrRow) {
   );
 }
 
+/**
+ * 回测结论速览的判定行。数字逐字抄自 data/backtest/baseline-2026-10-25.txt
+ * （回测管道三口径修复后重跑的基线），不许手改——下次重跑基线时整表替换。
+ * alpha = 同期全池超额（百分点）；t = Welch t；null = 本基线测不了。
+ * ⚠️ 旧口径结论（中期反转 +1.03%、t=5.06）已被这份基线推翻，别再引用。
+ */
+type BaselineRow = { name: string; kind: "live" | "variant"; alpha: number | null; t: number | null; count?: number; note?: string };
+const BASELINE_2026_10_25: BaselineRow[] = [
+  { name: "启动前期", kind: "live", alpha: 0.19, t: 1.26, count: 1145 },
+  { name: "趋势回踩", kind: "live", alpha: -0.08, t: -0.39, count: 1293 },
+  { name: "放量突破", kind: "live", alpha: 0.8, t: 1.85, count: 177 },
+  { name: "低估值", kind: "live", alpha: null, t: null, note: "回测期几乎买不到，无样本" },
+  { name: "中期反转", kind: "live", alpha: 0.14, t: 1.1, count: 2234, note: "旧口径 +1.03%/t=5.06 已被管道修复推翻" },
+  { name: "次日补涨", kind: "live", alpha: null, t: null, note: "尾盘冻结机制，不在本基线表内" },
+  { name: "突破·早期版", kind: "variant", alpha: 1.24, t: 2.57, count: 154 },
+  { name: "突破·排天量", kind: "variant", alpha: 0.82, t: 2.03, count: 198 },
+  { name: "反转·加收阳", kind: "variant", alpha: -1.04, t: -2.53, count: 129 },
+  { name: "反转·企稳版", kind: "variant", alpha: -1.41, t: -1.32, count: 9 },
+];
+
+/** 判定和回测页同一把尺：|t| ≥ 2 才算测出超额，|t| < 2 等于没测出来。 */
+function verdictOf(t: number | null): { label: string; tone: "up" | "down" | "muted" } {
+  if (t == null) return { label: "—", tone: "muted" };
+  if (t >= 2) return { label: "过线", tone: "up" };
+  if (t <= -2) return { label: "反向显著", tone: "down" };
+  return { label: "未测出", tone: "muted" };
+}
+
 function Positions() {
   const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks } = Route.useLoaderData();
   const [ready, setReady] = useState(false);
@@ -913,6 +941,48 @@ function Positions() {
             </p>
           </Panel>
         ) : null}
+
+        {/* 回测结论速览：实盘归因看的是几十笔的样本，这边是几百笔的同尺对照——
+            两边数字打架时先信样本大的。放归因正下方，看实盘之前先扫一眼回测怎么说。 */}
+        <Panel title="回测结论 · 速览" note={<span>2026-10-25 基线 · 300 只抽样 · 250 日窗口</span>}>
+          <Table className="data-table" caption="各策略与变体在 2026-10-25 修复版基线里的判定">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>策略 / 变体</th>
+                <th className={thClass()}>样本</th>
+                <th className={thClass()}>超额</th>
+                <th className={thClass()}>t 值</th>
+                <th className={thClass()}>判定</th>
+              </tr>
+            </thead>
+            <tbody>
+              {BASELINE_2026_10_25.map((row) => {
+                const verdict = verdictOf(row.t);
+                return (
+                  <tr key={row.name} className={`border-b border-line last:border-0 hover:bg-surface-2${row.kind === "variant" ? " text-muted" : ""}`}>
+                    <td data-l="策略" className={`sticky left-0 bg-surface px-2.5 py-1.5 text-left${row.kind === "variant" ? "" : " font-medium"}`}>
+                      {row.kind === "variant" ? `▸ ${row.name}` : row.name}
+                      {row.note ? <span className="ml-1.5 text-[11px] text-muted">（{row.note}）</span> : null}
+                    </td>
+                    <td data-l="样本" className={tdClass("tabular-nums")}>{row.count ? `${row.count} 笔` : "—"}</td>
+                    <td data-l="超额" className={tdClass(row.alpha == null ? "" : pctClass(row.alpha))}>
+                      {row.alpha == null ? "—" : signedPct(row.alpha)}
+                    </td>
+                    <td data-l="t 值" className={tdClass("tabular-nums")}>{row.t == null ? "—" : row.t.toFixed(2)}</td>
+                    <td data-l="判定" className={tdClass()}>
+                      <Tag tone={verdict.tone}>{verdict.label}</Tag>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+          <p className="border-t border-line px-3 py-2 text-xs leading-relaxed text-muted">
+            判定和回测页同一把尺：|t| ≥ 2 才算测出超额，|t| &lt; 2 等于没测出来；超额是减同期全池的值。
+            出处 data/backtest/baseline-2026-10-25.txt（管道三口径修复后重跑，引用时连窗口一起引）。
+            变体是挑战者在测的参数方向——全表只有突破系两个变体过线。
+          </p>
+        </Panel>
 
         <p className="px-1 text-xs leading-relaxed text-muted">
           金额是名义金额：这套模拟盘不记仓位大小、每笔按满仓记，所以这里按每笔一手（100 股）折算，不是投入的钱。
