@@ -129,6 +129,53 @@ runAlerts();
 const alertTimer = setInterval(runAlerts, 60_000);
 
 /**
+ * 每日信号：收盘后生成候选 → 竞价后审核 → 页面可见。
+ * 同 runAlerts 的模式：60 秒心跳 + 日期去重。
+ * 两步独立：生成在 15:00 后触发，审核在 9:26 后触发（次日竞价）。
+ */
+let signalGenRanDay = "";
+let signalReviewRanDay = "";
+
+function runSignalGen() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (signalGenRanDay === day) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 5)) return; // 15:05 后跑，给记账落盘留时间
+  signalGenRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/generate-signals.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("信号生成失败，明天开盘前再补跑");
+  });
+}
+
+function runSignalReview() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (signalReviewRanDay === day) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (!(hour === 9 && min >= 26) && hour < 9) return; // 9:26 后
+  signalReviewRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/review-auction.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("竞价审核失败，9:30 前再补跑");
+  });
+}
+
+runSignalGen();
+runSignalReview();
+const signalGenTimer = setInterval(runSignalGen, 60_000);
+const signalReviewTimer = setInterval(runSignalReview, 60_000);
+
+/**
  * 拉起真正的网页服务，并在它意外退出时再拉一次。
  *
  * 为什么要这层：服务进程会因为各种意料之外的原因没掉——有人（或某个清理动作）
