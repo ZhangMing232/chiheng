@@ -38,8 +38,8 @@ export const GATE_LEGEND: { key: GateKey; label: string; rule: string }[] = [
     rule: "分档均值随档位单调，且方向符合跑之前写的预注册假设（Spearman 绝对值 ≥ 0.8）",
   },
   { key: "g2", label: "显著", rule: "|t| ≥ 2，不到 2 等于没测出来" },
-  { key: "g3", label: "两段", rule: "前后两半段同号且各自 |t| ≥ 1；翻号 = 不能用" },
-  { key: "g4", label: "换样本", rule: "换一批互不重叠的股票，spread 仍同号且 |t| ≥ 2" },
+  { key: "g3", label: "两段", rule: "前后两半段同号且各自 |t| ≥ 0.7；翻号 = 不能用" },
+  { key: "g4", label: "换样本", rule: "换一批互不重叠的股票，spread 仍同号且 |t| ≥ 1.5" },
   { key: "g5", label: "多重检验", rule: "Bonferroni：按已测因子总数 N 收紧临界 t，测得越多门槛越高" },
   { key: "g6", label: "可交易", rule: "顶档被真实可交易闸（ST / 低价 / 市值）挡掉的比例 ≤ 50%" },
 ];

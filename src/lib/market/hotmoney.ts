@@ -94,7 +94,7 @@ async function pull(report: string, date: string): Promise<Raw[]> {
   return Array.isArray(body.result?.data) ? body.result.data : [];
 }
 
-async function namesOf(date: string): Promise<Map<string, string>> {
+export async function namesOf(date: string): Promise<Map<string, string>> {
   const filter = encodeURIComponent(`(TRADE_DATE='${date}')`);
   const url =
     "https://datacenter-web.eastmoney.com/api/data/v1/get?columns=SECURITY_CODE,SECURITY_NAME_ABBR" +

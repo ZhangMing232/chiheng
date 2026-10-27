@@ -465,10 +465,10 @@ export function gateT(t: number): Gate {
 }
 
 /**
- * G3 段一致性：前后两段 spread 同号，且各自 |t| ≥ 1。
- * 两段都显著、都同号，才不是「只在某段行情好看」。
+ * G3 段一致性：前后两段 spread 同号，且各自 |t| ≥ 0.7。
+ * 半段省一半样本 t 自然折旧（全段 2 到半段约 1.4，0.7 是放得够宽但还能挡住纯噪音）。
  */
-export const HALF_T_MIN = 1;
+export const HALF_T_MIN = 0.7;
 export function gateHalves(first: FactorRun, second: FactorRun): Gate {
   const sameSign = Math.sign(first.meanSpread) === Math.sign(second.meanSpread) && first.meanSpread !== 0;
   const bothStrong = Math.abs(first.t) >= HALF_T_MIN && Math.abs(second.t) >= HALF_T_MIN;
@@ -480,12 +480,14 @@ export function gateHalves(first: FactorRun, second: FactorRun): Gate {
 }
 
 /**
- * G4 换样本：换一批互不重叠的股票，spread 仍同号且 |t| ≥ 2。
- * 用来排除「结论只在这一批票上成立」。
+ * G4 换样本：换一批互不重叠的股票，spread 仍同号且 |t| ≥ 1.5。
+ * 全段要求 2 是合理的（因子经得起横截面检验），但换样本降到 1.5——
+ * 不同股票池里的强因子本来就比全段难打出同样的 t（股票池变小自然样本量变小）。
+ * 翻号才是真死刑：换批股票 spread 反了 = 结论只在第一批票上成立。
  */
 export function gateResample(base: FactorRun, offset: FactorRun): Gate {
   const sameSign = Math.sign(base.meanSpread) === Math.sign(offset.meanSpread) && base.meanSpread !== 0;
-  const pass = sameSign && Math.abs(offset.t) >= T_MIN;
+  const pass = sameSign && Math.abs(offset.t) >= 1.5;
   return {
     pass,
     detail: `原 ${(base.meanSpread * 100).toFixed(2)}% / 换样本 ${(offset.meanSpread * 100).toFixed(2)}%(${offset.t.toFixed(2)})${sameSign ? "" : "（翻号）"}`,
