@@ -29,14 +29,28 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 export const Route = createFileRoute("/arena")({
   loader: async () => {
     let strategies: UserStrategy[] = [];
-    // 策略仍在 loader 里读（需要 node:fs），但有 typeof window 守卫
+    let candidates: SignalCandidate[] = [];
+    let reviewed: SignalReviewedType[] = [];
+
+    // 只在服务端读文件和调server function
     if (typeof window === "undefined") {
       try {
         const { readFile } = await import("node:fs/promises");
         try { const raw = await readFile(STRATEGIES_FILE, "utf8"); strategies = JSON.parse(raw); if (!Array.isArray(strategies)) strategies = []; } catch {}
       } catch {}
+
+      // SSR 预加载信号数据
+      try {
+        const r = await getSignalCandidates();
+        candidates = r.signals;
+      } catch (e) { console.error("getSignalCandidates failed:", e instanceof Error ? e.message : String(e)); }
+      try {
+        const r = await getSignalReviewed();
+        reviewed = r.signals;
+      } catch (e) { console.error("getSignalReviewed failed:", e instanceof Error ? e.message : String(e)); }
     }
-    return { strategies };
+
+    return { strategies, candidates, reviewed };
   },
   component: ArenaPage,
 });
@@ -106,18 +120,20 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
 // ---- 页面主体 ----
 
 function ArenaPage() {
-  const { strategies: initial } = Route.useLoaderData();
+  const { strategies: initial, candidates: initialCandidates, reviewed: initialReviewed } = Route.useLoaderData();
   const [list, setList] = useState<UserStrategy[]>(initial);
 
-  // 信号数据走 server function（客户端也可用）
-  const { data: candidates = [] } = useQuery({
+  // 信号数据先走 loader SSR 预加载，再用 useQuery 保持客户端新鲜
+  const { data: candidates = initialCandidates } = useQuery({
     queryKey: ["signalCandidates"],
     queryFn: async () => (await getSignalCandidates()).signals,
+    initialData: initialCandidates,
     staleTime: 60_000,
   });
-  const { data: reviewed = [] } = useQuery({
+  const { data: reviewed = initialReviewed } = useQuery({
     queryKey: ["signalReviewed"],
     queryFn: async () => (await getSignalReviewed()).signals,
+    initialData: initialReviewed,
     staleTime: 60_000,
   });
   const [mode, setMode] = useState<"ai" | "manual">("ai");

@@ -1287,10 +1287,12 @@ export interface SignalReviewed extends SignalCandidate {
 export const getSignalCandidates = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const { readFile } = await import("node:fs/promises");
-    const raw = await readFile(dataPath("signals", "candidates.json"), "utf8");
+    const p = dataPath("data", "signals", "candidates.json");
+    const raw = await readFile(p, "utf8");
     const parsed = JSON.parse(raw) as { date: string; signals: SignalCandidate[] };
     return { date: parsed.date, signals: parsed.signals ?? [] };
-  } catch {
+  } catch (e) {
+    console.error("getSignalCandidates 读文件失败:", e instanceof Error ? e.message : String(e));
     return { date: "", signals: [] as SignalCandidate[] };
   }
 });
@@ -1299,10 +1301,12 @@ export const getSignalCandidates = createServerFn({ method: "GET" }).handler(asy
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const { readFile } = await import("node:fs/promises");
-    const raw = await readFile(dataPath("signals", "reviewed.json"), "utf8");
+    const p = dataPath("data", "signals", "reviewed.json");
+    const raw = await readFile(p, "utf8");
     const parsed = JSON.parse(raw) as { date: string; ok: number; warn: number; skip: number; signals: SignalReviewed[] };
     return { date: parsed.date, ok: parsed.ok ?? 0, warn: parsed.warn ?? 0, skip: parsed.skip ?? 0, signals: parsed.signals ?? [] };
-  } catch {
+  } catch (e) {
+    console.error("getSignalReviewed 读文件失败:", e instanceof Error ? e.message : String(e));
     return { date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] };
   }
 });
