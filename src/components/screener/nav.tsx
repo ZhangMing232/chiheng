@@ -94,7 +94,7 @@ function AccountChip() {
  *
  * 保留的三条老原则：
  *   1. 最多两级（分组 + 页面）；第三级只许在页面里切，不占侧栏
- *   2. 顺序按每天使用先后：先看总览 → 市场 → 资讯 → 研究 → 组合 → 进化 → AI
+ *   2. 顺序按每天使用先后：先看总览 → 市场 → 资讯 → 研究（含自选）→ 进化 → AI
  *   3. 旧路由全部留重定向文件，书签不断链
  */
 const SIDEBAR: {
@@ -122,15 +122,13 @@ const SIDEBAR: {
   },
   {
     label: "研究",
-    // 2026-10-26 四合一：个股研判 / 多空辩论 / 研报库 / 笔记合成一个「研究」页，
-    // 里面二级 tab 切换；旧地址 /debate /reports /notes 保留重定向。
-    items: [{ to: "/research", label: "研究", icon: FileSearch }],
-  },
-  {
-    label: "组合",
-    // 2026-10-26 去掉「持仓与追踪」：持仓明细在首页与策略看板都有出口，
-    // 平铺入口重复率太高；/strategies/positions 路由保留，直链仍可达。
-    items: [{ to: "/my-stocks", label: "自选", icon: Star }],
+    // 2026-10-27 组合 + 研究 合成一个侧栏分组：两个分组各只有一项（研究页 / 自选），
+    // 平铺成两个分组纯属占行；自选（持仓观察）作为研究工作流的一环归到研究下。
+    // 旧地址 /debate /reports /notes 保留重定向，/strategies/positions 路由保留直链可达。
+    items: [
+      { to: "/research", label: "研究", icon: FileSearch },
+      { to: "/my-stocks", label: "自选", icon: Star },
+    ],
   },
   {
     label: "进化",
