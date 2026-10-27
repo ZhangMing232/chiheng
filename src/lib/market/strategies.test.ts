@@ -172,3 +172,29 @@ test("takeChallengerBuy：冠军名额买满后挑战者仍能拿 1 只，但已
     null,
   );
 });
+
+// ── deepScanChallengerBuy（DECISIONS #4 方案 D：名单饱和深扫）──────────
+
+test("深扫：主名单前 10 全被持仓挡死，从原名单第 11 名拿", async () => {
+  const { deepScanChallengerBuy } = await import("@/lib/market/strategies");
+  const held = Array.from({ length: 10 }, (_, i) => trade(`sz330${i}`, "breakout"));
+  const got = deepScanChallengerBuy(series("sz33", 20), held);
+  // 回归点：曾写成「先过滤再 slice(10)」——被持仓挡掉的前 10 名在过滤时从数组里
+  // 消失，第 11 名顶到下标 0，slice(10) 把它跳过去，饱和场景反而一个都选不出来
+  assert.ok(got, "饱和场景必须能拿到第 11 名");
+  assert.equal(got.quote.id, "sz3310");
+});
+
+test("深扫永远不碰原名单前 10 名：即使前 10 全可买，也只看第 11~20 名", async () => {
+  const { deepScanChallengerBuy } = await import("@/lib/market/strategies");
+  const got = deepScanChallengerBuy(series("sz44", 20), []);
+  assert.ok(got);
+  assert.equal(got.quote.id, "sz4410");
+});
+
+test("深扫：第 11~20 名也全被持仓挡死时返回 null", async () => {
+  const { deepScanChallengerBuy } = await import("@/lib/market/strategies");
+  const list = series("sz55", 20).map((r, i) => ({ ...r, quote: { ...r.quote, id: `sz55${String(i).padStart(2, "0")}` } }));
+  const held = list.map((r) => trade(r.quote.id, "breakout"));
+  assert.equal(deepScanChallengerBuy(list, held), null);
+});

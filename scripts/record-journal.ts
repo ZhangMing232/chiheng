@@ -44,7 +44,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
-import { ACTIVE_STYLES, holdOf, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
+import { ACTIVE_STYLES, DEEP_SCAN_TOP, deepScanChallengerBuy, holdOf, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
 import { intradayFill } from "../src/lib/market/intraday-fill.ts";
@@ -78,6 +78,12 @@ type Trade = {
   exitKind?: "intraday" | "daily";
   /** 挑战者 id。缺省 = 冠军参数。归因和判决按这个字段把两边分开。 */
   variant?: string;
+  /**
+   * 深扫样本标记（DECISIONS #4 方案 D）：主名单 top-10 全被已持仓挡死时从 11~20
+   * 名买的。分数低于主名单，判决落地时必须注明含几笔——不分层等于把低分样本
+   * 悄悄混进主样本，参数归因就脏了。
+   */
+  deepScan?: boolean;
 };
 
 type Day = {
@@ -287,6 +293,12 @@ if (phase.date) {
         await writeChampions(champions);
         await appendChampionLog({ at: Date.now(), style: chal.style, from, to: chal.id, reason: decision.reason });
       }
+      // 分层留痕（DECISIONS #4 方案 D）：深扫样本混在主样本里攒判决，判决落地时
+      // 必须说明含几笔，事后才能按层拆开复核归因。
+      const deepCount = ownerBook.days
+        .flatMap((day) => day.trades)
+        .filter((t) => t.variant === chal.id && t.exit != null && t.deepScan === true).length;
+      const deepNote = deepCount > 0 ? `（样本含深扫 ${deepCount} 笔）` : "";
       const label =
         decision.action === "promote"
           ? `参数转正：${chal.name} 成为 ${name} 的新冠军`
@@ -318,9 +330,9 @@ if (phase.date) {
       } catch (error) {
         console.error(`challenger-robust ${chal.id} 评估失败（不影响判决）:`, error);
       }
-      console.log(`challenger ${chal.id} ${decision.action}: ${decision.reason}`);
-      notify(`${label}：${decision.reason}${robustNote}`);
-      void sendPushPlus("赤轨挑战者", `${label}\n${decision.reason}${robustNote}\n时间：${time}`);
+      console.log(`challenger ${chal.id} ${decision.action}: ${decision.reason}${deepNote}`);
+      notify(`${label}：${decision.reason}${deepNote}${robustNote}`);
+      void sendPushPlus("赤轨挑战者", `${label}\n${decision.reason}${deepNote}${robustNote}\n时间：${time}`);
     }
     if (chalChanged) {
       await writeChallengers(chalFile);
@@ -519,7 +531,8 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           console.log(`challenger-skip ${userId} ${phase.date} ${chal.id}：今天已买 ${ownToday} 只（预登记每日上限 1 只）`);
           continue;
         }
-        const row = takeChallengerBuy(list, held, ownToday);
+        let row = takeChallengerBuy(list, held, ownToday);
+        let deepScan = false;
         if (!row) {
           // 别静默跳过：「挑战者今天为什么没买」事后全靠猜。逐行复算一遍
           // takeChallengerBuy 的过滤口径，把每行的落选原因打进日志，
@@ -536,11 +549,28 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
             else if (seen.has(r.quote.id)) skip.dup += 1;
             else seen.add(r.quote.id);
           }
-          console.log(
-            `challenger-skip ${userId} ${phase.date} ${chal.id}：名单 ${list.length} 行，命中 ${nHit} 行——` +
-              `已持仓挡 ${skip.held}、涨停挡 ${skip.limit}、重复挡 ${skip.dup}，剩 0 可买`,
-          );
-          continue;
+          // 深扫只对「名单饱和」这一种饿法生效（DECISIONS #4 方案 D 的预登记口径：
+          // 前 10 全持仓）。涨停挡的说明行情在封板，深扫下去是在买更弱的票，不扫；
+          // relay 的名单机制不同（14:30 冻结），也不扫。
+          if (nHit > 0 && skip.held === nHit && style !== "relay") {
+            const deepList = watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs), DEEP_SCAN_TOP);
+            const deepRow = deepScanChallengerBuy(deepList, held);
+            if (deepRow) {
+              row = deepRow;
+              deepScan = true;
+              console.log(
+                `challenger-deepscan ${userId} ${phase.date} ${chal.id} ${deepRow.quote.name}` +
+                  `（主名单 ${nHit} 行全被已持仓挡死，深扫第 ${deepList.indexOf(deepRow) + 1} 名）`,
+              );
+            }
+          }
+          if (!row) {
+            console.log(
+              `challenger-skip ${userId} ${phase.date} ${chal.id}：名单 ${list.length} 行，命中 ${nHit} 行——` +
+                `已持仓挡 ${skip.held}、涨停挡 ${skip.limit}、重复挡 ${skip.dup}，剩 0 可买（含深扫）`,
+            );
+            continue;
+          }
         }
         const trade: Trade = {
           id: row.quote.id,
@@ -560,13 +590,14 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           exit: null,
           exitDate: null,
           variant: chal.id,
+          ...(deepScan ? { deepScan: true } : {}),
         };
         additions.push(trade);
         held.push(trade);
         todayTrades.push(trade);
         // 单独记一行：挑战者建仓是 Welch 判决的样本来源，混在冠军那行 bought 里
         // 事后统计「挑战者今天买没买到」得靠数 variant，太绕。
-        console.log(`bought-challenge ${userId} ${phase.date} ${chal.id} ${trade.name}`);
+        console.log(`bought-challenge ${userId} ${phase.date} ${chal.id} ${trade.name}${deepScan ? "（深扫）" : ""}`);
       }
     }
     if (additions.length > 0) {

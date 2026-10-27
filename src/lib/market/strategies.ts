@@ -357,6 +357,8 @@ export function watchList(
   style: StyleId,
   rules: EarlyRules,
   allow: (quote: Quote) => boolean,
+  /** 名单深度。挑战者深扫（DECISIONS #4 方案 D）要 top-20；默认仍是冠军的 top-10。 */
+  depth: number = MAX_POSITIONS,
 ): Listed[] {
   const rows: Listed[] = [];
   for (const quote of quotes) {
@@ -374,7 +376,7 @@ export function watchList(
     });
   }
   rows.sort((a, b) => b.score - a.score || b.quote.cap - a.quote.cap);
-  return rows.slice(0, MAX_POSITIONS);
+  return rows.slice(0, depth);
 }
 
 /**
@@ -424,8 +426,33 @@ export function takeChallengerBuy(
   const row = list
     .filter((r) => r.hit && limitTag(r.quote) !== "涨停" && !openIds.has(r.quote.id))
     .filter((r) => (seen.has(r.quote.id) ? false : (seen.add(r.quote.id), true)))
-    .slice(0, 1)[0];
+      .slice(0, 1)[0];
   return row ?? null;
+}
+
+/** 深扫名单深度：主名单 top-10 之外，再看 11~20 名。 */
+export const DEEP_SCAN_TOP = 20;
+
+/**
+ * 名单饱和时的深扫（DECISIONS #4 方案 D，2026-10-27 落地）：主名单前 10 全被
+ * 已持仓挡死、挑战者一口都买不到时，从第 11~20 名里找第一只可买的。过滤口径和
+ * takeChallengerBuy 完全一致（不双押已持仓、去重、不追涨停）。传入的 list 必须是
+ * watchList(..., DEEP_SCAN_TOP) 的 top-20。深扫票分数低于主名单，落账必须带
+ * deepScan 标记、判决落地时注明含几笔——不标记等于把低分样本混进主样本，归因就脏了。
+ */
+export function deepScanChallengerBuy(list: Listed[], held: { id: string; exit: number | null }[]): Listed | null {
+  const openIds = new Set(held.filter((trade) => trade.exit == null).map((trade) => trade.id));
+  const seen = new Set<string>();
+  return (
+    list
+      // 只看主名单 top-10 之外（原名单第 11~20 名）。必须在过滤**之前**按原始位置切：
+      // 先过滤再切片会把「被已持仓挡掉的前 10 名」从数组里抹掉，第 11 名顶到下标 0，
+      // slice(10) 反而把它跳过去——饱和场景下一个都选不出来。
+      .filter((_, i) => i >= MAX_POSITIONS)
+      .filter((r) => r.hit && limitTag(r.quote) !== "涨停" && !openIds.has(r.quote.id))
+      .filter((r) => (seen.has(r.quote.id) ? false : (seen.add(r.quote.id), true)))
+      .slice(0, 1)[0] ?? null
+  );
 }
 
 /** 已持仓同时打到止损时，占这套 10 个名额的比例。空着的名额不算。 */
