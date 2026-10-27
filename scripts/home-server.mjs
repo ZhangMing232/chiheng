@@ -10,9 +10,10 @@
  * 记账只把纸面买卖写进 data/books，不会向券商下真实委托。日常选股不用改这里。
  */
 
-import { spawn } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { spawn, execFileSync } from "node:child_process";
+import { existsSync, readdirSync, statSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const entry = ".output/server/index.mjs";
 if (!existsSync(entry)) {
@@ -22,6 +23,62 @@ if (!existsSync(entry)) {
 
 const port = process.env.PORT ?? "8787";
 const host = process.env.HOST ?? "0.0.0.0";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const PID_FILE = join(ROOT, "data", "serve.pid");
+
+/**
+ * 只保证「同一台机器上只有一个赤轨 serve」在 8787 上。
+ *
+ * 以前的问题：旧 serve 没退干净（launchd 重拉、赤轨.app 又拉一次、手动起第二个），
+ * 新 serve 一探端口被占就直接退出、留一句「端口被占用」——结果就是 8787 还活着、
+ * 但偶尔会多出一个被 vite 自动加一的 8790，看着像「两个端口」。
+ * 这里改成：启动先按 pidfile + 端口把**自己的**旧实例（含它没带走的 vite/nitro 子进程）
+ * 找出来杀掉，再绑定 8787。只有 8787 被**不认识的进程**占着时才退让并报警，
+ * 绝不擅自动别人的端口。
+ */
+function isAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+function isOurServe(pid) {
+  if (!isAlive(pid)) return false;
+  try {
+    const cmd = execFileSync("ps", ["-p", String(pid), "-o", "args="], { encoding: "utf8" });
+    return /home-server\.mjs|with-app-env\.mjs|vite|\.output\/server|server\/index\.mjs/.test(cmd);
+  } catch { return false; }
+}
+async function killTree(pid) {
+  try { process.kill(pid, "SIGTERM"); } catch {}
+  for (let i = 0; i < 50; i++) {
+    if (!isAlive(pid)) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  try { process.kill(pid, "SIGKILL"); } catch {}
+}
+function parentOf(pid) {
+  try { return Number(execFileSync("ps", ["-p", String(pid), "-o", "ppid="], { encoding: "utf8" }).trim()); } catch { return NaN; }
+}
+async function ensureSoleInstance() {
+  mkdirSync(dirname(PID_FILE), { recursive: true });
+  // 1) pidfile 指向的旧外层 serve（它本身不监听 8787，lsof 找不到，只能靠 pidfile）
+  const pid = (() => { try { return Number(readFileSync(PID_FILE, "utf8").trim()); } catch { return NaN; } })();
+  if (Number.isFinite(pid) && pid !== process.pid && isOurServe(pid)) await killTree(pid);
+  // 2) 真正占着 8787 的是 vite/nitro 子进程：连它的外层一起清掉，
+  //    否则外层（supervisor）会立刻又拉一个起来，端口还是抢不到。
+  try {
+    const holders = execFileSync("lsof", ["-iTCP:" + port, "-sTCP:LISTEN", "-t"], { encoding: "utf8" })
+      .split("\n").map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n !== process.pid);
+    for (const h of holders) {
+      if (!isOurServe(h)) continue;
+      const ppid = parentOf(h);
+      if (Number.isFinite(ppid) && ppid !== process.pid && isOurServe(ppid)) {
+        try { process.kill(ppid, "SIGTERM"); } catch {} // 让外层自己干净地退出（它会顺带带走子进程）
+      }
+      try { process.kill(h, "SIGKILL"); } catch {} // 立刻释放 8787，不等外层慢吞吞收尾
+    }
+    if (holders.length) await new Promise((r) => setTimeout(r, 500));
+  } catch {}
+}
 
 let recording = false;
 function record() {
@@ -235,24 +292,27 @@ let server = null;
 
 
 async function main() {
+  // 先把「自己的」旧实例（含没带走的 vite/nitro 子进程）清掉，保证 8787 上只有我们一个。
+  await ensureSoleInstance();
   const free = await portFree(port);
   if (!free) {
     console.log(
-      `${clock()} 端口 ${port} 已经被占用了——多半是另一个 serve 已经在跑。` +
-        `先把它停掉（在它的窗口按 Ctrl-C），或者直接用浏览器开 http://127.0.0.1:${port} 看看是不是已经能开。` +
-        `不重试：占着端口的进程不退，重试多少次都一样。`,
+      `${clock()} 端口 ${port} 被一个不认识的进程占着，赤轨不敢擅自动它。` +
+        `用 \`lsof -i :${port}\` 看看是谁，把它停掉再跑 npm run serve。`,
     );
     // 记账和告警是另一套（直接读 src，不走 .output），所以这里退出不影响它们
     process.exit(0);
   }
   server = spawnServer();
   spawnDSH();
+  writeFileSync(PID_FILE, String(process.pid));
 }
 
 main();
 
 let shuttingDown = false;
 function shutdown() {
+  try { unlinkSync(PID_FILE); } catch {}
   // 收到停止信号就把自己也带走。早先这里只 kill 子进程、自己不退出，
   // 于是留下一个「以为自己在守着、其实端口已经空了」的进程——
   // 2026-10-05 下午 8787 打不开、日志却在刷「重新拉起」，就是这么来的。
