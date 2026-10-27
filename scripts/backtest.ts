@@ -955,12 +955,18 @@ async function main() {
     console.log(`市值 ${capFloor} 亿以上：剩 ${klines.size} 只，滤掉 ${dropped} 只\n`);
   }
 
-  // 加载外部数据（两融）注入 metrics。从 data/risk/margin/*.json 构建内存查询表。
-  // 龙虎榜数据结构不带股票代码，需另做名称映射，本次不做；后续可用 hotmoney.ts 的 namesOf
+  // 加载外部数据注入 metrics。
+  // 两融：从 data/risk/margin/*.json 构建内存查询表（带股票代码，可直接匹配）。
+  // 龙虎榜：从 data/risk/hotmoney/*.json + hotmoney-names.json（名称→代码映射）构建。
   let ext: ExtData | null = null;
+  let hotNames: Record<string, string> = {};
+  try { hotNames = JSON.parse(await readFile(`${DATA_DIR}/risk/hotmoney-names.json`, "utf8")); } catch { /* 无映射文件跳过 */ }
   try {
     const marginDir = `${DATA_DIR}/risk/margin`;
+    const hotDir = `${DATA_DIR}/risk/hotmoney`;
     ext = new Map();
+
+    // 两融
     for (const f of await readDirSafe(marginDir)) {
       if (!f.endsWith(".json")) continue;
       try {
@@ -971,14 +977,38 @@ async function main() {
         for (const row of raw.rows) {
           const code = row.id as string;
           if (!code || !/^\d{6}$/.test(code)) continue;
-          // 在回测里股票 id 带 sh/sz 前缀（如 sh601318），这里补前缀
           const prefixed = code.startsWith("6") ? `sh${code}` : `sz${code}`;
           const cur = day.get(prefixed) ?? {};
           if (row.ratio != null) cur.marginRatio = Number(row.ratio);
-          if (row.rzjme != null) cur.marginBuy = Number(row.rzjme) / 1e4; // 元→万元
+          if (row.rzjme != null) cur.marginBuy = Number(row.rzjme) / 1e4;
           day.set(prefixed, cur);
         }
         if (day.size > 0) ext.set(date, day);
+      } catch { /* 坏文件跳过 */ }
+    }
+
+    // 龙虎榜：name → code → prefixed id
+    const hotDates = 0;
+    for (const f of await readDirSafe(hotDir)) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const raw = JSON.parse(await readFile(`${hotDir}/${f}`, "utf8"));
+        const date = raw.date as string;
+        if (!date || !Array.isArray(raw.seats)) continue;
+        let day = ext.get(date);
+        if (!day) day = new Map();
+        for (const seat of raw.seats) {
+          for (const stock of seat.stocks ?? []) {
+            const code = hotNames[stock.name] as string | undefined;
+            if (!code) continue;
+            const prefixed = code.startsWith("6") ? `sh${code}` : `sz${code}`;
+            const cur = day.get(prefixed) ?? {};
+            cur.hotSeatCount = (cur.hotSeatCount ?? 0) + 1;
+            cur.hotNetBuy = (cur.hotNetBuy ?? 0) + (stock.netWan ?? 0);
+            day.set(prefixed, cur);
+          }
+        }
+        ext.set(date, day);
       } catch { /* 坏文件跳过 */ }
     }
     console.log(`外部数据加载：${ext.size} 个交易日\n`);
