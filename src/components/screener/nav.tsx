@@ -527,9 +527,14 @@ export function cycleTheme(): void {
 
 function useTheme() {
   const [mode, setMode] = useState("system");
+  // ready：等读完 localStorage 再让 applyTheme 跑。否则首帧会用初始的 "system"
+  // 调 applyTheme，把 __root.tsx 内联脚本已经设好的深色 data-theme 删掉——
+  // 切换页面时先白一下再切回深色，闪眼睛（2026-10-27 修）。
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     const saved = localStorage.getItem("chiheng-theme");
     if (saved === "light" || saved === "dark" || saved === "system") setMode(saved);
+    setReady(true);
   }, []);
   // 快捷键 t 改了 localStorage 之后，这里要跟着走 —— 见 cycleTheme 的注释。
   useEffect(() => {
@@ -541,6 +546,8 @@ function useTheme() {
     return () => window.removeEventListener("chiheng-theme-change", onChange);
   }, []);
   useEffect(() => {
+    // 没读好之前不动主题：保留内联脚本设好的 data-theme，避免闪白。
+    if (!ready) return;
     applyTheme(mode);
     localStorage.setItem("chiheng-theme", mode);
     if (mode !== "system") return;
@@ -548,7 +555,7 @@ function useTheme() {
     const onChange = () => applyTheme("system");
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
-  }, [mode]);
+  }, [mode, ready]);
   return [mode, setMode] as const;
 }
 
