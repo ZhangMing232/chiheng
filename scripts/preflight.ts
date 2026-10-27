@@ -162,7 +162,15 @@ async function checkAll(): Promise<{ checks: Check[]; trading: boolean; level: L
     level: trading ? (buying ? "ok" : "note") : "note",
     value: buying
       ? `${phase.label} · 建仓窗口：是`
-      : `${phase.label} · 建仓窗口：否${trading ? (phase.sealed ? "（已收盘）" : "（9:30 才开始，9:25–9:30 那五分钟不建仓）") : ""}`,
+      : `${phase.label} · 建仓窗口：否${
+          trading
+            ? phase.sealed
+              ? "（已收盘）"
+              : phase.phase === "lunch"
+                ? "（午间休市，13:00 恢复交易后可建仓）"
+                : "（9:30 才开始，9:25–9:30 那五分钟不建仓）"
+            : ""
+        }`,
   });
 
   // 1 网页进程（注意：这一项只管「页面能不能开」，不管记账会不会发生——那是心跳的事）
@@ -287,8 +295,9 @@ async function checkAll(): Promise<{ checks: Check[]; trading: boolean; level: L
     checks.push({ name: "构建", level: "block", value: "缺 .output/server/index.mjs", fix: "npm run build:mac，否则服务起不来" });
   }
 
-  // 7 依赖文件
-  const missing = [".output/server/index.mjs", "data/universe-cache.json", "data/prefs.json"].filter((f) => !existsSync(f));
+  // 7 依赖文件。prefs 走多用户路径：旧 data/prefs.json 已迁到 data/prefs/<userId>.json
+  //（迁移在 prefs-file.ts），还查旧路径会永远误报「缺文件」。
+  const missing = [".output/server/index.mjs", "data/universe-cache.json", join("data", "prefs", `${OWNER_ID}.json`)].filter((f) => !existsSync(f));
   const noRules = !existsSync(join("data", "rules.json"));
   checks.push({
     name: "依赖",
