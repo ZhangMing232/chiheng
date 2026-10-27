@@ -42,23 +42,16 @@ export const Route = createFileRoute("/arena")({
     let strategies: UserStrategy[] = [];
     let candidates: SignalItem[] = [];
     let reviewed: SignalItem[] = [];
-    const { readFile } = await import("node:fs/promises");
 
-    try { const raw = await readFile(STRATEGIES_FILE, "utf8"); strategies = JSON.parse(raw); if (!Array.isArray(strategies)) strategies = []; } catch {}
-
-    // 读竞价审核结果（优先级最高）
-    try {
-      const raw = await readFile(`${SIGNALS_DIR}/reviewed.json`, "utf8");
-      const data: SignalFile = JSON.parse(raw);
-      reviewed = data.signals ?? [];
-    } catch {}
-
-    // 读候选信号（收盘初筛）
-    try {
-      const raw = await readFile(`${SIGNALS_DIR}/candidates.json`, "utf8");
-      const data: SignalFile = JSON.parse(raw);
-      candidates = data.signals ?? [];
-    } catch {}
+    // 只在服务端读文件（浏览器里 import("node:fs") 不存在）
+    if (typeof window === "undefined") {
+      try {
+        const { readFile } = await import("node:fs/promises");
+        try { const raw = await readFile(STRATEGIES_FILE, "utf8"); strategies = JSON.parse(raw); if (!Array.isArray(strategies)) strategies = []; } catch {}
+        try { const raw = await readFile(`${SIGNALS_DIR}/reviewed.json`, "utf8"); const data: SignalFile = JSON.parse(raw); reviewed = data.signals ?? []; } catch {}
+        try { const raw = await readFile(`${SIGNALS_DIR}/candidates.json`, "utf8"); const data: SignalFile = JSON.parse(raw); candidates = data.signals ?? []; } catch {}
+      } catch {}
+    }
 
     return { strategies, candidates, reviewed };
   },
