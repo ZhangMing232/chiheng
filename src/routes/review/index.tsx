@@ -90,7 +90,7 @@ function Review() {
   const marketLines = flow ? readMarket(flow.market) : [];
 
   return (
-    <Frame
+    <Frame wide
       status={{
         label: "今日",
         // **真实数据**：breadth 的涨跌家数。拿不到快照就是 null

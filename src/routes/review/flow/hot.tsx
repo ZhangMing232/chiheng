@@ -23,7 +23,7 @@ export const Route = createFileRoute("/review/flow/hot")({
 function FlowHotPage() {
   const { hot } = Route.useLoaderData();
   return (
-    <Frame
+    <Frame wide
       aside="资金流向 · 游资"
       ornamentContent={
         // **真实数据**：龙虎榜席位净买第一名（席位榜按金额排，第一个就是今天最大的）。

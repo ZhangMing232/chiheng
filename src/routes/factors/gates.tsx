@@ -48,7 +48,7 @@ function FactorGatesPage() {
   const rows = useMemo(() => factorRows(runs.batch?.rows ?? []), [runs.batch]);
 
   return (
-    <Frame aside="因子发掘 · 6 关判决">
+    <Frame wide aside="因子发掘 · 6 关判决">
       <FactorSectionTabs />
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/gates" />
       <Section

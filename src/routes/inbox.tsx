@@ -73,7 +73,7 @@ function InboxPage() {
   const unread = rows.filter((r) => r.at > mark && r.id !== mark).length;
 
   return (
-    <Frame
+    <Frame wide
       aside="提醒"
       status={{
         label: "未读",

@@ -35,7 +35,7 @@ export const Route = createFileRoute("/factors/attrib")({
 function FactorAttribPage() {
   const { diag } = Route.useLoaderData();
   return (
-    <Frame aside="因子发掘 · 缩量归因">
+    <Frame wide aside="因子发掘 · 缩量归因">
       <FactorSectionTabs />
       <Section
         title="缩量天数归因"

@@ -76,7 +76,7 @@ function SectorsPage() {
 
   if (!table || table.rows.length === 0) {
     return (
-      <Frame aside="板块">
+      <Frame wide aside="板块">
         <FlowSectionTabs />
         <Panel title="板块" note="没有数据">
           <StateBlock
@@ -91,7 +91,7 @@ function SectorsPage() {
   }
 
   return (
-    <Frame
+    <Frame wide
       aside="板块"
       ornamentContent={
         // **真实数据**：板块行按主力净流入排，mainNet 单位万元。

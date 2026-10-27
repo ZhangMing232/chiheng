@@ -46,7 +46,7 @@ function ButlerPage() {
   }
 
   return (
-    <Frame aside="大管家">
+    <Frame wide aside="大管家">
       <Panel title="大管家" note="常驻 AI 助手 · 每次回答前先读一遍项目当前状态">
         <div className="flex h-[68vh] flex-col">
           <div className="flex-1 space-y-3 overflow-y-auto px-3.5 py-3">

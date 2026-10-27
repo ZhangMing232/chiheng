@@ -89,7 +89,7 @@ function NotesPage() {
   }
 
   return (
-    <Frame
+    <Frame wide
       aside="笔记"
       status={{
         label: "笔记",

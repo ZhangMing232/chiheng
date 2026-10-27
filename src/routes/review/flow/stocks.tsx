@@ -28,7 +28,7 @@ function renderStockName(row: FlowRow) {
 function FlowStocksPage() {
   const { book } = Route.useLoaderData();
   return (
-    <Frame
+    <Frame wide
       aside="资金流向 · 个股"
       ornamentContent={
         // **真实数据**：净流入榜第一名。流入榜空就看流出榜——

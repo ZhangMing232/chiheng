@@ -23,7 +23,7 @@ export const Route = createFileRoute("/review/flow/close")({
 function FlowClosePage() {
   const { close } = Route.useLoaderData();
   return (
-    <Frame aside="资金流向 · 收盘快照">
+    <Frame wide aside="资金流向 · 收盘快照">
       <FlowSectionTabs />
       <CloseSnapshotPanel close={close} />
     </Frame>

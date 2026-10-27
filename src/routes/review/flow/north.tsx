@@ -21,7 +21,7 @@ export const Route = createFileRoute("/review/flow/north")({
 function FlowNorthPage() {
   const { book } = Route.useLoaderData();
   return (
-    <Frame aside="资金流向 · 北向">
+    <Frame wide aside="资金流向 · 北向">
       <FlowSectionTabs />
       <North legs={book?.north ?? []} />
     </Frame>

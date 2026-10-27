@@ -25,7 +25,7 @@ export const Route = createFileRoute("/ai/usage")({
 function AIUsagePage() {
   const { usage } = Route.useLoaderData();
   return (
-    <Frame aside="AI 管理 · Token 用量">
+    <Frame wide aside="AI 管理 · Token 用量">
       <AISectionTabs />
       <Section
         id="ai-usage"

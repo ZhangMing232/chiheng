@@ -28,7 +28,7 @@ export const Route = createFileRoute("/factors/baseline")({
 function FactorBaselinePage() {
   const { baseline } = Route.useLoaderData();
   return (
-    <Frame aside="因子发掘 · 基线原文">
+    <Frame wide aside="因子发掘 · 基线原文">
       <FactorSectionTabs />
       <Section
         title="回测基线原文"

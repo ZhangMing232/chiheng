@@ -169,7 +169,7 @@ function NewsPage() {
   const ordered = [...news].sort((a, b) => rank(a) - rank(b));
 
   return (
-    <Frame
+    <Frame wide
       status={{
         label: "快讯",
         // **真实数据**：tally 出来的利好/利空条数。取不到就是 null。

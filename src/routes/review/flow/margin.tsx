@@ -21,7 +21,7 @@ export const Route = createFileRoute("/review/flow/margin")({
 function FlowMarginPage() {
   const { margin } = Route.useLoaderData();
   return (
-    <Frame aside="资金流向 · 两融">
+    <Frame wide aside="资金流向 · 两融">
       <FlowSectionTabs />
       <Margin data={margin} />
     </Frame>

@@ -23,7 +23,7 @@ export const Route = createFileRoute("/review/flow/futures")({
 function FlowFuturesPage() {
   const { futures } = Route.useLoaderData();
   return (
-    <Frame aside="资金流向 · 期指">
+    <Frame wide aside="资金流向 · 期指">
       <FlowSectionTabs />
       <PosterButton draw={() => drawFuturesPoster(futures ?? { date: "", rows: [] })} />
       <Futures book={futures} />

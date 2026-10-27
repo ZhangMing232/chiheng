@@ -38,7 +38,7 @@ function LoginPage() {
 
   if (user) {
     return (
-      <Frame aside="账号">
+      <Frame wide aside="账号">
         <Panel title="当前账号" note={planLabel(user.plan)}>
           <div className="space-y-3 px-3.5 py-3 text-sm">
             <p>
@@ -102,7 +102,7 @@ function LoginPage() {
   };
 
   return (
-    <Frame aside="账号">
+    <Frame wide aside="账号">
       <Panel title={mode === "signIn" ? "登录赤轨" : "注册赤轨"} note="邮箱 + 密码">
         <form
           className="mx-auto flex w-full max-w-sm flex-col gap-3 px-3.5 py-4 text-sm"

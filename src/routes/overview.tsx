@@ -43,7 +43,7 @@ function OverviewPage() {
   const { indices, breadth, flow, news } = Route.useLoaderData();
 
   return (
-    <Frame
+    <Frame wide
       aside="股市总览"
       status={{
         label: "上涨",

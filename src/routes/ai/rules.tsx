@@ -26,7 +26,7 @@ export const Route = createFileRoute("/ai/rules")({
 function AIRulesPage() {
   const { rules } = Route.useLoaderData();
   return (
-    <Frame aside="AI 管理 · 闸门与判据">
+    <Frame wide aside="AI 管理 · 闸门与判据">
       <AISectionTabs />
       {rules ? <RulesSection groups={rules.groups} /> : <StateBlock kind="empty" title="闸门规则没读到" />}
     </Frame>

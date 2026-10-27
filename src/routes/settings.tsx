@@ -33,7 +33,7 @@ function SettingsPage() {
 
   if (!data) {
     return (
-      <Frame aside="设置">
+      <Frame wide aside="设置">
         <Panel title="设置与状态" note="没读到">
           <p className="px-3.5 py-3 text-sm text-muted">状态读不出来。多半是服务没在跑——这一页全是本机状态，服务不跑就没有。</p>
         </Panel>
@@ -46,7 +46,7 @@ function SettingsPage() {
   const stale = files.filter((f) => f.state === "stale");
 
   return (
-    <Frame
+    <Frame wide
       aside="设置"
       status={{
         label: "数据源",

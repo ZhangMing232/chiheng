@@ -26,7 +26,7 @@ export const Route = createFileRoute("/ai/config")({
 function AIConfigPage() {
   const { ai } = Route.useLoaderData();
   return (
-    <Frame aside="AI 管理 · 接口配置">
+    <Frame wide aside="AI 管理 · 接口配置">
       <AISectionTabs />
       <Section
         id="ai-config"

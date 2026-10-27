@@ -317,7 +317,7 @@ function StudioPage() {
   }
 
   return (
-    <Frame
+    <Frame wide
       aside="自媒体图文"
       ornamentContent={
         // **真实数据**：体裁和风格都是用户当前选中的（组件 state）。

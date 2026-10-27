@@ -51,7 +51,7 @@ function FlowOverviewPage() {
   const { book, indices, breadth, hasBreadth, trend, error } = Route.useLoaderData();
 
   return (
-    <Frame
+    <Frame wide
       extra={
         indices.length > 0 ? (
           <div className="flex gap-5 overflow-x-auto scroll-slim pb-2">

@@ -48,7 +48,7 @@ function AdminPage() {
   }
 
   return (
-    <Frame
+    <Frame wide
       aside="管理系统"
       status={{
         label: "用户",

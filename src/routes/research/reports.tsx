@@ -70,7 +70,7 @@ function ReportsPage() {
   const sameSymbol = pickedRows.length === 2 && pickedRows[0]!.symbol === pickedRows[1]!.symbol;
 
   return (
-    <Frame
+    <Frame wide
       status={{
         label: "报告",
         // **真实数据**：本页已有的 rows 长度。

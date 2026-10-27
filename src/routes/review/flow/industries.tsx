@@ -21,7 +21,7 @@ export const Route = createFileRoute("/review/flow/industries")({
 function FlowIndustriesPage() {
   const { book } = Route.useLoaderData();
   return (
-    <Frame
+    <Frame wide
       aside="资金流向 · 行业"
       ornamentContent={
         book == null ? (

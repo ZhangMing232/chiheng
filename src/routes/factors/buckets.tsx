@@ -49,7 +49,7 @@ function FactorBucketsPage() {
   const rows = useMemo(() => factorRows(runs.batch?.rows ?? []), [runs.batch]);
 
   return (
-    <Frame aside="因子发掘 · 分档明细">
+    <Frame wide aside="因子发掘 · 分档明细">
       <FactorSectionTabs />
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/buckets" />
       <Section

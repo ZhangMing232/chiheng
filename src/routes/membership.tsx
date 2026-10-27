@@ -47,7 +47,7 @@ function MembershipPage() {
   })();
 
   return (
-    <Frame aside="会员">
+    <Frame wide aside="会员">
       {/* 当前档位 */}
       <Panel title="当前档位" bodyClassName="px-3.5 py-3">
         {user ? (

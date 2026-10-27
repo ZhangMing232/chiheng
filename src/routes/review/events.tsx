@@ -36,7 +36,7 @@ export const Route = createFileRoute("/review/events")({
 function ReviewEventsPage() {
   const { forecasts, holders, surveys, buybacks, pledges, ipos } = Route.useLoaderData();
   return (
-    <Frame aside="公司事件">
+    <Frame wide aside="公司事件">
       <SectionTabs
         ariaLabel="复盘"
         tabs={[
