@@ -332,6 +332,7 @@ function metrics(
   floatCap: number | null = null,
   turnoverGateOn = false,
   id = "",
+  ext?: ExtData | null,
 ) {
   const at = (k: number) => (i - k >= 0 ? rows[i - k].c : null);
   const c = rows[i].c;
@@ -460,6 +461,33 @@ function metrics(
     sectorFlow: null,
     newsTone: null,
     annCount: null,
+    ...injectExt(ext, rows[i].date, id),
+  };
+}
+
+/** 外部数据表：回测入口预加载，传给 metrics() 注入北向/两融/龙虎榜字段。
+ *  外层 Map 是 date → 内层 Map 是 stockId → 各字段的值。均为 null 安全。 */
+type ExtData = Map<string, Map<string, {
+  hotSeatCount?: number;
+  hotNetBuy?: number;
+  marginRatio?: number;
+  marginBuy?: number;
+}>>;
+
+function lookupExt(ext: ExtData | null | undefined, date: string, id: string) {
+  if (!ext) return {};
+  const day = ext.get(date);
+  if (!day) return {};
+  return day.get(id) ?? {};
+}
+
+function injectExt(ext: ExtData | null | undefined, date: string, id: string) {
+  const v = lookupExt(ext, date, id);
+  return {
+    hotSeatCount: v.hotSeatCount ?? null,
+    hotNetBuy: v.hotNetBuy ?? null,
+    marginRatio: v.marginRatio ?? null,
+    marginBuy: v.marginBuy ?? null,
   };
 }
 
@@ -486,6 +514,11 @@ function retSeries(rows: Row[], end: number, count: number): number[] {
     out.push((rows[k].c / rows[k - 1].c - 1) * 100);
   }
   return out;
+}
+
+/** 读目录：不存在返回空数组（不抛错中断回测）。 */
+async function readDirSafe(dir: string): Promise<string[]> {
+  try { const { readdir } = await import("node:fs/promises"); return readdir(dir); } catch { return []; }
 }
 
 /** Pearson 相关系数。数据不足 2 组或分母为 0 时返回 null。 */
@@ -922,6 +955,35 @@ async function main() {
     console.log(`市值 ${capFloor} 亿以上：剩 ${klines.size} 只，滤掉 ${dropped} 只\n`);
   }
 
+  // 加载外部数据（两融）注入 metrics。从 data/risk/margin/*.json 构建内存查询表。
+  // 龙虎榜数据结构不带股票代码，需另做名称映射，本次不做；后续可用 hotmoney.ts 的 namesOf
+  let ext: ExtData | null = null;
+  try {
+    const marginDir = `${DATA_DIR}/risk/margin`;
+    ext = new Map();
+    for (const f of await readDirSafe(marginDir)) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const raw = JSON.parse(await readFile(`${marginDir}/${f}`, "utf8"));
+        const date = raw.date as string;
+        if (!date || !Array.isArray(raw.rows)) continue;
+        const day = new Map<string, any>();
+        for (const row of raw.rows) {
+          const code = row.id as string;
+          if (!code || !/^\d{6}$/.test(code)) continue;
+          // 在回测里股票 id 带 sh/sz 前缀（如 sh601318），这里补前缀
+          const prefixed = code.startsWith("6") ? `sh${code}` : `sz${code}`;
+          const cur = day.get(prefixed) ?? {};
+          if (row.ratio != null) cur.marginRatio = Number(row.ratio);
+          if (row.rzjme != null) cur.marginBuy = Number(row.rzjme) / 1e4; // 元→万元
+          day.set(prefixed, cur);
+        }
+        if (day.size > 0) ext.set(date, day);
+      } catch { /* 坏文件跳过 */ }
+    }
+    console.log(`外部数据加载：${ext.size} 个交易日\n`);
+  } catch { ext = null; }
+
   // 日期 -> 该票在自己数组里的下标。主循环里天天 findIndex 太慢，顺手也为了算基准。
   const idxOf = new Map<string, Map<string, number>>();
   for (const [id, rows] of klines) {
@@ -1061,7 +1123,7 @@ async function main() {
       // 找到这只票在第 t 天的位置：只能用 <= t 的数据
       const idx = idxOf.get(id)?.get(dates[t]) ?? -1;
       if (idx < 61) continue;
-      const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate, id);
+      const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate, id, ext);
       for (const [key, def] of Object.entries(STRATEGIES)) {
         const sig = def.fn(m, stopPct);
         if (sig) picks[key].push({ id, sig });
@@ -1404,7 +1466,7 @@ async function main() {
           const inPrice = rows[nIdx].o;
           const outPrice = rows[xIdx].c;
           if (!(inPrice > 0) || !(outPrice > 0)) continue;
-          const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate, id);
+          const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate, id, ext);
           // 回测侧可交易近似：股价 >= 4、流通市值（快照）>= 40 亿。
           // ST 标记和真实涨跌停回测里拿不到，这里只做能确定的。
           const tradable = m.c >= 4 && (m.floatCap == null || m.floatCap >= 40);
