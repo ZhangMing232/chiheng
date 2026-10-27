@@ -35,6 +35,7 @@ import {
   Settings2,
   Sparkles,
   Star,
+  Swords,
   type LucideIcon,
 } from "lucide-react";
 import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
@@ -99,7 +100,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/arena" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "总览", items: [{ to: "/", label: "总览", icon: LayoutDashboard }] },
   {
@@ -128,6 +129,7 @@ const SIDEBAR: {
     items: [
       { to: "/research", label: "研究", icon: FileSearch },
       { to: "/my-stocks", label: "自选", icon: Star },
+      { to: "/arena", label: "策略竞技场", icon: Swords },
     ],
   },
   {

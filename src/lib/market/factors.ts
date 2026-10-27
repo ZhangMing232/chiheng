@@ -86,6 +86,22 @@ export interface MetricRow {
   fRoe?: number | null;
   fDtYoy?: number | null;
   fGm?: number | null;
+  /** 北向资金：当日北向总成交额（万元）。沪股通+深股通 amount 之和。每日收盘后才有。 */
+  northAmount: number | null;
+  /** 融资余额占流通市值比（%）。从 data/risk/margin-latest.json 取 ratio 字段。 */
+  marginRatio: number | null;
+  /** 融资净买额（万元）。当日融资买入-偿还，正是加杠杆。 */
+  marginBuy: number | null;
+  /** 融券余额（万元）。当日融券余量×收盘价。 */
+  shortBalance: number | null;
+  /** 龙虎榜：当日该票被几个知名游资席位买入 */
+  hotSeatCount: number | null;
+  /** 龙虎榜：当日该票游资席位净买入总额（万元） */
+  hotNetBuy: number | null;
+  /** 主力净流入（万元）。从 flow 的 stocksIn/stocksOut 取，正是流入负是流出 */
+  mainFlow: number | null;
+  /** 板块资金：该票所属板块当日主力净流入（万元） */
+  sectorFlow: number | null;
 }
 
 /**
@@ -219,6 +235,38 @@ export const FACTORS: Factor[] = [
       "PIT 对齐同 f_roe（ann_date <= t），持有期匹配基本面变化节奏用 20 天。",
     get: (m) => (m.fRoe == null ? null : -m.fRoe),
   },
+
+  // ===== 北向资金因子 =====
+  { id: "north_amount", name: "北向成交额", category: "量能", direction: 1, family: "北向",
+    rationale: "北向成交额越大=外资关注度越高，A股中外资偏好的票有定价优势。预注册方向+1。",
+    get: (m) => m.northAmount },
+
+  // ===== 两融因子 =====
+  { id: "margin_ratio", name: "融资占比", category: "量能", direction: 1, family: "杠杆",
+    rationale: "融资余额占流通市值比高=杠杆资金看好，短期有动量。⚠️ 预登记局限：高杠杆票跌起来也狠，两段翻号风险高。",
+    get: (m) => m.marginRatio },
+  { id: "margin_buy", name: "融资净买", category: "量能", direction: 1, family: "杠杆",
+    rationale: "融资净买入=加杠杆做多，是真金白银的看多信号。预注册方向+1。",
+    get: (m) => m.marginBuy },
+  { id: "short_balance", name: "融券余额", category: "反转", direction: -1, family: "杠杆",
+    rationale: "融券余额高=被大量做空，A股融券成本高、覆盖少，高融券票反向轧空时弹性大。预注册方向-1（融券高→未来超额高，即轧空）。⚠️ 局限：融券标的少（约 2000 只），样本可能不够。",
+    get: (m) => m.shortBalance },
+
+  // ===== 龙虎榜因子 =====
+  { id: "hot_seats", name: "游资热度", category: "量能", direction: 1, family: "游资",
+    rationale: "被多个知名游资席位买入=短线资金共识强，次日溢价概率高。预注册方向+1。⚠️ 预登记局限：游资快进快出，持有期超 5 天信号衰减快；且上榜是结果（已经涨停了），前视泄漏要靠 PIT 对齐。",
+    get: (m) => m.hotSeatCount },
+  { id: "hot_netbuy", name: "游资净买", category: "量能", direction: 1, family: "游资",
+    rationale: "游资席位净买入金额大=大资金在抢，比单纯上榜更有信息量。预注册方向+1。",
+    get: (m) => m.hotNetBuy },
+
+  // ===== 资金流因子 =====
+  { id: "main_flow", name: "主力净流入", category: "量能", direction: 1, family: "资金流",
+    rationale: "当日主力净流入=大资金在买，短期动量。预注册方向+1。",
+    get: (m) => m.mainFlow },
+  { id: "sector_flow", name: "板块资金", category: "量能", direction: 1, family: "资金流",
+    rationale: "所属板块主力净流入=板块共振，个股在强势板块里更容易涨。预注册方向+1。",
+    get: (m) => m.sectorFlow },
 ];
 
 /** 一次因子检验里，单个因子的分档结果（某一段区间、某一份样本）。 */

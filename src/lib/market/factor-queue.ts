@@ -134,7 +134,8 @@ export type QueueVerdict = {
   ic?: { mean: number | null; icir: number | null; days: number };
 };
 
-/** 连续几次没过 6 关就淘汰。2 = 给「换行情环境再确认一次」的机会，也是上限。 */
+/** 连续几次没过 4 关就淘汰。2 = 给「换行情环境再确认一次」的机会，也是上限。
+ *  2026-10-27 从 6 关改 4 关：g5/g6 变展示层，不参与淘汰判定。 */
 export const TOMBSTONE_AFTER = 2;
 
 import {

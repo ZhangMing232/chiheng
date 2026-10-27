@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AiRouteImport } from './routes/ai'
+import { Route as ArenaRouteImport } from './routes/arena'
 import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as ButlerRouteImport } from './routes/butler'
 import { Route as CalendarRouteImport } from './routes/calendar'
@@ -81,6 +82,11 @@ const AdminRoute = AdminRouteImport.update({
 const AiRoute = AiRouteImport.update({
   id: '/ai',
   path: '/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArenaRoute = ArenaRouteImport.update({
+  id: '/arena',
+  path: '/arena',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestRoute = BacktestRouteImport.update({
@@ -363,6 +369,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
+  '/arena': typeof ArenaRoute
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -422,6 +429,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/arena': typeof ArenaRoute
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -480,6 +488,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
+  '/arena': typeof ArenaRoute
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -542,6 +551,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/ai'
+    | '/arena'
     | '/backtest'
     | '/butler'
     | '/calendar'
@@ -601,6 +611,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/arena'
     | '/backtest'
     | '/butler'
     | '/calendar'
@@ -658,6 +669,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/ai'
+    | '/arena'
     | '/backtest'
     | '/butler'
     | '/calendar'
@@ -719,6 +731,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AiRoute: typeof AiRouteWithChildren
+  ArenaRoute: typeof ArenaRoute
   BacktestRoute: typeof BacktestRoute
   ButlerRoute: typeof ButlerRoute
   CalendarRoute: typeof CalendarRoute
@@ -773,6 +786,13 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/ai'
       preLoaderRoute: typeof AiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/arena': {
+      id: '/arena'
+      path: '/arena'
+      fullPath: '/arena'
+      preLoaderRoute: typeof ArenaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/backtest': {
@@ -1270,6 +1290,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AiRoute: AiRouteWithChildren,
+  ArenaRoute: ArenaRoute,
   BacktestRoute: BacktestRoute,
   ButlerRoute: ButlerRoute,
   CalendarRoute: CalendarRoute,

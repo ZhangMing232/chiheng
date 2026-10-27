@@ -449,6 +449,15 @@ function metrics(
     springAge: spring ? spring.age : null,
     springLow: spring ? spring.springLow : null,
     springRangeHigh: spring ? spring.springLow + spring.rangeHeight : null,
+    // 北向/两融/龙虎榜/资金流 —— 暂时都是 null（历史数据脚本在后台拉，拉完后再注入）
+    northAmount: null,
+    marginRatio: null,
+    marginBuy: null,
+    shortBalance: null,
+    hotSeatCount: null,
+    hotNetBuy: null,
+    mainFlow: null,
+    sectorFlow: null,
   };
 }
 
@@ -1519,12 +1528,16 @@ async function main() {
         }),
       );
       // 队列因子（f 排在注册表后面）记下判决，整轮跑完一起回写队列状态。
+      // 2026-10-27 从 6 关改 4 关：g1~g4 过即算 passed。
+      // g5（Bonferroni）和 g6（可交易）变展示层证据——不过不挡路，但双不过的因子
+      // 在 verdict 里依然会标出来，方便审计。
       if (f >= FACTORS.length) {
+        const corePassed = [g1, g2, g3, g4].every((g) => g.pass);
+        const allPassed = corePassed && g5.pass && g6.pass;
         queueVerdicts.push({
           id: factor.id,
-          passed: [g1, g2, g3, g4, g5, g6].every((g) => g.pass),
+          passed: corePassed,
           at,
-          // 死因档案用：败在哪几关。过关的为空数组（不是没测，是 6 关全过）。
           failedGates: [g1, g2, g3, g4, g5, g6].flatMap((g, i) => (g.pass ? [] : [`g${i + 1}`])),
           // DSR 是展示层证据，过关失败都存档——回答「这个因子是不是搜出来的」。
           dsr: dsrInfo ?? undefined,
