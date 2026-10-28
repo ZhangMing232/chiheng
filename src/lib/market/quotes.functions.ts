@@ -1292,7 +1292,9 @@ export const getSignalCandidates = createServerFn({ method: "GET" }).handler(asy
     const parsed = JSON.parse(raw) as { date: string; signals: SignalCandidate[] };
     return { date: parsed.date, signals: parsed.signals ?? [] };
   } catch (e) {
-    console.error("getSignalCandidates 读文件失败:", e instanceof Error ? e.message : String(e));
+    // candidates.json 由收盘初筛脚本生成，当天还没跑时读不到（ENOENT）是预期内，不刷日志
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getSignalCandidates 读文件失败:", e instanceof Error ? e.message : String(e));
     return { date: "", signals: [] as SignalCandidate[] };
   }
 });
@@ -1306,7 +1308,9 @@ export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async
     const parsed = JSON.parse(raw) as { date: string; ok: number; warn: number; skip: number; signals: SignalReviewed[] };
     return { date: parsed.date, ok: parsed.ok ?? 0, warn: parsed.warn ?? 0, skip: parsed.skip ?? 0, signals: parsed.signals ?? [] };
   } catch (e) {
-    console.error("getSignalReviewed 读文件失败:", e instanceof Error ? e.message : String(e));
+    // reviewed.json 由竞价审核脚本生成，当天还没跑时读不到（ENOENT）是预期内，不刷日志
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getSignalReviewed 读文件失败:", e instanceof Error ? e.message : String(e));
     return { date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] };
   }
 });
@@ -1343,7 +1347,9 @@ export const getSignalTracking = createServerFn({ method: "GET" }).handler(async
     const parsed = JSON.parse(raw) as { signalDate: string; trackedDate: string; summary: SignalTrackSummary; signals: SignalTrackItem[] };
     return parsed;
   } catch (e) {
-    console.error("getSignalTracking 读文件失败:", e instanceof Error ? e.message : String(e));
+    // tracking.json 收盘后才由信号跟踪脚本生成（15:00 后），当天还没跑时读不到（ENOENT）是预期内，不刷日志
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getSignalTracking 读文件失败:", e instanceof Error ? e.message : String(e));
     return { signalDate: "", trackedDate: "", summary: null as SignalTrackSummary | null, signals: [] as SignalTrackItem[] };
   }
 });
