@@ -550,7 +550,7 @@ function corrOf(x: number[], y: number[]): number | null {
   return dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : null;
 }
 
-type Signal = { buy: number; stop: number; sell: number; score: number; atClose?: boolean };
+type Signal = { buy: number; stop: number; sell: number; score: number; atClose?: boolean; /** 成交方向：stop=追涨（现价>=buy），limit=等回踩（现价<=buy）。缺省 limit。 */ fill?: "stop" | "limit" };
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
 function trend(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
@@ -582,7 +582,7 @@ function breakout(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nul
   const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
-  return { buy, stop, sell, score: m.volRatio * 10 };
+  return { buy, stop, sell, score: m.volRatio * 10, fill: "stop" };
 }
 
 /** 启动前期：今天涨 1%~4.5%，买在涨幅中位，止损按涨幅上限。 */
@@ -639,7 +639,7 @@ function breakout2(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
   const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
-  return { buy, stop, sell, score: m.volRatio * 10 };
+  return { buy, stop, sell, score: m.volRatio * 10, fill: "stop" };
 }
 
 function breakout3(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
@@ -653,7 +653,7 @@ function breakout3(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
   const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
-  return { buy, stop, sell, score: m.volRatio * 10 };
+  return { buy, stop, sell, score: m.volRatio * 10, fill: "stop" };
 }
 
 function breakout4(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
@@ -666,7 +666,7 @@ function breakout4(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
   const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
   const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
   if (!(stop < buy && buy < sell)) return null;
-  return { buy, stop, sell, score: m.volRatio * 10 };
+  return { buy, stop, sell, score: m.volRatio * 10, fill: "stop" };
 }
 
 /**
@@ -1217,23 +1217,39 @@ async function main() {
           continue;
         }
 
-        // 限价单撮合。挂在 P，第二天只有两种成交方式：
-        //   开盘价就不高于 P —— 开盘那一刻直接成交，拿到的是开盘价（比挂单价好）
-        //   盘中最低价碰到 P —— 按 P 成交
-        // 只判断「最低价碰到」会把跳空低开、全天没回到 P 上方的票记成「在 P 成交」，
-        // 而那个价位当天压根没出现过。用 BT_FILL 对比三种口径：
-        //   a = 老口径（一律按挂单价，偏保守，会凭空多付钱）
+        // 撮合。挂在 P（buy），按「买卖价 vs 信号日收盘」分方向：
+        //   buy > 信号收盘 → 突破单（stop-buy，线上 hit=现价>=buy 是追涨）：
+        //       次日高开越过 buy 按开盘价成交；否则盘中最高价触及 buy 按 buy 成交
+        //   buy < 信号收盘 → 限价单（limit-buy，等回踩）：
+        //       次日低开跌破 buy 按开盘价成交；否则盘中最低价触及 buy 按 buy 成交
+        //   buy ≈ 信号收盘 → 市价口径（trend 的「买在昨收」）：按次日开盘价成交
+        //
+        // 2026-10-28 修：以前一律按限价单撮合，把突破单也当「等回踩」——
+        // 线上 breakoutOrder.hit 是「现价 >= buy」，是追涨，方向相反，回测测的
+        // 根本不是线上在跑的那笔交易。BT_FILL 三档：
+        //   a = 老口径（一律按挂单价，方向对了才算碰到）
         //   b = 真实口径（跳空按开盘价成交）  ← 默认
-        //   c = 只认「当天确实在挂单价上方成交过」的，跳空的那批直接不算
+        //   c = 只认当天价格确实穿越过 buy 的，跳空那批直接不算
         const open = bar.o > 0 ? bar.o : null;
+        // 成交方向来自策略自己标注（fill 字段）：只有 breakout 家族是 stop（追涨），
+        // 其余全是 limit（等回踩）。不能拿 buy 和信号收盘比大小来猜——
+        // 中期反转 limit 模式 buy = 昨收×1.03 也大于收盘，但语义是「挂 +3% 不追高」，
+        // 是限价不是突破。
+        const isStop = pick.sig.fill === "stop";
         let entry: number | null = null;
         if (fillMode === "a") {
-          if (bar.l <= pick.sig.buy) entry = pick.sig.buy;
+          if (isStop ? bar.h >= pick.sig.buy : bar.l <= pick.sig.buy) entry = pick.sig.buy;
         } else if (fillMode === "b") {
-          if (open != null && open <= pick.sig.buy) entry = open;
-          else if (bar.l <= pick.sig.buy) entry = pick.sig.buy;
-        } else if (bar.l <= pick.sig.buy && (bar.h <= 0 || bar.h >= pick.sig.buy)) {
-          entry = pick.sig.buy;
+          if (isStop) {
+            if (open != null && open >= pick.sig.buy) entry = open;
+            else if (bar.h >= pick.sig.buy) entry = pick.sig.buy;
+          } else {
+            if (open != null && open <= pick.sig.buy) entry = open;
+            else if (bar.l <= pick.sig.buy) entry = pick.sig.buy;
+          }
+        } else {
+          // fillMode c：当天价格确实在 buy 这个价位成交过（盘中穿越）
+          if (bar.l <= pick.sig.buy && bar.h >= pick.sig.buy) entry = pick.sig.buy;
         }
         if (entry == null) continue;
         // 跳空把价格直接开到止损下方：买是买到了，但拿到手的价已经在止损下面，
@@ -1242,7 +1258,7 @@ async function main() {
           stats.belowStop += 1;
           continue;
         }
-        if (open != null && open <= pick.sig.buy) stats.gap += 1;
+        if (open != null && (isStop ? open >= pick.sig.buy : open <= pick.sig.buy)) stats.gap += 1;
         // 涨跌停幅度要按代码分：创业板和科创板是 20%，写死 10% 的话它们
         // 一次正常回调就会被当成「跌停封死卖不掉」跳过。
         const fill = exitFill(
@@ -2041,7 +2057,7 @@ async function main() {
     for (const key of Object.keys(STRATEGIES)) breakdown(results, key);
     console.log("");
     console.log(
-      `入场撮合（口径 ${fillMode}）：跳空低开成交 ${fillStats.gap} 笔，开在止损下方不算 ${fillStats.belowStop} 笔`,
+      `入场撮合（口径 ${fillMode}）：跳空成交 ${fillStats.gap} 笔，开在止损下方不算 ${fillStats.belowStop} 笔`,
     );
     // 费用 drag 对照（学 Vibe-Research 的 cost_compare）：同一套交易费用清零再跑一遍。
     // drag = 有费均值 − 免费均值；只看有费收益会把策略的实际盈利能力高估 drag 那么多。
