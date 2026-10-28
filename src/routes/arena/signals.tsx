@@ -4,7 +4,6 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
@@ -17,6 +16,18 @@ export const ARANA_TABS = [
   { to: "/arena/strategies", label: "策略管理" },
   { to: "/arena/tracking", label: "战绩跟踪" },
 ];
+
+export const Route = createFileRoute("/arena/signals")({
+  loader: async () => {
+    const [c, r, t] = await Promise.all([
+      getSignalCandidates().catch(() => ({ signals: [] as SignalCandidate[] })),
+      getSignalReviewed().catch(() => ({ signals: [] as SignalReviewed[] })),
+      getSignalTracking().catch(() => ({ summary: null as SignalTrackSummary | null, signals: [] })),
+    ]);
+    return { candidates: c.signals, reviewed: r.signals, trackingSummary: t.summary };
+  },
+  component: ArenaSignals,
+});
 
 function SignalCards({ title, signals, variant }: { title: string; signals: SignalCandidate[] | SignalReviewed[]; variant: "candidate" | "reviewed" }) {
   if (signals.length === 0) return null;
@@ -73,10 +84,7 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
 }
 
 function ArenaSignals() {
-  const { data: candidates = [] } = useQuery({ queryKey: ["signalCandidates"], queryFn: async () => (await getSignalCandidates()).signals, refetchInterval: 120000 });
-  const { data: reviewed = [] } = useQuery({ queryKey: ["signalReviewed"], queryFn: async () => (await getSignalReviewed()).signals, refetchInterval: 120000 });
-  const { data: trackingData } = useQuery({ queryKey: ["signalTracking"], queryFn: async () => await getSignalTracking(), refetchInterval: 300000 });
-  const tracking = trackingData?.summary ?? null;
+  const { candidates, reviewed, trackingSummary: tracking } = Route.useLoaderData() as { candidates: SignalCandidate[]; reviewed: SignalReviewed[]; trackingSummary: SignalTrackSummary | null };
   const hasSignals = candidates.length > 0 || reviewed.length > 0;
 
   return (
@@ -117,5 +125,3 @@ function ArenaSignals() {
     </Frame>
   );
 }
-
-export const Route = createFileRoute("/arena/signals")({ component: ArenaSignals });
