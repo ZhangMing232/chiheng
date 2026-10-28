@@ -402,7 +402,17 @@ function metrics(
 
   return {
     c,
-    prev,
+    /**
+     * 买卖价基准 = 信号日收盘 `c`（对「次日下单」而言它就是「昨收」）。
+     *
+     * 2026-10-28 修：以前是 `rows[i-1].c`（信号日**前一天**收盘），和线上对不上——
+     * 线上 record-journal 的 breakoutOrder 用 `prevClose(quote) = 现价/(1+涨跌幅)`，
+     * 次日跑的时候取到的是信号日当天收盘。基准差一天，放量突破这种信号日大涨的
+     * 策略能差 3~5 个点，等于回测一直在测「晚一天」的那一档买价。
+     *
+     * 注意：`chg`（当日涨跌幅）仍然用 `rows[i-1].c` 算，那是对的，不能跟着改。
+     */
+    prev: c,
     open: rows[i].o,
     low: rows[i].l,
     prevLow: i - 1 >= 0 ? rows[i - 1].l : rows[i].l,
