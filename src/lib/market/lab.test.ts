@@ -103,7 +103,7 @@ test("已下线的策略标 retired，needMore 是 0——不会再来样本，�
         trades: [
           trade({ id: "a", entry: 10, style: "value" }),
           trade({ id: "b", entry: 20, style: "relay" }),
-          trade({ id: "c", entry: 30, style: "rebound" }),
+          trade({ id: "c", entry: 30, style: "breakout" }),
         ],
       }),
     ],
@@ -111,16 +111,17 @@ test("已下线的策略标 retired，needMore 是 0——不会再来样本，�
   );
   const value = report.byStyle.find((row) => row.style === "value");
   const relay = report.byStyle.find((row) => row.style === "relay");
-  const rebound = report.byStyle.find((row) => row.style === "rebound");
-  assert.ok(value && relay && rebound);
+  const active = report.byStyle.find((row) => row.style === "breakout");
+  assert.ok(value && relay && active);
   // 历史样本照常显示——历史要看得见，这是正确行为
   assert.equal(value.total, 1);
   assert.equal(value.retired, true);
   assert.equal(value.needMore, 0);
   assert.equal(relay.retired, true);
   assert.equal(relay.needMore, 0);
-  assert.equal(rebound.retired, false);
-  assert.equal(rebound.needMore, PER_STYLE_GOAL);
+  // 「还在跑」的样本用 breakout：2026-10-28 中期反转下线后它是 ACTIVE_STYLES 里唯一一套
+  assert.equal(active.retired, false);
+  assert.equal(active.needMore, PER_STYLE_GOAL);
 });
 
 test("卖出里赚亏都有的那套：胜率和平均照实算，打平的不算赢", () => {
