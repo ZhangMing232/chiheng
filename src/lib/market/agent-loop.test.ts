@@ -128,16 +128,16 @@ test("summarizeChallengerSamples：已平仓/持仓/最近建仓/距 Welch 差�
   const lines = summarizeChallengerSamples(chals, trades);
   assert.match(lines[0], /挑战者A（c_a）：纸面样本 3 笔（已平仓 2 \/ 持仓 1）/);
   assert.match(lines[0], /最近建仓 2026-10-21/);
-  assert.match(lines[0], /还差 28 笔/);
+  assert.match(lines[0], /还差 13 笔/);
   assert.match(lines[1], /挑战者B（c_b）：纸面样本 1 笔（已平仓 0 \/ 持仓 1）/);
-  assert.match(lines[1], /还差 30 笔/);
+  assert.match(lines[1], /还差 15 笔/);
   // 账本里一行都没有的挑战者如实说看不到，不编数
   const none = summarizeChallengerSamples([{ id: "c_c", name: "挑战者C" }], trades);
   assert.match(none[0], /还看不到它的纸面样本/);
-  // 攒够 30 笔已平仓 → 已够格
+  // 攒够 15 笔已平仓（Welch 门槛 30→15，aeabce4）→ 已够格
   const full = summarizeChallengerSamples(
     [{ id: "c_d", name: "挑战者D" }],
-    Array.from({ length: 30 }, (_, i) => ({ variant: "c_d", exit: 10 + i, date: "2026-10-21" })),
+    Array.from({ length: 15 }, (_, i) => ({ variant: "c_d", exit: 10 + i, date: "2026-10-21" })),
   );
   assert.match(full[0], /已够格/);
 });

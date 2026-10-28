@@ -6,7 +6,7 @@
  * 所以 collectDailyMail 把它做成入参——收集逻辑这才测得了）。
  *
  * 钉的东西：
- *   1. 离判决还差几笔 = 30 − min(挑战者样本, 冠军样本)，冠军桶要考虑
+ *   1. 离判决还差几笔 = 15 − min(挑战者样本, 冠军样本)，冠军桶要考虑（Welch 门槛 30→15，aeabce4）
  *      「冠军是被转正的挑战者」（champions.json 映射）——两边桶弄错，进度条就是假的
  *   2. 没有样本说「还没有」，不显示 0.00%（0 会读成「不赚不亏」）
  *   3. 今日诊断：没有就明说没有；是旧报告就带日期，不冒充今天
@@ -139,7 +139,7 @@ const AILOG = {
   ],
 };
 
-test("收集：挑战者进度 = 30 − min(挑战者, 冠军)，没样本说 null 不编 0", async () => {
+test("收集：挑战者进度 = 15 − min(挑战者, 冠军)，没样本说 null 不编 0", async () => {
   await withDataDir({ challengers: CHALLENGERS, champions: {} }, async () => {
     const report = await collectDailyMail({ date: DATE, days: bookWithSamples() });
     assert.equal(report.challengers.length, 2, "只列在跑的");
@@ -147,7 +147,7 @@ test("收集：挑战者进度 = 30 − min(挑战者, 冠军)，没样本说 nu
     assert.ok(lcap);
     assert.equal(lcap.chalClosed, 2);
     assert.equal(lcap.champClosed, 5);
-    assert.equal(lcap.need, 28, "30 − min(2,5) = 28");
+    assert.equal(lcap.need, 13, "15 − min(2,5) = 13");
     // netReturn 扣往返手续费（ROUND_TRIP_COST = 0.102%）：(3.898% + 15.898%) / 2 = 9.898%
     assert.ok(Math.abs((lcap.chalMean ?? 0) - 0.09898) < 1e-6, "两笔扣费后均值 9.898%");
     // 冠军五笔毛收益 5%/10%/−1%/2%/8%，各扣 0.102% 后均值 4.698%
@@ -155,7 +155,7 @@ test("收集：挑战者进度 = 30 − min(挑战者, 冠军)，没样本说 nu
     const revert = report.challengers.find((c) => c.id === "rebound-fast-revert");
     assert.ok(revert);
     assert.equal(revert.chalClosed, 0);
-    assert.equal(revert.need, 30);
+    assert.equal(revert.need, 15);
     assert.equal(revert.chalMean, null, "没样本 = null，不是 0");
     assert.equal(revert.params, "持12天 / 止损7% / 目标14%");
     assert.equal(report.challengers.find((c) => c.id === "old-dead"), undefined, "已淘汰的不列");
@@ -183,7 +183,7 @@ test("收集：冠军是被转正的挑战者时，样本桶跟着映射走", as
       // 它既是冠军又是挑战者时，两个桶是同一批样本——数字必须一致，不能一个有一个没有
       assert.equal(revert.chalClosed, 1);
       assert.equal(revert.champClosed, 1);
-      assert.equal(revert.need, 29);
+      assert.equal(revert.need, 14);
     },
   );
 });
