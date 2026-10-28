@@ -42,6 +42,9 @@ import { Route as AiIndexRouteImport } from './routes/ai/index'
 import { Route as AiConfigRouteImport } from './routes/ai/config'
 import { Route as AiRulesRouteImport } from './routes/ai/rules'
 import { Route as AiUsageRouteImport } from './routes/ai/usage'
+import { Route as ArenaSignalsRouteImport } from './routes/arena/signals'
+import { Route as ArenaStrategiesRouteImport } from './routes/arena/strategies'
+import { Route as ArenaTrackingRouteImport } from './routes/arena/tracking'
 import { Route as FactorsIndexRouteImport } from './routes/factors/index'
 import { Route as FactorsAttribRouteImport } from './routes/factors/attrib'
 import { Route as FactorsBaselineRouteImport } from './routes/factors/baseline'
@@ -234,6 +237,21 @@ const AiUsageRoute = AiUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => AiRoute,
 } as any)
+const ArenaSignalsRoute = ArenaSignalsRouteImport.update({
+  id: '/signals',
+  path: '/signals',
+  getParentRoute: () => ArenaRoute,
+} as any)
+const ArenaStrategiesRoute = ArenaStrategiesRouteImport.update({
+  id: '/strategies',
+  path: '/strategies',
+  getParentRoute: () => ArenaRoute,
+} as any)
+const ArenaTrackingRoute = ArenaTrackingRouteImport.update({
+  id: '/tracking',
+  path: '/tracking',
+  getParentRoute: () => ArenaRoute,
+} as any)
 const FactorsIndexRoute = FactorsIndexRouteImport.update({
   id: '/factors/',
   path: '/factors/',
@@ -369,7 +387,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
-  '/arena': typeof ArenaRoute
+  '/arena': typeof ArenaRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -398,6 +416,9 @@ export interface FileRoutesByFullPath {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
+  '/arena/signals': typeof ArenaSignalsRoute
+  '/arena/strategies': typeof ArenaStrategiesRoute
+  '/arena/tracking': typeof ArenaTrackingRoute
   '/factors/attrib': typeof FactorsAttribRoute
   '/factors/baseline': typeof FactorsBaselineRoute
   '/factors/buckets': typeof FactorsBucketsRoute
@@ -429,7 +450,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/arena': typeof ArenaRoute
+  '/arena': typeof ArenaRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -456,6 +477,9 @@ export interface FileRoutesByTo {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
+  '/arena/signals': typeof ArenaSignalsRoute
+  '/arena/strategies': typeof ArenaStrategiesRoute
+  '/arena/tracking': typeof ArenaTrackingRoute
   '/factors/attrib': typeof FactorsAttribRoute
   '/factors/baseline': typeof FactorsBaselineRoute
   '/factors/buckets': typeof FactorsBucketsRoute
@@ -488,7 +512,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
-  '/arena': typeof ArenaRoute
+  '/arena': typeof ArenaRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -517,6 +541,9 @@ export interface FileRoutesById {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
+  '/arena/signals': typeof ArenaSignalsRoute
+  '/arena/strategies': typeof ArenaStrategiesRoute
+  '/arena/tracking': typeof ArenaTrackingRoute
   '/factors/attrib': typeof FactorsAttribRoute
   '/factors/baseline': typeof FactorsBaselineRoute
   '/factors/buckets': typeof FactorsBucketsRoute
@@ -580,6 +607,9 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
+    | '/arena/signals'
+    | '/arena/strategies'
+    | '/arena/tracking'
     | '/factors/attrib'
     | '/factors/baseline'
     | '/factors/buckets'
@@ -638,6 +668,9 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
+    | '/arena/signals'
+    | '/arena/strategies'
+    | '/arena/tracking'
     | '/factors/attrib'
     | '/factors/baseline'
     | '/factors/buckets'
@@ -698,6 +731,9 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
+    | '/arena/signals'
+    | '/arena/strategies'
+    | '/arena/tracking'
     | '/factors/attrib'
     | '/factors/baseline'
     | '/factors/buckets'
@@ -731,7 +767,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AiRoute: typeof AiRouteWithChildren
-  ArenaRoute: typeof ArenaRoute
+  ArenaRoute: typeof ArenaRouteWithChildren
   BacktestRoute: typeof BacktestRoute
   ButlerRoute: typeof ButlerRoute
   CalendarRoute: typeof CalendarRoute
@@ -998,6 +1034,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiUsageRouteImport
       parentRoute: typeof AiRoute
     }
+    '/arena/signals': {
+      id: '/arena/signals'
+      path: '/signals'
+      fullPath: '/arena/signals'
+      preLoaderRoute: typeof ArenaSignalsRouteImport
+      parentRoute: typeof ArenaRoute
+    }
+    '/arena/strategies': {
+      id: '/arena/strategies'
+      path: '/strategies'
+      fullPath: '/arena/strategies'
+      preLoaderRoute: typeof ArenaStrategiesRouteImport
+      parentRoute: typeof ArenaRoute
+    }
+    '/arena/tracking': {
+      id: '/arena/tracking'
+      path: '/tracking'
+      fullPath: '/arena/tracking'
+      preLoaderRoute: typeof ArenaTrackingRouteImport
+      parentRoute: typeof ArenaRoute
+    }
     '/factors/': {
       id: '/factors/'
       path: '/factors'
@@ -1199,6 +1256,20 @@ const AiRouteChildren: AiRouteChildren = {
 
 const AiRouteWithChildren = AiRoute._addFileChildren(AiRouteChildren)
 
+interface ArenaRouteChildren {
+  ArenaSignalsRoute: typeof ArenaSignalsRoute
+  ArenaStrategiesRoute: typeof ArenaStrategiesRoute
+  ArenaTrackingRoute: typeof ArenaTrackingRoute
+}
+
+const ArenaRouteChildren: ArenaRouteChildren = {
+  ArenaSignalsRoute: ArenaSignalsRoute,
+  ArenaStrategiesRoute: ArenaStrategiesRoute,
+  ArenaTrackingRoute: ArenaTrackingRoute,
+}
+
+const ArenaRouteWithChildren = ArenaRoute._addFileChildren(ArenaRouteChildren)
+
 interface FlowRouteChildren {
   FlowSplatRoute: typeof FlowSplatRoute
 }
@@ -1290,7 +1361,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AiRoute: AiRouteWithChildren,
-  ArenaRoute: ArenaRoute,
+  ArenaRoute: ArenaRouteWithChildren,
   BacktestRoute: BacktestRoute,
   ButlerRoute: ButlerRoute,
   CalendarRoute: CalendarRoute,
