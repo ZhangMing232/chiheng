@@ -1310,3 +1310,40 @@ export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async
     return { date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] };
   }
 });
+
+// ── 信号跟踪：次日涨跌统计 ────────────────────────────────────────────
+
+export interface SignalTrackSummary {
+  signalDate: string;
+  trackedDate: string;
+  totalSignals: number;
+  tracked: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgWinPct: number;
+  avgLossPct: number;
+  plRatio: number;
+  byStrategy: Record<string, { count: number; wins: number; losses: number; avgChg: number }>;
+}
+
+export interface SignalTrackItem {
+  id: string; code: string; name: string; strategy: string;
+  buyPrice: number; score: number; reason: string;
+  prevClose: number | null; nextClose: number | null; nextOpen: number | null;
+  chgPct: number | null; isWin: boolean | null; source: string;
+}
+
+/** 信号次日涨跌跟踪。 */
+export const getSignalTracking = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const p = dataPath("data", "signals", "tracking.json");
+    const raw = await readFile(p, "utf8");
+    const parsed = JSON.parse(raw) as { signalDate: string; trackedDate: string; summary: SignalTrackSummary; signals: SignalTrackItem[] };
+    return parsed;
+  } catch (e) {
+    console.error("getSignalTracking 读文件失败:", e instanceof Error ? e.message : String(e));
+    return { signalDate: "", trackedDate: "", summary: null as SignalTrackSummary | null, signals: [] as SignalTrackItem[] };
+  }
+});

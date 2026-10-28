@@ -10,8 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { Swords, Plus, Trash2, Sparkles, WandIcon, Zap, AlertTriangle, CheckCircle } from "lucide-react";
-import { expressNaturalLanguage, getSignalCandidates, getSignalReviewed } from "@/lib/market/quotes.functions";
-import type { SignalCandidate, SignalReviewed as SignalReviewedType } from "@/lib/market/quotes.functions";
+import { expressNaturalLanguage, getSignalCandidates, getSignalReviewed, getSignalTracking } from "@/lib/market/quotes.functions";
+import type { SignalCandidate, SignalReviewed as SignalReviewedType, SignalTrackSummary } from "@/lib/market/quotes.functions";
 import { validateFactorExpr } from "@/lib/market/factor-expr";
 
 const SIGNALS_DIR = "data/signals";
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/arena")({
     let strategies: UserStrategy[] = [];
     let candidates: SignalCandidate[] = [];
     let reviewed: SignalReviewedType[] = [];
+    let tracking: { summary: SignalTrackSummary | null; signals: unknown[] } = { summary: null, signals: [] };
 
     // 只在服务端读文件和调server function
     if (typeof window === "undefined") {
@@ -40,17 +41,12 @@ export const Route = createFileRoute("/arena")({
       } catch {}
 
       // SSR 预加载信号数据
-      try {
-        const r = await getSignalCandidates();
-        candidates = r.signals;
-      } catch (e) { console.error("getSignalCandidates failed:", e instanceof Error ? e.message : String(e)); }
-      try {
-        const r = await getSignalReviewed();
-        reviewed = r.signals;
-      } catch (e) { console.error("getSignalReviewed failed:", e instanceof Error ? e.message : String(e)); }
+      try { const r = await getSignalCandidates(); candidates = r.signals; } catch (e) { console.error("getSignalCandidates failed:", e instanceof Error ? e.message : String(e)); }
+      try { const r = await getSignalReviewed(); reviewed = r.signals; } catch (e) { console.error("getSignalReviewed failed:", e instanceof Error ? e.message : String(e)); }
+      try { const r = await getSignalTracking(); tracking = { summary: r.summary, signals: r.signals }; } catch {}
     }
 
-    return { strategies, candidates, reviewed };
+    return { strategies, candidates, reviewed, tracking };
   },
   component: ArenaPage,
 });
@@ -120,7 +116,7 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
 // ---- 页面主体 ----
 
 function ArenaPage() {
-  const { strategies: initial, candidates: initialCandidates, reviewed: initialReviewed } = Route.useLoaderData();
+  const { strategies: initial, candidates: initialCandidates, reviewed: initialReviewed, tracking: initialTracking } = Route.useLoaderData();
   const [list, setList] = useState<UserStrategy[]>(initial);
 
   // 信号数据先走 loader SSR 预加载，再用 useQuery 保持客户端新鲜
@@ -136,6 +132,13 @@ function ArenaPage() {
     initialData: initialReviewed,
     staleTime: 60_000,
   });
+  const { data: trackingData = initialTracking } = useQuery({
+    queryKey: ["signalTracking"],
+    queryFn: async () => await getSignalTracking(),
+    initialData: initialTracking,
+    staleTime: 60_000,
+  });
+  const tracking = trackingData?.summary ?? null;
   const [mode, setMode] = useState<"ai" | "manual">("ai");
   const [showForm, setShowForm] = useState(false);
   const [nl, setNl] = useState(""); const [aiExpr, setAiExpr] = useState(""); const [aiBusy, setAiBusy] = useState(false); const [aiError, setAiError] = useState("");
@@ -170,6 +173,23 @@ function ArenaPage() {
           {/* ── 信号区 ── */}
           {hasSignals && (
             <div className="flex flex-col gap-3 rounded border border-line bg-surface2 p-3">
+              {/* 战绩统计条 */}
+              {tracking && tracking.totalSignals > 0 && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded bg-surface px-3 py-2 text-xs">
+                  <span className="font-medium">📊 信号战绩（{tracking.signalDate}）</span>
+                  <span className={`tabular-nums ${tracking.winRate >= 50 ? "text-up" : "text-down"}`}>
+                    胜率 {tracking.winRate}%（{tracking.wins}胜{tracking.losses}负）
+                  </span>
+                  <span className="tabular-nums">盈亏比 {tracking.plRatio}</span>
+                  <span className="tabular-nums text-muted">均赢 +{tracking.avgWinPct}% / 均亏 {tracking.avgLossPct}%</span>
+                  {Object.entries(tracking.byStrategy).map(([s, v]) => (
+                    <span key={s} className={`tabular-nums ${v.avgChg >= 0 ? "text-up" : "text-down"}`}>
+                      {s}: {v.wins}胜{v.losses}负 均{v.avgChg >= 0 ? "+" : ""}{v.avgChg}%
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* 信号卡片 */}
               <SignalCards title="竞价审核后可执行" signals={reviewed} variant="reviewed" />
               <SignalCards title="收盘初筛候选" signals={candidates} variant="candidate" />
             </div>

@@ -170,10 +170,30 @@ function runSignalReview() {
   });
 }
 
+// ── 信号跟踪：每天收盘后跑，拉昨日信号的次日涨跌
+let signalTrackRanDay = "";
+function runSignalTrack() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (signalTrackRanDay === day) return;
+  const hour = new Date().getHours();
+  if (hour < 15) return;
+  signalTrackRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/track-signals.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("信号跟踪失败，明天再补跑");
+  });
+}
+
 runSignalGen();
 runSignalReview();
+runSignalTrack();
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
+const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 
 /**
  * 拉起真正的网页服务，并在它意外退出时再拉一次。
