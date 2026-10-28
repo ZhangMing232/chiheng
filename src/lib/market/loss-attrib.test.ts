@@ -186,3 +186,29 @@ test("byStyle：没有 style 字段的旧账归到 unknown，不炸", () => {
   assert.equal(sum.byStyle.length, 1);
   assert.equal(sum.byStyle[0]!.style, "unknown");
 });
+
+test("lossAttribLines：策略超过 6 套时必须明说还漏了几套，不许静默截断", () => {
+  // 为什么较真：prompt 只列前 6 套，若不写「另有 N 套」，AI 会把「只列了 6 套」
+  // 当成「只亏了 6 套」，剩下那几套永远拿不到调参建议（拿不到 ≠ 没有）。
+  const ids = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"];
+  const attribs = ids.map(
+    (id, i) => attributeTradeLoss({ id: `sz00${i}`, style: id, entry: 10, exit: 9.5, exitReason: "time" })!,
+  );
+  const sum = summarizeTradeLosses(attribs);
+  assert.equal(sum.byStyle.length, 8);
+  const lines = lossAttribLines(sum);
+  const rest = lines.find((l) => l.includes("未展开"));
+  assert.ok(rest, "超过 6 套要有「另有 N 套未展开」这行");
+  assert.match(rest!, /另有 2 套策略共 2 笔/);
+  // 恰好 6 套（不多不少）时不该出现这行，否则就是噪音
+  const six = summarizeTradeLosses(
+    ids.slice(0, 6).map(
+      (id, i) => attributeTradeLoss({ id: `sh60${i}`, style: id, entry: 10, exit: 9.5, exitReason: "time" })!,
+    ),
+  );
+  assert.equal(six.byStyle.length, 6);
+  assert.equal(
+    lossAttribLines(six).some((l) => l.includes("未展开")),
+    false,
+  );
+});

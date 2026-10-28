@@ -1,12 +1,13 @@
 /**
  * 「失败归因」子页（/arena/autopsy）——把「亏在哪、为什么亏」摊到页面上。
  *
- * 两条线：
- * 1. 逐笔亏损归因：按退出原因（止损/跳空/到期/未记）分 cause，给笔数、均亏、
- *    最差、样例，和「这个机制为什么会吃掉钱」的因果解释。
- * 2. 证据来源分档：同一个 cause 可能是原始记录、也可能是事后回填的。两档可信度
+ * 读的顺序就是排查的顺序：
+ * 1. 按策略拆开：**哪套策略在亏**（占比条 + 它亏在哪个机制）。决定「该调谁」的是这一格，
+ *    不是总数——占六成亏损的那套和只亏 4 笔的那套，优先级完全不同。
+ * 2. 按亏损机制：每种机制（止损 / 跳空 / 滑点 / 到期）为什么吃掉钱，带样例。
+ * 3. 证据来源分档：同一个 cause 可能是原始记录、也可能是事后回填的。两档可信度
  *    差很多（旧口径的价格系统性偏乐观），混成一个数等于骗自己，所以单独摊开。
- * 3. 挑战者判决归因：每次转正/淘汰/停跑一条，带「为什么」和双方均值。
+ * 4. 挑战者判决归因：每次转正/淘汰/停跑一条，带「为什么」和双方均值。
  *
  * 纪律：
  * - 老账没记退出原因 → 2026-10-28 用历史 K 线回填过一次，但**回填不是原始记录**，
@@ -18,7 +19,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { Panel, Stat } from "@/components/terminal";
+import { Panel, Prog, Stat } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getLossAttribution } from "@/lib/market/quotes.functions";
@@ -30,6 +31,7 @@ import {
   type ChallengerVerdict,
   type LossCause,
   type LossSourceSummary,
+  type StyleLossSummary,
   type TradeLossSummary,
 } from "@/lib/market/loss-attrib";
 
@@ -73,6 +75,36 @@ function SourceRow({ item }: { item: LossSourceSummary }) {
   );
 }
 
+/**
+ * 一套策略一行：占比条 + 「它亏在哪个机制」。
+ *
+ * 这是全页最该先看的一格——决定「该调谁」的从来不是「哪个机制亏得多」，
+ * 而是「哪套策略在亏、它亏在哪个机制」。放量突破占六成亏损和某套只亏 4 笔，
+ * 调参优先级完全不同。
+ */
+function StyleRow({ item }: { item: StyleLossSummary }) {
+  return (
+    <li className="px-3.5 py-2.5 text-xs">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm font-medium">{item.styleName}</span>
+        <span className="tabular-nums text-muted">
+          {item.count} 笔 · 占 {Math.round(item.share * 100)}% · 均{" "}
+          <span className={pctClass(item.avgRetPct)}>{item.avgRetPct}%</span>
+        </span>
+      </div>
+      <Prog value={item.share} className="mt-1.5" />
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+        {item.byCause.map((c) => (
+          <span key={c.cause} className="tabular-nums">
+            {CAUSE_LABEL[c.cause]} ×{c.count}
+            <span className={pctClass(c.avgRetPct)}> 均 {c.avgRetPct}%</span>
+          </span>
+        ))}
+      </div>
+    </li>
+  );
+}
+
 function AutopsyPage() {
   const { summary, verdicts } = Route.useLoaderData();
 
@@ -87,12 +119,29 @@ function AutopsyPage() {
             <Stat label="亏损原因类别" value={String(summary.byCause.length)} hint="按退出原因分" className="bg-surface" />
             <Stat label="挑战者判决档案" value={String(verdicts.length)} hint="转正/淘汰/停跑" className="bg-surface" />
             <Stat
-              label="最大的亏损类"
-              value={summary.byCause[0] ? CAUSE_LABEL[summary.byCause[0].cause as LossCause] : "—"}
-              hint={summary.byCause[0] ? `${summary.byCause[0].count} 笔` : "还没有"}
+              label="亏损最集中的策略"
+              value={summary.byStyle[0]?.styleName ?? "—"}
+              hint={
+                summary.byStyle[0]
+                  ? `${summary.byStyle[0].count} 笔 · 占 ${Math.round(summary.byStyle[0].share * 100)}%`
+                  : "还没有"
+              }
               className="bg-surface"
             />
           </div>
+
+          {summary.byStyle.length > 0 ? (
+            <Panel
+              title="按策略拆开"
+              note="哪套策略在亏、亏在哪个机制——调参优先级看这一格，别看总数。"
+            >
+              <ul className="divide-y divide-line">
+                {summary.byStyle.map((s) => (
+                  <StyleRow key={s.style} item={s} />
+                ))}
+              </ul>
+            </Panel>
+          ) : null}
 
           {summary.byCause.length === 0 ? (
             <StateBlock
@@ -101,31 +150,33 @@ function AutopsyPage() {
               hint="收盘结算后，已平仓且亏钱的交易会在这里按退出原因分类。老账没有退出原因，会单列「退出原因未记」并明说判不了。"
             />
           ) : (
-            <div className="flex flex-col gap-2">
-              {summary.byCause.map((c) => (
-                <div key={c.cause} className="rounded border border-line bg-surface p-3 text-xs">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium">{CAUSE_LABEL[c.cause as LossCause]}</span>
-                    <span className="tabular-nums text-muted">
-                      {c.count} 笔 · 均 <span className={pctClass(c.avgRetPct)}>{c.avgRetPct}%</span> · 最差{" "}
-                      <span className="text-down">{c.worstPct}%</span>
-                      {c.systematicCount > 0 ? ` · 含系统性 ${c.systematicCount} 笔` : ""}
-                    </span>
-                  </div>
-                  <p className="mt-1 leading-relaxed text-muted">{c.causal}</p>
-                  {c.examples.length > 0 ? (
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
-                      <span>样例：</span>
-                      {c.examples.map((e) => (
-                        <span key={e.id} className="tabular-nums">
-                          {e.name ?? e.id} <span className={pctClass(e.retPct)}>{e.retPct}%</span>
-                        </span>
-                      ))}
+            <Panel title="按亏损机制" note="每种机制为什么会吃掉钱——先读懂机制，再回头看是哪套策略在踩它。">
+              <div className="flex flex-col gap-2 p-3">
+                {summary.byCause.map((c) => (
+                  <div key={c.cause} className="rounded border border-line bg-surface p-3 text-xs">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-sm font-medium">{CAUSE_LABEL[c.cause as LossCause]}</span>
+                      <span className="tabular-nums text-muted">
+                        {c.count} 笔 · 均 <span className={pctClass(c.avgRetPct)}>{c.avgRetPct}%</span> · 最差{" "}
+                        <span className="text-down">{c.worstPct}%</span>
+                        {c.systematicCount > 0 ? ` · 含系统性 ${c.systematicCount} 笔` : ""}
+                      </span>
                     </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                    <p className="mt-1 leading-relaxed text-muted">{c.causal}</p>
+                    {c.examples.length > 0 ? (
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+                        <span>样例：</span>
+                        {c.examples.map((e) => (
+                          <span key={e.id} className="tabular-nums">
+                            {e.name ?? e.id} <span className={pctClass(e.retPct)}>{e.retPct}%</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </Panel>
           )}
 
           {summary.missing.length > 0 ? (

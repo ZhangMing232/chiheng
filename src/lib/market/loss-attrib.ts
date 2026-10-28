@@ -233,9 +233,13 @@ export type LossSourceSummary = {
 export type StyleLossSummary = {
   /** 策略 id（账本 style 字段；挑战者 variant 行也归到它所属的 style 名下）。 */
   style: string;
+  /** 策略中文名。旧账没有 style 字段的落到「未标策略」，不显示 unknown 这种机器话。 */
+  styleName: string;
   count: number;
   /** 占本次汇总亏损总笔数的比例（0~1）。 */
   share: number;
+  /** 这套策略亏损的平均净收益（百分数，负数）。 */
+  avgRetPct: number;
   /** 该策略的亏损按 cause 再拆一层，按笔数降序。 */
   byCause: { cause: LossCause; count: number; avgRetPct: number }[];
 };
@@ -315,8 +319,10 @@ export function summarizeTradeLosses(attribs: TradeLossAttrib[]): TradeLossSumma
       }
       return {
         style,
+        styleName: style === "unknown" ? "未标策略（老账）" : styleNameOf(style),
         count: list.length,
         share: +(list.length / losses).toFixed(3),
+        avgRetPct: +(list.reduce((s, a) => s + a.retPct, 0) / list.length).toFixed(2),
         byCause: [...causeGroups.entries()]
           .map(([cause, cl]) => ({
             cause,
@@ -354,17 +360,27 @@ export function lossAttribLines(summary: TradeLossSummary, maxCauses = 6): strin
       : [];
   // 按策略拆开（最多 6 套、每套最多 3 个主因）：给参数优化层指路——
   // 「哪套亏在哪个机制」直接决定该不该调参、往哪个旋钮调。
+  const STYLE_LIMIT = 6;
   const styleSection =
     summary.byStyle.length > 0
       ? [
           "按策略拆开（提参数变体时对着这里提，别无的放矢）：",
-          ...summary.byStyle.slice(0, 6).map((s) => {
+          ...summary.byStyle.slice(0, STYLE_LIMIT).map((s) => {
             const causes = s.byCause
               .slice(0, 3)
               .map((c) => `${CAUSE_LABEL[c.cause]}×${c.count}（均 ${c.avgRetPct}%）`)
               .join("、");
-            return `- ${styleNameOf(s.style)}：${s.count} 笔（占 ${Math.round(s.share * 100)}%）——${causes}`;
+            return `- ${s.styleName}：${s.count} 笔（占 ${Math.round(s.share * 100)}%，均 ${s.avgRetPct}%）——${causes}`;
           }),
+          // 截断必须说出来：不写这句，AI 会把「只列了 6 套」当成「只亏了 6 套」，
+          // 剩下那几套永远拿不到调参建议（拿不到 ≠ 没有）。
+          ...(summary.byStyle.length > STYLE_LIMIT
+            ? [
+                `- 另有 ${summary.byStyle.length - STYLE_LIMIT} 套策略共 ${summary.byStyle
+                  .slice(STYLE_LIMIT)
+                  .reduce((n, s) => n + s.count, 0)} 笔亏损未展开（这里只列亏得最多的 ${STYLE_LIMIT} 套）`,
+              ]
+            : []),
         ]
       : [];
   const caveats = summary.bySource
