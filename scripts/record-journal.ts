@@ -30,6 +30,7 @@ import {
   appendChampionLog,
   bucketReturns,
   judgeChallenger,
+  loadChallengerRule,
   readChallengers,
   readChampions,
   tradingDaysSince,
@@ -37,6 +38,7 @@ import {
   writeChampions,
   type Challenger,
 } from "../src/lib/market/challenger.ts";
+import { appendChallengerVerdicts, attributeChallengerVerdict } from "../src/lib/market/loss-attrib.ts";
 import { appendGateLog } from "../src/lib/market/gate-log.ts";
 import { appendSignals } from "../src/lib/market/signal-log.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
@@ -68,6 +70,11 @@ type Trade = {
   hold?: number;
   exit: number | null;
   exitDate: string | null;
+  /**
+   * 退出原因（settle 的 verdict.reason）：stop 止损 / target 到价 / time 到期。
+   * 2026-10-28 起落盘；老账没有这个字段 → 失败归因标「原因未定」，不反推。
+   */
+  exitReason?: "stop" | "target" | "time";
   /**
    * 卖出价是「盘中现价快照」还是「日线撮合」。没这个字段 = 2026-10-08 之前的旧账。
    *
@@ -221,6 +228,9 @@ for (const [style, id] of Object.entries(champions)) {
   if (promoted) championParams.set(style, promoted);
 }
 let runningChallengers = chalFile.list.filter((item) => item.status === "running");
+// 判决规则从数据文件读（代码默认 ← data/challenger-rule.json 覆盖），不再写死在代码。
+// 每轮只读一次：优化循环改了规则文件，下一轮记账就用到新值。
+const challengerRule = await loadChallengerRule();
 
 if (phase.date) {
   const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
@@ -277,14 +287,31 @@ if (phase.date) {
     let chalChanged = false;
     for (const chal of chalFile.list) {
       if (chal.status !== "running") continue;
+      const champRets = retsByBucket.get(`${chal.style}:champion`) ?? [];
+      const chalRets = retsByBucket.get(`${chal.style}:${chal.id}`) ?? [];
       const decision = judgeChallenger(
-        retsByBucket.get(`${chal.style}:champion`) ?? [],
-        retsByBucket.get(`${chal.style}:${chal.id}`) ?? [],
+        champRets,
+        chalRets,
         tradingDaysSince(ownerBook.days, chal.since),
+        challengerRule,
       );
       if (decision.action === "none") continue;
       chalChanged = true;
       chal.status = decision.action;
+      // 归因留档：把判决 + 它为什么发生记进失败档案（append-only），优化循环读它找根因。
+      try {
+        const verdict = attributeChallengerVerdict({
+          chal,
+          action: decision.action,
+          reason: decision.reason,
+          champRets,
+          chalRets,
+          day: phase.date,
+        });
+        await appendChallengerVerdicts([verdict]);
+      } catch (e) {
+        console.error(`challenger-verdict ${chal.id} 留档失败（不影响判决）:`, e);
+      }
       const name = STYLES.find((item) => item.id === chal.style)?.name ?? chal.style;
       if (decision.action === "promote") {
         const from = champions[chal.style] ?? "champion";
@@ -649,6 +676,9 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
         trade.exit = fill.price;
         trade.exitDate = phase.date;
         trade.exitKind = "intraday";
+        if (fill.reason === "stop" || fill.reason === "target" || fill.reason === "time") {
+          trade.exitReason = fill.reason;
+        }
         changed = true;
       }
     }
@@ -705,6 +735,10 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           trade.exit = verdict.price;
           trade.exitDate = verdict.date;
           trade.exitKind = "daily";
+          // 落盘退出原因：失败归因按 stop/gap/time 分类靠它，不落就只能靠猜。
+          if (verdict.reason === "stop" || verdict.reason === "target" || verdict.reason === "time") {
+            trade.exitReason = verdict.reason;
+          }
           changed = true;
           const key = `${userId}:${day.date}:${trade.id}:${verdict.reason}`;
           if (verdict.reason === "time" && !alerts.has(key)) {

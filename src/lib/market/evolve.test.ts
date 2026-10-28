@@ -22,7 +22,7 @@ const DEPS: EvolveDeps = {
 };
 
 const diagOk = (): Promise<AgentLoopResult> =>
-  Promise.resolve({ ok: true, diagnosis: { summary: "s", factorLayer: "f", strategyLayer: "s", suggestions: [], ruleChangeRequests: [] } });
+  Promise.resolve({ ok: true, diagnosis: { summary: "s", factorLayer: "f", strategyLayer: "s", suggestions: [], ruleDeltas: [], ruleChangeRequests: [] } });
 const factorOk = (): Promise<AILoopResult> => Promise.resolve({ ok: true, proposed: 1, rejected: 0, rejectReasons: [] });
 const strategyOk = (): Promise<StrategyAILoopResult> => Promise.resolve({ ok: true, proposed: 1, rejected: 0, rejectReasons: [] });
 

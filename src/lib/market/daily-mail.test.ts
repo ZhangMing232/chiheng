@@ -223,7 +223,7 @@ test("收集：今日闭环轮次从 ai-log 按今天数；诊断区分今天/�
 
   // 今天的新诊断
   await withDataDir(
-    { aiLog: AILOG, diagnosis: { at: `${DATE}T07:00:43.000Z`, summary: "今天的", factorLayer: "f", strategyLayer: "s", suggestions: ["a"], ruleChangeRequests: [] } },
+    { aiLog: AILOG, diagnosis: { at: `${DATE}T07:00:43.000Z`, summary: "今天的", factorLayer: "f", strategyLayer: "s", suggestions: ["a"], ruleDeltas: [], ruleChangeRequests: [] } },
     async () => {
       const report = await collectDailyMail({ date: DATE, days: [] });
       assert.equal(report.diagnosis?.isToday, true);
@@ -232,7 +232,7 @@ test("收集：今日闭环轮次从 ai-log 按今天数；诊断区分今天/�
 
   // 只有旧诊断：isToday=false，但内容保留（渲染层负责标日期）
   await withDataDir(
-    { aiLog: AILOG, diagnosis: { at: "2026-10-23T07:00:43.000Z", summary: "昨天的", factorLayer: "f", strategyLayer: "s", suggestions: [], ruleChangeRequests: [] } },
+    { aiLog: AILOG, diagnosis: { at: "2026-10-23T07:00:43.000Z", summary: "昨天的", factorLayer: "f", strategyLayer: "s", suggestions: [], ruleDeltas: [], ruleChangeRequests: [] } },
     async () => {
       const report = await collectDailyMail({ date: DATE, days: [] });
       assert.equal(report.diagnosis?.isToday, false);
@@ -266,6 +266,7 @@ test("收集：ai-log 空也要说，不静默当成「AI 没干活」", async (
 function baseReport(over: Partial<DailyMailReport> = {}): DailyMailReport {
   return {
     date: DATE,
+    minTrades: 15,
     todayRounds: { factor: 3, strategy: 0, agent: true, agentAt: `${DATE}T07:00:43.000Z` },
     diagnosis: null,
     challengers: [],

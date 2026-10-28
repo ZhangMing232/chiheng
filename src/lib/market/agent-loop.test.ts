@@ -35,6 +35,8 @@ const SNAP: LedgerSnapshot = {
   gateLines: ["- 测试策略：假释观察中，正常"],
   selfHistory: ["- 因子层进化 10 轮，策略层 10 轮"],
   marketEvidence: ["920296 N文峰 217.03% · 成交 7.6 亿"],
+  lossLines: [],
+  verdictAttribLines: [],
 };
 
 test("summarizeRunRow：t 值、过关数、DSR 口径都对", () => {
@@ -102,11 +104,11 @@ test("extractJson：前后有杂音也能抠出来；没有 { } 返回 null", ()
 });
 
 test("parseDiagnosis：合法 JSON 收齐五字段；字段缺失补默认；非对象返回 null", () => {
-  const good = parseDiagnosis('xx {"summary":"s","factorLayer":"f","strategyLayer":"t","suggestions":["a"],"ruleChangeRequests":[]} yy');
-  assert.deepEqual(good, { summary: "s", factorLayer: "f", strategyLayer: "t", suggestions: ["a"], ruleChangeRequests: [] });
+  const good = parseDiagnosis('xx {"summary":"s","factorLayer":"f","strategyLayer":"t","suggestions":["a"],"ruleDeltas":[],"ruleChangeRequests":[]} yy');
+  assert.deepEqual(good, { summary: "s", factorLayer: "f", strategyLayer: "t", suggestions: ["a"], ruleDeltas: [], ruleChangeRequests: [] });
   // 缺字段 → 补默认而不是抛错
   const partial = parseDiagnosis('{"summary":"只有总评"}');
-  assert.deepEqual(partial, { summary: "只有总评", factorLayer: "", strategyLayer: "", suggestions: [], ruleChangeRequests: [] });
+  assert.deepEqual(partial, { summary: "只有总评", factorLayer: "", strategyLayer: "", suggestions: [], ruleDeltas: [], ruleChangeRequests: [] });
   // suggestions 里混了非字符串被过滤
   const mixed = parseDiagnosis('{"summary":"s","suggestions":["ok", 42, null]}');
   assert.deepEqual(mixed?.suggestions, ["ok"]);
@@ -148,6 +150,7 @@ test("verifyDiagnosisNumbers：快照里有的数字放行，没出处的数字�
     factorLayer: "",
     strategyLayer: "",
     suggestions: [],
+    ruleDeltas: [],
     ruleChangeRequests: [],
   };
   assert.deepEqual(verifyDiagnosisNumbers(ok, SNAP), { ungrounded: [] });
@@ -157,6 +160,7 @@ test("verifyDiagnosisNumbers：快照里有的数字放行，没出处的数字�
     factorLayer: "",
     strategyLayer: "",
     suggestions: [],
+    ruleDeltas: [],
     ruleChangeRequests: [],
   };
   const check = verifyDiagnosisNumbers(bad, SNAP);

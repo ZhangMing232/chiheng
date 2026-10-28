@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { readAgentDiagnosis } from "./agent-loop.ts";
 import {
   bucketReturns,
-  CHALLENGER_RULE,
+  loadChallengerRule,
   readChallengers,
   readChampions,
   tradingDaysSince,
@@ -114,6 +114,8 @@ export type FactorWatch = {
 
 export type DailyMailReport = {
   date: string;
+  /** 实际生效的判决样本线（来自 data/challenger-rule.json，缺省为代码默认）。 */
+  minTrades: number;
   todayRounds: { factor: number; strategy: number; agent: boolean; agentAt: string | null };
   /** 今天没有新报告时是 null；有旧报告时 isToday=false 并带上它的日期。 */
   diagnosis: {
@@ -160,6 +162,8 @@ export async function collectDailyMail(input: {
 
   // ② 挑战者战况：样本分桶口径和判决/UI 共用（challenger.bucketReturns），
   // 冠军桶要考虑「冠军是被转正的挑战者」这种情形（champions.json 映射）。
+  // 判决线用实际生效值（data/challenger-rule.json 覆盖后的），不是代码默认。
+  const rule = await loadChallengerRule();
   const rets = bucketReturns(days);
   const champions = await readChampions();
   const chalList = (await readChallengers()).list;
@@ -183,7 +187,7 @@ export async function collectDailyMail(input: {
         days: tradingDaysSince(days, c.since),
         chalClosed: chal.length,
         champClosed: champ.length,
-        need: Math.max(0, CHALLENGER_RULE.minTrades - Math.min(chal.length, champ.length)),
+        need: Math.max(0, rule.minTrades - Math.min(chal.length, champ.length)),
         chalMean: chal.length > 0 ? chal.reduce((a, b) => a + b, 0) / chal.length : null,
         champMean: champ.length > 0 ? champ.reduce((a, b) => a + b, 0) / champ.length : null,
         params: params.length > 0 ? params.join(" / ") : "参数同冠军",
@@ -230,7 +234,7 @@ export async function collectDailyMail(input: {
     .sort((a, b) => b.proposedOn.localeCompare(a.proposedOn))
     .slice(0, WATCH_CAP);
 
-  return { date, todayRounds, diagnosis, challengers, watchers, missing };
+  return { date, minTrades: rule.minTrades, todayRounds, diagnosis, challengers, watchers, missing };
 }
 
 // ── 渲染（纯函数：只吃 report，不碰任何 IO）─────────────────────────
@@ -248,18 +252,18 @@ function escapeHtml(s: string): string {
 }
 
 /** 样本数显示：30 是判决下限不是上限，过了线说「已过线」，别显示成 65/30。 */
-function sampleText(closed: number, mean: number | null): string {
-  if (closed === 0) return `0/${CHALLENGER_RULE.minTrades}（还没有已平仓样本）`;
-  if (closed >= CHALLENGER_RULE.minTrades) return `已过线（${closed} 笔，均值 ${pct(mean ?? 0)}）`;
-  return `${closed}/${CHALLENGER_RULE.minTrades}（均值 ${pct(mean ?? 0)}）`;
+function sampleText(closed: number, mean: number | null, minTrades: number): string {
+  if (closed === 0) return `0/${minTrades}（还没有已平仓样本）`;
+  if (closed >= minTrades) return `已过线（${closed} 笔，均值 ${pct(mean ?? 0)}）`;
+  return `${closed}/${minTrades}（均值 ${pct(mean ?? 0)}）`;
 }
 
 /** 挑战者一行参数 + 进度。样本为 0 时说「还没有」，不显示 0.00%。 */
-function challengerLine(c: ChallengerStanding): string {
+function challengerLine(c: ChallengerStanding, minTrades: number): string {
   const verdict = c.need > 0 ? `还差 ${c.need} 笔判决` : "样本已够，等判决";
   return [
     `· ${c.name}（${c.style}｜${c.params}）`,
-    `  账本里有 ${c.days} 个交易日 · 挑战者 ${sampleText(c.chalClosed, c.chalMean)} · 冠军 ${sampleText(c.champClosed, c.champMean)} · ${verdict}`,
+    `  账本里有 ${c.days} 个交易日 · 挑战者 ${sampleText(c.chalClosed, c.chalMean, minTrades)} · 冠军 ${sampleText(c.champClosed, c.champMean, minTrades)} · ${verdict}`,
   ].join("\n");
 }
 
@@ -308,11 +312,11 @@ export function renderDailyMail(report: DailyMailReport): { subject: string; tex
   lines.push("");
 
   // ② 挑战者战况
-  lines.push(`二、挑战者战况（判决线：双方各 ${CHALLENGER_RULE.minTrades} 笔已平仓）`);
+  lines.push(`二、挑战者战况（判决线：双方各 ${report.minTrades} 笔已平仓）`);
   if (report.challengers.length === 0) {
     lines.push("  现在没有在跑的挑战者。");
   } else {
-    for (const c of report.challengers) lines.push(challengerLine(c));
+    for (const c of report.challengers) lines.push(challengerLine(c, report.minTrades));
   }
   lines.push("");
 
@@ -372,7 +376,7 @@ function renderHtml(report: DailyMailReport, subject: string): string {
             const verdict = c.need > 0 ? `<b>还差 ${c.need} 笔</b>判决` : "样本已够，等判决";
             return `<div style="padding:8px 0;border-bottom:1px solid #eee">
               <div><b>${esc(c.name)}</b><span style="color:#888;font-size:12px">\u3000${esc(c.style)}｜${esc(c.params)}</span></div>
-              <div style="color:#444;font-size:13px">账本里有 ${c.days} 个交易日 · 挑战者 ${esc(sampleText(c.chalClosed, c.chalMean))} · 冠军 ${esc(sampleText(c.champClosed, c.champMean))} · ${verdict}</div>
+              <div style="color:#444;font-size:13px">账本里有 ${c.days} 个交易日 · 挑战者 ${esc(sampleText(c.chalClosed, c.chalMean, report.minTrades))} · 冠军 ${esc(sampleText(c.champClosed, c.champMean, report.minTrades))} · ${verdict}</div>
             </div>`;
           })
           .join("");
@@ -400,7 +404,7 @@ function renderHtml(report: DailyMailReport, subject: string): string {
     `<div style="color:#888;font-size:12px;margin:4px 0 12px">${esc(date)} · 今天 AI 闭环：${roundBits.map(esc).join(" · ")}</div>`,
     `<div style="border-top:2px solid #1a1a1a"></div>`,
     section(`一、今日诊断`, diagHtml),
-    section(`二、挑战者战况（判决线：双方各 ${CHALLENGER_RULE.minTrades} 笔已平仓）`, chalHtml),
+    section(`二、挑战者战况（判决线：双方各 ${report.minTrades} 笔已平仓）`, chalHtml),
     section(`三、明日验证（今天之前提的因子，现在什么下场）`, watchHtml),
     missingHtml,
     `<div style="margin-top:20px;color:#888;font-size:12px">实验没跑完，明天这时见。</div>`,

@@ -32,6 +32,7 @@ export const ARANA_TABS = [
   { to: "/arena/signals", label: "每日信号" },
   { to: "/arena/strategies", label: "策略管理" },
   { to: "/arena/tracking", label: "战绩跟踪" },
+  { to: "/arena/autopsy", label: "失败归因" },
 ];
 
 function ArenaStrategies() {

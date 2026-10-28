@@ -15,7 +15,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { getAILog, getAIStatus, getAgentDiagnosis, getVTToolsStatus, runAgentDiagnose, runEvolve, saveAIPrefs } from "@/lib/market/quotes.functions";
+import { applyRuleChange, getAILog, getAIStatus, getAgentDiagnosis, getPendingRuleChanges, getVTToolsStatus, rejectRuleChange, runAgentDiagnose, runEvolve, saveAIPrefs } from "@/lib/market/quotes.functions";
 import type { AILogEntry } from "@/lib/market/ai-log";
 import {
   AISectionTabs,
@@ -25,22 +25,42 @@ import {
 
 export const Route = createFileRoute("/ai/")({
   loader: async () => {
-    const [ai, logRes, diagnosis, vtRes] = await Promise.all([
+    const [ai, logRes, diagnosis, vtRes, rulesRes] = await Promise.all([
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] })),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
       getAgentDiagnosis().catch(() => null),
       getVTToolsStatus().catch(() => ({ allowed: false as const })),
+      getPendingRuleChanges().catch(() => ({ pending: [], log: [] })),
     ]);
-    return { ai, log: logRes.entries, diagnosis, vt: vtRes.allowed ? vtRes.status : null };
+    return { ai, log: logRes.entries, diagnosis, vt: vtRes.allowed ? vtRes.status : null, rules: rulesRes };
   },
   component: AIConsolePage,
 });
 
 function AIConsolePage() {
-  const { ai, log, diagnosis, vt } = Route.useLoaderData();
+  const { ai, log, diagnosis, vt, rules } = Route.useLoaderData();
   const router = useRouter();
   const [evolveMsg, setEvolveMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<"evolve" | "diagnose" | null>(null);
+  const [ruleBusy, setRuleBusy] = useState<string | null>(null);
+
+  /** 批准/驳回一条待确认的核心规则变更。批准才真正写 data/challenger-rule.json。 */
+  const decideRule = async (id: string, action: "apply" | "reject") => {
+    setRuleBusy(id);
+    setEvolveMsg(null);
+    try {
+      const res =
+        action === "apply"
+          ? await applyRuleChange({ data: { id } })
+          : await rejectRuleChange({ data: { id } });
+      setEvolveMsg(res.ok ? (action === "apply" ? "已批准，写入规则文件" : "已驳回") : (("error" in res && res.error) || "操作失败"));
+      await router.invalidate();
+    } catch (err) {
+      setEvolveMsg(err instanceof Error ? err.message : "操作失败");
+    } finally {
+      setRuleBusy(null);
+    }
+  };
 
   /** AI 全局诊断：读整个账本出报告（只诊断不行动，规则变更只请求人拍板）。 */
   const runDiagnose = async () => {
@@ -240,6 +260,69 @@ function AIConsolePage() {
           ) : (
             <StateBlock kind="empty" title="还没有诊断报告" hint="点上面的「跑一轮全局诊断」；开自动进化后，收盘后每轮自动进化都是诊断先行，报告落在这里。" />
           )}
+        </div>
+      </Section>
+
+      <Section
+        id="rule-changes"
+        title="待确认规则变更（优化闭环）"
+        hint="混合审批：纸面参数类规则（提前否决时间盒）优化循环自动生效并留审计；核心判决阈值（起判笔数 / Welch t / 淘汰线）只进这里，你点「批准」才写进 data/challenger-rule.json。"
+      >
+        <div className="px-3.5 py-3">
+          {rules.pending.filter((p) => p.status === "pending").length === 0 ? (
+            <StateBlock
+              kind="empty"
+              title="没有待确认的规则变更"
+              hint="优化循环认为某条核心判决阈值该改时，会把「改成多少 + 为什么」放这里等你拍板。自动生效的纸面参数在下方审计里能看到。"
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {rules.pending
+                .filter((p) => p.status === "pending")
+                .map((p) => (
+                  <div key={p.id} className="rounded border border-warn bg-warn-soft px-3 py-2 text-xs">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-medium text-warn">
+                        {p.key}：{p.from} → {p.to}
+                      </span>
+                      <span className="text-[10px] text-muted">{p.at.slice(0, 16).replace("T", " ")}</span>
+                    </div>
+                    <p className="mt-1 leading-relaxed text-muted">{p.why}</p>
+                    <div className="mt-1.5 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={ruleBusy === p.id}
+                        onClick={() => decideRule(p.id, "apply")}
+                        className="rounded-full border border-line bg-brand px-2.5 py-1 text-[11px] text-white disabled:opacity-40"
+                      >
+                        批准
+                      </button>
+                      <button
+                        type="button"
+                        disabled={ruleBusy === p.id}
+                        onClick={() => decideRule(p.id, "reject")}
+                        className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] text-muted disabled:opacity-40"
+                      >
+                        驳回
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {rules.log.length > 0 ? (
+            <div className="mt-3 border-t border-line pt-2">
+              <p className="mb-1 text-[11px] font-medium text-muted">最近规则变更审计</p>
+              <ul className="flex flex-col gap-0.5 text-[11px] text-muted">
+                {rules.log.slice(0, 8).map((a, i) => (
+                  <li key={`${a.at}-${a.key}-${i}`} className="tabular-nums">
+                    {a.at.slice(0, 16).replace("T", " ")} · {a.mode === "auto" ? "自动" : a.mode === "approved" ? "人工批准" : "驳回"} · {a.key} {a.from}→{a.to}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </Section>
 

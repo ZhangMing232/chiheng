@@ -13,7 +13,7 @@ import { parseRules } from "@/lib/market/rules";
 import { readPrefs, writePrefs } from "@/lib/market/prefs-file";
 import { parsePrefs } from "@/lib/market/prefs";
 import { readBaseline, readFactorDiag, readFactorRuns } from "@/lib/market/factor-runs-file";
-import { systemRules } from "@/lib/market/system-rules";
+import { loadSystemRules } from "@/lib/market/system-rules";
 import { sanitizeParams } from "@/lib/market/factor-test-runner";
 import { aiStatus, readQueue, runFactorAILoop } from "@/lib/market/factor-queue";
 import { loadBacktestRuns } from "@/lib/market/backtest-runs";
@@ -1017,10 +1017,68 @@ export const getTombstones = createServerFn({ method: "GET" }).handler(async () 
   return (await readTombstones()).slice(0, 100);
 });
 
+/**
+ * 失败归因数据（失败归因页用）：逐笔亏损按退出原因分 cause + 挑战者判决归因。
+ * 读不到账本/没有亏损 → summary.losses=0、verdicts=[]，不编造。
+ */
+export const getLossAttribution = createServerFn({ method: "GET" }).handler(async () => {
+  const { readUserBook, OWNER_ID } = await import("@/lib/market/book-file");
+  const { attributeTradeLoss, summarizeTradeLosses, readChallengerVerdicts } = await import("@/lib/market/loss-attrib");
+  type BookTrade = {
+    id: string;
+    name?: string;
+    entry?: number;
+    exit?: number | null;
+    stop?: number;
+    target?: number;
+    style?: string;
+    variant?: string;
+    exitReason?: string;
+  };
+  const book = await readUserBook<{ trades?: BookTrade[] }>(OWNER_ID).catch(() => null);
+  const trades = (book?.days ?? []).flatMap((day) => day.trades ?? []);
+  const attribs = trades.map((t) => attributeTradeLoss(t)).filter((x): x is NonNullable<typeof x> => x != null);
+  return {
+    summary: summarizeTradeLosses(attribs),
+    verdicts: await readChallengerVerdicts(),
+  };
+});
+
+/** 待人工确认的核心规则变更 + 最近审计。 */
+export const getPendingRuleChanges = createServerFn({ method: "GET" }).handler(async () => {
+  const { readPendingRuleChanges, readRuleChangeLog } = await import("@/lib/market/optimize");
+  return { pending: await readPendingRuleChanges(), log: (await readRuleChangeLog()).slice(0, 30) };
+});
+
+/** 人工批准一条核心规则变更（owner 专属）。 */
+export const applyRuleChange = createServerFn({ method: "POST" })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人能改判决规则" };
+    const { applyPendingRuleChange } = await import("@/lib/market/optimize");
+    const item = await applyPendingRuleChange(data.id);
+    return item ? { ok: true as const, item } : { ok: false as const, error: "没找到这条待确认（可能已处理）" };
+  });
+
+/** 人工驳回一条核心规则变更（owner 专属）。 */
+export const rejectRuleChange = createServerFn({ method: "POST" })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人能改判决规则" };
+    const { rejectPendingRuleChange } = await import("@/lib/market/optimize");
+    const item = await rejectPendingRuleChange(data.id);
+    return item ? { ok: true as const, item } : { ok: false as const, error: "没找到这条待确认（可能已处理）" };
+  });
+
 /** 在跑挑战者各自攒到的已平仓样本数（判决要 30 笔，冠军那边也要 30 笔）。和记账进程同一个分桶口径。 */
 export const getChallengerSamples = createServerFn({ method: "GET" }).handler(async () => {
   const { OWNER_ID, readUserBook } = await import("@/lib/market/book-file");
-  const { bucketReturns, CHALLENGER_RULE, readChallengers } = await import("@/lib/market/challenger");
+  const { bucketReturns, loadChallengerRule, readChallengers } = await import("@/lib/market/challenger");
+  const rule = await loadChallengerRule();
   const book = await readUserBook<{ signalTime?: string; trades: { entry?: number; exit?: number | null; style?: string; variant?: string }[] }>(OWNER_ID).catch(() => null);
   const buckets = bucketReturns(book?.days ?? []);
   const { list } = await readChallengers();
@@ -1029,7 +1087,7 @@ export const getChallengerSamples = createServerFn({ method: "GET" }).handler(as
     if (c.status !== "running") continue;
     counts[c.id] = {
       n: (buckets.get(`${c.style}:${c.id}`) ?? []).length,
-      target: CHALLENGER_RULE.minTrades,
+      target: rule.minTrades,
       // Welch 判决是双样本检验：挑战者和冠军两边各攒够 minTrades 才判，单边够数不算数
       champN: (buckets.get(`${c.style}:champion`) ?? []).length,
     };
@@ -1142,9 +1200,12 @@ export const getDecisionLedger = createServerFn({ method: "GET" }).handler(async
   return { allowed: true as const, ledger: await readDecisionLedger() };
 });
 
-/** 闸门面板（system-rules.ts）：五组判据常量的当前值。只读，改阈值去改各自 RULE。 */
+/**
+ * 闸门面板（system-rules.ts）：五组判据的当前值。挑战者那组读 data/challenger-rule.json
+ * 的实际生效值（优化循环/人工审批可能已改过），其余四组仍是常量。
+ */
 export const getSystemRules = createServerFn({ method: "GET" }).handler(async () => ({
-  groups: systemRules(),
+  groups: await loadSystemRules(),
 }));
 
 /**

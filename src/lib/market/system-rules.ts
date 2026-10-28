@@ -7,8 +7,9 @@
  *
  * 为什么需要它：
  * 这些阈值以前只活在代码常量里，界面上一处都看不到——「连续几轮断电」「衰减
- * 三档各是多少」全凭翻源码。面板让闸门可见；可见才谈得上「灵活调整」（调整入口
- * 仍是改常量提交，面板负责把现在的值和后果摆清楚）。
+ * 三档各是多少」全凭翻源码。面板让闸门可见；可见才谈得上「灵活调整」。
+ * 调整入口：挑战者那组改 data/challenger-rule.json（优化闭环自动调纸面参数、
+ * 核心阈值走 /ai 页人工审批），其余四组仍是改各自 RULE 常量。
  *
  * 你需要知道的：
  * 1. **server-only**：五个常量模块的 import 链里有 node:fs，被打进前端会炸。
@@ -21,7 +22,7 @@
 import { AUDIT_RULE } from "./data-audit.ts";
 import { BREAKER_RULE } from "./evolve-breaker.ts";
 import { DECAY_RULE } from "./decay.ts";
-import { CHALLENGER_RULE } from "./challenger.ts";
+import { CHALLENGER_RULE, loadChallengerRule, type ChallengerRule } from "./challenger.ts";
 import { STRATEGY_GATE } from "./strategy-gate.ts";
 
 export type RuleEntry = {
@@ -42,8 +43,12 @@ export type RuleGroup = {
   entries: RuleEntry[];
 };
 
-/** 五个常量 → 面板数据。加判据 = 往对应组里加一条，不改框架。 */
-export function systemRules(): RuleGroup[] {
+/**
+ * 五个常量 → 面板数据。加判据 = 往对应组里加一条，不改框架。
+ * 挑战者这组支持传入 rule（默认代码默认）：页面走 loadSystemRules() 读数据文件里的
+ * 实际生效值，单测传默认值锁口径，两边同一份拼装逻辑。
+ */
+export function systemRules(rule: ChallengerRule = CHALLENGER_RULE): RuleGroup[] {
   return [
     {
       id: "audit",
@@ -134,14 +139,14 @@ export function systemRules(): RuleGroup[] {
         {
           id: "c1-window",
           label: "判决样本",
-          value: `${CHALLENGER_RULE.minTrades} 笔起判 · 上限 ${CHALLENGER_RULE.maxTrades} 笔`,
-          note: "攒不够 30 笔不判决（小样本 t 值是噪音）；跑满 200 笔还分不出胜负 → 停跑不占样本。",
+          value: `${rule.minTrades} 笔起判 · 上限 ${rule.maxTrades} 笔`,
+          note: "攒不够起判笔数不判决（小样本 t 值是噪音）；跑满上限还分不出胜负 → 停跑不占样本。数值来自 data/challenger-rule.json（缺省回代码默认）。",
         },
         {
           id: "c2-verdicts",
           label: "转正 / 淘汰线",
-          value: `转正 t ≥ ${CHALLENGER_RULE.promoteT} 且均值更高 · 淘汰 t ≤ ${CHALLENGER_RULE.rejectT}`,
-          note: "挑战者跑的是已平仓样本的 Welch 检验，对线的是冠军参数。",
+          value: `转正 t ≥ ${rule.promoteT} 且均值更高 · 淘汰 t ≤ ${rule.rejectT}`,
+          note: "挑战者跑的是已平仓样本的 Welch 检验，对线的是冠军参数。核心阈值改动需人工确认。",
         },
       ],
     },
@@ -165,4 +170,13 @@ export function systemRules(): RuleGroup[] {
       ],
     },
   ];
+}
+
+/**
+ * 页面用的活数据：挑战者这组读 data/challenger-rule.json 的实际生效值
+ * （优化循环/人工审批可能已改过），不再只显示代码默认。
+ * 其他四组仍是常量。读文件失败 → 自动退回代码默认（loadChallengerRule 内建）。
+ */
+export async function loadSystemRules(): Promise<RuleGroup[]> {
+  return systemRules(await loadChallengerRule());
 }

@@ -42,6 +42,7 @@ import { Route as AiIndexRouteImport } from './routes/ai/index'
 import { Route as AiConfigRouteImport } from './routes/ai/config'
 import { Route as AiRulesRouteImport } from './routes/ai/rules'
 import { Route as AiUsageRouteImport } from './routes/ai/usage'
+import { Route as ArenaAutopsyRouteImport } from './routes/arena/autopsy'
 import { Route as ArenaSignalsRouteImport } from './routes/arena/signals'
 import { Route as ArenaStrategiesRouteImport } from './routes/arena/strategies'
 import { Route as ArenaTrackingRouteImport } from './routes/arena/tracking'
@@ -237,6 +238,11 @@ const AiUsageRoute = AiUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => AiRoute,
 } as any)
+const ArenaAutopsyRoute = ArenaAutopsyRouteImport.update({
+  id: '/autopsy',
+  path: '/autopsy',
+  getParentRoute: () => ArenaRoute,
+} as any)
 const ArenaSignalsRoute = ArenaSignalsRouteImport.update({
   id: '/signals',
   path: '/signals',
@@ -416,6 +422,7 @@ export interface FileRoutesByFullPath {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
+  '/arena/autopsy': typeof ArenaAutopsyRoute
   '/arena/signals': typeof ArenaSignalsRoute
   '/arena/strategies': typeof ArenaStrategiesRoute
   '/arena/tracking': typeof ArenaTrackingRoute
@@ -477,6 +484,7 @@ export interface FileRoutesByTo {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
+  '/arena/autopsy': typeof ArenaAutopsyRoute
   '/arena/signals': typeof ArenaSignalsRoute
   '/arena/strategies': typeof ArenaStrategiesRoute
   '/arena/tracking': typeof ArenaTrackingRoute
@@ -541,6 +549,7 @@ export interface FileRoutesById {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
+  '/arena/autopsy': typeof ArenaAutopsyRoute
   '/arena/signals': typeof ArenaSignalsRoute
   '/arena/strategies': typeof ArenaStrategiesRoute
   '/arena/tracking': typeof ArenaTrackingRoute
@@ -607,6 +616,7 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
+    | '/arena/autopsy'
     | '/arena/signals'
     | '/arena/strategies'
     | '/arena/tracking'
@@ -668,6 +678,7 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
+    | '/arena/autopsy'
     | '/arena/signals'
     | '/arena/strategies'
     | '/arena/tracking'
@@ -731,6 +742,7 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
+    | '/arena/autopsy'
     | '/arena/signals'
     | '/arena/strategies'
     | '/arena/tracking'
@@ -1034,6 +1046,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiUsageRouteImport
       parentRoute: typeof AiRoute
     }
+    '/arena/autopsy': {
+      id: '/arena/autopsy'
+      path: '/autopsy'
+      fullPath: '/arena/autopsy'
+      preLoaderRoute: typeof ArenaAutopsyRouteImport
+      parentRoute: typeof ArenaRoute
+    }
     '/arena/signals': {
       id: '/arena/signals'
       path: '/signals'
@@ -1257,12 +1276,14 @@ const AiRouteChildren: AiRouteChildren = {
 const AiRouteWithChildren = AiRoute._addFileChildren(AiRouteChildren)
 
 interface ArenaRouteChildren {
+  ArenaAutopsyRoute: typeof ArenaAutopsyRoute
   ArenaSignalsRoute: typeof ArenaSignalsRoute
   ArenaStrategiesRoute: typeof ArenaStrategiesRoute
   ArenaTrackingRoute: typeof ArenaTrackingRoute
 }
 
 const ArenaRouteChildren: ArenaRouteChildren = {
+  ArenaAutopsyRoute: ArenaAutopsyRoute,
   ArenaSignalsRoute: ArenaSignalsRoute,
   ArenaStrategiesRoute: ArenaStrategiesRoute,
   ArenaTrackingRoute: ArenaTrackingRoute,

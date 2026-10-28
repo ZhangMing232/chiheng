@@ -6,13 +6,13 @@
  * 死因档案 + 挑战者纸面 + 策略闸 + AI 自身进化史，让它先「看懂全局」再说话。
  *
  * 你需要知道的（纪律，和两层闭环同规矩）：
- * 1. **这轮只诊断，不行动**。输出是一份诊断报告（总评 / 因子层 / 策略层 /
- *    建议 / 规则变更请求），原样落 data/agent-diagnosis.json 展示给人看。
- *    建议项要真行动，得走已有的提议通道（parseAIProposals / 挑战者提名），
- *    那是下一步（plan/act）的事。
- * 2. **规则变更请求只展示**。AI 觉得「6 关太严 / Welch 阈值不对」，只能写进
- *    ruleChangeRequests 给人拍板——判决规则写死在代码里，AI 没有任何代码路径
- *    碰得到（和 VT1/VT2 的边界同一条）。
+ * 1. **这轮只诊断，不行动**。输出诊断报告（总评 / 因子层 / 策略层 / 建议 /
+ *    结构化规则增量 ruleDeltas / 规则意见），落 data/agent-diagnosis.json 展示。
+ *    建议项要真行动，走已有的提议通道（parseAIProposals / 挑战者提名）。
+ * 2. **规则增量分两档（混合审批）**。ruleDeltas 里：纸面参数类键（earlyRejectDays /
+ *    earlyRejectGap）由优化闭环（optimize.ts）自动写入 data/challenger-rule.json；
+ *    核心判决阈值（minTrades/promoteT/rejectT/maxTrades）只进待确认，人拍板才生效。
+ *    因子 6 关判据仍写死在代码里，AI 碰不到（和 VT1/VT2 的边界同一条）。
  * 3. 纯函数（buildDiagnosisPrompt / parseDiagnosis / extractJson）不碰 fs/fetch，
  *    直接单测；collect/run 是 server-only。
  * 4. 诊断也记 ai-log（layer="agent"）：跑了没产出、配置失效、接口欠费，都要
@@ -38,7 +38,16 @@ import { appendAILog, evolveStats, readAILog } from "./ai-log.ts";
 import { necropsyLines } from "./factor-necropsy.ts";
 import { readFactorRuns, type FactorRunRow } from "./factor-runs-file.ts";
 import { readTombstones } from "./factor-tombstones.ts";
-import { readChallengers, readChampions, CHALLENGER_RULE } from "./challenger.ts";
+import { readChallengers, readChampions, CHALLENGER_RULE, loadChallengerRule } from "./challenger.ts";
+import { readUserBook, OWNER_ID } from "./book-file.ts";
+import {
+  attributeTradeLoss,
+  summarizeTradeLosses,
+  lossAttribLines,
+  readChallengerVerdicts,
+  challengerVerdictLines,
+  type AttributableTrade,
+} from "./loss-attrib.ts";
 import { readStrategyGates } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
@@ -70,6 +79,10 @@ export type LedgerSnapshot = {
   selfHistory: string[];
   /** 市场证据：VT 工具矿山拉的当日 A 股快照（涨跌幅/成交额头部）。空数组 = 工具离线，诊断照常跑。 */
   marketEvidence: string[];
+  /** 逐笔亏损归因（按退出原因分 cause + 为什么亏）。空数组 = 没有已平仓亏损。 */
+  lossLines: string[];
+  /** 挑战者判决归因（为什么转正/淘汰）。空数组 = 还没有判决档案。 */
+  verdictAttribLines: string[];
 };
 
 /** 一行市场快照 → 中文摘要（代码 名称 涨跌幅 成交额亿）。 */
@@ -193,6 +206,7 @@ export function summarizeQueue(entries: { status: string }[]): string[] {
 export function summarizeChallengerSamples(
   challengers: { id: string; name: string }[],
   variantTrades: { variant: string; exit: number | null; date: string }[],
+  minTrades: number = CHALLENGER_RULE.minTrades,
 ): string[] {
   return challengers.slice(-20).map((c) => {
     const mine = variantTrades.filter((t) => t.variant === c.id);
@@ -202,7 +216,7 @@ export function summarizeChallengerSamples(
     const closed = mine.filter((t) => t.exit != null).length;
     const open = mine.length - closed;
     const last = mine.reduce((a, t) => (t.date > a ? t.date : a), "");
-    const need = CHALLENGER_RULE.minTrades;
+    const need = minTrades;
     return `- ${c.name}（${c.id}）：纸面样本 ${mine.length} 笔（已平仓 ${closed} / 持仓 ${open}），最近建仓 ${last}，Welch 判决要 ${need} 笔已平仓${closed >= need ? "，已够格" : `，还差 ${need - closed} 笔`}`;
   });
 }
@@ -225,6 +239,12 @@ export function buildDiagnosisPrompt(snap: LedgerSnapshot): string {
     "【死因档案（被淘汰因子的败因）】",
     snap.necropsy.join("\n") || "- （档案是空的）",
     "",
+    "【逐笔亏损归因（按退出原因分 cause，为什么亏——先读懂失败，再提下一步）】",
+    snap.lossLines.join("\n") || "- （还没有已平仓亏损，或老账没记退出原因）",
+    "",
+    "【挑战者判决归因（为什么转正 / 为什么淘汰）】",
+    snap.verdictAttribLines.join("\n") || "- （还没有判决档案）",
+    "",
     "【策略层：实盘冠军参数】",
     snap.championLines.join("\n"),
     "",
@@ -245,13 +265,15 @@ export function buildDiagnosisPrompt(snap: LedgerSnapshot): string {
       ? [...snap.marketEvidence, "", "注意：这是当日截面快照，只用来校准「现在市场处于什么状态」，不要当成历史规律引用。"].join("\n")
       : "- （工具离线或没拉到，基于账本诊断即可）",
     "",
+    "优先用「逐笔亏损归因」「挑战者判决归因」「死因档案」里出现的高频死法来提 ruleDeltas / suggestions——避免系统反复踩同一个坑。",
     "输出要求：只输出一个 JSON 对象，不要输出任何别的文字。结构：",
     '{',
     '  "summary": "一句话总评：整个系统现在最该关注的一件事",',
     '  "factorLayer": "因子层诊断：哪类因子在失效/生效，死因档案里有没有共性，队列是不是健康",',
     '  "strategyLayer": "策略层诊断：挑战者攒样本速度、冠军参数有没有该警惕的迹象、策略闸状态",',
     '  "suggestions": ["建议动作，1~3 条，每条一句。只能是「提议新因子/提名挑战者/请求人工检查」这类不碰判决规则的动作"],',
-    '  "ruleChangeRequests": ["规则变更请求：如果你觉得某条判决规则（6 关阈值/Welch t 值/淘汰次数）不合理，写在这里并给理由；没有就空数组。注意：你只能请求，人类批了才生效"]',
+    '  "ruleDeltas": [{"key": "minTrades|promoteT|rejectT|maxTrades|earlyRejectDays|earlyRejectGap", "to": 12, "why": "引用上面亏损归因/判决归因里的具体数字，说明为什么该改、改成多少"}],',
+    '  "ruleChangeRequests": ["规则变更请求：无法归成 ruleDeltas 的规则意见写这里；没有就空数组。核心阈值（minTrades/promoteT/rejectT/maxTrades）只会进「待人工确认」，不会自动生效"]',
     '}',
     "",
     "铁律：1) 所有判断必须引用账本里的具体数字，不许泛泛而谈；2) 不许给出任何具体股票的买卖建议；3) 不许假设账本里没有的数据。",
@@ -261,11 +283,17 @@ export function buildDiagnosisPrompt(snap: LedgerSnapshot): string {
 
 // ── 诊断报告解析（纯函数） ─────────────────────────────────────
 
+/** 结构化规则增量：优化循环据此自动生效（tunable）或转待确认（core）。 */
+export type RuleDelta = { key: string; to: number; why: string };
+
 export type AgentDiagnosis = {
   summary: string;
   factorLayer: string;
   strategyLayer: string;
   suggestions: string[];
+  /** 结构化规则增量（可被优化循环应用）。 */
+  ruleDeltas: RuleDelta[];
+  /** 无法结构化的规则意见（只展示）。 */
   ruleChangeRequests: string[];
 };
 
@@ -289,11 +317,20 @@ export function parseDiagnosis(raw: string): AgentDiagnosis | null {
     if (typeof d !== "object" || d === null) return null;
     const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
     const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+    // 结构化规则增量：只要 key 非空、to 是有限数就收；why 缺省空串（展示层宽松，应用层再校验）。
+    const deltas = (v: unknown): RuleDelta[] =>
+      Array.isArray(v)
+        ? v
+            .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+            .map((x) => ({ key: str(x.key), to: typeof x.to === "number" && Number.isFinite(x.to) ? x.to : NaN, why: str(x.why) }))
+            .filter((delta) => delta.key.length > 0 && Number.isFinite(delta.to))
+        : [];
     return {
       summary: str(d.summary),
       factorLayer: str(d.factorLayer),
       strategyLayer: str(d.strategyLayer),
       suggestions: arr(d.suggestions),
+      ruleDeltas: deltas(d.ruleDeltas),
       ruleChangeRequests: arr(d.ruleChangeRequests),
     };
   } catch {
@@ -319,9 +356,14 @@ export function verifyDiagnosisNumbers(d: AgentDiagnosis, snap: LedgerSnapshot):
     ...snap.factorLines, snap.factorMeta, ...snap.queueLines, ...snap.necropsy,
     ...snap.championLines, ...snap.chalLines, ...snap.chalSampleLines,
     ...snap.gateLines, ...snap.selfHistory, ...snap.marketEvidence,
+    ...snap.lossLines, ...snap.verdictAttribLines,
   ];
   const ungrounded: string[] = [];
-  for (const field of [d.summary, d.factorLayer, d.strategyLayer, ...d.suggestions, ...d.ruleChangeRequests]) {
+  for (const field of [
+    d.summary, d.factorLayer, d.strategyLayer,
+    ...d.suggestions, ...d.ruleChangeRequests,
+    ...d.ruleDeltas.map((delta) => delta.why),
+  ]) {
     ungrounded.push(...screenNumbers(field, corpus).replaced);
   }
   return { ungrounded: [...new Set(ungrounded)].slice(0, 10) };
@@ -340,7 +382,11 @@ export async function readAgentDiagnosis(): Promise<(AgentDiagnosis & { at: stri
   try {
     const { readFile } = await fsApi();
     const parsed = JSON.parse(await readFile(agentDiagnosisPath(), "utf8")) as AgentDiagnosis & { at?: unknown; numberCheck?: DiagnosisNumberCheck | null };
-    if (typeof parsed.summary === "string" && typeof parsed.at === "string") return parsed as AgentDiagnosis & { at: string; numberCheck?: DiagnosisNumberCheck | null };
+    if (typeof parsed.summary === "string" && typeof parsed.at === "string") {
+      // 老诊断文件没有 ruleDeltas（本次改动之前落的），补空数组，别让页面读 undefined。
+      if (!Array.isArray(parsed.ruleDeltas)) parsed.ruleDeltas = [];
+      return parsed as AgentDiagnosis & { at: string; numberCheck?: DiagnosisNumberCheck | null };
+    }
   } catch {
     // 还没诊断过，正常。
   }
@@ -399,7 +445,9 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
   } catch {
     chalSamples = [];
   }
-  const chalSampleLines = summarizeChallengerSamples(chalFile.list, chalSamples);
+  // 判决规则可能已被优化循环改过（data/challenger-rule.json），进度线要用实际生效的起判笔数。
+  const rule = await loadChallengerRule().catch(() => CHALLENGER_RULE);
+  const chalSampleLines = summarizeChallengerSamples(chalFile.list, chalSamples, rule.minTrades);
 
   const gates = await readStrategyGates();
   const gateLines = Object.entries(gates).map(([style, g]) =>
@@ -423,6 +471,28 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     marketEvidence = [];
   }
 
+  // 逐笔亏损归因（增强项）：读主人账本的已平仓交易，按退出原因分 cause。
+  // 读失败/老账没 reason 都降级为空或 unknown_legacy——诊断不能因此缺席。
+  let lossLines: string[] = [];
+  try {
+    const book = await readUserBook<{ trades?: AttributableTrade[] }>(OWNER_ID);
+    const trades = (book.days ?? []).flatMap((day) => day.trades ?? []);
+    const attribs = trades
+      .map((trade) => attributeTradeLoss(trade))
+      .filter((x): x is NonNullable<typeof x> => x != null);
+    lossLines = lossAttribLines(summarizeTradeLosses(attribs));
+  } catch {
+    lossLines = [];
+  }
+
+  // 挑战者判决归因（增强项）：append-only 档案，读不到就空。
+  let verdictAttribLines: string[] = [];
+  try {
+    verdictAttribLines = challengerVerdictLines(await readChallengerVerdicts());
+  } catch {
+    verdictAttribLines = [];
+  }
+
   return {
     at: new Date().toISOString(),
     factorLines: (batch?.rows ?? []).map(summarizeRunRow),
@@ -435,6 +505,8 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     gateLines,
     selfHistory,
     marketEvidence,
+    lossLines,
+    verdictAttribLines,
   };
 }
 
@@ -483,6 +555,25 @@ export async function runAgentDiagnosis(trigger: "manual" | "auto" = "manual"): 
   const { mkdir, writeFile } = await fsApi();
   await mkdir(posixDirname(agentDiagnosisPath()), { recursive: true });
   await writeFile(agentDiagnosisPath(), JSON.stringify({ at, ...diagnosis, numberCheck }, null, 2));
+
+  // 优化闭环：只有「无人值守的自动进化轮」才把 ruleDeltas 落地。
+  // 手动诊断（人点一下）只看不落规则——避免人跑一次诊断就悄悄改了系统。
+  let ruleNote = "";
+  if (trigger === "auto" && diagnosis.ruleDeltas.length > 0) {
+    try {
+      const { applyRuleDeltas } = await import("./optimize.ts");
+      const result = await applyRuleDeltas(diagnosis.ruleDeltas, "optimizer");
+      const bits: string[] = [];
+      if (result.applied.length > 0) bits.push(`自动 ${result.applied.join("、")}`);
+      if (result.queued.length > 0) bits.push(`待确认 ${result.queued.join("、")}`);
+      if (result.ignored.length > 0) bits.push(`忽略 ${result.ignored.join("、")}`);
+      ruleNote = bits.length > 0 ? `｜规则增量：${bits.join(" / ")}` : "";
+    } catch (error) {
+      console.error("优化闭环 applyRuleDeltas 失败（不影响诊断）:", error);
+      ruleNote = "｜规则增量应用失败";
+    }
+  }
+
   await appendAILog({
     at,
     layer: "agent",
@@ -491,9 +582,9 @@ export async function runAgentDiagnosis(trigger: "manual" | "auto" = "manual"): 
     proposed: [],
     rejected: [],
     note:
-      numberCheck && numberCheck.ungrounded.length > 0
+      (numberCheck && numberCheck.ungrounded.length > 0
         ? `${diagnosis.summary}｜数字核验：${numberCheck.ungrounded.length} 个数无出处（${numberCheck.ungrounded.join("、")}）`
-        : diagnosis.summary,
+        : diagnosis.summary) + ruleNote,
   });
   return { ok: true, diagnosis };
 }
