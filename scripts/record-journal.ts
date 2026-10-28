@@ -655,6 +655,9 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     const stops: string[] = [];
     const targets: string[] = [];
     for (const day of days) {
+      // T+1：今天买的今天卖不掉，所以买入日 >= 今天的一律跳过。
+      // 这行别删——它是盘中路径唯一挡住「当天买当天卖」的东西，
+      // 删了之后 exitDate 会等于买入日，账上凭空多出一笔当日往返。
       if (day.date >= phase.date) continue;
       for (const trade of day.trades) {
         if (trade.exit != null) continue;
@@ -738,6 +741,16 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           if (verdict.kind !== "filled") {
             stillOpen = true;
             if (isStuck(verdict)) stuck.push(verdict.reason);
+            continue;
+          }
+          // T+1 硬闸：写账之前最后一道。今天买的票今天卖不掉，任何路径（换撮合、
+          // 换数据源、以后有人改 exitFill）想当天成交都不许落账。
+          // 单测 trading-rules.test.ts 钉的是函数行为，这道闸钉的是"真的没写进账"。
+          if (!(verdict.date > day.date)) {
+            stillOpen = true;
+            console.log(
+              `${time} 拒绝落账（违反 T+1）：${trade.name} 买入 ${day.date}、判定成交 ${verdict.date}，按未平仓处理`,
+            );
             continue;
           }
           trade.exit = verdict.price;
