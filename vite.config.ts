@@ -145,8 +145,11 @@ function authPopupPlugin(): Plugin {
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
+
 export default defineConfig(({ command, isPreview }) => ({
-  build: { sourcemap: true },
+  build: {
+    sourcemap: true,
+  },
   server: {
     host: "0.0.0.0",
     port: 8080,
@@ -179,6 +182,16 @@ export default defineConfig(({ command, isPreview }) => ({
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.
             serverDir: "./server",
+            // Nitro 服务端构建（.output/server）由它自己的 rolldown 实例打出，
+            // 不读 vite 的 build.rolldownOptions。这里压掉第三方库为兼容 Next.js RSC
+            // 带的 "use client" 指令告警（TanStack Start 不依赖 RSC 语义，良性噪声）。
+            rollupConfig: {
+              onwarn(warning: { message?: string | string[] }, warn: (w: unknown) => void) {
+                const msg = (warning?.message ?? "").toString();
+                if (/use client.*may not be preserved when bundling/i.test(msg)) return;
+                (warn as (w: unknown) => void)(warning);
+              },
+            },
           }),
         ]
       : []),
