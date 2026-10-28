@@ -170,7 +170,7 @@ function runSignalReview() {
   });
 }
 
-// ── 信号跟踪：每天收盘后跑，拉昨日信号的次日涨跌
+// ── 信号跟踪：每天收盘后（15:10）跑，拉昨日信号的次日涨跌
 let signalTrackRanDay = "";
 function runSignalTrack() {
   const day = new Date().toLocaleDateString("sv-SE");

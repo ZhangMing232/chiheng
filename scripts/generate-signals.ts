@@ -128,6 +128,25 @@ async function main() {
   await mkdir(`${DATA}/signals`, { recursive: true });
   await writeFile(`${DATA}/signals/candidates.json`, JSON.stringify({ date: today, signals }, null, 2));
   console.log(`\n候选信号已保存到 ${DATA}/signals/candidates.json`);
+
+  // ── PushPlus 推送：收盘后告诉主人今天出了多少条 ─────────────────
+  if (signals.length > 0) {
+    try {
+      const { sendPushPlus } = await import("./alias.mjs").then(() => import("../src/lib/market/push.ts"));
+      const fromCount = new Map<string, number>();
+      for (const s of signals) fromCount.set(s.strategy, (fromCount.get(s.strategy) ?? 0) + 1);
+      const lines = [...fromCount.entries()].map(([k, v]) => `${k}：${v} 条`);
+      await sendPushPlus("赤轨信号·今日收盘", [
+        `信号日：${today}`,
+        `共 ${signals.length} 条候选`,
+        ...lines,
+        "明早 9:26 竞价审核后看可执行清单",
+      ].join("\n"), "txt");
+      console.log("PushPlus 推送已发送");
+    } catch (e) {
+      console.log(`PushPlus 推送失败: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

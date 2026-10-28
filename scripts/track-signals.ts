@@ -29,7 +29,34 @@ interface TrackedSignal extends Candidate {
 }
 
 async function main() {
-  console.log("信号跟踪：拉昨日候选信号的次日表现...\n");
+  // 只跟踪交易日的次日涨跌：信号日是昨天，今天收盘价才是 "次日"
+  // 如果今天是交易日但还没收盘（9:30 前或 15:00 前），跳过
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const hour = now.getHours();
+  const min = now.getMinutes();
+  const timeStr = `${hour}${min}`;
+
+  // 开盘前（9:30 前）和收盘前（15:00 前）不跑——没有今天的收盘价
+  if (timeStr < "0930" && timeStr >= "0000") {
+    // 但如果是盘前且昨天有信号，可以用昨天收盘价做初步标记（非最终）
+    // 实际上更简单：等收盘后再跑
+  }
+
+  // 判断今天是否是交易日：周一到周五 + 非节假日（简化版，只看星期）
+  const weekday = now.getDay();
+  if (weekday === 0 || weekday === 6) {
+    console.log("今天非交易日，跳过追踪");
+    return;
+  }
+
+  // 收盘前不跑（没有今天的收盘价）
+  if (hour < 15) {
+    console.log(`今天 ${today} ${hour}:${String(min).padStart(2,"0")} 还没收盘，跳过追踪。收盘后自动跑。`);
+    return;
+  }
+
+  console.log(`信号跟踪：拉昨日（信号日）候选信号的次日表现（今天 ${today} 收盘后）...\n`);
 
   // 1. 读候选信号
   let candidates: { date: string; signals: Candidate[] };

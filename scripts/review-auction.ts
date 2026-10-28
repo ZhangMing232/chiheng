@@ -112,6 +112,26 @@ async function main() {
   const skip = reviewed.filter(r => r.verdict === "skip");
 
   console.log(`审核完成：🟢 ${ok.length} 可执行 | 🟡 ${warn.length} 需观望 | ⚪ ${skip.length} 跳过\n`);
+
+  // ── PushPlus 推送：把绿色信号推一条到微信 ────────────────────────
+  if (ok.length > 0) {
+    try {
+      const { sendPushPlus } = await import("../src/lib/market/push.ts");
+      const lines = ok.slice(0, 10).map((r) => {
+        const gap = r.auctionGap != null ? `${r.auctionGap > 0 ? "+" : ""}${r.auctionGap}%` : "--";
+        return `${r.code} ${r.name} | ${r.strategy} | 挂${r.buyPrice} | 竞价${r.auctionPrice} ${gap}`;
+      });
+      await sendPushPlus("赤轨信号·今日可执行", [
+        `信号日：${new Date().toLocaleDateString("sv-SE")}`,
+        `🟢 可执行 ${ok.length} 条 | 🟡 观望 ${warn.length} 条`,
+        "──────────────────",
+        ...lines,
+      ].join("\n"), "txt");
+      console.log("PushPlus 推送已发送");
+    } catch (e) {
+      console.log(`PushPlus 推送失败: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
   for (const r of ok.slice(0, 5)) console.log(`  🟢 ${r.code} ${r.name} | ${r.strategy} | ${r.verdictReason}`);
   for (const r of warn.slice(0, 5)) console.log(`  🟡 ${r.code} ${r.name} | ${r.strategy} | ${r.verdictReason}`);
 
