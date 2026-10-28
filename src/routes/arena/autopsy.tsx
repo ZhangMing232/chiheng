@@ -43,7 +43,7 @@ const ARANA_TABS = [
 export const Route = createFileRoute("/arena/autopsy")({
   loader: async (): Promise<{ summary: TradeLossSummary; verdicts: ChallengerVerdict[] }> => {
     return await getLossAttribution().catch(() => ({
-      summary: { total: 0, losses: 0, byCause: [], bySource: [], missing: ["读不到账本"] },
+      summary: { total: 0, losses: 0, byCause: [], bySource: [], byStyle: [], missing: ["读不到账本"] },
       verdicts: [] as ChallengerVerdict[],
     }));
   },
