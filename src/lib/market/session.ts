@@ -146,8 +146,34 @@ export function exitAfterSessions(sessions: number, now = Date.now()): string {
   return "更晚的交易日";
 }
 
-/** 把「现在」翻译成页面上那一行状态：未开盘、集合竞价、交易中、午间休市、尾盘、已收盘。 */
-export function sessionPhase(now = Date.now()): SessionInfo {
+/**
+ * 今天这根日线什么时候算定型（写法：距 0 点多少分钟）。
+ *
+ * A 股 15:00 收盘集合竞价结束、收盘价在那一刻才产生，所以 **15:00 之后拿当天收盘价
+ * 记账是合规的**——尾盘卖出就是这个价，不用等到第二天。但行情接口把今天这根写进日线
+ * 有几分钟延迟：15:00 整读到的「收盘价」经常还是 14:5x 的现价。
+ *
+ * 2026-10-28 查账实测：10 笔已平仓就是拿这种没定型的价结的，偏差 1.05%~10.02%，
+ * 最典型 sh688141 杰华特账上按盘中 73.89 记成「到期卖出」，而当天收盘 71.51 其实
+ * 已跌破止损——结算早一个下午，退出原因就从「到期」变成「止损」。
+ *
+ * 所以留 5 分钟缓冲：宁可晚 5 分钟结，不拿盘中价冒充收盘价。
+ */
+export const DAY_BAR_READY_MINUTES = 15 * 60 + 5;
+
+/**
+ * 现在能不能把「今天」这根日线当成定型的收盘价用。
+ *
+ * 休市日恒为 true——今天本来就没有这根 K 线，谈不上定型不定型。
+ * 注意这不是「能不能交易」的判断：盘中当然能交易，只是不能用「今天的收盘价」。
+ */
+export function dayBarReady(now = Date.now()): boolean {
+  const { weekday, mins } = shanghaiParts(now);
+  if (!isTradingDay(shanghaiDate(now), weekday)) return true;
+  return mins >= DAY_BAR_READY_MINUTES;
+}
+
+/** 把「现在」翻译成页面上那一行状态：未开盘、集合竞价、交易中、午间休市、尾盘、已收盘。 */export function sessionPhase(now = Date.now()): SessionInfo {
   const { weekday, mins } = shanghaiParts(now);
   const nextSell = nextSessionLabel(now);
   const date = shanghaiDate(now);

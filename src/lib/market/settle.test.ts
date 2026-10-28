@@ -81,3 +81,41 @@ test("持有天数由调用方给，次日补涨这种 1 天就到期", () => {
   const verdict = settleOne({ ...base, hold: 1, bars: bars(14) });
   assert.deepEqual(verdict, { kind: "filled", price: 10, date: "2026-03-03", reason: "time" });
 });
+
+// ── 结算闸：没走完的当日日线不能参与判定（A股 15:00 才有收盘价）──────────
+
+test("🔴 到期当天还没收盘：不结，等收盘（不能用盘中价冒充收盘价）", () => {
+  // 第 8 个交易日是 03-10。盘中跑结算时今天这根还没定型，
+  // 早先这里会直接拿 bar.c 结掉——2026-10-28 实测 10 笔就这么写歪的。
+  const barsList = bars(8, (i, bar) => (i === 8 ? { ...bar, c: 10.4, h: 10.6, l: 9.9, o: 10 } : bar));
+  const intraday = settleOne({ ...base, bars: barsList, today: "2026-03-10", todayClosed: false });
+  assert.deepEqual(intraday, { kind: "waiting", passed: 7 });
+  assert.equal(isStuck(intraday), false);
+  // 收盘后同一个输入就应该结，用当天收盘价 10.4
+  const closed = settleOne({ ...base, bars: barsList, today: "2026-03-10", todayClosed: true });
+  assert.deepEqual(closed, { kind: "filled", price: 10.4, date: "2026-03-10", reason: "time" });
+});
+
+test("盘中那根未定型的 K 线跌破止损，不能提前触发止损", () => {
+  // 03-10 盘中最低摸到 8.8（破止损 9），但收盘又拉回 10.3。
+  // 拿未定型的 low 判定会误记一笔止损；真跌破的话 intraday 那条线早就结掉了。
+  const barsList = bars(8, (i, bar) => (i === 8 ? { ...bar, c: 10.3, h: 10.5, l: 8.8, o: 10 } : bar));
+  const intraday = settleOne({ ...base, bars: barsList, today: "2026-03-10", todayClosed: false });
+  assert.equal(intraday.kind, "waiting");
+  const closed = settleOne({ ...base, bars: barsList, today: "2026-03-10", todayClosed: true });
+  assert.equal(closed.kind, "filled");
+  assert.equal(closed.kind === "filled" ? closed.reason : "", "stop");
+});
+
+test("🔴 今天刚建的仓不能因为剔掉当日 K 线就被报成「卡住」", () => {
+  // 买入日那根必须留着，否则 hasBuyDay 找不到日期，正常的当日仓会刷假警报。
+  const verdict = settleOne({ ...base, bars: bars(3), today: ENTRY, todayClosed: false });
+  assert.deepEqual(verdict, { kind: "waiting", passed: 0 });
+  assert.equal(isStuck(verdict), false);
+});
+
+test("不给 today 就完全按老行为算（回测/历史回放不受影响）", () => {
+  const plain = settleOne({ ...base, bars: bars(14) });
+  const explicit = settleOne({ ...base, bars: bars(14), todayClosed: true });
+  assert.deepEqual(plain, explicit);
+});

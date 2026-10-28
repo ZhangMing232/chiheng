@@ -48,7 +48,7 @@ import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.f
 import { HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
 import { ACTIVE_STYLES, DEEP_SCAN_TOP, deepScanChallengerBuy, holdOf, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
-import { formatClock, isTradingDay, sessionPhase } from "../src/lib/market/session.ts";
+import { formatClock, isTradingDay, sessionPhase, dayBarReady } from "../src/lib/market/session.ts";
 import { intradayFill } from "../src/lib/market/intraday-fill.ts";
 import { sendPushPlus } from "../src/lib/market/push.ts";
 import { readAIPrefs } from "../src/lib/market/ai-prefs.ts";
@@ -708,6 +708,8 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     let stillOpen = false;
     const due: string[] = [];
     const stuck: string[] = [];
+    // 只算一次：这一轮里今天的日线定没定型，整批交易用同一个判断。
+    const todayClosed = dayBarReady();
     for (const day of days) {
       for (const trade of day.trades) {
         if (trade.exit != null) continue;
@@ -725,6 +727,12 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
             target: trade.target ?? null,
             hold: trade.hold ?? HOLD_SESSIONS,
             bars: data.bars,
+            // A 股 15:00 收盘才产生收盘价，行情接口还要几分钟才把今天这根写定型。
+            // 在那之前把今天的 K 线剔出判定（settle.ts 里做），否则到期结算会拿
+            // 盘中现价冒充收盘价——2026-10-28 查账发现 10 笔这么写歪过。
+            // 盘中真跌破止损的仓，上面 intraday 那条线每分钟已经结掉了，轮不到这里。
+            today: phase.date,
+            todayClosed,
             rules,
           });
           if (verdict.kind !== "filled") {
