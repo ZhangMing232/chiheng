@@ -226,3 +226,18 @@ test("buildStrategyPrompt：挑战者样本进度给了就进 prompt，没给不
   assert.match(withLines, /挑战者A（c_a）：纸面样本 3 笔/);
   assert.match(withLines, /还差 30 笔/);
 });
+
+test("prompt：给了亏损归因就整段进 prompt，没给就不出空段", () => {
+  const base = {
+    challengers: [chal({})],
+    gates: {},
+    logTail: [],
+    passedFactors: [],
+    champions: [{ style: "breakout", source: "代码默认参数", params: "持有8天" }],
+  };
+  const without = buildStrategyPrompt(base);
+  assert.ok(!without.includes("逐笔亏损归因"), "没喂归因时不该出现空段");
+  const withLoss = buildStrategyPrompt({ ...base, lossAttribLines: ["已平仓亏损 2 笔，按亏损原因分：", "- 放量突破：2 笔（占 100%）——止损按计划触发×2（均 -1.5%）"] });
+  assert.ok(withLoss.includes("逐笔亏损归因"));
+  assert.ok(withLoss.includes("放量突破：2 笔（占 100%）"));
+});

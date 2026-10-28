@@ -27,6 +27,10 @@ const fsApi = () => import("node:fs/promises");
 /** POSIX 风格拼路径。不用 node:path——顶层 import 它会在客户端崩（同 challenger.ts 头注）。 */
 const posixJoin = (...parts: string[]): string => parts.join("/");
 import { netReturn } from "./journal-book.ts";
+import { STYLES } from "./strategies.ts";
+
+/** 策略 id → 中文名。strategies.ts 是客户端安全模块（positions 页在用），顶层 import 无虞。 */
+const styleNameOf = (id: string): string => STYLES.find((s) => s.id === id)?.name ?? id;
 
 // ── 逐笔亏损归因 ──────────────────────────────────────────────────
 
@@ -221,8 +225,19 @@ export type LossCauseSummary = {
 export type LossSourceSummary = {
   source: TradeLossSource;
   count: number;
-  /** 平均净收益（百分数，负数）。 */
+  /** 平均净收益（百分数）。 */
   avgRetPct: number;
+};
+
+/** 按策略拆开的亏损分布——「哪套策略亏在哪个机制」是参数优化最直接的证据。 */
+export type StyleLossSummary = {
+  /** 策略 id（账本 style 字段；挑战者 variant 行也归到它所属的 style 名下）。 */
+  style: string;
+  count: number;
+  /** 占本次汇总亏损总笔数的比例（0~1）。 */
+  share: number;
+  /** 该策略的亏损按 cause 再拆一层，按笔数降序。 */
+  byCause: { cause: LossCause; count: number; avgRetPct: number }[];
 };
 
 export type TradeLossSummary = {
@@ -233,6 +248,8 @@ export type TradeLossSummary = {
   byCause: LossCauseSummary[];
   /** 按证据来源分档：原始记录 / 事后重算 / 反解 / 旧口径。 */
   bySource: LossSourceSummary[];
+  /** 按策略拆开（笔数降序）。全混在一起时 AI 分不清哪套该调参、哪套不该。 */
+  byStyle: StyleLossSummary[];
   /** 拿不到的数据（≠ 没有）。 */
   missing: string[];
 };
@@ -279,8 +296,40 @@ export function summarizeTradeLosses(attribs: TradeLossAttrib[]): TradeLossSumma
     }))
     .sort((a, b) => b.count - a.count);
 
+  // 按策略再拆一层。策略参数优化（strategy-ai）吃的就是这段：同一张全池归因表
+  // 里 breakout 亏在跳空、rebound 亏在到期，混在一起 AI 只能给出无的放矢的建议。
+  const styleGroups = new Map<string, TradeLossAttrib[]>();
+  for (const a of attribs) {
+    const key = a.style ?? "unknown";
+    const list = styleGroups.get(key) ?? [];
+    list.push(a);
+    styleGroups.set(key, list);
+  }
+  const byStyle: StyleLossSummary[] = [...styleGroups.entries()]
+    .map(([style, list]) => {
+      const causeGroups = new Map<LossCause, TradeLossAttrib[]>();
+      for (const a of list) {
+        const cl = causeGroups.get(a.cause) ?? [];
+        cl.push(a);
+        causeGroups.set(a.cause, cl);
+      }
+      return {
+        style,
+        count: list.length,
+        share: +(list.length / losses).toFixed(3),
+        byCause: [...causeGroups.entries()]
+          .map(([cause, cl]) => ({
+            cause,
+            count: cl.length,
+            avgRetPct: +(cl.reduce((s, a) => s + a.retPct, 0) / cl.length).toFixed(2),
+          }))
+          .sort((a, b) => b.count - a.count),
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+
   const missing: string[] = [];
-  return { total: losses, losses, byCause, bySource, missing };
+  return { total: losses, losses, byCause, bySource, byStyle, missing };
 }
 
 /** 归因汇总 → AI 诊断 prompt 段落（string[]，调用方直接展开拼）。没有亏损返回空数组。 */
@@ -303,10 +352,25 @@ export function lossAttribLines(summary: TradeLossSummary, maxCauses = 6): strin
             .join("；")}`,
         ]
       : [];
+  // 按策略拆开（最多 6 套、每套最多 3 个主因）：给参数优化层指路——
+  // 「哪套亏在哪个机制」直接决定该不该调参、往哪个旋钮调。
+  const styleSection =
+    summary.byStyle.length > 0
+      ? [
+          "按策略拆开（提参数变体时对着这里提，别无的放矢）：",
+          ...summary.byStyle.slice(0, 6).map((s) => {
+            const causes = s.byCause
+              .slice(0, 3)
+              .map((c) => `${CAUSE_LABEL[c.cause]}×${c.count}（均 ${c.avgRetPct}%）`)
+              .join("、");
+            return `- ${styleNameOf(s.style)}：${s.count} 笔（占 ${Math.round(s.share * 100)}%）——${causes}`;
+          }),
+        ]
+      : [];
   const caveats = summary.bySource
     .filter((s) => s.source === "legacy_planned" || s.source === "recorded_price_partial")
     .map((s) => `- ${SOURCE_LABEL[s.source]} ${s.count} 笔的提示：${SOURCE_CAVEAT[s.source]}`);
-  return [header, ...lines, ...sourceLine, ...caveats];
+  return [header, ...lines, ...styleSection, ...sourceLine, ...caveats];
 }
 
 /** cause → 中文标签（面板与 prompt 共用，避免两处各写一遍）。 */

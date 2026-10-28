@@ -161,3 +161,28 @@ test("attributeChallengerVerdict + challengerVerdictLines：结构化因果档�
   const lines = challengerVerdictLines([v]);
   assert.match(lines[0], /判决档案 1 条/);
 });
+
+test("byStyle：按策略拆开，策略名进中文、share 归一", () => {
+  const attribs = [
+    attributeTradeLoss({ id: "sz0001", style: "breakout", entry: 10, exit: 9.2, stop: 9.2, exitReason: "stop" })!,
+    attributeTradeLoss({ id: "sz0002", style: "breakout", entry: 10, exit: 9.0, exitReason: "time" })!,
+    attributeTradeLoss({ id: "sh600001", style: "rebound", entry: 10, exit: 9.5, exitReason: "time" })!,
+  ];
+  const sum = summarizeTradeLosses(attribs);
+  const breakout = sum.byStyle.find((s) => s.style === "breakout");
+  assert.ok(breakout);
+  assert.equal(breakout.count, 2);
+  assert.equal(breakout.share, 0.667); // 实现保留 3 位小数
+  assert.equal(breakout.byCause[0]!.cause, "stop_planned");
+  const lines = lossAttribLines(sum);
+  const styleLine = lines.find((l) => l.includes("放量突破"));
+  assert.ok(styleLine, "按策略段必须用中文名");
+  assert.match(styleLine!, /止损按计划触发×1/);
+});
+
+test("byStyle：没有 style 字段的旧账归到 unknown，不炸", () => {
+  const attribs = [attributeTradeLoss({ id: "sz0009", entry: 10, exit: 9.0, exitReason: "time" })!];
+  const sum = summarizeTradeLosses(attribs);
+  assert.equal(sum.byStyle.length, 1);
+  assert.equal(sum.byStyle[0]!.style, "unknown");
+});

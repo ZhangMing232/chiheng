@@ -157,6 +157,12 @@ export type StrategyAIContext = {
   diagnosisHints?: string[];
   /** 挑战者纸面样本进度（账本 variant 行数，summarizeChallengerSamples 产物）。 */
   chalSampleLines?: string[];
+  /**
+   * 逐笔亏损归因段（lossAttribLines 产物，已按策略拆开）：这套策略的亏损死在
+   * 哪个机制（止损太紧 / 跳空 / 到期没走出来），提参数变体对着死因提。
+   * 增强项：读不到就空，提议照常跑。
+   */
+  lossAttribLines?: string[];
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -199,6 +205,9 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     chalLines || "- （没有）",
     ...(ctx.chalSampleLines && ctx.chalSampleLines.length > 0
       ? ["", "挑战者纸面样本进度（账本 variant 行数——攒得慢的在跑挑战者占着名额不出样本，提名时优先考虑样本能落账的风格/参数）：", ...ctx.chalSampleLines]
+      : []),
+    ...(ctx.lossAttribLines && ctx.lossAttribLines.length > 0
+      ? ["", "逐笔亏损归因（按退出机制拆到每套策略：止损被正常波动打掉 → 该松止损或挪止损位；跳空穿止损 → 调参救不了，想仓位/避开事件窗口；到期没走出来 → 该调持有天数或目标价）：", ...ctx.lossAttribLines]
       : []),
     "",
     "策略闸当前状态：",
@@ -324,6 +333,21 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   } catch {
     chalSampleLines = [];
   }
+  // 逐笔亏损归因（与 agent-loop 诊断同一份采集口径）：按策略拆开的亏损死因，
+  // 让 AI 提参数变体时有靶子——「rebound 亏在到期没走出来」直接指向 holdDays/targetPct。
+  let lossLines: string[] = [];
+  try {
+    const { readUserBook, OWNER_ID } = await import("./book-file.ts");
+    const { attributeTradeLoss, summarizeTradeLosses, lossAttribLines } = await import("./loss-attrib.ts");
+    const book = await readUserBook<{ trades?: unknown[] }>(OWNER_ID);
+    const attribs = (book.days ?? [])
+      .flatMap((day) => day.trades ?? [])
+      .map((trade) => attributeTradeLoss(trade as never))
+      .filter((x): x is NonNullable<typeof x> => x != null);
+    lossLines = lossAttribLines(summarizeTradeLosses(attribs));
+  } catch {
+    lossLines = [];
+  }
   const ctx: StrategyAIContext = {
     challengers: chalFile.list,
     gates: await readStrategyGates(),
@@ -334,6 +358,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     marketEvidence,
     diagnosisHints,
     chalSampleLines,
+    lossAttribLines: lossLines,
   };
   let raw: string;
   try {
