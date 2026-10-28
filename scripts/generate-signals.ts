@@ -136,13 +136,13 @@ async function main() {
       const fromCount = new Map<string, number>();
       for (const s of signals) fromCount.set(s.strategy, (fromCount.get(s.strategy) ?? 0) + 1);
       const lines = [...fromCount.entries()].map(([k, v]) => `${k}：${v} 条`);
-      await sendPushPlus("赤轨信号·今日收盘", [
+      const sent = await sendPushPlus("赤轨信号·今日收盘", [
         `信号日：${today}`,
         `共 ${signals.length} 条候选`,
         ...lines,
         "明早 9:26 竞价审核后看可执行清单",
       ].join("\n"), "txt");
-      console.log("PushPlus 推送已发送");
+      console.log(sent ? "PushPlus 推送已发送" : "PushPlus 没推出去（看上一行的原因），候选已落盘不影响页面");
     } catch (e) {
       console.log(`PushPlus 推送失败: ${e instanceof Error ? e.message : String(e)}`);
     }

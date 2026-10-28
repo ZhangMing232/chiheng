@@ -23,6 +23,10 @@ interface TrackedSignal extends Candidate {
   prevClose: number | null;
   nextClose: number | null;
   nextOpen: number | null;
+  /** prevClose 实际取的是哪一天的收盘（K 线口径下精确；腾讯口径下为 null = 未知） */
+  basisDate: string | null;
+  /** nextClose 实际取的是哪一天的收盘 */
+  measureDate: string | null;
   chgPct: number | null;
   isWin: boolean | null;
   source: string; // "kline" | "tencent"
@@ -72,6 +76,19 @@ async function main() {
   const signalDate = candidates.date;
   console.log(`信号日：${signalDate}，候选 ${candidates.signals.length} 条`);
 
+  /**
+   * 信号日不早于今天 → 没有「次日」可测，直接跳过，**并且不覆盖已有的 tracking.json**。
+   *
+   * 2026-10-28 修：以前不挡这一步，于是收盘后（尤其服务重启把当日去重清零之后）
+   * 会拿「今天生成的候选」去和「今天的收盘」比——写出来的 signalDate 和 trackedDate
+   * 是同一天，胜率看着像次日的成绩，实际是当日涨跌。真实的「次日」要等下一个交易日。
+   */
+  if (signalDate >= today) {
+    console.log(`信号日 ${signalDate} 不早于今天 ${today}——还没有「次日」可跟踪，本次跳过。`);
+    console.log("（候选是今天收盘后生成的，等下一个交易日收盘后再跑；上一份 tracking.json 原样保留）");
+    return;
+  }
+
   // 2. 准备 K 线缓存索引
   const klineCache = new Set<string>();
   try { klineCache.add(...[...readdirSync(KLINE).filter(f => f.endsWith(".json"))].map(f => f.replace(".json", ""))); } catch {}
@@ -88,6 +105,10 @@ async function main() {
     let nextClose: number | null = null;
     let nextOpen: number | null = null;
     let source = "none";
+    /** 基准日（prevClose 是哪天的收盘）与测量日（nextClose 是哪天的收盘）。
+     *  以前只写「今天」，腾讯回退时说不清到底比的是哪两天——2026-10-28 补。 */
+    let basisDate: string | null = null;
+    let measureDate: string | null = null;
 
     // 优先从 K 线缓存读
     if (klineCache.has(s.id)) {
@@ -102,6 +123,8 @@ async function main() {
             prevClose = raw[signalIdx]?.c ?? null;
             nextOpen = raw[signalIdx + 1]?.o ?? null;
             nextClose = raw[signalIdx + 1]?.c ?? null;
+            basisDate = raw[signalIdx]?.date ?? null;
+            measureDate = raw[signalIdx + 1]?.date ?? null;
             source = "kline";
           }
         }
@@ -119,6 +142,11 @@ async function main() {
         nextClose = Number(fields[3]) > 0 ? Number(fields[3]) : null;
         nextOpen = Number(fields[5]) > 0 ? Number(fields[5]) : null;
         prevClose = Number(fields[4]) > 0 ? Number(fields[4]) : null;
+        // 快照口径：3=现价(=今天的收盘)、4=昨收（上一个交易日）。
+        // 只在「信号日就是上一个交易日」时两者才配得上，所以这里显式断言一次，
+        // 对不上就说明 K 线缓存缺了信号日那根，宁可标出来也别悄悄比错两天。
+        measureDate = today;
+        basisDate = null;
         source = "tencent";
       } catch (e) {
         console.log(`  ${s.code} 腾讯拉取失败: ${e instanceof Error ? e.message : String(e)}`);
@@ -135,6 +163,7 @@ async function main() {
     tracked.push({
       ...s,
       prevClose, nextClose, nextOpen,
+      basisDate, measureDate,
       chgPct: +chgPct.toFixed(2),
       isWin: chgPct > 0,
       source,
@@ -164,9 +193,25 @@ async function main() {
     byStrategy[s].avgChg = +(byStrategy[s].avgChg / byStrategy[s].count).toFixed(2);
   }
 
+  /**
+   * 实际的「测量日」以逐笔实测到的 measureDate 为准（取众数），取不到才退回今天。
+   * 以前直接写 `new Date()`：服务在周末或节假日重跑时，页面会显示「信号日 → 今天」，
+   * 而收盘价其实是上一个交易日的，日期和数字对不上。
+   */
+  const measureCount = new Map<string, number>();
+  for (const t of tracked) {
+    if (!t.measureDate) continue;
+    measureCount.set(t.measureDate, (measureCount.get(t.measureDate) ?? 0) + 1);
+  }
+  let trackedDate = new Date().toISOString().slice(0, 10);
+  let best = 0;
+  for (const [d, c] of measureCount) {
+    if (c > best) { best = c; trackedDate = d; }
+  }
+
   const summary = {
     signalDate,
-    trackedDate: new Date().toISOString().slice(0, 10),
+    trackedDate,
     totalSignals: candidates.signals.length,
     tracked: tracked.length,
     wins,

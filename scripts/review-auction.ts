@@ -121,13 +121,13 @@ async function main() {
         const gap = r.auctionGap != null ? `${r.auctionGap > 0 ? "+" : ""}${r.auctionGap}%` : "--";
         return `${r.code} ${r.name} | ${r.strategy} | 挂${r.buyPrice} | 竞价${r.auctionPrice} ${gap}`;
       });
-      await sendPushPlus("赤轨信号·今日可执行", [
+      const sent = await sendPushPlus("赤轨信号·今日可执行", [
         `信号日：${new Date().toLocaleDateString("sv-SE")}`,
         `🟢 可执行 ${ok.length} 条 | 🟡 观望 ${warn.length} 条`,
         "──────────────────",
         ...lines,
       ].join("\n"), "txt");
-      console.log("PushPlus 推送已发送");
+      console.log(sent ? "PushPlus 推送已发送" : "PushPlus 没推出去（看上一行的原因），审核结果已落盘不影响页面");
     } catch (e) {
       console.log(`PushPlus 推送失败: ${e instanceof Error ? e.message : String(e)}`);
     }

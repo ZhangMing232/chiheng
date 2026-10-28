@@ -9,7 +9,7 @@ import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
 import { getSignalTracking } from "@/lib/market/quotes.functions";
-import type { SignalTrackItem } from "@/lib/market/quotes.functions";
+import type { SignalTrackItem, SignalTrackSummary } from "@/lib/market/quotes.functions";
 import { Trophy, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 export const ARANA_TABS = [
@@ -20,7 +20,14 @@ export const ARANA_TABS = [
 ];
 
 function ArenaTracking() {
-  const { data } = useQuery({ queryKey: ["signalTracking"], queryFn: async () => await getSignalTracking(), refetchInterval: 300000 });
+  // 用 loader 预热：纯 useQuery 在 SSR 阶段拿不到数据，首屏会闪一下「还没有跟踪数据」。
+  const initial = Route.useLoaderData();
+  const { data } = useQuery({
+    queryKey: ["signalTracking"],
+    queryFn: async () => await getSignalTracking(),
+    initialData: initial,
+    refetchInterval: 300000,
+  });
   const summary = data?.summary;
   const signals: SignalTrackItem[] = data?.signals ?? [];
 
@@ -101,4 +108,13 @@ function ArenaTracking() {
   );
 }
 
-export const Route = createFileRoute("/arena/tracking")({ component: ArenaTracking });
+export const Route = createFileRoute("/arena/tracking")({
+  loader: async () => {
+    try {
+      return await getSignalTracking();
+    } catch {
+      return { signalDate: "", trackedDate: "", summary: null as SignalTrackSummary | null, signals: [] as SignalTrackItem[] };
+    }
+  },
+  component: ArenaTracking,
+});

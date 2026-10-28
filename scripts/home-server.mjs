@@ -131,10 +131,27 @@ const alertTimer = setInterval(runAlerts, 60_000);
 /**
  * 每日信号：收盘后生成候选 → 竞价后审核 → 页面可见。
  * 同 runAlerts 的模式：60 秒心跳 + 日期去重。
- * 两步独立：生成在 15:00 后触发，审核在 9:26 后触发（次日竞价）。
+ * 两步独立：生成在 15:05 后触发，审核在 9:26 后触发（次日竞价）。
+ *
+ * **去重必须跨重启**：内存里的 ranDay 在服务重启（包括每次 build:mac）就清零，
+ * 于是 15:05 之后每重启一次就重扫一遍、重复推一条；审核更糟——重启后重跑会把
+ * 收盘价当竞价价写回 reviewed.json。所以除了内存标记，还要拿**已产出的文件**当证据：
+ * candidates.json 的 date 是我今天写的、reviewed.json 的 date 是今天，就不再跑。
  */
 let signalGenRanDay = "";
 let signalReviewRanDay = "";
+
+/** 读 data/signals 下某个 json 的某个字段；文件不在 / 格式坏一律当「没有」。 */
+function readSignalField(file, field) {
+  try {
+    const raw = readFileSync(join(process.cwd(), "data", "signals", file), "utf8");
+    const parsed = JSON.parse(raw);
+    const v = parsed?.[field];
+    return typeof v === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 function runSignalGen() {
   const day = new Date().toLocaleDateString("sv-SE");
@@ -142,6 +159,11 @@ function runSignalGen() {
   const hour = new Date().getHours();
   const min = new Date().getMinutes();
   if (hour < 15 || (hour === 15 && min < 5)) return; // 15:05 后跑，给记账落盘留时间
+  // 跨重启去重：今天已经写过候选文件就别再扫一遍（否则每重启一次多推一条）
+  if (readSignalField("candidates.json", "date") === day) {
+    signalGenRanDay = day;
+    return;
+  }
   signalGenRanDay = day;
   const child = spawn(
     process.execPath,
@@ -153,20 +175,46 @@ function runSignalGen() {
   });
 }
 
+/**
+ * 上一次跑到哪天了 / 是不是正在跑。
+ *
+ * 去重标记**只在子进程成功退出后**才落，而且另开一个 running 标记挡住重入——
+ * 以前是「spawn 之前就落标记」，跑挂了当天也不会再试，静默丢一天的审核。
+ */
+let signalReviewRunning = false;
+
 function runSignalReview() {
   const day = new Date().toLocaleDateString("sv-SE");
-  if (signalReviewRanDay === day) return;
-  const hour = new Date().getHours();
-  const min = new Date().getMinutes();
-  if (!(hour === 9 && min >= 26) && hour < 9) return; // 9:26 后
-  signalReviewRanDay = day;
+  if (signalReviewRanDay === day || signalReviewRunning) return;
+  const now = new Date();
+  const hour = now.getHours();
+  const min = now.getMinutes();
+  // 只在 9:26~11:59 之间跑。
+  // 早于 9:26：集合竞价还没出清，腾讯快照的「开盘价」要么是 0 要么是昨开，
+  //   写进 reviewed.json 就是脏判决（而且旧标记会挡住当天补跑）。
+  // 12 点以后：开盘价虽然不变，但再跑只会重复推送、白耗请求，没有新信息。
+  // 旧写法 `if (!(hour === 9 && min >= 26) && hour < 9) return;` 漏了后半段，
+  // 实测 9:00 / 9:20 / 10:00 / 15:05 / 19:00 全都会跑，只有 9 点前才跳过。
+  if (hour < 9 || (hour === 9 && min < 26) || hour >= 12) return;
+  // 跨重启去重：reviewed.json 已经是今天的，说明今天审核过了，重启不再重跑
+  if (readSignalField("reviewed.json", "date") === day) {
+    signalReviewRanDay = day;
+    return;
+  }
+  signalReviewRunning = true;
   const child = spawn(
     process.execPath,
     ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/review-auction.ts"],
     { stdio: "inherit" },
   );
   child.on("exit", (code) => {
-    if (code) console.error("竞价审核失败，9:30 前再补跑");
+    signalReviewRunning = false;
+    if (code) {
+      // 不落标记：下一个心跳（60 秒后）还会再试，直到成功或过了 12 点窗口
+      console.error(`竞价审核失败（exit ${code}），60 秒后重试`);
+      return;
+    }
+    signalReviewRanDay = day;
   });
 }
 
@@ -177,6 +225,14 @@ function runSignalTrack() {
   if (signalTrackRanDay === day) return;
   const hour = new Date().getHours();
   if (hour < 15) return;
+  // 跨重启去重：trackedDate 是今天、且信号日不是今天 = 今天已经跟踪过了。
+  // 两个条件都要（只看 trackedDate 会把「同日比较」那种脏数据也当成已完成）。
+  const tSignal = readSignalField("tracking.json", "signalDate");
+  const tTracked = readSignalField("tracking.json", "trackedDate");
+  if (tTracked === day && tSignal !== day) {
+    signalTrackRanDay = day;
+    return;
+  }
   signalTrackRanDay = day;
   const child = spawn(
     process.execPath,

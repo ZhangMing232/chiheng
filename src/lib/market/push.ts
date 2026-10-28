@@ -30,10 +30,21 @@ export async function readPushToken(): Promise<string | null> {
   return (await readPushConfig()).token;
 }
 
-/** 发一条 PushPlus 消息。title 是微信里看到的标题，content 支持换行；template=markdown 可嵌图片。 */
-export async function sendPushPlus(title: string, content: string, template: "txt" | "markdown" = "txt") {
+/**
+ * 发一条 PushPlus 消息。title 是微信里看到的标题，content 支持换行；template=markdown 可嵌图片。
+ *
+ * 返回 true = 真的被 PushPlus 收了；false = 没 token / 被拒 / 超时。
+ * **调用方必须用这个返回值决定打什么日志**——2026-10-28 之前它返回 void，
+ * 几个脚本在外面无条件打「PushPlus 推送已发送」，于是日志里「发送失败」和「已发送」
+ * 紧挨着出现，排查时被误导了一整轮。推没推出去是事实，不许猜。
+ */
+export async function sendPushPlus(
+  title: string,
+  content: string,
+  template: "txt" | "markdown" = "txt",
+): Promise<boolean> {
   const token = await readPushToken();
-  if (!token) return;
+  if (!token) return false;
   try {
     const res = await fetch("http://www.pushplus.plus/send", {
       method: "POST",
@@ -44,8 +55,11 @@ export async function sendPushPlus(title: string, content: string, template: "tx
     const data = (await res.json().catch(() => null)) as { code?: number; msg?: string } | null;
     if (!res.ok || (data && data.code !== 200)) {
       console.log(`pushplus 发送失败：${data?.msg ?? `HTTP ${res.status}`}`);
+      return false;
     }
+    return true;
   } catch (err) {
     console.log(`pushplus 发送失败：${err instanceof Error ? err.message : String(err)}`);
+    return false;
   }
 }
