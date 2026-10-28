@@ -84,6 +84,18 @@ async function main() {
     const chg = prev > 0 ? (c / prev - 1) * 100 : null;
     if (chg == null || c <= 0) continue;
 
+    /**
+     * 挂单价基准 = 信号日收盘 `c`（对「明日下单」而言它就是「昨收」）。
+     *
+     * 2026-10-28 修：以前用 `prev`（= r1.c = 信号日**前一天**的收盘）当基准，
+     * 于是显示价和线上记账用的价不是同一个——
+     * 线上 `breakoutOrder` 的 `prevClose(quote)` 是 `现价/(1+涨跌幅)`，
+     * 明早跑的时候取到的是信号日当天收盘。放量突破 20 日涨幅上限 10%，
+     * 信号日往往已经大涨，两者能差出 3~5 个点。挂单价是给用户看的计划，
+     * 必须和账本实际要挂的是同一个数。
+     */
+    const orderBase = c;
+
     // 算几个常用指标
     const win5 = rows.slice(Math.max(0, i - 4), i + 1).map(x => x.c);
     const win20 = rows.slice(Math.max(0, i - 19), i + 1).map(x => x.c);
@@ -102,18 +114,18 @@ async function main() {
 
     // 放量突破
     if (volRatio >= 1.8 && d20 >= 0 && d20 <= 20 && d5 >= 0 && d5 <= 8 && chg >= 0 && chg <= 7 && c >= 4 && amountWan >= 8000) {
-      const buy = prev * 1.02;
+      const buy = orderBase * 1.02;
       signals.push({ id, code: id.slice(2), name: names[id] ?? "", strategy: "放量突破", buyPrice: +buy.toFixed(2), score: +volRatio.toFixed(1), reason: `量比${volRatio.toFixed(1)}，20日涨${d20.toFixed(0)}%` });
     }
     // 突破早期版
     if (volRatio >= 1.5 && d20 >= -3 && d20 <= 12 && d5 >= 0 && d5 <= 5 && chg >= 1 && chg <= 4 && c >= 4 && amountWan >= 5000) {
-      const buy = prev * 1.02;
+      const buy = orderBase * 1.02;
       const already = signals.find(s => s.id === id && s.strategy === "放量突破");
       if (!already) signals.push({ id, code: id.slice(2), name: names[id] ?? "", strategy: "突破·早期版", buyPrice: +buy.toFixed(2), score: +volRatio.toFixed(1), reason: `量比${volRatio.toFixed(1)}，20日涨${d20.toFixed(0)}%，今涨${chg.toFixed(1)}%` });
     }
     // 启动前期
     if (volRatio >= 1.2 && volRatio <= 2.8 && chg >= 1 && chg <= 4.5 && d5 >= 0 && d5 <= 8 && d20 >= -3 && d20 <= 12 && d60 >= -10 && d60 <= 25 && c >= 4 && amountWan >= 5000) {
-      const buy = prev * 1.0275;
+      const buy = orderBase * 1.0275;
       signals.push({ id, code: id.slice(2), name: names[id] ?? "", strategy: "启动前期", buyPrice: +buy.toFixed(2), score: +volRatio.toFixed(1), reason: `20日涨${d20.toFixed(0)}%，今涨${chg.toFixed(1)}%` });
     }
   }

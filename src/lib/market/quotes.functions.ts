@@ -1418,3 +1418,37 @@ export const getSignalTracking = createServerFn({ method: "GET" }).handler(async
     return { signalDate: "", trackedDate: "", summary: null as SignalTrackSummary | null, signals: [] as SignalTrackItem[] };
   }
 });
+
+/** 用户自定义策略（策略管理页）。字段和页面 UserStrategy 保持一致。 */
+export interface UserStrategy {
+  id: string; name: string; expr: string; direction: 1 | -1; holdDays: number;
+  stopPct: number | null; targetPct: number | null; note: string; source: "ai" | "manual"; createdAt: string;
+}
+
+/**
+ * 读用户自定义策略列表。放在 server function 里，因为浏览器没有 node:fs——
+ * 页面以前直接在 queryFn 里 import("node:fs/promises")，浏览器会走 catch 返回空数组，
+ * 列表永远空着（2026-10-28 修）。
+ */
+export const getUserStrategies = createServerFn({ method: "GET" }).handler(async (): Promise<UserStrategy[]> => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const raw = await readFile(dataPath("data", "strategies", "user-defined.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as UserStrategy[]) : [];
+  } catch {
+    return [];
+  }
+});
+
+/** 覆盖式保存用户自定义策略列表。POST 一个完整数组。 */
+export const saveUserStrategies = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    if (!Array.isArray(data)) throw new Error("策略列表必须是数组");
+    return data as UserStrategy[];
+  })
+  .handler(async ({ data }) => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    await mkdir(dataPath("data", "strategies"), { recursive: true });
+    await writeFile(dataPath("data", "strategies", "user-defined.json"), JSON.stringify(data, null, 2));
+  });

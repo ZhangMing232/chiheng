@@ -3,30 +3,17 @@
  * 从 /arena 拆出来的子页面。
  */
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
 import { Swords, Plus, Trash2, Sparkles, WandIcon } from "lucide-react";
-import { expressNaturalLanguage } from "@/lib/market/quotes.functions";
+import { expressNaturalLanguage, getUserStrategies, saveUserStrategies, type UserStrategy } from "@/lib/market/quotes.functions";
 import { validateFactorExpr } from "@/lib/market/factor-expr";
 
-const STRATEGIES_FILE = "data/strategies/user-defined.json";
-
-interface UserStrategy {
-  id: string; name: string; expr: string; direction: 1 | -1; holdDays: number;
-  stopPct: number | null; targetPct: number | null; note: string; source: "ai" | "manual"; createdAt: string;
-}
-
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-
-async function saveStrategies(list: UserStrategy[]) {
-  const { mkdir, writeFile } = await import("node:fs/promises");
-  await mkdir("data/strategies", { recursive: true });
-  await writeFile(STRATEGIES_FILE, JSON.stringify(list, null, 2));
-}
 
 export const ARANA_TABS = [
   { to: "/arena/signals", label: "每日信号" },
@@ -38,13 +25,13 @@ export const ARANA_TABS = [
 function ArenaStrategies() {
   const { data: strategies = [] } = useQuery({
     queryKey: ["arenaStrategies"],
-    queryFn: async () => {
-      const { readFile } = await import("node:fs/promises");
-      try { const raw = await readFile(STRATEGIES_FILE, "utf8"); return JSON.parse(raw) as UserStrategy[]; } catch { return []; }
-    },
+    queryFn: async () => await getUserStrategies(),
     refetchInterval: 120000,
   });
   const [list, setList] = useState<UserStrategy[]>(strategies);
+  // 查询是异步的：挂载时 strategies 还是 []，等 server function 返回后要把列表同步进来，
+  // 否则文件里的策略永远不会显示（只靠 add/remove 改内存里的 list）。
+  useEffect(() => { setList(strategies); }, [strategies]);
 
   const [mode, setMode] = useState<"ai" | "manual">("ai");
   const [showForm, setShowForm] = useState(false);
@@ -64,10 +51,10 @@ function ArenaStrategies() {
     e.preventDefault(); if (!name.trim() || !expr.trim()) return;
     const r = validateFactorExpr(expr.trim()); if (!r.ok) { setExprError((r as { ok: false; error: string }).error); return; }
     const entry: UserStrategy = { id: uid(), name: name.trim(), expr: expr.trim(), direction: dir, holdDays, stopPct: stopPct ? Number(stopPct) : null, targetPct: targetPct ? Number(targetPct) : null, note: note.trim(), source: mode, createdAt: new Date().toISOString().slice(0, 10) };
-    const next = [entry, ...list]; setList(next); setSaving(true); await saveStrategies(next); setSaving(false);
+    const next = [entry, ...list]; setList(next); setSaving(true); await saveUserStrategies({ data: next }); setSaving(false);
     setName(""); setNl(""); setAiExpr(""); setManualExpr(""); setNote(""); setStopPct(""); setTargetPct(""); setExprError(""); setShowForm(false);
   }
-  async function remove(id: string) { const next = list.filter((s) => s.id !== id); setList(next); await saveStrategies(next); }
+  async function remove(id: string) { const next = list.filter((s) => s.id !== id); setList(next); await saveUserStrategies({ data: next }); }
   function tabClass(active: boolean) { return "rounded border px-2 py-1 text-xs transition " + (active ? "border-brand text-fg" : "border-line text-muted hover:text-fg"); }
 
   return (
