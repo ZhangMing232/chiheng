@@ -25,11 +25,22 @@ test("attributeTradeLoss：止损按计划触发（成交≈止损价）", () =>
   assert.match(a!.causal, /止损/);
 });
 
-test("attributeTradeLoss：跳空穿止损（成交明显低于止损价）", () => {
-  const a = attributeTradeLoss({ ...base, exit: 8.0, stop: 9.2, exitReason: "stop" });
+test("attributeTradeLoss：日线跳空穿止损（成交明显低于止损价）", () => {
+  const a = attributeTradeLoss({ ...base, exit: 8.0, stop: 9.2, exitReason: "stop", exitKind: "daily" });
   assert.ok(a);
   assert.equal(a!.cause, "gap_down");
   assert.match(a!.causal, /跳空/);
+});
+
+test("attributeTradeLoss：盘中下穿止损算滑点，不能报成跳空", () => {
+  const a = attributeTradeLoss({ ...base, exit: 8.0, stop: 9.2, exitReason: "stop", exitKind: "intraday" });
+  assert.ok(a);
+  assert.equal(a!.cause, "stop_slipped");
+  // 关键区别：滑点是可以防的，跳空防不住。两者不能混成一句「跳空」。
+  assert.match(a!.causal, /滑点/);
+  assert.match(a!.causal, /可以防/);
+  const gap = attributeTradeLoss({ ...base, exit: 8.0, stop: 9.2, exitReason: "stop", exitKind: "daily" })!;
+  assert.match(gap.causal, /防不住/);
 });
 
 test("attributeTradeLoss：持有到期没走出来", () => {
@@ -75,6 +86,54 @@ test("summarizeTradeLosses + lossAttribLines：按 cause 聚合，空则空数�
   // 没亏损 → 空数组，不出假条目
   assert.deepEqual(lossAttribLines(summarizeTradeLosses([])), []);
   assert.equal(CAUSE_LABEL.stop_planned, "止损按计划触发");
+});
+
+test("来源分档：缺 exitReasonSource = 原始记录，有就照抄，判不了 = unknown", () => {
+  const original = attributeTradeLoss({ ...base, exit: 9.2, stop: 9.2, exitReason: "stop" })!;
+  assert.equal(original.source, "original");
+  const legacy = attributeTradeLoss({
+    ...base,
+    exit: 9.2,
+    stop: 9.2,
+    exitReason: "stop",
+    exitReasonSource: "legacy_planned",
+  })!;
+  assert.equal(legacy.source, "legacy_planned");
+  const bogus = attributeTradeLoss({ ...base, exit: 9.2, stop: 9.2, exitReason: "stop", exitReasonSource: "瞎写的" })!;
+  assert.equal(bogus.source, "unknown");
+  const none = attributeTradeLoss({ ...base, exit: 9.5 })!;
+  assert.equal(none.source, "unknown");
+});
+
+test("lossAttribLines：来源分档要写进 prompt，旧口径/未定型的价格提示不能省", () => {
+  const attribs = [
+    attributeTradeLoss({ ...base, exit: 9.2, stop: 9.2, exitReason: "stop" })!,
+    attributeTradeLoss({
+      id: "sh600003",
+      entry: 10,
+      exit: 9.0,
+      stop: 9.0,
+      exitReason: "stop",
+      exitReasonSource: "legacy_planned",
+    })!,
+    attributeTradeLoss({
+      id: "sh600004",
+      entry: 10,
+      exit: 9.5,
+      exitReason: "time",
+      exitReasonSource: "recorded_price_partial",
+    })!,
+  ];
+  const sum = summarizeTradeLosses(attribs);
+  assert.equal(sum.bySource.length, 3);
+  assert.equal(sum.bySource.find((s) => s.source === "legacy_planned")!.count, 1);
+  const lines = lossAttribLines(sum);
+  const joined = lines.join("\n");
+  assert.match(joined, /证据来源/);
+  assert.match(joined, /旧口径反推 1 笔/);
+  // 这两档的幅度不可信，必须在 prompt 里点出来，否则 AI 会拿假幅度调参数
+  assert.match(joined, /只能取「原因」，不能取「幅度」/);
+  assert.match(joined, /原因可信，幅度别当真/);
 });
 
 test("verdictCauseOf：action + reason 文案映射", () => {

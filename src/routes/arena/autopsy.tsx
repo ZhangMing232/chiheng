@@ -4,10 +4,14 @@
  * 两条线：
  * 1. 逐笔亏损归因：按退出原因（止损/跳空/到期/未记）分 cause，给笔数、均亏、
  *    最差、样例，和「这个机制为什么会吃掉钱」的因果解释。
- * 2. 挑战者判决归因：每次转正/淘汰/停跑一条，带「为什么」和双方均值。
+ * 2. 证据来源分档：同一个 cause 可能是原始记录、也可能是事后回填的。两档可信度
+ *    差很多（旧口径的价格系统性偏乐观），混成一个数等于骗自己，所以单独摊开。
+ * 3. 挑战者判决归因：每次转正/淘汰/停跑一条，带「为什么」和双方均值。
  *
  * 纪律：
- * - 老账没记退出原因 → 显式标「退出原因未记（老账）」，不拿价格反推原因。
+ * - 老账没记退出原因 → 2026-10-28 用历史 K 线回填过一次，但**回填不是原始记录**，
+ *   所以每档来源都带可信度说明，明写「只能取原因、不能取幅度」。
+ *   仍然判不了的（读不到 K 线等）照旧标「退出原因未记」，不拿价格硬编一个原因。
  * - 读不到账本/没有亏损 → 空态带原因，不显示 0 笔的假条目。
  * - 这一页只归因，不改任何账、不下买卖建议。
  */
@@ -20,9 +24,12 @@ import { StateBlock } from "@/components/state-block";
 import { getLossAttribution } from "@/lib/market/quotes.functions";
 import {
   CAUSE_LABEL,
+  SOURCE_CAVEAT,
+  SOURCE_LABEL,
   VERDICT_CAUSE_LABEL,
   type ChallengerVerdict,
   type LossCause,
+  type LossSourceSummary,
   type TradeLossSummary,
 } from "@/lib/market/loss-attrib";
 
@@ -36,7 +43,7 @@ const ARANA_TABS = [
 export const Route = createFileRoute("/arena/autopsy")({
   loader: async (): Promise<{ summary: TradeLossSummary; verdicts: ChallengerVerdict[] }> => {
     return await getLossAttribution().catch(() => ({
-      summary: { total: 0, losses: 0, byCause: [], missing: ["读不到账本"] },
+      summary: { total: 0, losses: 0, byCause: [], bySource: [], missing: ["读不到账本"] },
       verdicts: [] as ChallengerVerdict[],
     }));
   },
@@ -45,6 +52,25 @@ export const Route = createFileRoute("/arena/autopsy")({
 
 function pctClass(v: number): string {
   return v >= 0 ? "text-up" : "text-down";
+}
+
+/** 一档证据来源：笔数、均亏、以及「这档为什么可信 / 哪里不能当真」。 */
+function SourceRow({ item }: { item: LossSourceSummary }) {
+  const weak = item.source === "legacy_planned" || item.source === "recorded_price_partial" || item.source === "unknown";
+  return (
+    <li className="px-3.5 py-2.5 text-xs">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-medium">
+          {SOURCE_LABEL[item.source]}
+          {weak ? <span className="ml-1.5 rounded bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">幅度别当真</span> : null}
+        </span>
+        <span className="tabular-nums text-muted">
+          {item.count} 笔 · 均 <span className={pctClass(item.avgRetPct)}>{item.avgRetPct}%</span>
+        </span>
+      </div>
+      <p className="mt-1 leading-relaxed text-muted">{SOURCE_CAVEAT[item.source]}</p>
+    </li>
+  );
 }
 
 function AutopsyPage() {
@@ -106,6 +132,19 @@ function AutopsyPage() {
             <div className="rounded border border-warn bg-warn-soft px-3 py-2 text-[11px] text-warn">
               读不到的数据（不是没有）：{summary.missing.join("；")}
             </div>
+          ) : null}
+
+          {summary.bySource.length > 0 ? (
+            <Panel
+              title="这些数字有多可信（证据来源）"
+              note="同一个亏损原因，来源不同可信度差很多。别把它们混成一个数看。"
+            >
+              <ul className="divide-y divide-line">
+                {summary.bySource.map((s) => (
+                  <SourceRow key={s.source} item={s} />
+                ))}
+              </ul>
+            </Panel>
           ) : null}
 
           <Panel title="挑战者判决归因" note="为什么转正 / 为什么淘汰——判决规则现在从 data/challenger-rule.json 读，不再写死。">

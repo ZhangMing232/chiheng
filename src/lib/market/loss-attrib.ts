@@ -12,8 +12,10 @@
  *
  * 你需要知道的（纪律，和 factor-tombstones 同规矩）：
  * - **老账没记退出原因**：2026-10-28 之前 settle 只落 exit/exitDate/exitKind，
- *   没落 reason。这类交易一律标 cause=unknown_legacy，明说「判不了、不下因果结论」，
- *   绝不拿价格反推一个像模像样的原因。——「拿不到 ≠ 没有」。
+ *   没落 reason。2026-10-28 用 scripts/backfill-exit-reason.ts 回填过一次，
+ *   但**回填不是原始记录**——所以每条 reason 都带 exitReasonSource，
+ *   归因结果里保留 source 分档（见 SOURCE_LABEL / SOURCE_CAVEAT），
+ *   绝不把重算和原始记录混成一个数。仍判不了的照旧 cause=unknown_legacy。
  * - 逐笔指数对照 v1 未接：不做「系统性回撤」标注，summary.missing 里明说缺什么。
  *   连亏方向已有 portfolio-health 的「对照指数看是系统性还是打法失灵」，两边互补。
  * - 纯函数（attribute* / summarize* / *Lines）不碰 fs，直接单测；
@@ -40,14 +42,66 @@ export type AttributableTrade = {
   variant?: string;
   /** 退出原因。老账没有这个字段——缺 = unknown_legacy，不猜。 */
   exitReason?: string;
+  /**
+   * 这个 exitReason 是哪来的（2026-10-28 回填时写的）。
+   * 缺 = 记账时当场记的原始记录（2026-10-28 之后结算的笔都是这种）。
+   */
+  exitReasonSource?: string;
+  /**
+   * 这笔是按什么结算的：日线撮合还是盘中快照。
+   * 只用来区分「跳空」和「盘中滑点」——同样是亏超止损，能不能防完全不同。
+   */
+  exitKind?: "intraday" | "daily";
+};
+
+/**
+ * 退出原因的**证据来源**——和 cause 正交，必须分开看：
+ * cause 说「亏在哪个机制」，source 说「这个判断有多可信」。
+ */
+export type TradeLossSource =
+  /** 记账时当场落的原因，原始记录。 */
+  | "original"
+  /** 日线结算，拿历史 K 线重算出来的（事后重算）。 */
+  | "replayed"
+  /** 按账本记下的退出价反解记账公式（不是猜，是逆运算）。 */
+  | "recorded_price"
+  /** 同上，但结账时当天的 K 线还没走完，价格是当时的现价。 */
+  | "recorded_price_partial"
+  /** 2026-10-08 旧口径：退出价就是计划价本身，只能取原因、不能取幅度。 */
+  | "legacy_planned"
+  /** 说不清来源。 */
+  | "unknown";
+
+export const SOURCE_LABEL: Record<TradeLossSource, string> = {
+  original: "原始记录",
+  replayed: "日线重算",
+  recorded_price: "按账本价反解",
+  recorded_price_partial: "按账本价反解（价未定型）",
+  legacy_planned: "旧口径反推",
+  unknown: "来源不明",
+};
+
+/** 每一档的可信度说明。给人和 AI 读，避免把「重算」当「原始记录」。 */
+export const SOURCE_CAVEAT: Record<TradeLossSource, string> = {
+  original: "记账当场落的退出原因，最可信。",
+  replayed: "拿历史 K 线按同一套结算规则重跑出来的原因，成交日和价格都与账本对得上；是事后重算，不是原始记录。",
+  recorded_price:
+    "按账本记下的退出价反解记账公式（止损记 min(止损价,现价)、止盈记目标价、到期记收盘价），三条不等式只有唯一解；价格可信。",
+  recorded_price_partial:
+    "同「按账本价反解」，但结账发生在到期当天盘中——当时那根日线还没走完，账上记的是那一刻的现价而非收盘价，价格可能偏差几个点。原因可信，幅度别当真。",
+  legacy_planned:
+    "2026-10-08 之前的旧口径：账上退出价就是计划止损/止盈价本身，不是真实成交价，系统性偏乐观 4.5~9.5 个百分点。只能取「原因」，不能取「幅度」。",
+  unknown: "不知道这个原因从哪来的，当参考看。",
 };
 
 /** 亏损原因分类。 */
 export type LossCause =
   /** 止损按计划触发（成交价 ≈ 止损价）。 */
   | "stop_planned"
-  /** 跳空低开穿过止损价，成交在止损下方——亏损超出计划。 */
+  /** 日线结算时跳空低开穿过止损价，按开盘价成交——亏损超出计划，止损单防不住。 */
   | "gap_down"
+  /** 盘中快照连续下穿止损价后按市价成交——滑点/急跌，和真跳空是两回事，这个能防。 */
+  | "stop_slipped"
   /** 持有到期仍没走出来，按收盘价结掉——信号失效。 */
   | "time_exit"
   /** 老账没记退出原因，判不了。 */
@@ -61,6 +115,8 @@ export type TradeLossAttrib = {
   /** 扣费后净收益（百分数，-3.2 = 亏 3.2%）。 */
   retPct: number;
   cause: LossCause;
+  /** 这个原因的证据来源（原始记录 / 重算 / 反解 / 旧口径）。 */
+  source: TradeLossSource;
   /** 当天大盘也跌（markdown）→ 可能是系统性回撤而非选股问题。v1 常为 false（没接逐笔指数）。 */
   systematic: boolean;
   /** 为什么这样会导致亏损（给人和 AI 读的一句话因果）。 */
@@ -74,11 +130,13 @@ const CAUSE_CAUSAL: Record<LossCause, string> = {
   stop_planned:
     "止损按计划触发，亏的是预设的那口风险。震荡市里止损常被正常波动反复打掉——如果这批止损单之后多数反弹，说明止损太紧、把波动当成了风险，不是选股错。",
   gap_down:
-    "跳空低开直接穿过止损价，实际成交在止损下方，止损的保护被削弱——亏损超出计划，常见于突发利空 / 除权除息 / 停牌复牌，这类风险止损单本身防不住。",
+    "跳空低开直接穿过止损价，按开盘价成交，止损的保护被削弱——亏损超出计划，常见于突发利空 / 除权除息 / 停牌复牌。这类风险止损单本身防不住，只能靠降低单票权重或避开事件窗口。",
+  stop_slipped:
+    "盘中价格在两次检查之间下穿止损价，成交在止损价下方（滑点/急跌），亏损超出计划。这和跳空不是一回事——它是可以防的：把监控频率提上去、或者把止损线设在更靠前的位置，都能少亏这一截。",
   time_exit:
     "持有到期仍没走出来，按收盘价结掉——既不是止损也不是止盈，是入场信号在这轮没兑现（信号失效，不是风险控制问题）。",
   unknown_legacy:
-    "老账没有记退出原因（2026-10-28 之前结算的交易未落 exitReason），无法判定是止损 / 到期 / 目标，只能看盈亏数字，不下因果结论。",
+    "老账没有记退出原因，无法判定是止损 / 到期 / 目标，只能看盈亏数字，不下因果结论。",
 };
 
 /**
@@ -96,9 +154,12 @@ export function attributeTradeLoss(
   const reason = trade.exitReason ?? "";
   let cause: LossCause;
   if (reason === "stop") {
-    // 成交价明显低于止损价（留 0.5% 容差挡四舍五入）→ 跳空穿止损。
-    cause =
-      trade.stop != null && trade.exit < trade.stop * 0.995 ? "gap_down" : "stop_planned";
+    // 成交价明显低于止损价（留 0.5% 容差挡四舍五入）→ 亏超计划，再分两种：
+    // 日线结算是真的跳空低开（成交在开盘价），盘中快照只是两次检查之间下穿了止损，
+    // 是滑点/急跌。前者止损单防不住，后者靠更紧的监控/更早离场是可以防的，
+    // 混成一个「跳空」会把可防的风险说成不可防。
+    const brokeThrough = trade.stop != null && trade.exit < trade.stop * 0.995;
+    cause = !brokeThrough ? "stop_planned" : trade.exitKind === "daily" ? "gap_down" : "stop_slipped";
   } else if (reason === "time") {
     cause = "time_exit";
   } else {
@@ -120,10 +181,27 @@ export function attributeTradeLoss(
     variant: trade.variant,
     retPct: +(net * 100).toFixed(2),
     cause,
+    source: sourceOf(trade),
     systematic,
     causal,
     marketRetPct,
   };
+}
+
+/** exitReasonSource 是回填脚本写的自由字符串，收窄成枚举；缺省当原始记录。 */
+function sourceOf(trade: AttributableTrade): TradeLossSource {
+  if (!trade.exitReason) return "unknown";
+  const value = trade.exitReasonSource;
+  if (value == null) return "original";
+  if (
+    value === "replayed" ||
+    value === "recorded_price" ||
+    value === "recorded_price_partial" ||
+    value === "legacy_planned"
+  ) {
+    return value;
+  }
+  return "unknown";
 }
 
 export type LossCauseSummary = {
@@ -140,12 +218,21 @@ export type LossCauseSummary = {
   causal: string;
 };
 
+export type LossSourceSummary = {
+  source: TradeLossSource;
+  count: number;
+  /** 平均净收益（百分数，负数）。 */
+  avgRetPct: number;
+};
+
 export type TradeLossSummary = {
   /** 有交易的总笔数（含盈利）。 */
   total: number;
   /** 亏损笔数。 */
   losses: number;
   byCause: LossCauseSummary[];
+  /** 按证据来源分档：原始记录 / 事后重算 / 反解 / 旧口径。 */
+  bySource: LossSourceSummary[];
   /** 拿不到的数据（≠ 没有）。 */
   missing: string[];
 };
@@ -177,8 +264,23 @@ export function summarizeTradeLosses(attribs: TradeLossAttrib[]): TradeLossSumma
       };
     })
     .sort((a, b) => b.count - a.count);
+
+  const sources = new Map<TradeLossSource, TradeLossAttrib[]>();
+  for (const a of attribs) {
+    const list = sources.get(a.source) ?? [];
+    list.push(a);
+    sources.set(a.source, list);
+  }
+  const bySource: LossSourceSummary[] = [...sources.entries()]
+    .map(([source, list]) => ({
+      source,
+      count: list.length,
+      avgRetPct: +(list.reduce((s, a) => s + a.retPct, 0) / list.length).toFixed(2),
+    }))
+    .sort((a, b) => b.count - a.count);
+
   const missing: string[] = [];
-  return { total: losses, losses, byCause, missing };
+  return { total: losses, losses, byCause, bySource, missing };
 }
 
 /** 归因汇总 → AI 诊断 prompt 段落（string[]，调用方直接展开拼）。没有亏损返回空数组。 */
@@ -192,13 +294,26 @@ export function lossAttribLines(summary: TradeLossSummary, maxCauses = 6): strin
         : "";
     return `- ${CAUSE_LABEL[c.cause]} ×${c.count}（均 ${c.avgRetPct}%，最差 ${c.worstPct}%${ex}）`;
   });
-  return [header, ...lines];
+  // 来源分档必须一起给：不写清楚，AI 会把「旧口径反推」的幅度当成真实亏损去调参数。
+  const sourceLine =
+    summary.bySource.length > 0
+      ? [
+          `- 这些数字的证据来源：${summary.bySource
+            .map((s) => `${SOURCE_LABEL[s.source]} ${s.count} 笔（均 ${s.avgRetPct}%）`)
+            .join("；")}`,
+        ]
+      : [];
+  const caveats = summary.bySource
+    .filter((s) => s.source === "legacy_planned" || s.source === "recorded_price_partial")
+    .map((s) => `- ${SOURCE_LABEL[s.source]} ${s.count} 笔的提示：${SOURCE_CAVEAT[s.source]}`);
+  return [header, ...lines, ...sourceLine, ...caveats];
 }
 
 /** cause → 中文标签（面板与 prompt 共用，避免两处各写一遍）。 */
 export const CAUSE_LABEL: Record<LossCause, string> = {
   stop_planned: "止损按计划触发",
   gap_down: "跳空穿止损",
+  stop_slipped: "盘中下穿止损（滑点）",
   time_exit: "持有到期没走出来",
   unknown_legacy: "退出原因未记（老账）",
 };

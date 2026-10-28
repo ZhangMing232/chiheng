@@ -1034,6 +1034,10 @@ export const getLossAttribution = createServerFn({ method: "GET" }).handler(asyn
     style?: string;
     variant?: string;
     exitReason?: string;
+    /** 2026-10-28 回填时写下的来源标记；缺 = 记账当场记的原始记录。 */
+    exitReasonSource?: string;
+    /** 日线撮合还是盘中快照——分辨「跳空」和「盘中滑点」要用。 */
+    exitKind?: "intraday" | "daily";
   };
   const book = await readUserBook<{ trades?: BookTrade[] }>(OWNER_ID).catch(() => null);
   const trades = (book?.days ?? []).flatMap((day) => day.trades ?? []);
