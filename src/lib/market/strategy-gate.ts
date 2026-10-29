@@ -29,6 +29,13 @@ import { isTradingDay } from "./session.ts";
 export const STRATEGY_GATE = {
   /** 判决窗口：最近 N 笔已平仓（按平仓日顺序）。攒不够 N 笔不判决——小样本的 t 值是噪音。 */
   window: 20,
+  /**
+   * 最少需要多少个**不同交易日**才用聚类稳健 t 判决。
+   * 线上一天最多 10 笔，20 笔可能只落在 2 天里（2026-10-29 实测 breakout 最近 20 笔
+   * 全在 10-28、10-29 两天）——raw t 把 2 天当 20 个独立观测，是假的。天数不够就
+   * 不判，交给回测判决（250 天、几百笔）去说。
+   */
+  minDays: 20,
   /** t ≤ −2 判「这套在亏」→ 停用。 */
   disableT: -2,
   /** 首次冷却：停用多少个交易日后假释（每天限 1 只）。 */
@@ -90,6 +97,53 @@ export function tStat(rets: number[]): number | null {
   return mean / (sd / Math.sqrt(n));
 }
 
+/**
+ * 聚类稳健 t：点估计仍是逐笔等权均值（和等额下注一致），但方差按平仓日聚类。
+ * 同一天的交易共享市场 beta，不是独立观测；raw t 会把「20 笔落在 2 天」当成
+ * 20 个独立样本，算出一个假的 t。这个才是诚实口径。
+ *
+ * SE = sqrt( Σ_day ( Σ_{i∈day} (y_i − mean) )² ) / N
+ */
+export function clusterTStat(rets: number[], dates: string[]): number | null {
+  const n = rets.length;
+  if (n < 8 || dates.length !== n) return null;
+  const mean = rets.reduce((s, v) => s + v, 0) / n;
+  const byDay = new Map<string, number[]>();
+  for (let i = 0; i < n; i += 1) {
+    const k = dates[i];
+    const list = byDay.get(k);
+    if (list) list.push(rets[i]);
+    else byDay.set(k, [rets[i]]);
+  }
+  let score = 0;
+  for (const list of byDay.values()) {
+    const s = list.reduce((a, e) => a + (e - mean), 0);
+    score += s * s;
+  }
+  const se = Math.sqrt(score) / n;
+  if (!(se > 0)) return null;
+  return mean / se;
+}
+
+/** 全池回测判决：每套策略的聚类稳健 t 等。由 scripts/strategy-verdict.ts 每日刷新。 */
+export type BacktestVerdict = { clusterT: number; excess: number; n: number; days: number };
+export type BacktestVerdictsFile = { at: string; lookback: number; universe: number; strategies: Record<string, BacktestVerdict> };
+
+export function backtestVerdictsPath(): string {
+  return posixJoin(process.env.CHIHENG_DATA_DIR ?? posixJoin(process.cwd(), "data"), "strategy-verdicts.json");
+}
+
+/** 读回测判决；文件不在 / 格式坏当「没有」。 */
+export async function readBacktestVerdicts(): Promise<Record<string, BacktestVerdict>> {
+  try {
+    const { readFile } = await fsApi();
+    const parsed = JSON.parse(await readFile(backtestVerdictsPath(), "utf8")) as BacktestVerdictsFile;
+    return (parsed?.strategies && typeof parsed.strategies === "object") ? parsed.strategies : {};
+  } catch {
+    return {};
+  }
+}
+
 /** 两个交易日之间隔了多少个交易日（不含 from，含 to）。 */
 export function tradingDaysBetween(from: string, to: string): number {
   if (!(from < to)) return 0;
@@ -111,13 +165,36 @@ export type GateDecision =
   | { action: "none"; next: GateRecord | null; reason: string };
 
 /**
+ * 闸门用的 t：有平仓日就用聚类稳健 t + 最少交易日门槛，没有就退回 raw t。
+ */
+function gateT(tail: number[], dates?: string[]): number | null {
+  if (tail.length < STRATEGY_GATE.window) return null;
+  if (dates && dates.length === tail.length) {
+    const distinctDays = new Set(dates).size;
+    // 天数不够：20 笔可能只落在 2 天，聚类 t 没有意义，不判决（交给回测判决）
+    if (distinctDays < STRATEGY_GATE.minDays) return null;
+    return clusterTStat(tail, dates);
+  }
+  return tStat(tail);
+}
+
+/**
  * 对一套策略做一次判决。纯函数：传入该策略按平仓日排序的逐笔净收益、
  * 当前状态记录和今天日期，返回该做什么。
+ *
+ * `dates`（与 rets 对齐的平仓日）可选：传了就按聚类稳健 t + 最少交易日门槛判决，
+ * 不传退回老的 raw t（历史测试 / 调用方兼容）。
  */
-export function evaluateGate(input: { rets: number[]; record: GateRecord | null; today: string }): GateDecision {
-  const { rets, record, today } = input;
+export function evaluateGate(input: {
+  rets: number[];
+  record: GateRecord | null;
+  today: string;
+  dates?: string[];
+}): GateDecision {
+  const { rets, record, today, dates } = input;
   const tail = rets.slice(-STRATEGY_GATE.window);
-  const t = tail.length >= STRATEGY_GATE.window ? tStat(tail) : null;
+  const tailDates = dates ? dates.slice(-STRATEGY_GATE.window) : undefined;
+  const t = gateT(tail, tailDates);
 
   if (!record) {
     if (t != null && t <= STRATEGY_GATE.disableT) {

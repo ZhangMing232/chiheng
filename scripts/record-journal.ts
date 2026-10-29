@@ -25,7 +25,7 @@ import { BACKUP_KEEP_DAYS, backupJournal, pruneBackups } from "@/lib/market/jour
 import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
 import { hardGate, nthClose, softGate, dayReliable, netReturn } from "../src/lib/market/journal-book.ts";
 import { isStuck, settleOne } from "@/lib/market/settle";
-import { evaluateGate, readStrategyGates, writeStrategyGates } from "../src/lib/market/strategy-gate.ts";
+import { evaluateGate, readStrategyGates, writeStrategyGates, readBacktestVerdicts, STRATEGY_GATE } from "../src/lib/market/strategy-gate.ts";
 import {
   appendChampionLog,
   bucketReturns,
@@ -240,10 +240,28 @@ if (phase.date) {
     const retsByBucket = bucketReturns(ownerBook.days);
     // 策略闸判的是冠军参数（挑战者样本不算冠军的成绩，反之亦然）。
     const retsByStyle = new Map<string, number[]>(ACTIVE_STYLES.map((style) => [style, retsByBucket.get(`${style}:champion`) ?? []]));
+    // 平仓日（和 rets 对齐）——聚类稳健 t 用。20 笔可能只落在 2 天，raw t 把 2 天
+    // 当 20 个独立观测是假的；天数不够时 evaluateGate 会返回 none，交给回测判决。
+    const datesByStyle = new Map<string, string[]>();
+    for (const style of ACTIVE_STYLES) {
+      const dates: string[] = [];
+      for (const day of ownerBook.days) {
+        if (!dayReliable(day)) continue;
+        for (const trade of day.trades) {
+          if (trade.exit == null || typeof trade.entry !== "number") continue;
+          if (styleOf(trade) !== style) continue;
+          if (trade.variant && trade.variant !== "champion") continue;
+          if (netReturn(trade.entry, trade.exit) == null) continue;
+          dates.push(trade.exitDate ?? day.date);
+        }
+      }
+      datesByStyle.set(style, dates);
+    }
     let gatesChanged = false;
     for (const style of ACTIVE_STYLES) {
       const decision = evaluateGate({
         rets: retsByStyle.get(style) ?? [],
+        dates: datesByStyle.get(style) ?? [],
         record: strategyGates[style] ?? null,
         today: phase.date,
       });
@@ -280,6 +298,37 @@ if (phase.date) {
       console.log(`strategy-gate ${style} ${decision.action}: ${decision.reason}`);
       notify(`${name} ${label}：${decision.reason}`);
       void sendPushPlus("赤轨策略闸门", `${name} ${label}\n${decision.reason}\n时间：${time}`);
+    }
+    // ── 回测判决：全池回测的聚类 t ≤ −2 也判「这套失效」──
+    // 线上样本太少（13 天、最近 20 笔落在 2 天）测不出慢亏，回测 250 天才有统计功效。
+    // live 闸门看「真钱近期」，回测判决看「策略本身有没有 alpha」，两者任一判负都停。
+    const backtestVerdicts = await readBacktestVerdicts();
+    for (const style of ACTIVE_STYLES) {
+      if (gateDisabled.has(style)) continue; // 已停用，别重复判
+      const v = backtestVerdicts[style];
+      if (!v || typeof v.clusterT !== "number") continue;
+      if (v.clusterT > STRATEGY_GATE.disableT) continue;
+      const reason = `全池回测聚类 t=${v.clusterT.toFixed(2)} ≤ ${STRATEGY_GATE.disableT}（${v.n} 笔 / ${v.days} 天），策略无 alpha`;
+      strategyGates[style] = { state: "disabled", since: phase.date, cooldownDays: STRATEGY_GATE.cooldownDays, strikes: 1, reason };
+      gatesChanged = true;
+      gateDisabled.add(style);
+      gateParoled.delete(style);
+      if (champions[style] && champions[style] !== "champion") {
+        const from = champions[style];
+        champions[style] = "champion";
+        championParams.delete(style);
+        await writeChampions(champions);
+        const name = STYLES.find((item) => item.id === style)?.name ?? style;
+        const rollbackReason = `回测判决停用，参数自动回滚（${from} → champion）`;
+        await appendChampionLog({ at: Date.now(), style, from, to: "champion", reason: rollbackReason });
+        console.log(`champion-rollback ${style}: ${rollbackReason}`);
+        notify(`${name} ${rollbackReason}`);
+        void sendPushPlus("赤轨参数回滚", `${name}\n${rollbackReason}\n时间：${time}`);
+      }
+      const name = STYLES.find((item) => item.id === style)?.name ?? style;
+      console.log(`strategy-gate ${style} disable(回测): ${reason}`);
+      notify(`${name} 已自动停用（回测判决）：${reason}`);
+      void sendPushPlus("赤轨策略闸门", `${name} 已自动停用（回测判决）\n${reason}\n时间：${time}`);
     }
     if (gatesChanged) await writeStrategyGates(strategyGates);
 

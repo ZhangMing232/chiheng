@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluateGate, tStat, tradingDaysBetween, STRATEGY_GATE, type GateRecord } from "@/lib/market/strategy-gate";
+import { evaluateGate, tStat, clusterTStat, tradingDaysBetween, STRATEGY_GATE, type GateRecord } from "@/lib/market/strategy-gate";
 
 /** 构造一组均值为 mean、标准差约 sd 的收益，长度 n。用于把 t 值打到目标区间。 */
 function makeRets(n: number, mean: number, sd: number): number[] {
@@ -92,4 +92,38 @@ test("假释中 + 样本还不够 → 维持假释，不加刑也不转正", () 
   const decision = evaluateGate({ rets: makeRets(6, -0.05, 0.001), record, today: "2026-10-30" });
   assert.equal(decision.action, "none");
   assert.equal(decision.next, record);
+});
+
+test("clusterTStat：笔数不足 8 返回 null，符号正确", () => {
+  assert.equal(clusterTStat([-0.02, 0.01, -0.03], ["a", "b", "c"]), null);
+  const rets = Array.from({ length: 20 }, (_, i) => (i % 2 === 0 ? -0.03 : -0.05));
+  const dates = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  const tc = clusterTStat(rets, dates);
+  assert.ok(tc != null && tc < 0, `应负且有限：tc=${tc}`);
+});
+
+test("clusterTStat：同向收益挤在少数几天，t 比散开更保守（更接近 0）", () => {
+  // 20 笔分 5 组，每组 4 笔同值（模拟同一天同向），组间小幅递减
+  const rets = Array.from({ length: 20 }, (_, i) => -0.03 - Math.floor(i / 4) * 0.005);
+  const spread = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  const crowded = Array.from({ length: 20 }, (_, i) => `2026-10-${String(Math.floor(i / 4) + 1).padStart(2, "0")}`);
+  const ts = clusterTStat(rets, spread);
+  const tc = clusterTStat(rets, crowded);
+  assert.ok(ts != null && tc != null, `都不该是 null：ts=${ts} tc=${tc}`);
+  assert.ok(Math.abs(tc) < Math.abs(ts), `5 天聚类应比 20 天更保守：tc=${tc} ts=${ts}`);
+});
+
+test("evaluateGate：传了 dates 但天数不足 minDays → 不判决（交给回测判决）", () => {
+  const rets = Array.from({ length: 20 }, (_, i) => (i % 2 === 0 ? -0.03 : -0.05));
+  const dates = [...Array(2).fill("2026-10-28"), ...Array(18).fill("2026-10-29")]; // 只有 2 天
+  const decision = evaluateGate({ rets, dates, record: null, today: "2026-10-30" });
+  assert.equal(decision.action, "none", "天数不足 minDays 不应判决");
+});
+
+test("evaluateGate：传了 dates 且天数够、聚类 t ≤ −2 → 停用", () => {
+  // 构造 20 笔分属 20 天、每天一笔、均值明显为负 → 聚类 t 也会 ≤ −2
+  const rets = Array.from({ length: 20 }, () => -0.04);
+  const dates = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  const decision = evaluateGate({ rets, dates, record: null, today: "2026-11-01" });
+  assert.equal(decision.action, "disable");
 });

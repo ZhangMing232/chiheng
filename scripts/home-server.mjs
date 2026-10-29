@@ -141,6 +141,7 @@ const alertTimer = setInterval(runAlerts, 60_000);
 let signalGenRanDay = "";
 let signalReviewRanDay = "";
 let klineRefreshRanDay = "";
+let strategyVerdictRanDay = "";
 
 /** 读 data/signals 下某个 json 的某个字段；文件不在 / 格式坏一律当「没有」。 */
 function readSignalField(file, field) {
@@ -175,6 +176,28 @@ function runKlineRefresh() {
   );
   child.on("exit", (code) => {
     if (code) console.error("K 线刷新失败，信号生成会退回到旧缓存");
+  });
+}
+
+/**
+ * 收盘后刷新全池回测判决（data/strategy-verdicts.json）。15:15 跑（K 线刷新之后），
+ * 供策略闸门读：线上 13 天样本测不出慢亏，回测 250 天聚类 t 才有统计功效。
+ * 幂等：跑失败保留上一份判决文件。
+ */
+function runStrategyVerdict() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (strategyVerdictRanDay === day) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 15)) return; // 15:15 后
+  strategyVerdictRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/strategy-verdict.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("回测判决刷新失败，策略闸门沿用上一份 verdict");
   });
 }
 
@@ -270,10 +293,12 @@ function runSignalTrack() {
 }
 
 runKlineRefresh();
+runStrategyVerdict();
 runSignalGen();
 runSignalReview();
 runSignalTrack();
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
+const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
