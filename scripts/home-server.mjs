@@ -131,7 +131,7 @@ const alertTimer = setInterval(runAlerts, 60_000);
 /**
  * 每日信号：收盘后生成候选 → 竞价后审核 → 页面可见。
  * 同 runAlerts 的模式：60 秒心跳 + 日期去重。
- * 两步独立：生成在 15:05 后触发，审核在 9:26 后触发（次日竞价）。
+ * 三步独立：K 线刷新 15:10 → 信号生成 15:30 → 竞价审核 9:26（次日竞价）。
  *
  * **去重必须跨重启**：内存里的 ranDay 在服务重启（包括每次 build:mac）就清零，
  * 于是 15:05 之后每重启一次就重扫一遍、重复推一条；审核更糟——重启后重跑会把
@@ -140,6 +140,7 @@ const alertTimer = setInterval(runAlerts, 60_000);
  */
 let signalGenRanDay = "";
 let signalReviewRanDay = "";
+let klineRefreshRanDay = "";
 
 /** 读 data/signals 下某个 json 的某个字段；文件不在 / 格式坏一律当「没有」。 */
 function readSignalField(file, field) {
@@ -153,12 +154,36 @@ function readSignalField(file, field) {
   }
 }
 
+/**
+ * 收盘后全量刷新 K 线缓存。15:10 跑（收盘 10 分钟，腾讯日线已落定），
+ * 让 15:30 的信号生成读到的是当天收盘，而不是上一次手动跑全池回测那天。
+ *
+ * 去重只用内存标记 + 幂等：脚本自身会按「最后 K 线早于最新交易日才重抓」，
+ * 重启后即使重跑一次，也只是一轮轻量的「读文件比日期」no-op，不会重复拉数据。
+ */
+function runKlineRefresh() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (klineRefreshRanDay === day) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 10)) return; // 15:10 后
+  klineRefreshRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/refresh-kline.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("K 线刷新失败，信号生成会退回到旧缓存");
+  });
+}
+
 function runSignalGen() {
   const day = new Date().toLocaleDateString("sv-SE");
   if (signalGenRanDay === day) return;
   const hour = new Date().getHours();
   const min = new Date().getMinutes();
-  if (hour < 15 || (hour === 15 && min < 5)) return; // 15:05 后跑，给记账落盘留时间
+  if (hour < 15 || (hour === 15 && min < 30)) return; // 15:30 后跑，等 15:10 的 K 线刷新完成
   // 跨重启去重：今天已经写过候选文件就别再扫一遍（否则每重启一次多推一条）
   if (readSignalField("candidates.json", "date") === day) {
     signalGenRanDay = day;
@@ -244,9 +269,11 @@ function runSignalTrack() {
   });
 }
 
+runKlineRefresh();
 runSignalGen();
 runSignalReview();
 runSignalTrack();
+const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
