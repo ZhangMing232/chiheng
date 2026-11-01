@@ -28,6 +28,31 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PID_FILE = join(ROOT, "data", "serve.pid");
 
 /**
+ * 周末和法定假日都休市。信号三件套（生成/审核/跟踪）和 K 线刷新、回测判决
+ * 都不该在非交易日跑——2026-11-01（周日）实测 generate/review 照跑、照给主人
+ * 推「今日信号」，就是缺了这个闸。
+ *
+ * ⚠️ 假日表要和 src/lib/market/session.ts 的 HOLIDAYS 保持同步——那边是唯一定义处，
+ * 这里复制一份是因为 home-server 是纯 .mjs、不能 import TS。加新一年的假日时两处都改。
+ * 必须放在文件靠前的位置：runAlerts() 在启动时就调用，会用到 isMarketOpen。
+ */
+const MARKET_HOLIDAYS = new Set([
+  "2026-01-01", "2026-01-02", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23",
+  "2026-04-06", "2026-05-01", "2026-05-04", "2026-05-05", "2026-06-19", "2026-09-25",
+  "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07",
+  "2027-01-01", "2027-02-05", "2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11", "2027-02-12",
+  "2027-04-05", "2027-05-03", "2027-05-04", "2027-05-05", "2027-06-09", "2027-09-15",
+  "2027-10-01", "2027-10-04", "2027-10-05", "2027-10-06", "2027-10-07",
+]);
+
+function isMarketOpen(day) {
+  if (MARKET_HOLIDAYS.has(day)) return false;
+  // 12:00+08:00 = 04:00 UTC，getUTCDay 得到的就是上海星期几
+  const wd = new Date(`${day}T12:00:00+08:00`).getUTCDay();
+  return wd !== 0 && wd !== 6; // 0=周日 6=周六
+}
+
+/**
  * 只保证「同一台机器上只有一个赤轨 serve」在 8787 上。
  *
  * 以前的问题：旧 serve 没退干净（launchd 重拉、赤轨.app 又拉一次、手动起第二个），
@@ -113,6 +138,7 @@ let alertRanDay = "";
 function runAlerts() {
   const day = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD 本地日期
   if (alertRanDay === day) return; // 一天一次
+  if (!isMarketOpen(day)) return; // 周末/假日休市，告警不跑
   const hour = new Date().getHours();
   if (hour < 15) return; // 没到收盘后不跑（告警是收盘核对）
   alertRanDay = day;
@@ -165,6 +191,7 @@ function readSignalField(file, field) {
 function runKlineRefresh() {
   const day = new Date().toLocaleDateString("sv-SE");
   if (klineRefreshRanDay === day) return;
+  if (!isMarketOpen(day)) return; // 休市不刷（没有新 K 线）
   const hour = new Date().getHours();
   const min = new Date().getMinutes();
   if (hour < 15 || (hour === 15 && min < 10)) return; // 15:10 后
@@ -187,6 +214,7 @@ function runKlineRefresh() {
 function runStrategyVerdict() {
   const day = new Date().toLocaleDateString("sv-SE");
   if (strategyVerdictRanDay === day) return;
+  if (!isMarketOpen(day)) return; // 休市不跑回测（数据没变）
   const hour = new Date().getHours();
   const min = new Date().getMinutes();
   if (hour < 15 || (hour === 15 && min < 15)) return; // 15:15 后
@@ -204,6 +232,7 @@ function runStrategyVerdict() {
 function runSignalGen() {
   const day = new Date().toLocaleDateString("sv-SE");
   if (signalGenRanDay === day) return;
+  if (!isMarketOpen(day)) return; // 休市不生成信号
   const hour = new Date().getHours();
   const min = new Date().getMinutes();
   if (hour < 15 || (hour === 15 && min < 30)) return; // 15:30 后跑，等 15:10 的 K 线刷新完成
@@ -234,6 +263,7 @@ let signalReviewRunning = false;
 function runSignalReview() {
   const day = new Date().toLocaleDateString("sv-SE");
   if (signalReviewRanDay === day || signalReviewRunning) return;
+  if (!isMarketOpen(day)) return; // 休市无竞价，不审核
   const now = new Date();
   const hour = now.getHours();
   const min = now.getMinutes();
@@ -271,6 +301,7 @@ let signalTrackRanDay = "";
 function runSignalTrack() {
   const day = new Date().toLocaleDateString("sv-SE");
   if (signalTrackRanDay === day) return;
+  if (!isMarketOpen(day)) return; // 休市无次日涨跌，不跟踪
   const hour = new Date().getHours();
   if (hour < 15) return;
   // 跨重启去重：trackedDate 是今天、且信号日不是今天 = 今天已经跟踪过了。
