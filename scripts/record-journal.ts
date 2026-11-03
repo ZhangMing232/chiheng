@@ -597,27 +597,36 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
         todayTrades.push(trade);
       }
 
-      // 挑战者：同一份名单、不同的出场参数，每天限 1 只和冠军并行。
-      // takeChallengerBuy 不占冠军名额（预登记：配额是自己的），但同样避开已持仓的票。
+    }
+
+    // ── 挑战者买入：独立于 ACTIVE_STYLES 循环 ─────────────────────────
+    // 挑战者的目的是「找到能接班的策略」。以前它挂在 `for (const style of ACTIVE_STYLES)`
+    // 里面、且要求 `chal.style === style` 才买——母策略一停（breakout 被闸）挑战者也跟着
+    // 饿死，永远攒不出样本、找不到替代品。现在改成挑战者用自己的 style 生成名单，
+    // 每天限 1 只。全局 hard 闸（连亏停手）仍然拦它；母策略被闸（无 alpha）的挑战者不孵。
+    if (hard.ok) {
       for (const chal of runningChallengers) {
-        if (chal.style !== style) continue;
+        if (gateDisabled.has(chal.style)) continue;
         const ownToday = todayTrades.filter((t) => t.variant === chal.id).length;
         if (ownToday >= 1) {
           // 预登记铁律「每天限 1 只」：10-21 曾连跑 32 分钟买 3 只，必须留痕。
           console.log(`challenger-skip ${userId} ${phase.date} ${chal.id}：今天已买 ${ownToday} 只（预登记每日上限 1 只）`);
           continue;
         }
-        let row = takeChallengerBuy(list, held, ownToday);
+        const chalList =
+          chal.style === "relay"
+            ? relay.filter((row) => matchPrefs(row.quote, prefs))
+            : watchList(universe.quotes, chal.style, rules, (quote) => matchPrefs(quote, prefs));
+        let row = takeChallengerBuy(chalList, held, ownToday);
         let deepScan = false;
         if (!row) {
-          // 别静默跳过：「挑战者今天为什么没买」事后全靠猜。逐行复算一遍
-          // takeChallengerBuy 的过滤口径，把每行的落选原因打进日志，
-          // 第二天就能从 serve.log 直接回答「是名单短（行情）还是开仓条件偏严」。
+          // 别静默跳过：把每行的落选原因打进日志，第二天能从 serve.log 直接回答
+          // 「是名单短（行情）还是开仓条件偏严」。
           const openIds = new Set(held.filter((t) => t.exit == null).map((t) => t.id));
           const seen = new Set<string>();
           let nHit = 0;
           const skip = { held: 0, limit: 0, dup: 0 };
-          for (const r of list) {
+          for (const r of chalList) {
             if (!r.hit) continue;
             nHit += 1;
             if (limitTag(r.quote) === "涨停") skip.limit += 1;
@@ -625,11 +634,10 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
             else if (seen.has(r.quote.id)) skip.dup += 1;
             else seen.add(r.quote.id);
           }
-          // 深扫只对「名单饱和」这一种饿法生效（DECISIONS #4 方案 D 的预登记口径：
-          // 前 10 全持仓）。涨停挡的说明行情在封板，深扫下去是在买更弱的票，不扫；
+          // 深扫只对「名单饱和」这一种饿法生效。涨停挡说明行情封板，不扫；
           // relay 的名单机制不同（14:30 冻结），也不扫。
-          if (nHit > 0 && skip.held === nHit && style !== "relay") {
-            const deepList = watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs), DEEP_SCAN_TOP);
+          if (nHit > 0 && skip.held === nHit && chal.style !== "relay") {
+            const deepList = watchList(universe.quotes, chal.style, rules, (quote) => matchPrefs(quote, prefs), DEEP_SCAN_TOP);
             const deepRow = deepScanChallengerBuy(deepList, held);
             if (deepRow) {
               row = deepRow;
@@ -642,7 +650,7 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
           }
           if (!row) {
             console.log(
-              `challenger-skip ${userId} ${phase.date} ${chal.id}：名单 ${list.length} 行，命中 ${nHit} 行——` +
+              `challenger-skip ${userId} ${phase.date} ${chal.id}：名单 ${chalList.length} 行，命中 ${nHit} 行——` +
                 `已持仓挡 ${skip.held}、涨停挡 ${skip.limit}、重复挡 ${skip.dup}，剩 0 可买（含深扫）`,
             );
             continue;
@@ -661,8 +669,8 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
             chal.targetPct != null
               ? Math.round(row.buy * (1 + chal.targetPct / 100) * 100) / 100
               : row.sell,
-          style,
-          hold: chal.holdDays ?? holdOf(style),
+          style: chal.style,
+          hold: chal.holdDays ?? holdOf(chal.style),
           exit: null,
           exitDate: null,
           variant: chal.id,
