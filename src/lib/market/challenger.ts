@@ -27,6 +27,11 @@ import { tStat } from "./strategy-gate.ts";
 import { dayReliable, netReturn } from "./journal-book.ts";
 import { styleOf } from "./strategies.ts";
 
+/** 每套策略同时在跑的挑战者上限——防止一口气提名一堆把纸面名额稀释成噪声。
+ *  定义在这里（客户端安全模块）而不是 strategy-ai（server-only）：持仓页的
+ *  「挑战者池」卡要用它算容量，从 strategy-ai import 会把 node:fs 顶层依赖拖进客户端 bundle。 */
+export const MAX_RUNNING_PER_STYLE = 2;
+
 /**
  * 挑战者判决规则。这里的数值是「代码默认值」，运行时实际生效值可被
  * data/challenger-rule.json 覆盖（见 loadChallengerRule）——判决规则不再写死在

@@ -25,6 +25,7 @@ import { TRACK_NEED } from "@/lib/market/model";
 import { limitTag, planExit } from "@/lib/market/model";
 import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgency, tradeState, type PositionRow } from "@/lib/market/positions";
 import { ACTIVE_STYLES, STYLES, styleOf } from "@/lib/market/strategies";
+import { MAX_RUNNING_PER_STYLE } from "@/lib/market/challenger";
 import { SectionTabs } from "@/components/section-tabs";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
@@ -652,6 +653,41 @@ function Positions() {
             tone={pctClass(total.total == null ? null : total.total * 100)}
             className="bg-surface"
           />
+        </Panel>
+
+        {/* 挑战者池（重设计效果图的「进化」页签名件）：在跑几个、容量多少、都是谁。
+            容量 = 每套在跑上限 × 现役策略套数，真实可算，不抄效果图的 0/30。 */}
+        <Panel
+          title="挑战者池"
+          note="同一份选股名单只换出场参数，和冠军并行攒样本，Welch 判决说了算"
+          action={<Tag tone="brand">诚实运行 · 不虚构盈利</Tag>}
+          bodyClassName="px-3.5 py-3"
+        >
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+            <div className="flex items-baseline gap-2">
+              <span className={"text-4xl font-light tabular-nums " + (runningChals.length > 0 ? "text-brand-text" : "text-muted")}>
+                {runningChals.length}
+              </span>
+              <span className="text-xs text-muted">
+                正在运行
+                <span className="mx-1.5 text-line">|</span>
+                {runningChals.length}/{MAX_RUNNING_PER_STYLE * ACTIVE_STYLES.length} 容量
+              </span>
+            </div>
+            <ul className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+              {runningChals.map((c) => (
+                <li
+                  key={c.id}
+                  className="rounded border border-line bg-surface-2/60 px-2 py-1 text-xs"
+                  title={`${c.name} · ${c.style} · ${c.since} 起跑`}
+                >
+                  <span className="text-fg">{c.name}</span>
+                  <span className="ml-1.5 text-muted">{STYLES.find((s) => s.id === c.style)?.name ?? c.style}</span>
+                </li>
+              ))}
+              {runningChals.length === 0 ? <li className="text-xs text-muted">空——等 AI 下一轮提名或冷启动播种</li> : null}
+            </ul>
+          </div>
         </Panel>
 
         {urgent.length > 0 ? (          <Panel

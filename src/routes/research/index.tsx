@@ -13,6 +13,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { Coins, Fingerprint, Gavel, LineChart, Scale, Zap } from "lucide-react";
 import { Frame } from "@/components/screener/nav";
 import { RESEARCH_TABS, SectionTabs } from "@/components/section-tabs";
 import { Panel, Tag, pctClass } from "@/components/terminal";
@@ -642,6 +643,16 @@ function ResearchLog({ ai, report, saved, knownIds }: { ai: AiSynthesis | null; 
  * active 指向第一个还没 done 的阶段（分析前沿）。点任一步跳到对应阶段卡
  * （StageCard 根挂了 id=stage-<id> 锚点）。
  */
+/** 每个阶段的节点图标（重设计效果图：圆节点 + 阶段专属图标 + 虚线连接）。 */
+const STAGE_ICONS: Record<string, typeof Fingerprint> = {
+  identity: Fingerprint,
+  price: LineChart,
+  capital: Coins,
+  catalyst: Zap,
+  valuation: Scale,
+  verdict: Gavel,
+};
+
 function StepFlow({ stages, onSelect }: { stages: StageResult[]; onSelect?: () => void }) {
   if (stages.length === 0) return null;
   const statusOf = (s: StageResult): "done" | "partial" | "gap" | "empty" => {
@@ -654,40 +665,54 @@ function StepFlow({ stages, onSelect }: { stages: StageResult[]; onSelect?: () =
   };
   const statuses = stages.map(statusOf);
   const activeIdx = statuses.findIndex((st) => st !== "done");
-  const dot: Record<string, string> = { done: "bg-down", partial: "bg-warn", gap: "bg-up", empty: "bg-muted" };
   const label: Record<string, string> = { done: "已核验", partial: "有缺口", gap: "缺数据", empty: "未触及" };
-  const ring: Record<string, string> = {
-    done: "border-down/50 text-down",
-    partial: "border-warn/50 text-warn",
-    gap: "border-up/50 text-up",
-    empty: "border-line text-muted",
+  // 节点配色（效果图语言）：已核验 = 品牌浅底 + 品牌描边；分析前沿（now）= 实心朱砂 + 辉光环；
+  // 其余按各自状态色描边。虚线连接线画在节点层后面（z-[0]，节点 z-[1]）。
+  const node: Record<string, string> = {
+    done: "border-brand/40 bg-brand-soft text-brand-text",
+    partial: "border-warn/50 bg-surface text-warn",
+    gap: "border-up/50 bg-surface text-up",
+    empty: "border-line bg-surface text-muted",
   };
   const jump = (_id: string) => {
     onSelect?.();
     document.getElementById("research-structured")?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
   return (
-    <nav className="flex flex-wrap items-stretch gap-1.5 rounded border border-line bg-surface p-2.5" aria-label="研判流程">
+    <nav className="flex items-start rounded border border-line bg-surface px-3 pb-3 pt-3.5" aria-label="研判流程">
       {stages.map((s, i) => {
         const st = statuses[i];
         const isActive = i === activeIdx;
+        const Icon = STAGE_ICONS[s.id] ?? Fingerprint;
         return (
           <button
             key={s.id}
             type="button"
             onClick={() => jump(s.id)}
-            className={
-              "flex min-w-[92px] flex-1 flex-col gap-1 rounded border px-2.5 py-1.5 text-left transition hover:bg-surface-2 " +
-              ring[st] +
-              (isActive ? " ring-1 ring-brand" : "")
-            }
+            className="relative flex min-w-0 flex-1 flex-col items-center gap-1.5"
+            aria-current={isActive ? "step" : undefined}
           >
-            <span className="flex items-center gap-1.5">
-              <span className={"h-1.5 w-1.5 rounded-full " + dot[st]} aria-hidden />
-              <span className="text-[10px] tabular-nums text-muted">{String(i + 1).padStart(2, "0")}</span>
+            {/* 虚线连接线：从本节点圆心连到下一个节点。最后一个不画。
+                窄屏（<sm）阶段名竖排会错位，隐藏连接线只留节点。 */}
+            {i < stages.length - 1 ? (
+              <span
+                className="absolute left-1/2 top-[15px] hidden h-px w-full border-t border-dashed border-line sm:block"
+                aria-hidden
+              />
+            ) : null}
+            <span
+              className={
+                "relative z-[1] flex size-[30px] items-center justify-center rounded-full border " +
+                node[st] +
+                (isActive ? " bg-brand ring-4 ring-brand-soft text-white" : "")
+              }
+            >
+              <Icon className="size-3.5" aria-hidden />
             </span>
-            <span className="text-xs font-medium leading-tight">{s.title}</span>
-            <span className="text-[10px]">{label[st]}</span>
+            <span className={"max-w-full truncate text-[11px] leading-tight " + (isActive ? "font-medium text-fg" : "text-muted")}>
+              {s.title}
+            </span>
+            <span className={"text-[10px] leading-none " + (isActive ? "text-brand-text" : "text-muted")}>{label[st]}</span>
           </button>
         );
       })}

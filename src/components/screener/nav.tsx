@@ -38,7 +38,7 @@ import {
   Swords,
   type LucideIcon,
 } from "lucide-react";
-import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
+import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
 import { isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { snapshotAge } from "@/lib/market/format";
@@ -189,11 +189,21 @@ function SideNav() {
     });
   }
   return (
-    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col border-r border-line md:flex">
-      <Link to="/" className="flex items-center gap-2 px-4 pt-4 pb-2">
-        <span className="h-4 w-[3px] rounded-full bg-brand" aria-hidden />
-        <span className="text-[15px] font-medium tracking-widest">赤轨</span>
-        <span className="text-xs text-muted">策略实验台</span>
+    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col border-r border-sidebar-line bg-sidebar md:flex">
+      <Link to="/" className="flex items-center gap-2.5 px-4 pt-4 pb-3">
+        {/* 效果图签名：渐变红圆角方块 mark。全站唯一的大面积品牌用色之一。 */}
+        <span
+          className="h-[26px] w-[26px] shrink-0 rounded-[8px]"
+          aria-hidden
+          style={{
+            background: "radial-gradient(circle at 32% 30%, #ff6a5e, var(--color-brand) 60%, #a82f33)",
+            boxShadow: "inset 0 0 0 1px rgba(229,72,77,.4)",
+          }}
+        />
+        <span className="leading-tight">
+          <span className="block text-[15px] font-bold tracking-wide text-fg">赤轨</span>
+          <span className="block text-[10px] text-muted">策略实验台</span>
+        </span>
       </Link>
       <nav className="flex-1 overflow-y-auto scroll-slim px-2 pb-4" aria-label="主导航">
         {SIDEBAR.map((group) => {
@@ -219,11 +229,14 @@ function SideNav() {
                       to={item.to}
                       aria-current={active ? "page" : undefined}
                       className={
-                        "flex items-center gap-2 rounded px-3 py-2 text-sm " +
-                        (active ? "bg-brand-soft font-medium text-brand-text" : "text-muted hover:bg-surface-2 hover:text-fg")
+                        "relative flex items-center gap-2 rounded px-3 py-2 text-sm " +
+                        // 效果图导航激活态：品牌浅底 + 主文字 + 悬挂在侧栏左缘的 3px 红条
+                        (active
+                          ? "bg-brand-soft font-medium text-fg before:absolute before:-left-2 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-full before:bg-brand"
+                          : "text-muted hover:bg-surface-2 hover:text-fg")
                       }
                     >
-                      <Icon className="size-3.5 shrink-0" aria-hidden />
+                      <Icon className={"size-3.5 shrink-0 " + (active ? "text-brand-text" : "")} aria-hidden />
                       {item.label}
                     </Link>
                   );
@@ -246,17 +259,28 @@ function SideNav() {
  * - AI 今日轮数：ai-log 里 at 落在今天（本地日期）的闭环次数（来自 getAILog）。
  * 之前占位的「计算节点 12/16」是效果图的假数，代码里无此数据源，已撤掉。
  */
-function SystemStatus() {
+/**
+ * 系统状态数据源（侧栏底部块与全局底部状态条共用同一份查询，两处数字永不打架）。
+ * 全部接真实数据源，不编假数：
+ * - 系统状态 / 记账心跳：data/recorder.json（经 getRecorder），心跳 5 分钟没更新算超时。
+ * - 数据延迟：行情快照时间戳 universe.asOf（getUniverse 返回），延迟 = now - asOf。
+ * - 因子待验：因子队列里还没过关、仍在管道中的条目数（pending + tested，来自 getFactorQueue）。
+ * - AI 今日轮数：ai-log 里 at 落在今天（本地日期）的闭环次数（来自 getAILog）。
+ * - 风控闸门：strategy-gates.json 里停用/假释的策略套数（getStrategyGates）。
+ * 之前占位的「计算节点 12/16」是效果图的假数，代码里无此数据源，已撤掉。
+ */
+function useSysStatus() {
   const { data } = useQuery({
     queryKey: ["sys-status"],
     queryFn: async () => {
-      const [rec, uni, queue, log] = await Promise.all([
+      const [rec, uni, queue, log, gates] = await Promise.all([
         getRecorder(),
         getUniverse({ data: { refresh: false } }).catch(() => null),
         getFactorQueue().catch(() => null),
         getAILog().catch(() => null),
+        getStrategyGates().catch(() => null),
       ]);
-      return { rec, uni, queue, log };
+      return { rec, uni, queue, log, gates };
     },
     refetchInterval: 60_000,
   });
@@ -276,32 +300,87 @@ function SystemStatus() {
   const allEntries = data?.log?.allowed ? data.log.entries : [];
   const today = new Date().toISOString().slice(0, 10);
   const todayRounds = allEntries.filter((e) => (e.at ?? "").slice(0, 10) === today).length;
+  const gateValues = Object.values(data?.gates?.gates ?? {});
+  const gatesOff = gateValues.filter((g) => g.state === "disabled").length;
+  const gatesParole = gateValues.filter((g) => g.state === "paroled").length;
+  return { online, ok, beat, stateText, dotClass, delaySec, pending, entries, todayRounds, allEntries, gatesOff, gatesParole };
+}
+
+/** 状态点的辉光（效果图签名）：运行中绿光、异常红光、降级琥珀光。 */
+function dotGlow(dotClass: string): string {
+  if (dotClass.includes("bg-down")) return "shadow-[0_0_6px_rgba(67,165,131,.7)]";
+  if (dotClass.includes("bg-up")) return "shadow-[0_0_6px_rgba(232,77,77,.7)]";
+  if (dotClass.includes("bg-warn")) return "shadow-[0_0_6px_rgba(217,164,65,.7)]";
+  return "";
+}
+
+function SystemStatus() {
+  const s = useSysStatus();
   return (
-    <div className="mt-auto shrink-0 space-y-1.5 border-t border-line px-4 py-3 text-xs">
+    <div className="mt-auto shrink-0 space-y-1.5 border-t border-sidebar-line px-4 py-3 text-xs">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-muted">
-          <span className={"h-2 w-2 rounded-full " + dotClass} aria-hidden />
+          <span className={"h-2 w-2 rounded-full " + s.dotClass + " " + dotGlow(s.dotClass)} aria-hidden />
           系统状态
         </span>
-        <span className={online ? "text-down" : "text-muted"}>{stateText}</span>
+        <span className={s.online ? "text-down" : "text-muted"}>{s.stateText}</span>
       </div>
       <div className="flex items-center justify-between text-muted">
         <span>记账心跳</span>
-        <span className="tabular-nums">{beat}</span>
+        <span className="tabular-nums">{s.beat}</span>
       </div>
       <div className="flex items-center justify-between text-muted">
         <span>数据延迟</span>
-        <span className="tabular-nums">{delaySec != null ? `${delaySec}s` : "—"}</span>
+        <span className="tabular-nums">{s.delaySec != null ? `${s.delaySec}s` : "—"}</span>
       </div>
       <div className="flex items-center justify-between text-muted">
         <span>因子待验</span>
-        <span className="tabular-nums">{entries.length ? `${pending} 只` : "—"}</span>
+        <span className="tabular-nums">{s.entries.length ? `${s.pending} 只` : "—"}</span>
       </div>
       <div className="flex items-center justify-between text-muted">
         <span>AI 今日</span>
-        <span className="tabular-nums">{allEntries.length ? `${todayRounds} 轮` : "—"}</span>
+        <span className="tabular-nums">{s.allEntries.length ? `${s.todayRounds} 轮` : "—"}</span>
       </div>
     </div>
+  );
+}
+
+/**
+ * 全局底部状态条（重设计效果图签名件，桌面端常驻）：
+ * 系统状态 · 数据接口 · 行情延迟 · 策略引擎 · 风控闸门 + 查看详细日志入口。
+ * 数据和侧栏底部块同源（useSysStatus），不编数——闸门那格「N 套停用」来自
+ * strategy-gates.json，没有文件就是已就绪。
+ */
+function StatusBar() {
+  const s = useSysStatus();
+  const linkCls = "inline-flex items-center gap-1 text-muted transition-colors hover:text-fg";
+  return (
+    <footer
+      className="sticky bottom-0 z-20 hidden border-t border-sidebar-line bg-sidebar/95 backdrop-blur-md md:block"
+      role="contentinfo"
+      aria-label="系统状态条"
+    >
+      <div className="flex h-8 items-center gap-5 px-4 text-[11px] text-muted">
+        <span className="flex items-center gap-1.5">
+          <span className={"h-1.5 w-1.5 rounded-full " + s.dotClass + " " + dotGlow(s.dotClass)} aria-hidden />
+          系统状态
+        </span>
+        <span>
+          数据接口: <span className={s.delaySec != null && s.delaySec < 120 ? "text-down" : "text-warn"}>{s.delaySec != null && s.delaySec < 120 ? "正常" : "延迟"}</span>
+        </span>
+        <span className="tabular-nums">行情延迟: {s.delaySec != null ? `${s.delaySec}s` : "—"}</span>
+        <span>
+          策略引擎: <span className={s.online ? "text-down" : "text-warn"}>{s.online ? "正常" : s.ok ? "心跳超时" : "离线"}</span>
+        </span>
+        <span>
+          风控闸门: <span className={s.gatesOff === 0 ? "text-down" : "text-warn"}>{s.gatesOff === 0 ? "已就绪" : `${s.gatesOff} 套停用${s.gatesParole > 0 ? ` · ${s.gatesParole} 套假释` : ""}`}</span>
+        </span>
+        <Link to="/settings" className={`${linkCls} ml-auto`}>
+          查看详细日志
+          <span aria-hidden>→</span>
+        </Link>
+      </div>
+    </footer>
   );
 }
 
@@ -949,6 +1028,7 @@ export function Frame({
 
           <div className="relative z-[1] flex flex-col gap-3">{children}</div>
         </main>
+        <StatusBar />
       </div>
     </div>
   );

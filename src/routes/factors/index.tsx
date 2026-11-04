@@ -24,7 +24,7 @@ import { SourceLine } from "@/components/source-line";
 import { signedPct } from "@/lib/market/format";
 import { getFactorRuns, getTombstones, runFactorTest } from "@/lib/market/quotes.functions";
 import { PARAM_BOUNDS } from "@/lib/market/factor-test-runner";
-import { batchSummary, type BatchSummary } from "@/lib/market/factors-view";
+import { batchSummary, GATE_LEGEND, type BatchSummary } from "@/lib/market/factors-view";
 import type { FactorRunsPayload } from "@/lib/market/factor-runs-file";
 import type { TombstoneRecord } from "@/lib/market/factor-tombstones";
 import {
@@ -140,6 +140,42 @@ function TestControls({ defaults }: { defaults: { n: number; buckets: number } }
 }
 
 /**
+ * 六关卡（重设计效果图的「因子实验室·六关」横排卡）。
+ * 关卡名和判据来自 GATE_LEGEND（代码里预登记的那六关），**不是**效果图草稿上
+ * 那套「数据清洗/信号生成」——那是画图的人想当然的流水线，赤轨的六关是判决关，
+ * 硬抄过来等于编数据。每关的「x/y 过」按本批 rows 逐关数出来，鼠标悬停看判据。
+ */
+function GateCards({ rows }: { rows: NonNullable<FactorRunsPayload["batch"]>["rows"] }) {
+  return (
+    <Panel title="六关判决" note="逐关数本批因子过了几只——悬停看判据" bodyClassName="px-3.5 py-3">
+      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {GATE_LEGEND.map((gate, i) => {
+          const passed = rows.filter((r) => r.gates[gate.key] === true).length;
+          const total = rows.length;
+          const rate = total > 0 ? passed / total : 0;
+          return (
+            <li
+              key={gate.key}
+              title={`${gate.label}：${gate.rule}`}
+              className="rounded border border-line bg-surface-2/60 px-2.5 py-2"
+            >
+              <div className="flex items-baseline justify-between">
+                <span className="text-[10px] tabular-nums text-muted">{String(i + 1).padStart(2, "0")}</span>
+                <span className={"text-[10px] tabular-nums " + (rate >= 0.5 ? "text-down" : rate > 0 ? "text-warn" : "text-muted")}>
+                  {passed}/{total} 过
+                </span>
+              </div>
+              <div className="mt-0.5 text-sm font-medium">{gate.label}</div>
+              <Prog value={rate} className="mt-1.5" />
+            </li>
+          );
+        })}
+      </ol>
+    </Panel>
+  );
+}
+
+/**
  * 因子实验室速览卡：照效果图「因子实验室」三栏（门控结果 / 因子成色 / 因子墓碑）。
  * 全部接真实数据——效果图里那几条「IC 均值 / IC IR / 换手率 / 覆盖度」是草图占位，
  * 赤轨没有这些数，硬填=编假数，违反纪律；所以第二栏换成真实可算的成色指标，
@@ -248,6 +284,7 @@ function FactorsIndexPage() {
     >
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
       <FactorSectionTabs />
+      {runs.batch ? <GateCards rows={runs.batch.rows} /> : null}
       {runs.batch ? <FactorLabCard summary={summary} tombstones={tombstones} batchIndex={runs.batchIndex} /> : null}
 
       {/* 检验参数 + 批次选择器：横向铺满（像首页那样双栏用宽），不再挤成一条瘦列 */}

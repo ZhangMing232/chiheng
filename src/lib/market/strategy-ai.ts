@@ -22,7 +22,10 @@
 import { readFile } from "node:fs/promises";
 import { callAIWithFallback, readAIConfig, readQueue } from "./factor-queue.ts";
 import { appendAILog, readAILog, strategySelfHistory } from "./ai-log.ts";
-import { readChallengers, readChampions, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
+import { MAX_RUNNING_PER_STYLE, readChallengers, readChampions, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
+
+// 常量的权威定义在 challenger.ts（客户端安全）；这里 re-export 保住老导入路径（测试与潜在调用方）。
+export { MAX_RUNNING_PER_STYLE };
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, STYLES, STYLE_IDS, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
@@ -42,8 +45,6 @@ export const KNOBS = {
 
 export type KnobKey = keyof typeof KNOBS;
 
-/** 每套策略同时在跑的挑战者上限——防止 AI 一口气提名一堆把纸面名额稀释成噪声。 */
-export const MAX_RUNNING_PER_STYLE = 2;
 
 // ── 纯函数：校验 ────────────────────────────────────────────────
 
