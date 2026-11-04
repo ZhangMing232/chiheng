@@ -199,7 +199,7 @@ function QueueHead() {
 /** 待验队列的一行。划线淘汰的（tombstone/decayed）不走这里——它们被收进下方默认折叠的
  *  「已淘汰 / 失效因子」区，照 lab-panel 里「失效策略」的做法：失效的东西不和正常的混在一起。 */
 function QueueRow({ e }: { e: QueueEntry }) {
-  const st = QUEUE_STATUS[e.status];
+  const st = QUEUE_STATUS[e.status] ?? { label: String(e.status), className: "text-muted" };
   return (
     <tr key={e.id} className="border-b border-line last:border-b-0">
       <td data-l="状态" className={`px-2.5 py-1.5 ${st.className}`}>{st.label}</td>
@@ -441,7 +441,7 @@ export function FactorLoopPanels() {
           {chal.length > 0 ? (
             <ul className="space-y-1">
               {chal.slice(-12).reverse().map((c) => {
-                const st = CHAL_STATUS[c.status];
+                const st = CHAL_STATUS[c.status] ?? { label: String(c.status), className: "text-muted" };
                 const smp = samples[c.id];
                 const open = openByStyle[c.style] ?? 0;
                 const poolFull = c.status === "running" && open >= MAX_POSITIONS_DEFAULT;

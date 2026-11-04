@@ -346,7 +346,11 @@ if (phase.date) {
       );
       if (decision.action === "none") continue;
       chalChanged = true;
-      chal.status = decision.action;
+      // 判决动作 → 挑战者状态是两套词表：action 是 promote/reject/inconclusive，
+      // 状态是 promoted/rejected/inconclusive。直接赋值会把 "reject" 落进账
+      // （2026-10-28 实际发生过，/factors 挑战者面板按状态查表直接崩）。
+      chal.status =
+        decision.action === "promote" ? "promoted" : decision.action === "reject" ? "rejected" : "inconclusive";
       // 归因留档：把判决 + 它为什么发生记进失败档案（append-only），优化循环读它找根因。
       try {
         const verdict = attributeChallengerVerdict({
