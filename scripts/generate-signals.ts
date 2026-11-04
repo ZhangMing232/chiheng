@@ -57,13 +57,13 @@ async function main() {
 
   // 2. 加载最新 K 线（data/backtest/kline/ 目录下最新的 JSON）
   const files = (await readdir(KLINE)).filter(f => f.endsWith(".json")).sort();
-  let klineMap = new Map<string, Row[]>();
+  const klineMap = new Map<string, Row[]>();
   for (const id of ids.slice(0, 3000)) {
     try {
       const raw = JSON.parse(await readFile(`${KLINE}/${id}.json`, "utf8"));
       if (!Array.isArray(raw)) continue;
       klineMap.set(id, raw as Row[]);
-    } catch {}
+    } catch { /* 没有 K 线缓存的票跳过 */ }
   }
   console.log(`K 线命中：${klineMap.size} 只`);
 

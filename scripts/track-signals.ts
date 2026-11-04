@@ -91,7 +91,7 @@ async function main() {
 
   // 2. 准备 K 线缓存索引
   const klineCache = new Set<string>();
-  try { klineCache.add(...[...readdirSync(KLINE).filter(f => f.endsWith(".json"))].map(f => f.replace(".json", ""))); } catch {}
+  try { klineCache.add(...[...readdirSync(KLINE).filter(f => f.endsWith(".json"))].map(f => f.replace(".json", ""))); } catch { /* 缓存目录还没建 = 全部未缓存 */ }
 
   const tracked: TrackedSignal[] = [];
   const seen = new Set<string>();
@@ -128,7 +128,7 @@ async function main() {
             source = "kline";
           }
         }
-      } catch {}
+      } catch { /* 单条历史信号处理失败不拖垮整批 */ }
     }
 
     // 缓存里没有 → 从腾讯快照拉

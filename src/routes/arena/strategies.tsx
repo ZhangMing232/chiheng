@@ -44,7 +44,7 @@ function ArenaStrategies() {
 
   async function generateExpr() {
     if (!nl.trim()) return; setAiBusy(true); setAiError(""); setAiExpr("");
-    try { const res = await expressNaturalLanguage({ data: { q: nl.trim() } }); res.ok ? setAiExpr(res.expr) : setAiError(res.error ?? "生成失败"); } catch (e) { setAiError(e instanceof Error ? e.message : String(e)); } finally { setAiBusy(false); }
+    try { const res = await expressNaturalLanguage({ data: { q: nl.trim() } }); if (res.ok) setAiExpr(res.expr); else setAiError(res.error ?? "生成失败"); } catch (e) { setAiError(e instanceof Error ? e.message : String(e)); } finally { setAiBusy(false); }
   }
   function validateManual() { const r = validateFactorExpr(manualExpr.trim()); setExprError(r.ok ? "" : (r as { ok: false; error: string }).error); }
   async function add(e: FormEvent) {
