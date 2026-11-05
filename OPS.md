@@ -125,3 +125,21 @@
 - 筛选范围（板块/股价/市值，偏好存 `prefs` 集合）
 
 这些做之前，先保证上面四步跑通、自动记账验证通过——否则功能堆上去，账本还是空的。
+
+---
+
+# 本机数据备份（2026-11-05 起）
+
+`data/` 是唯一真账（判决历史、因子队列、AI 日志都在里面），在外置盘上，741MB。
+它不进 git，一次误删就是永久丢——备份如下：
+
+| 项 | 内容 |
+|---|---|
+| 自动 | launchd `com.chiheng.backup`，**每天 23:30** 全量快照（plist 在 `~/Library/LaunchAgents/`） |
+| 手动 | `node scripts/snapshot-data.mjs`（约 8 秒；动 data/ 前、改判决函数前、大改造前必跑） |
+| 落点 | `~/chiheng-backup/full-<日期-时分>/`，**保留最近 5 份**，更旧的自动清 |
+| 日志 | `data/snapshot.log`（成功行是「✅ 已快照：…」） |
+| 恢复 | `rm -rf data && cp -R ~/chiheng-backup/full-<最新>/ data`，然后 `launchctl kickstart -k gui/$(id -u)/com.chiheng.serve` |
+
+检查备份活没活：`ls -t ~/chiheng-backup | head -1` 里的日期应该是昨天或今天。
+注意外置盘没挂载时 23:30 那次会失败（log 都写不进去）——第二天补跑手动命令即可。

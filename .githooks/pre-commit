@@ -1,0 +1,14 @@
+#!/bin/bash
+# 提交闸门：typecheck 必须过，data/ 不许进 git。
+# 为什么在本地闸而不是 CI：本仓库没有 CI，类型错误曾经推到 main 之后才发现
+# （2026-11-04，autopsy 空态缺字段，推送后才补）。全量 typecheck 约十几秒，值得。
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-commit: typecheck…"
+npx tsc --noEmit
+
+if git diff --cached --name-only | grep -q "^data/"; then
+  echo "pre-commit: data/ 是运行时数据，不进 git（.gitignore 之外也不许 add -f）" >&2
+  exit 1
+fi
