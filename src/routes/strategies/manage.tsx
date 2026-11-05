@@ -9,18 +9,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
+import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { Swords, Plus, Trash2, Sparkles, WandIcon } from "lucide-react";
 import { expressNaturalLanguage, getUserStrategies, saveUserStrategies, type UserStrategy } from "@/lib/market/quotes.functions";
 import { validateFactorExpr } from "@/lib/market/factor-expr";
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-export const ARANA_TABS = [
-  { to: "/arena/signals", label: "每日信号" },
-  { to: "/arena/strategies", label: "策略管理" },
-  { to: "/arena/tracking", label: "战绩跟踪" },
-  { to: "/arena/autopsy", label: "失败归因" },
-];
 
 function ArenaStrategies() {
   const { data: strategies = [] } = useQuery({
@@ -58,10 +53,10 @@ function ArenaStrategies() {
   function tabClass(active: boolean) { return "rounded border px-2 py-1 text-xs transition " + (active ? "border-brand text-fg" : "border-line text-muted hover:text-fg"); }
 
   return (
-    <Frame aside="策略竞技场">
+    <Frame aside="策略">
       <Panel title="策略管理" note="AI 帮写表达式 + 手工输入，保存后可在选股和回测里用。">
         <div className="flex flex-col gap-4 px-4 py-3">
-          <SectionTabs tabs={ARANA_TABS} ariaLabel="竞技场子页面" />
+          <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
 
           <div>
             <button type="button" onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-sm"><Plus size={14} /> 添加策略</button>
@@ -129,4 +124,4 @@ function ArenaStrategies() {
   );
 }
 
-export const Route = createFileRoute("/arena/strategies")({ component: ArenaStrategies });
+export const Route = createFileRoute("/strategies/manage")({ component: ArenaStrategies });

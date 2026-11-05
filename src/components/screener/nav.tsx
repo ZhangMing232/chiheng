@@ -35,7 +35,6 @@ import {
   Settings2,
   Sparkles,
   Star,
-  Swords,
   type LucideIcon,
 } from "lucide-react";
 import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
@@ -100,7 +99,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/arena" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "总览", items: [{ to: "/", label: "总览", icon: LayoutDashboard }] },
   {
@@ -129,7 +128,6 @@ const SIDEBAR: {
     items: [
       { to: "/research", label: "研究", icon: FileSearch },
       { to: "/my-stocks", label: "自选", icon: Star },
-      { to: "/arena", label: "策略竞技场", icon: Swords },
     ],
   },
   {
@@ -422,6 +420,9 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "笔记", keywords: "notes", to: "/research/notes" },
   { label: "自选", keywords: "watchlist my-stocks", to: "/my-stocks" },
   { label: "策略看板", keywords: "screener 策略 选股 持仓", to: "/strategies/screener" },
+  { label: "策略管理", keywords: "arena 竞技场 策略管理", to: "/strategies/manage" },
+  { label: "每日信号", keywords: "signals 竞技场 信号", to: "/strategies/signals" },
+  { label: "失败归因", keywords: "autopsy 归因 亏损", to: "/strategies/autopsy" },
   { label: "因子实验室", keywords: "factors 因子", to: "/factors" },
   { label: "回测", keywords: "backtest", to: "/backtest" },
   { label: "AI 工作台", keywords: "ai 智能", to: "/ai" },

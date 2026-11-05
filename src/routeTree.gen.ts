@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AiRouteImport } from './routes/ai'
-import { Route as ArenaRouteImport } from './routes/arena'
 import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as ButlerRouteImport } from './routes/butler'
 import { Route as CalendarRouteImport } from './routes/calendar'
@@ -42,10 +41,7 @@ import { Route as AiIndexRouteImport } from './routes/ai/index'
 import { Route as AiConfigRouteImport } from './routes/ai/config'
 import { Route as AiRulesRouteImport } from './routes/ai/rules'
 import { Route as AiUsageRouteImport } from './routes/ai/usage'
-import { Route as ArenaAutopsyRouteImport } from './routes/arena/autopsy'
-import { Route as ArenaSignalsRouteImport } from './routes/arena/signals'
-import { Route as ArenaStrategiesRouteImport } from './routes/arena/strategies'
-import { Route as ArenaTrackingRouteImport } from './routes/arena/tracking'
+import { Route as ArenaSplatRouteImport } from './routes/arena.$'
 import { Route as FactorsIndexRouteImport } from './routes/factors/index'
 import { Route as FactorsAttribRouteImport } from './routes/factors/attrib'
 import { Route as FactorsBaselineRouteImport } from './routes/factors/baseline'
@@ -61,8 +57,12 @@ import { Route as ReviewIndexRouteImport } from './routes/review/index'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewFlowRouteImport } from './routes/review/flow'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
+import { Route as StrategiesAutopsyRouteImport } from './routes/strategies/autopsy'
+import { Route as StrategiesManageRouteImport } from './routes/strategies/manage'
 import { Route as StrategiesPositionsRouteImport } from './routes/strategies/positions'
 import { Route as StrategiesScreenerRouteImport } from './routes/strategies/screener'
+import { Route as StrategiesSignalsRouteImport } from './routes/strategies/signals'
+import { Route as StrategiesTrackingRouteImport } from './routes/strategies/tracking'
 import { Route as ReviewFlowIndexRouteImport } from './routes/review/flow/index'
 import { Route as ReviewFlowCloseRouteImport } from './routes/review/flow/close'
 import { Route as ReviewFlowFuturesRouteImport } from './routes/review/flow/futures'
@@ -86,11 +86,6 @@ const AdminRoute = AdminRouteImport.update({
 const AiRoute = AiRouteImport.update({
   id: '/ai',
   path: '/ai',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ArenaRoute = ArenaRouteImport.update({
-  id: '/arena',
-  path: '/arena',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestRoute = BacktestRouteImport.update({
@@ -238,25 +233,10 @@ const AiUsageRoute = AiUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => AiRoute,
 } as any)
-const ArenaAutopsyRoute = ArenaAutopsyRouteImport.update({
-  id: '/autopsy',
-  path: '/autopsy',
-  getParentRoute: () => ArenaRoute,
-} as any)
-const ArenaSignalsRoute = ArenaSignalsRouteImport.update({
-  id: '/signals',
-  path: '/signals',
-  getParentRoute: () => ArenaRoute,
-} as any)
-const ArenaStrategiesRoute = ArenaStrategiesRouteImport.update({
-  id: '/strategies',
-  path: '/strategies',
-  getParentRoute: () => ArenaRoute,
-} as any)
-const ArenaTrackingRoute = ArenaTrackingRouteImport.update({
-  id: '/tracking',
-  path: '/tracking',
-  getParentRoute: () => ArenaRoute,
+const ArenaSplatRoute = ArenaSplatRouteImport.update({
+  id: '/arena/$',
+  path: '/arena/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const FactorsIndexRoute = FactorsIndexRouteImport.update({
   id: '/factors/',
@@ -333,6 +313,16 @@ const ReviewSignalsRoute = ReviewSignalsRouteImport.update({
   path: '/signals',
   getParentRoute: () => ReviewRoute,
 } as any)
+const StrategiesAutopsyRoute = StrategiesAutopsyRouteImport.update({
+  id: '/autopsy',
+  path: '/autopsy',
+  getParentRoute: () => StrategiesRoute,
+} as any)
+const StrategiesManageRoute = StrategiesManageRouteImport.update({
+  id: '/manage',
+  path: '/manage',
+  getParentRoute: () => StrategiesRoute,
+} as any)
 const StrategiesPositionsRoute = StrategiesPositionsRouteImport.update({
   id: '/positions',
   path: '/positions',
@@ -341,6 +331,16 @@ const StrategiesPositionsRoute = StrategiesPositionsRouteImport.update({
 const StrategiesScreenerRoute = StrategiesScreenerRouteImport.update({
   id: '/screener',
   path: '/screener',
+  getParentRoute: () => StrategiesRoute,
+} as any)
+const StrategiesSignalsRoute = StrategiesSignalsRouteImport.update({
+  id: '/signals',
+  path: '/signals',
+  getParentRoute: () => StrategiesRoute,
+} as any)
+const StrategiesTrackingRoute = StrategiesTrackingRouteImport.update({
+  id: '/tracking',
+  path: '/tracking',
   getParentRoute: () => StrategiesRoute,
 } as any)
 const ReviewFlowIndexRoute = ReviewFlowIndexRouteImport.update({
@@ -393,7 +393,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
-  '/arena': typeof ArenaRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -422,10 +421,7 @@ export interface FileRoutesByFullPath {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
-  '/arena/autopsy': typeof ArenaAutopsyRoute
-  '/arena/signals': typeof ArenaSignalsRoute
-  '/arena/strategies': typeof ArenaStrategiesRoute
-  '/arena/tracking': typeof ArenaTrackingRoute
+  '/arena/$': typeof ArenaSplatRoute
   '/factors/attrib': typeof FactorsAttribRoute
   '/factors/baseline': typeof FactorsBaselineRoute
   '/factors/buckets': typeof FactorsBucketsRoute
@@ -438,8 +434,12 @@ export interface FileRoutesByFullPath {
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
+  '/strategies/autopsy': typeof StrategiesAutopsyRoute
+  '/strategies/manage': typeof StrategiesManageRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/strategies/signals': typeof StrategiesSignalsRoute
+  '/strategies/tracking': typeof StrategiesTrackingRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
   '/research/': typeof ResearchIndexRoute
@@ -457,7 +457,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/arena': typeof ArenaRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -484,10 +483,7 @@ export interface FileRoutesByTo {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
-  '/arena/autopsy': typeof ArenaAutopsyRoute
-  '/arena/signals': typeof ArenaSignalsRoute
-  '/arena/strategies': typeof ArenaStrategiesRoute
-  '/arena/tracking': typeof ArenaTrackingRoute
+  '/arena/$': typeof ArenaSplatRoute
   '/factors/attrib': typeof FactorsAttribRoute
   '/factors/baseline': typeof FactorsBaselineRoute
   '/factors/buckets': typeof FactorsBucketsRoute
@@ -499,8 +495,12 @@ export interface FileRoutesByTo {
   '/research/reports': typeof ResearchReportsRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
+  '/strategies/autopsy': typeof StrategiesAutopsyRoute
+  '/strategies/manage': typeof StrategiesManageRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/strategies/signals': typeof StrategiesSignalsRoute
+  '/strategies/tracking': typeof StrategiesTrackingRoute
   '/ai': typeof AiIndexRoute
   '/factors': typeof FactorsIndexRoute
   '/research': typeof ResearchIndexRoute
@@ -520,7 +520,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
-  '/arena': typeof ArenaRouteWithChildren
   '/backtest': typeof BacktestRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
@@ -549,10 +548,7 @@ export interface FileRoutesById {
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
-  '/arena/autopsy': typeof ArenaAutopsyRoute
-  '/arena/signals': typeof ArenaSignalsRoute
-  '/arena/strategies': typeof ArenaStrategiesRoute
-  '/arena/tracking': typeof ArenaTrackingRoute
+  '/arena/$': typeof ArenaSplatRoute
   '/factors/attrib': typeof FactorsAttribRoute
   '/factors/baseline': typeof FactorsBaselineRoute
   '/factors/buckets': typeof FactorsBucketsRoute
@@ -565,8 +561,12 @@ export interface FileRoutesById {
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
+  '/strategies/autopsy': typeof StrategiesAutopsyRoute
+  '/strategies/manage': typeof StrategiesManageRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
+  '/strategies/signals': typeof StrategiesSignalsRoute
+  '/strategies/tracking': typeof StrategiesTrackingRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
   '/research/': typeof ResearchIndexRoute
@@ -587,7 +587,6 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/ai'
-    | '/arena'
     | '/backtest'
     | '/butler'
     | '/calendar'
@@ -616,10 +615,7 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
-    | '/arena/autopsy'
-    | '/arena/signals'
-    | '/arena/strategies'
-    | '/arena/tracking'
+    | '/arena/$'
     | '/factors/attrib'
     | '/factors/baseline'
     | '/factors/buckets'
@@ -632,8 +628,12 @@ export interface FileRouteTypes {
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
+    | '/strategies/autopsy'
+    | '/strategies/manage'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/strategies/signals'
+    | '/strategies/tracking'
     | '/ai/'
     | '/factors/'
     | '/research/'
@@ -651,7 +651,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
-    | '/arena'
     | '/backtest'
     | '/butler'
     | '/calendar'
@@ -678,10 +677,7 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
-    | '/arena/autopsy'
-    | '/arena/signals'
-    | '/arena/strategies'
-    | '/arena/tracking'
+    | '/arena/$'
     | '/factors/attrib'
     | '/factors/baseline'
     | '/factors/buckets'
@@ -693,8 +689,12 @@ export interface FileRouteTypes {
     | '/research/reports'
     | '/review/events'
     | '/review/signals'
+    | '/strategies/autopsy'
+    | '/strategies/manage'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/strategies/signals'
+    | '/strategies/tracking'
     | '/ai'
     | '/factors'
     | '/research'
@@ -713,7 +713,6 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/ai'
-    | '/arena'
     | '/backtest'
     | '/butler'
     | '/calendar'
@@ -742,10 +741,7 @@ export interface FileRouteTypes {
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
-    | '/arena/autopsy'
-    | '/arena/signals'
-    | '/arena/strategies'
-    | '/arena/tracking'
+    | '/arena/$'
     | '/factors/attrib'
     | '/factors/baseline'
     | '/factors/buckets'
@@ -758,8 +754,12 @@ export interface FileRouteTypes {
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
+    | '/strategies/autopsy'
+    | '/strategies/manage'
     | '/strategies/positions'
     | '/strategies/screener'
+    | '/strategies/signals'
+    | '/strategies/tracking'
     | '/ai/'
     | '/factors/'
     | '/research/'
@@ -779,7 +779,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AiRoute: typeof AiRouteWithChildren
-  ArenaRoute: typeof ArenaRouteWithChildren
   BacktestRoute: typeof BacktestRoute
   ButlerRoute: typeof ButlerRoute
   CalendarRoute: typeof CalendarRoute
@@ -805,6 +804,7 @@ export interface RootRouteChildren {
   StrategiesRoute: typeof StrategiesRouteWithChildren
   StudioRoute: typeof StudioRoute
   SymbolRoute: typeof SymbolRoute
+  ArenaSplatRoute: typeof ArenaSplatRoute
   FactorsAttribRoute: typeof FactorsAttribRoute
   FactorsBaselineRoute: typeof FactorsBaselineRoute
   FactorsBucketsRoute: typeof FactorsBucketsRoute
@@ -834,13 +834,6 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/ai'
       preLoaderRoute: typeof AiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/arena': {
-      id: '/arena'
-      path: '/arena'
-      fullPath: '/arena'
-      preLoaderRoute: typeof ArenaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/backtest': {
@@ -1046,33 +1039,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiUsageRouteImport
       parentRoute: typeof AiRoute
     }
-    '/arena/autopsy': {
-      id: '/arena/autopsy'
-      path: '/autopsy'
-      fullPath: '/arena/autopsy'
-      preLoaderRoute: typeof ArenaAutopsyRouteImport
-      parentRoute: typeof ArenaRoute
-    }
-    '/arena/signals': {
-      id: '/arena/signals'
-      path: '/signals'
-      fullPath: '/arena/signals'
-      preLoaderRoute: typeof ArenaSignalsRouteImport
-      parentRoute: typeof ArenaRoute
-    }
-    '/arena/strategies': {
-      id: '/arena/strategies'
-      path: '/strategies'
-      fullPath: '/arena/strategies'
-      preLoaderRoute: typeof ArenaStrategiesRouteImport
-      parentRoute: typeof ArenaRoute
-    }
-    '/arena/tracking': {
-      id: '/arena/tracking'
-      path: '/tracking'
-      fullPath: '/arena/tracking'
-      preLoaderRoute: typeof ArenaTrackingRouteImport
-      parentRoute: typeof ArenaRoute
+    '/arena/$': {
+      id: '/arena/$'
+      path: '/arena/$'
+      fullPath: '/arena/$'
+      preLoaderRoute: typeof ArenaSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/factors/': {
       id: '/factors/'
@@ -1179,6 +1151,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewSignalsRouteImport
       parentRoute: typeof ReviewRoute
     }
+    '/strategies/autopsy': {
+      id: '/strategies/autopsy'
+      path: '/autopsy'
+      fullPath: '/strategies/autopsy'
+      preLoaderRoute: typeof StrategiesAutopsyRouteImport
+      parentRoute: typeof StrategiesRoute
+    }
+    '/strategies/manage': {
+      id: '/strategies/manage'
+      path: '/manage'
+      fullPath: '/strategies/manage'
+      preLoaderRoute: typeof StrategiesManageRouteImport
+      parentRoute: typeof StrategiesRoute
+    }
     '/strategies/positions': {
       id: '/strategies/positions'
       path: '/positions'
@@ -1191,6 +1177,20 @@ declare module '@tanstack/react-router' {
       path: '/screener'
       fullPath: '/strategies/screener'
       preLoaderRoute: typeof StrategiesScreenerRouteImport
+      parentRoute: typeof StrategiesRoute
+    }
+    '/strategies/signals': {
+      id: '/strategies/signals'
+      path: '/signals'
+      fullPath: '/strategies/signals'
+      preLoaderRoute: typeof StrategiesSignalsRouteImport
+      parentRoute: typeof StrategiesRoute
+    }
+    '/strategies/tracking': {
+      id: '/strategies/tracking'
+      path: '/tracking'
+      fullPath: '/strategies/tracking'
+      preLoaderRoute: typeof StrategiesTrackingRouteImport
       parentRoute: typeof StrategiesRoute
     }
     '/review/flow/': {
@@ -1275,22 +1275,6 @@ const AiRouteChildren: AiRouteChildren = {
 
 const AiRouteWithChildren = AiRoute._addFileChildren(AiRouteChildren)
 
-interface ArenaRouteChildren {
-  ArenaAutopsyRoute: typeof ArenaAutopsyRoute
-  ArenaSignalsRoute: typeof ArenaSignalsRoute
-  ArenaStrategiesRoute: typeof ArenaStrategiesRoute
-  ArenaTrackingRoute: typeof ArenaTrackingRoute
-}
-
-const ArenaRouteChildren: ArenaRouteChildren = {
-  ArenaAutopsyRoute: ArenaAutopsyRoute,
-  ArenaSignalsRoute: ArenaSignalsRoute,
-  ArenaStrategiesRoute: ArenaStrategiesRoute,
-  ArenaTrackingRoute: ArenaTrackingRoute,
-}
-
-const ArenaRouteWithChildren = ArenaRoute._addFileChildren(ArenaRouteChildren)
-
 interface FlowRouteChildren {
   FlowSplatRoute: typeof FlowSplatRoute
 }
@@ -1365,13 +1349,21 @@ const ReviewRouteWithChildren =
   ReviewRoute._addFileChildren(ReviewRouteChildren)
 
 interface StrategiesRouteChildren {
+  StrategiesAutopsyRoute: typeof StrategiesAutopsyRoute
+  StrategiesManageRoute: typeof StrategiesManageRoute
   StrategiesPositionsRoute: typeof StrategiesPositionsRoute
   StrategiesScreenerRoute: typeof StrategiesScreenerRoute
+  StrategiesSignalsRoute: typeof StrategiesSignalsRoute
+  StrategiesTrackingRoute: typeof StrategiesTrackingRoute
 }
 
 const StrategiesRouteChildren: StrategiesRouteChildren = {
+  StrategiesAutopsyRoute: StrategiesAutopsyRoute,
+  StrategiesManageRoute: StrategiesManageRoute,
   StrategiesPositionsRoute: StrategiesPositionsRoute,
   StrategiesScreenerRoute: StrategiesScreenerRoute,
+  StrategiesSignalsRoute: StrategiesSignalsRoute,
+  StrategiesTrackingRoute: StrategiesTrackingRoute,
 }
 
 const StrategiesRouteWithChildren = StrategiesRoute._addFileChildren(
@@ -1382,7 +1374,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AiRoute: AiRouteWithChildren,
-  ArenaRoute: ArenaRouteWithChildren,
   BacktestRoute: BacktestRoute,
   ButlerRoute: ButlerRoute,
   CalendarRoute: CalendarRoute,
@@ -1408,6 +1399,7 @@ const rootRouteChildren: RootRouteChildren = {
   StrategiesRoute: StrategiesRouteWithChildren,
   StudioRoute: StudioRoute,
   SymbolRoute: SymbolRoute,
+  ArenaSplatRoute: ArenaSplatRoute,
   FactorsAttribRoute: FactorsAttribRoute,
   FactorsBaselineRoute: FactorsBaselineRoute,
   FactorsBucketsRoute: FactorsBucketsRoute,

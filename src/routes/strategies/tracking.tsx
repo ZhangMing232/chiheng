@@ -8,16 +8,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
+import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { getSignalTracking } from "@/lib/market/quotes.functions";
 import type { SignalTrackItem, SignalTrackSummary } from "@/lib/market/quotes.functions";
 import { Trophy, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
-export const ARANA_TABS = [
-  { to: "/arena/signals", label: "每日信号" },
-  { to: "/arena/strategies", label: "策略管理" },
-  { to: "/arena/tracking", label: "战绩跟踪" },
-  { to: "/arena/autopsy", label: "失败归因" },
-];
 
 function ArenaTracking() {
   // 用 loader 预热：纯 useQuery 在 SSR 阶段拿不到数据，首屏会闪一下「还没有跟踪数据」。
@@ -32,10 +27,10 @@ function ArenaTracking() {
   const signals: SignalTrackItem[] = data?.signals ?? [];
 
   return (
-    <Frame aside="策略竞技场">
+    <Frame aside="策略">
       <Panel title="战绩跟踪" note="信号次日涨跌的完整记录。">
         <div className="flex flex-col gap-4 px-4 py-3">
-          <SectionTabs tabs={ARANA_TABS} ariaLabel="竞技场子页面" />
+          <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
 
           {!summary || signals.length === 0 ? (
             <div className="rounded border border-line bg-surface2 py-12 text-center text-sm text-muted">
@@ -108,7 +103,7 @@ function ArenaTracking() {
   );
 }
 
-export const Route = createFileRoute("/arena/tracking")({
+export const Route = createFileRoute("/strategies/tracking")({
   loader: async () => {
     try {
       return await getSignalTracking();

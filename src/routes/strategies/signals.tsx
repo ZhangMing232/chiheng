@@ -7,18 +7,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
+import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { Zap, AlertTriangle, CheckCircle, Trophy } from "lucide-react";
 import { getSignalCandidates, getSignalReviewed, getSignalTracking } from "@/lib/market/quotes.functions";
 import type { SignalCandidate, SignalReviewed, SignalTrackSummary } from "@/lib/market/quotes.functions";
 
-export const ARANA_TABS = [
-  { to: "/arena/signals", label: "每日信号" },
-  { to: "/arena/strategies", label: "策略管理" },
-  { to: "/arena/tracking", label: "战绩跟踪" },
-  { to: "/arena/autopsy", label: "失败归因" },
-];
 
-export const Route = createFileRoute("/arena/signals")({
+export const Route = createFileRoute("/strategies/signals")({
   loader: async () => {
     const [c, r, t] = await Promise.all([
       getSignalCandidates().catch(() => ({ signals: [] as SignalCandidate[] })),
@@ -89,10 +84,10 @@ function ArenaSignals() {
   const hasSignals = candidates.length > 0 || reviewed.length > 0;
 
   return (
-    <Frame aside="策略竞技场">
+    <Frame aside="策略">
       <Panel title="每日信号" note="收盘后初筛，竞价后审核，信号全透明——你决定跟不跟。">
         <div className="flex flex-col gap-4 px-4 py-3">
-          <SectionTabs tabs={ARANA_TABS} ariaLabel="竞技场子页面" />
+          <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
 
           {tracking && tracking.totalSignals > 0 && (
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded border border-line bg-surface2 px-4 py-3 text-sm">

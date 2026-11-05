@@ -1,6 +1,6 @@
 /**
  * 信号跟踪：每天收盘后（15:10）跑，拉昨天候选信号的次日涨跌幅。
- * 输出 data/signals/tracking.json，/arena 页面读它显示战绩。
+ * 输出 data/signals/tracking.json，/strategies/tracking 页面读它显示战绩。
  *
  * 用法：
  *   node --experimental-strip-types --import ./scripts/alias.mjs scripts/track-signals.ts

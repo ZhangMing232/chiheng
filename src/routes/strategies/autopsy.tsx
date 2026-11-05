@@ -21,6 +21,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Prog, Stat } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
+import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getLossAttribution } from "@/lib/market/quotes.functions";
 import {
@@ -35,14 +36,8 @@ import {
   type TradeLossSummary,
 } from "@/lib/market/loss-attrib";
 
-const ARANA_TABS = [
-  { to: "/arena/signals", label: "每日信号" },
-  { to: "/arena/strategies", label: "策略管理" },
-  { to: "/arena/tracking", label: "战绩跟踪" },
-  { to: "/arena/autopsy", label: "失败归因" },
-];
 
-export const Route = createFileRoute("/arena/autopsy")({
+export const Route = createFileRoute("/strategies/autopsy")({
   loader: async (): Promise<{ summary: TradeLossSummary; verdicts: ChallengerVerdict[] }> => {
     return await getLossAttribution().catch(() => ({
       summary: { total: 0, losses: 0, byCause: [], bySource: [], byStyle: [], missing: ["读不到账本"] },
@@ -109,10 +104,10 @@ function AutopsyPage() {
   const { summary, verdicts } = Route.useLoaderData();
 
   return (
-    <Frame aside="策略竞技场">
+    <Frame aside="策略">
       <Panel title="失败归因" note="亏在哪、为什么亏——按退出原因拆，用因果解释，不给买卖建议。">
         <div className="flex flex-col gap-4 px-4 py-3">
-          <SectionTabs tabs={ARANA_TABS} ariaLabel="竞技场子页面" />
+          <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
 
           <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
             <Stat label="已平仓亏损" value={String(summary.losses)} hint="笔（net<0）" className="bg-surface" />

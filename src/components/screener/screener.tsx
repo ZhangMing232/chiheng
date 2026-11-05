@@ -18,6 +18,7 @@ import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
 import { cycleTheme } from "@/components/screener/nav";
 import { SectionTabs } from "@/components/section-tabs";
+import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { buildLabReport } from "@/lib/market/lab";
@@ -234,10 +235,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             顶部给二级 tab，和追踪页是同一组。 */}
         <SectionTabs
           ariaLabel="策略"
-          tabs={[
-            { to: "/strategies/screener", label: "策略选股" },
-            { to: "/strategies/positions", label: "策略追踪" },
-          ]}
+          tabs={STRATEGY_TABS}
         />
         <LabPanel report={labReport} />
         {error ? (

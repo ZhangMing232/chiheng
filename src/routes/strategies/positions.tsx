@@ -27,6 +27,7 @@ import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgenc
 import { ACTIVE_STYLES, STYLES, styleOf } from "@/lib/market/strategies";
 import { MAX_RUNNING_PER_STYLE } from "@/lib/market/challenger";
 import { SectionTabs } from "@/components/section-tabs";
+import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
 import { getChallengerRobustness, getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
@@ -1059,10 +1060,7 @@ function Positions() {
     >
       <SectionTabs
         ariaLabel="策略"
-        tabs={[
-          { to: "/strategies/screener", label: "策略选股" },
-          { to: "/strategies/positions", label: "策略追踪" },
-        ]}
+        tabs={STRATEGY_TABS}
       />
       <PageTabs
         storageKey="chiheng-pos-tab"
