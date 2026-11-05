@@ -115,6 +115,15 @@ export type QueueVerdict = {
   id: string;
   passed: boolean;
   at: string;
+  /**
+   * 这一轮**到底测了没有**。false = 数据整个没有（nDays=0），不是「测了没效果」。
+   *
+   * 为什么要有：AI 可能提一个用着「还没接进回测的字段」的因子（北向/游资/主力那批）。
+   * 这种因子每轮都是 t=0、6 关全 ✗，按老逻辑 failCount 累加、连续 2 轮就「淘汰」——
+   * **给一个从没测过的因子开了死亡证明**，还进了死因档案误导后来的 AI。
+   * 现在它不算失败：状态和 failCount 都不动，只在 note 里记「本轮没测（数据缺失）」。
+   */
+  measured?: boolean;
   /** 这一轮的实际读数，只有过关的因子才用得上（拿它和基线比）。没有就跳过衰减判定。 */
   reading?: DecayReading;
   /**
@@ -219,6 +228,18 @@ export function updateQueueAfterRun(queue: QueueEntry[], verdicts: QueueVerdict[
     const lastDsr = v.dsr ? { ...v.dsr, at: v.at } : e.lastDsr;
     // IC/ICIR 同 DSR：展示层证据，过关失败都记。
     const lastIc = v.ic ? { ...v.ic, at: v.at } : e.lastIc;
+    // **没测到的（数据整个没有）不算失败**：状态、failCount 都不动，只记一句说明。
+    // 「拿不到 ≠ 没有」——给从没测过的因子发死亡证明是最严重的一种自欺。
+    if (v.measured === false) {
+      return {
+        ...e,
+        runs: e.runs + 1,
+        lastRunAt: v.at,
+        lastDsr,
+        lastIc,
+        note: `本轮没测（数据缺失，不是「测了没过」）｜${e.note ?? ""}`.trim(),
+      };
+    }
     if (v.passed) {
       return { ...e, ...applyDecay(e, v), status: queueStatusOf(e, v), failCount: 0, runs: e.runs + 1, lastRunAt: v.at, lastDsr, lastIc };
     }

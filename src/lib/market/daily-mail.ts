@@ -116,7 +116,7 @@ export type DailyMailReport = {
   date: string;
   /** 实际生效的判决样本线（来自 data/challenger-rule.json，缺省为代码默认）。 */
   minTrades: number;
-  todayRounds: { factor: number; strategy: number; agent: boolean; agentAt: string | null };
+  todayRounds: { factor: number; strategy: number; genome: number; agent: boolean; agentAt: string | null };
   /** 今天没有新报告时是 null；有旧报告时 isToday=false 并带上它的日期。 */
   diagnosis: {
     at: string;
@@ -214,6 +214,9 @@ export async function collectDailyMail(input: {
   const todayRounds = {
     factor: todayLog.filter((e) => e.layer === "factor").reduce((n, e) => n + e.proposed.length, 0),
     strategy: todayLog.filter((e) => e.layer === "strategy").reduce((n, e) => n + e.proposed.length, 0),
+    // 基因组层（策略级进化）：今天提了几套策略 spec。漏了它，邮件会写成
+    // 「策略层提名 0 个」，而实际上基因组层提了——两件事别混。
+    genome: todayLog.filter((e) => e.layer === "genome").reduce((n, e) => n + e.proposed.length, 0),
     agent: todayLog.some((e) => e.layer === "agent" && e.ok),
     agentAt: todayLog.find((e) => e.layer === "agent" && e.ok)?.at ?? null,
   };
@@ -289,7 +292,7 @@ export function renderDailyMail(report: DailyMailReport): { subject: string; tex
 
   // 开场：今天 AI 闭环做了几轮（不讲行情，讲实验）
   const t = report.todayRounds;
-  const roundBits = [`因子层提议 ${t.factor} 个`, `策略层提名 ${t.strategy} 个`, t.agent ? "全局诊断 1 次" : "全局诊断没跑"];
+  const roundBits = [`因子层提议 ${t.factor} 个`, `策略层提名 ${t.strategy} 个`, `基因组层提议 ${t.genome} 套策略`, t.agent ? "全局诊断 1 次" : "全局诊断没跑"];
   lines.push(`今天 AI 闭环：${roundBits.join(" · ")}`, "");
 
   // ① 今日诊断摘要
@@ -345,7 +348,7 @@ function renderHtml(report: DailyMailReport, subject: string): string {
   const esc = escapeHtml;
   const { date } = report;
   const t = report.todayRounds;
-  const roundBits = [`因子层提议 ${t.factor} 个`, `策略层提名 ${t.strategy} 个`, t.agent ? "全局诊断 1 次" : "全局诊断没跑"];
+  const roundBits = [`因子层提议 ${t.factor} 个`, `策略层提名 ${t.strategy} 个`, `基因组层提议 ${t.genome} 套策略`, t.agent ? "全局诊断 1 次" : "全局诊断没跑"];
 
   const section = (title: string, body: string) =>
     `<div style="margin:18px 0 8px;font-size:15px;font-weight:600;color:#1a1a1a">${esc(title)}</div>${body}`;

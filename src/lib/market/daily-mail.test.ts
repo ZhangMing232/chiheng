@@ -267,7 +267,7 @@ function baseReport(over: Partial<DailyMailReport> = {}): DailyMailReport {
   return {
     date: DATE,
     minTrades: 15,
-    todayRounds: { factor: 3, strategy: 0, agent: true, agentAt: `${DATE}T07:00:43.000Z` },
+    todayRounds: { factor: 3, strategy: 0, genome: 1, agent: true, agentAt: `${DATE}T07:00:43.000Z` },
     diagnosis: null,
     challengers: [],
     watchers: [],

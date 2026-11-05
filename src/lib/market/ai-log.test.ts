@@ -161,6 +161,7 @@ test("evolveStats：只数 AI 来源的产物，轮数按层分", () => {
     logEntry({ layer: "factor" }),
     logEntry({ layer: "factor", ok: false }),
     logEntry({ layer: "strategy" }),
+    logEntry({ layer: "genome", proposed: [{ id: "g1", name: "一套策略" }] }),
   ];
   const entries = [
     queueEntry({ id: "q_ai_pass", source: "ai", status: "passed" }),
@@ -178,6 +179,8 @@ test("evolveStats：只数 AI 来源的产物，轮数按层分", () => {
   assert.deepEqual(stats, {
     factorRounds: 2,
     strategyRounds: 1,
+    genomeRounds: 1,
+    genomeProposed: 1,
     factorProposed: 3,
     factorPassed: 1,
     factorTombstoned: 1,

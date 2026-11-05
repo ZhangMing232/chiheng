@@ -98,8 +98,16 @@ function GateRow({
             {row.name}
           </button>
           <div className="text-[11px] text-muted">
-            {row.passed}/{row.total} 关
-            {row.allPass ? " · 全过" : ""}
+            {row.measured ? (
+              <>
+                {row.passed}/{row.total} 关
+                {row.allPass ? " · 全过" : ""}
+              </>
+            ) : (
+              // 没测到的因子：数据整个没有，不是「测了没过」。
+              // 「0/6 关」会被读成「试过了，六关全挂」——那是把「没测」说成「没效果」。
+              <span className="text-warn">未测 · 数据缺失</span>
+            )}
           </div>
         </td>
         <td data-l="类别" data-opt className={tdClass("text-left text-muted")}>
@@ -114,10 +122,10 @@ function GateRow({
           </td>
         ))}
         <td data-l="顶−底" className={tdClass(pctClass(row.spread * 100))}>
-          {signedPct(row.spread * 100)}
+          {row.measured ? signedPct(row.spread * 100) : "—"}
         </td>
         <td data-l="t" className={tdClass("font-medium")}>
-          {row.t.toFixed(2)}
+          {row.measured ? row.t.toFixed(2) : "未测"}
         </td>
       </tr>
       {isOpen ? (
@@ -157,8 +165,12 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   // 接近过关的（全过 / 只差一关）留主表；差 ≥2 关的归到下方折叠区，默认收起。
   // 不隐藏——展开后照样全列，守「未过关一个都不藏」。
-  const focused = rows.filter((r) => r.allPass || r.passed >= r.total - 1);
-  const buried = rows.filter((r) => !(r.allPass || r.passed >= r.total - 1));
+  // **没测到的（数据整个没有）单独一档**：它不是「未过」，是「没考」。
+  // 混进「未过因子」会被读成「试过了，全挂」——把「拿不到」说成「没有」。
+  const unmeasured = rows.filter((r) => !r.measured);
+  const measuredRows = rows.filter((r) => r.measured);
+  const focused = measuredRows.filter((r) => r.allPass || r.passed >= r.total - 1);
+  const buried = measuredRows.filter((r) => !(r.allPass || r.passed >= r.total - 1));
   const [showBuried, setShowBuried] = useState(false);
 
   function toggle(id: string) {
@@ -215,6 +227,29 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
               </tbody>
             </Table>
           ) : null}
+        </div>
+      ) : null}
+
+      {unmeasured.length > 0 ? (
+        <div className="rounded border border-line bg-surface">
+          <div className="flex items-center justify-between px-3 py-2 text-sm text-muted">
+            <span>
+              未测因子（数据缺失·本轮没测）
+              <span className="ml-1 tabular-nums text-warn">{unmeasured.length}</span> 个
+            </span>
+          </div>
+          <p className="px-3 pb-2 text-[11px] leading-relaxed text-muted">
+            这些因子的历史数据压根没进回测（北向/融券/游资/主力/板块资金/快讯/公告那批序列），
+            所以**没测过**——不是「测了没效果」。它们不计入本轮检验族，真实因子的及格线不受它们影响。
+          </p>
+          <Table className="data-table" caption="未测因子（数据缺失，本轮没测）">
+            <GateHead />
+            <tbody>
+              {unmeasured.map((row) => (
+                <GateRow key={row.id} row={row} isOpen={open.has(row.id)} onToggle={toggle} />
+              ))}
+            </tbody>
+          </Table>
         </div>
       ) : null}
     </div>

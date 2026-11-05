@@ -61,6 +61,11 @@ export type FactorRowView = {
   passed: number;
   total: number;
   allPass: boolean;
+  /**
+   * 这一轮到底测了没有。false = 数据整个没有（不是「测了没效果」）。
+   * 没测到的因子不算进 total，也不该出现在 nearMiss 里——它压根没参加考试。
+   */
+  measured: boolean;
 };
 
 function gateCell(row: FactorRunRow, key: GateKey): GateCell {
@@ -94,15 +99,24 @@ export function factorRows(rows: FactorRunRow[]): FactorRowView[] {
       passed: gates.filter((g) => g.pass === true).length,
       total: GATE_KEYS.length,
       allPass: gates.every((g) => g.pass === true),
+      // 旧批次没这个字段 → 当测过（老批次都是测过的）。
+      measured: row.measured !== false,
     };
   });
   return out.sort((a, b) => Math.abs(b.t) - Math.abs(a.t));
 }
 
 export type BatchSummary = {
+  /** 这一批**真正测过**的因子数。没测到的（数据整个没有）不算——「拿不到 ≠ 没有」。 */
   total: number;
   /** 全 6 关都过的个数。现在是 0——这个数字要放大了给人看，不许藏。 */
   passed: number;
+  /**
+   * 数据整个没有、这一轮压根没测的因子数。
+   * 以前它们混在 total 里、显示成 t=0.00 ✗✗✗✗✗✗，跟「测了没效果」长得一模一样——
+   * 现在单独拎出来说清楚，免得人把「没测」当成「没效果」。
+   */
+  unmeasured: number;
   /** |t| 最大的那个（已按 |t| 降序，即第一个） */
   strongest: FactorRowView | null;
   /** 只差一关的：不是过关，但是离得最近的几个 */
@@ -116,12 +130,14 @@ export type BatchSummary = {
 
 export function batchSummary(rows: FactorRunRow[]): BatchSummary {
   const views = factorRows(rows);
+  const measured = views.filter((v) => v.measured);
   return {
-    total: views.length,
-    passed: views.filter((v) => v.allPass).length,
-    strongest: views[0] ?? null,
-    nearMiss: views.filter((v) => !v.allPass && v.passed === v.total - 1),
-    familyClashes: clashesOf(views),
+    total: measured.length,
+    passed: measured.filter((v) => v.allPass).length,
+    unmeasured: views.length - measured.length,
+    strongest: measured[0] ?? null,
+    nearMiss: measured.filter((v) => !v.allPass && v.passed === v.total - 1),
+    familyClashes: clashesOf(measured),
   };
 }
 

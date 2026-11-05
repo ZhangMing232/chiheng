@@ -436,6 +436,12 @@ function FactorsIndexPage() {
             >
               {summary.total} 个里 {summary.passed} 个
             </p>
+            {summary.unmeasured > 0 ? (
+              <p className="mt-2 max-w-[56ch] text-xs leading-relaxed text-warn">
+                另有 {summary.unmeasured} 个因子这一轮**没测**（历史数据没进回测，不是「测了没效果」），
+                不计入上面的分母——「拿不到 ≠ 没有」。
+              </p>
+            ) : null}
             <p className="mt-3 max-w-[56ch] text-xs leading-relaxed text-muted">
               0 个过关不等于挖得不用心——是这套数据、这套判据下确实没有一个站得住的单因子。
               {summary.strongest

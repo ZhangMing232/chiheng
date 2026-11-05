@@ -420,8 +420,14 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
 
   const batch = runs.batch;
+  // 「这批有多少个因子」要说清**有多少真测了、有多少压根没测**。
+  // 只报总数的话，AI 看到「45 个因子，其中 8 个 t=0」会得出「这 8 个思路没效果」——
+  // 实际是那 8 个的数据压根没进回测。**拿不到 ≠ 没有**，诊断也一样。
+  const unmeasured = batch ? batch.rows.filter((r) => r.measured === false).length : 0;
   const factorMeta = batch
-    ? `共 ${runs.batches.length} 批判决；最近一批 ${batch.at.slice(0, 10)}，${batch.rows.length} 个因子，样本 ${batch.nDays} 个交易日`
+    ? `共 ${runs.batches.length} 批判决；最近一批 ${batch.at.slice(0, 10)}，${batch.rows.length} 个因子` +
+      `（真正测了 ${batch.rows.length - unmeasured} 个${unmeasured > 0 ? `，另 ${unmeasured} 个数据缺失没测` : ""}），` +
+      `样本 ${batch.nDays} 个交易日`
     : "还没有判决数据";
 
   const championLines = ACTIVE_STYLES.map((style) => {
@@ -456,7 +462,7 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
 
   const stats = evolveStats(log, entries, chalFile.list);
   const selfHistory = [
-    `- 因子层进化 ${stats.factorRounds} 轮，策略层 ${stats.strategyRounds} 轮（账本前 ${Math.min(log.length, 8)} 条）`,
+    `- 因子层进化 ${stats.factorRounds} 轮，策略层 ${stats.strategyRounds} 轮，基因组层 ${stats.genomeRounds} 轮（提了 ${stats.genomeProposed} 套策略，账本前 ${Math.min(log.length, 8)} 条）`,
     ...log.slice(-8).map((e) => `- ${e.at.slice(0, 16).replace("T", " ")} ${e.layer} ${e.trigger}：${e.ok ? "ok" : `失败（${e.error ?? "未知"}）`}，提议 ${e.proposed.length}`),
   ];
 

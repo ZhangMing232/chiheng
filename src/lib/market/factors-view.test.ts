@@ -163,3 +163,38 @@ test("持有期压测：按 N 升序，缺持有期不补 0", () => {
 test("六关的 key 顺序和页面表头一致", () => {
   assert.deepEqual(GATE_KEYS, ["g1", "g2", "g3", "g4", "g5", "g6"]);
 });
+
+test("没测到的因子（数据整个没有）不计入分母、也不算「接近过关」", () => {
+  // 2026-11-05 实测：北向/融券/游资/主力/板块资金/快讯/公告这 8 个因子的历史数据
+  // 压根没进回测 → nDays=0、t=0。以前它们混在 total 里显示成「0/6 关、t=0.00」，
+  // 跟「测了没效果」长得一模一样，还占着多重检验的检验族名额。
+  const noData = run({
+    factor: "north_amount",
+    name: "北向成交额",
+    nDays: 0,
+    t: 0,
+    meanSpread: 0,
+    bucketMeans: [0, 0, 0, 0, 0],
+    gates: {},
+    measured: false,
+  });
+  const measured = run({ factor: "d5", name: "5日涨幅" });
+
+  const views = factorRows([noData, measured]);
+  const v = views.find((x) => x.id === "north_amount");
+  assert.equal(v?.measured, false, "页面得知道这个因子这轮没测");
+  assert.equal(v?.passed, 0);
+
+  const summary = batchSummary([noData, measured]);
+  assert.equal(summary.total, 1, "分母只算真正测过的");
+  assert.equal(summary.unmeasured, 1, "没测的单独报数，不藏");
+  // measured 那条是 5/6 关，本来就该进 nearMiss；没测的那条不该进。
+  assert.equal(summary.nearMiss.length, 1);
+  assert.ok(summary.nearMiss.every((v) => v.measured), "没测的因子不算「只差一关」");
+});
+
+test("旧批次没有 measured 字段 → 当测过（老批次都是测过的）", () => {
+  const [row] = factorRows([run()]);
+  assert.equal(row.measured, true);
+  assert.equal(batchSummary([run()]).unmeasured, 0);
+});

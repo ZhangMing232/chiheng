@@ -143,6 +143,13 @@ export function strategySelfHistory(log: AILogEntry[], chals: Challenger[], maxR
 export type EvolveStats = {
   factorRounds: number;
   strategyRounds: number;
+  /**
+   * 基因组层（策略级进化）的轮数与提议数。
+   * 2026-11-05 补：这层是新加的进化轨道，漏了它，「AI 到底干了几件事」就少一件——
+   * 页面上看不到、邮件里不写、诊断里不算，跟没接上一样。
+   */
+  genomeRounds: number;
+  genomeProposed: number;
   /** 队列里 AI 提议的因子总数（含已淘汰）。 */
   factorProposed: number;
   factorPassed: number;
@@ -165,6 +172,8 @@ export function evolveStats(log: AILogEntry[], entries: QueueEntry[], chals: Cha
   return {
     factorRounds: log.filter((e) => e.layer === "factor").length,
     strategyRounds: log.filter((e) => e.layer === "strategy").length,
+    genomeRounds: log.filter((e) => e.layer === "genome").length,
+    genomeProposed: log.filter((e) => e.layer === "genome").reduce((n, e) => n + e.proposed.length, 0),
     factorProposed: aiFactors.length,
     factorPassed: aiFactors.filter((e) => e.status === "passed").length,
     factorTombstoned: aiFactors.filter((e) => e.status === "tombstone").length,

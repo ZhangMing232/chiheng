@@ -383,3 +383,35 @@ test("factorSignature：剥离变量里的窗口数字与 standalone 常数", ()
   assert.notEqual(factorSignature("d5 - d20"), factorSignature("d5 + d20"));
 });
 
+
+test("没测到的因子不算失败：不进 tombstone、不累加 failCount（不给没测过的因子开死亡证明）", () => {
+  // 2026-11-05 实测：AI 可能提一个用着「还没接进回测的字段」的因子（北向/游资/主力那批）。
+  // 它每轮都 t=0、6 关全 ✗，老逻辑会 failCount++、连续 2 轮就淘汰 + 进死因档案——
+  // 那等于给一个从没测过的因子开了死亡证明，还误导后来的 AI。
+  const q = [entry({ failCount: 0, status: "pending" })];
+  const out = updateQueueAfterRun(q, [
+    { id: "q_test", passed: false, at: "2026-11-06T01:00:00Z", measured: false },
+  ]);
+  assert.equal(out[0].status, "pending", "没测的因子不该被判死或降级");
+  assert.equal(out[0].failCount, 0, "没测不计失败");
+  assert.equal(out[0].runs, 1, "但要记下跑过（这一轮它确实出场了，只是没数据）");
+  assert.match(out[0].note ?? "", /没测/);
+  assert.match(out[0].note ?? "", /数据缺失/);
+});
+
+test("没测的因子连着两轮也不会被淘汰（failCount 不涨）", () => {
+  const q = [entry({ failCount: 0, status: "pending" })];
+  let out = updateQueueAfterRun(q, [{ id: "q_test", passed: false, at: "2026-11-06T01:00:00Z", measured: false }]);
+  out = updateQueueAfterRun(out, [{ id: "q_test", passed: false, at: "2026-11-07T01:00:00Z", measured: false }]);
+  assert.equal(out[0].status, "pending");
+  assert.equal(out[0].failCount, 0);
+  assert.equal(out[0].runs, 2);
+});
+
+test("真·失败（测了但没过）照旧累加 failCount 并淘汰——别把真失败也放过", () => {
+  const q = [entry({ failCount: 0, status: "pending" })];
+  let out = updateQueueAfterRun(q, [{ id: "q_test", passed: false, at: "2026-11-06T01:00:00Z" }]);
+  assert.equal(out[0].failCount, 1);
+  out = updateQueueAfterRun(out, [{ id: "q_test", passed: false, at: "2026-11-07T01:00:00Z" }]);
+  assert.equal(out[0].status, "tombstone", "测了没过、连续 2 次就该淘汰");
+});

@@ -1745,7 +1745,19 @@ async function main() {
     const rStart = Math.max(0, rp.dates.length - LOOKBACK);
     const resample = analyzeFactors(buildDaily(rp.klines, rp.idxOf, rp.dates, rp.benchOver, rStart, rp.dates.length - N), factorCount, buckets);
 
-    const nTested = factorCount;
+    const measuredFlags = full.map((r) => r.nDays > 0);
+    /**
+     * 检验族大小 = **真正测过的**因子数。
+     *
+     * 为什么不是 factorCount：有个别因子的数据整个没有（北向/融券/游资/主力/板块资金/
+     * 快讯/公告这批历史序列压根没注入回测，metrics() 里写死 null）。这些因子
+     * `nDays === 0`——**从来没测过**，不是「测了没效果」。
+     * 把它们算进检验族，多重检验的运气线（Bonferroni / DSR）就按「多试了 8 个」来罚，
+     * 真实因子的及格线被这 8 个从没做过的检验白白抬高。
+     *
+     * 「拿不到 ≠ 没有」在因子层的落地：没做的检验不算检验，也没资格占一个判决位。
+     */
+    const nTested = measuredFlags.filter(Boolean).length;
     const totalDays = full.reduce((s, r) => Math.max(s, r.nDays), 0);
     /**
      * DSR（学 Vibe-Trading 的 deflated sharpe）：把「试了 nTested 个因子、运气最好
@@ -1779,6 +1791,16 @@ async function main() {
       const factor = factors[f];
       const run = full[f];
       const dsrInfo = dsrOfFactor(run);
+      // 从没测到的因子（nDays=0）：数据整个没有，不是「测了没效果」。
+      // 不判 6 关（判了就是拿「没测」冒充「没效果」），不进检验族，页面上显示「未测」。
+      const measured = measuredFlags[f];
+      if (!measured) {
+        console.log(
+          factor.name.padEnd(10) +
+            "数据缺失·未测".padEnd(22) +
+            "（不判 6 关、不计入检验族——没做的检验不算检验）",
+        );
+      }
       const g1 = gateMonotonic(run.bucketMeans, factor.direction);
       const g2 = gateT(run.t);
       const g3 = gateHalves(first[f], second[f]);
@@ -1827,7 +1849,13 @@ async function main() {
             g5: g5.detail,
             g6: g6.detail,
           },
-          gates: { g1: g1.pass, g2: g2.pass, g3: g3.pass, g4: g4.pass, g5: g5.pass, g6: g6.pass },
+          gates: measured
+            ? { g1: g1.pass, g2: g2.pass, g3: g3.pass, g4: g4.pass, g5: g5.pass, g6: g6.pass }
+            : // 没测到的因子不判 6 关：gates 留空（不是全 ✗），页面显示「未测」。
+              // 「没测」和「测了没过」在数据上必须能分开。
+              {},
+          /** 这一轮到底测了没有（false = 数据整个没有，不是「测了没效果」）。 */
+          measured,
           nTested,
           /** spread 分布形状 + 运气线校正（Vibe-Trading DSR）。旧批次没有。 */
           spreadSkew: run.spreadSkew,
@@ -1848,6 +1876,8 @@ async function main() {
           id: factor.id,
           passed: corePassed,
           at,
+          /** 这一轮到底测了没有——队列里「没测」的因子不算失败（见 factor-queue.ts）。 */
+          measured,
           failedGates: [g1, g2, g3, g4, g5, g6].flatMap((g, i) => (g.pass ? [] : [`g${i + 1}`])),
           // DSR 是展示层证据，过关失败都存档——回答「这个因子是不是搜出来的」。
           dsr: dsrInfo ?? undefined,
