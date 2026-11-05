@@ -94,6 +94,7 @@ import {
   gateHalves,
   gateResample,
   gateBonferroni,
+  gateFdr,
   gateTradable,
   diagnoseShrinkDays,
   diagnoseShrinkBull,
@@ -547,6 +548,10 @@ type ExtData = Map<string, Map<string, {
   shortBalance?: number;
   /** 主力净流入（原始金额，元）。横截面用比率版，见 injectExt 里的换算。 */
   mainFlowRaw?: number;
+  /** 所属板块的主力净流入占比（%）。东财板块资金流，见 fetch-sector-flow.py。 */
+  sectorFlow?: number;
+  /** 当日公告条数（巨潮资讯，见 fetch-ann-count.py）。 */
+  annCount?: number;
 }>>;
 
 function lookupExt(ext: ExtData | null | undefined, date: string, id: string) {
@@ -569,6 +574,8 @@ function injectExt(ext: ExtData | null | undefined, date: string, id: string, am
       v.mainFlowRaw != null && amountWan != null && amountWan > 0
         ? (v.mainFlowRaw / (amountWan * 1e4)) * 100
         : null,
+    sectorFlow: v.sectorFlow ?? null,
+    annCount: v.annCount ?? null,
   };
 }
 
@@ -1246,7 +1253,67 @@ async function main() {
         // 没拉到缓存，跳过（那只票这天就是 null）
       }
     }
-    console.log(`外部数据加载：${ext.size} 个交易日（资金流缓存命中 ${flowLoaded} 只）\n`);
+    // 板块资金流（所属板块主力净流入占比 %）：data/backtest/sector-flow/<BK>.json。
+    // 每个板块一份（日期→占比 + 今天的成分股），按成分股摊到个股上。
+    // ⚠️ 成分股是**抓取当天**的快照，历史回放也用它 → 分类前视（板块资金流本身是
+    // 真实历史，没前视）。这条局限写在因子注册表的 rationale 里。
+    let sectorLoaded = 0;
+    let sectorMembers = 0;
+    for (const f of await readDirSafe(`${CACHE}/../sector-flow`)) {
+      if (!f.endsWith(".json") || f === "sectors.json") continue;
+      try {
+        const raw = JSON.parse(await readFile(`${CACHE}/../sector-flow/${f}`, "utf8")) as {
+          days?: { date: string; mainRatio: number }[];
+          members?: string[];
+        };
+        if (!Array.isArray(raw.days) || !Array.isArray(raw.members)) continue;
+        for (const d of raw.days) {
+          if (!d?.date || d.mainRatio == null) continue;
+          const day = ext.get(d.date) ?? new Map();
+          for (const id of raw.members) {
+            const cur = day.get(id) ?? {};
+            // 一只票可能属于多个行业板块 → 取绝对值最大的那个（信号最强的那条线）
+            if (cur.sectorFlow == null || Math.abs(d.mainRatio) > Math.abs(cur.sectorFlow)) {
+              cur.sectorFlow = d.mainRatio;
+            }
+            day.set(id, cur);
+          }
+          ext.set(d.date, day);
+        }
+        sectorLoaded += 1;
+        sectorMembers += raw.members.length;
+      } catch {
+        // 坏文件跳过
+      }
+    }
+    // 公告密度：data/backtest/ann/<日期>.json = { date, counts: { 6位代码: 条数 } }。
+    let annDays = 0;
+    for (const f of await readDirSafe(`${CACHE}/../ann`)) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const raw = JSON.parse(await readFile(`${CACHE}/../ann/${f}`, "utf8")) as {
+          date?: string;
+          counts?: Record<string, number>;
+        };
+        if (!raw.date || !raw.counts) continue;
+        const day = ext.get(raw.date) ?? new Map();
+        for (const [code, n] of Object.entries(raw.counts)) {
+          if (!n) continue;
+          const id = code.startsWith("6") ? `sh${code}` : code.startsWith("9") || code.startsWith("4") || code.startsWith("8") ? `bj${code}` : `sz${code}`;
+          const cur = day.get(id) ?? {};
+          cur.annCount = n;
+          day.set(id, cur);
+        }
+        ext.set(raw.date, day);
+        annDays += 1;
+      } catch {
+        // 坏文件跳过
+      }
+    }
+    console.log(
+      `外部数据加载：${ext.size} 个交易日（资金流缓存命中 ${flowLoaded} 只，` +
+        `板块资金流 ${sectorLoaded} 个板块/${sectorMembers} 只成分股，公告 ${annDays} 天）\n`,
+    );
   } catch { ext = null; }
 
   // 日期 -> 该票在自己数组里的下标。主循环里天天 findIndex 太慢，顺手也为了算基准。
@@ -1820,6 +1887,11 @@ async function main() {
      * 「拿不到 ≠ 没有」在因子层的落地：没做的检验不算检验，也没资格占一个判决位。
      */
     const nTested = measuredFlags.filter(Boolean).length;
+    /**
+     * G5（BH-FDR）要的是**这一轮所有实测因子的 t**：名次和 step-up 的 k 都要靠它算。
+     * 只放实测的（没测的 nDays=0、t=0，不该占名次——没做的检验不算检验）。
+     */
+    const allMeasuredTs = full.filter((r) => r.nDays > 0).map((r) => r.t);
     const totalDays = full.reduce((s, r) => Math.max(s, r.nDays), 0);
     /**
      * DSR（学 Vibe-Trading 的 deflated sharpe）：把「试了 nTested 个因子、运气最好
@@ -1867,7 +1939,7 @@ async function main() {
       const g2 = gateT(run.t);
       const g3 = gateHalves(first[f], second[f]);
       const g4 = gateResample(run, resample[f]);
-      const g5 = gateBonferroni(run.t, nTested);
+      const g5 = gateFdr(run.t, allMeasuredTs);
       const g6 = gateTradable(run.topBlockedRatio);
       console.log(
         factor.name.padEnd(10) +
@@ -1886,8 +1958,12 @@ async function main() {
           n: N,
           buckets,
           offset: offsetVal,
-          /** 样本量：换 BT_SAMPLE / offset 跑的判决，AI 读账时能分辨证据强度。 */
-          universe: sample.length,
+          /**
+           * 样本量：**因子检验的样本池**（factorIds.length），不是策略回测那份。
+           * 2026-11-05 之前这里写的是 sample.length（策略样本），而因子检验早已独立
+           * 出去用 BT_FACTOR_SAMPLE 了 —— 记的数和实际判的数对不上，AI 读账会被误导。
+           */
+          universe: factorIds.length,
           nDays: run.nDays,
           meanSpread: run.meanSpread,
           t: run.t,

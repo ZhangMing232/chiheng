@@ -14,6 +14,7 @@ import {
   gateHalves,
   gateResample,
   gateBonferroni,
+  gateFdr,
   gateTradable,
   zCritical,
   bonferroniThreshold,
@@ -178,10 +179,14 @@ test("G1 单调性：方向符合预注册才算过", () => {
   assert.equal(gateMonotonic(messy, 1).pass, false, "非单调应不过");
 });
 
-test("G2：|t| 不到 2 就是没测出来", () => {
+test("G2：|t| 不到 1.5 就是没测出来（2026-11-05 从 2 放宽到 1.5）", () => {
+  // 放宽的理由：因子层是筛子、策略层才是判官（策略层白皮书 §4 的聚类 |t|≥2 一个字没动）。
+  // 两层各扣一次同一道噪声门槛，候选根本活不到策略层。
   assert.equal(gateT(2.1).pass, true);
   assert.equal(gateT(-2.1).pass, true);
-  assert.equal(gateT(1.5).pass, false);
+  assert.equal(gateT(1.6).pass, true, "1.5 以上算测出来了");
+  assert.equal(gateT(1.4).pass, false);
+  assert.equal(gateT(-1.4).pass, false);
 });
 
 test("G3 两段：同号且各自 |t|≥1 才过", () => {
@@ -212,4 +217,27 @@ test("G6 可交易：顶档被挡过半就不可交易", () => {
 test("zCritical：标准正态分位数对照已知值", () => {
   assert.ok(Math.abs(zCritical(0.025) - 1.96) < 0.01, "双侧 5% 单侧 ≈ 1.96");
   assert.ok(Math.abs(zCritical(0.00135) - 3.0) < 0.02, "3σ ≈ 3.0");
+});
+
+test("G5 换 BH-FDR：比 Bonferroni 宽松（同样一批 t，过的更多）", () => {
+  // 2026-11-05 用户拍板「变宽松一点」：Bonferroni（FWER，一个假阳性就整批判负）
+  // 换成 BH（BH-FDR，管的是假阳性占比）。这批 t 是实测那批：Bonferroni 只过 0 个，
+  // BH 过 20 个。
+  const ts = [3.26, 3.19, 3.19, 3.00, 2.98, 2.81, 2.79, 2.78, 2.76, 2.76, 2.19, 2.68, 2.56, 2.55, 2.33, 2.14, 1.94, 1.86, 1.41];
+  const fdrPass = ts.filter((t) => gateFdr(t, ts).pass).length;
+  const bonfPass = ts.filter((t) => gateBonferroni(t, ts.length).pass).length;
+  assert.ok(fdrPass > bonfPass, `BH 应该比 Bonferroni 宽松：BH ${fdrPass} vs Bonf ${bonfPass}`);
+  assert.ok(fdrPass >= 10, `BH 至少该放过一半左右，实际 ${fdrPass}`);
+});
+
+test("BH step-up：最强的那几个站住时，名次靠后的也跟着过（门槛随名次降）", () => {
+  // 强信号 + 一堆弱信号：Bonferroni 会因为 N 大把弱的全砍了，
+  // BH 的 step-up 让名次 ≤ k 的都过（k 由最强的几个撑起来）。
+  const ts = [5.0, 4.0, 3.0, 0.1, 0.1, 0.1, 0.1, 0.1];
+  assert.equal(gateFdr(5.0, ts).pass, true);
+  assert.equal(gateFdr(0.1, ts).pass, false, "0.1 这种噪音不该过");
+});
+
+test("BH：空批次不判过（没有可比的因子就别给通过）", () => {
+  assert.equal(gateFdr(2.0, []).pass, false);
 });

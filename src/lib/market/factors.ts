@@ -243,7 +243,7 @@ export const FACTORS: Factor[] = [
 
   // ===== 北向资金因子 =====
   { id: "north_amount", name: "北向成交额", category: "量能", direction: 1, family: "北向",
-    rationale: "北向成交额越大=外资关注度越高，A股中外资偏好的票有定价优势。预注册方向+1。",
+    rationale: "北向成交额越大=外资关注度越高，A股中外资偏好的票有定价优势。预注册方向+1。🔴 2026-11-05 实查：**接不了**——沪深港通 2024-08 起停止披露北向实时/每日资金数据，东财 kamt 历史接口实测返回 0 条（tushare moneyflow_hsgt 这个 token 也无权限）。本因子在当前窗口内**没有数据源**，永远只能是「未测」。",
     get: (m) => m.northAmount },
 
   // ===== 两融因子 =====
@@ -270,7 +270,7 @@ export const FACTORS: Factor[] = [
     rationale: "当日主力净流入=大资金在买，短期动量。预注册方向+1。⚠️ 口径（2026-11-05 接上数据时定）：量的是**主力净流入占当日成交额比**（%），不是原始金额——横截面比原始金额比的是市值规模（大盘股金额天然大），不是资金流强度。",
     get: (m) => m.mainFlow },
   { id: "sector_flow", name: "板块资金", category: "量能", direction: 1, family: "资金流",
-    rationale: "所属板块主力净流入=板块共振，个股在强势板块里更容易涨。预注册方向+1。",
+    rationale: "所属板块主力净流入=板块共振，个股在强势板块里更容易涨。预注册方向+1。📌 2026-11-05 接上数据（东财板块资金流，fetch-sector-flow.py）：量的是**板块主力净流入占比**（%），不是金额——横截面比金额比的是板块规模。⚠️ 口径局限：板块成分股是抓取当天的快照，历史回放也用它 → **分类前视**（板块资金流本身是真实历史，没前视）。",
     get: (m) => m.sectorFlow },
   // ===== 事件因子（2026-10-27 新增）=====
   {
@@ -282,7 +282,10 @@ export const FACTORS: Factor[] = [
     rationale:
       "当日快讯利好→买盘涌入（A股散户跟消息买卖的特征非常显著）。预注册方向+1。" +
       "⚠️ 预登记局限：快讯情绪一天一变，横截面区分度集中在小票（龙头利好早就定价了）；" +
-      "且利好当天股价往往已反应，次日可能反转。预期回测里两段翻号风险高（G3 可能挂）。",
+      "且利好当天股价往往已反应，次日可能反转。预期回测里两段翻号风险高（G3 可能挂）。" +
+      "🔴 2026-11-05 实查：**历史接不了**——新浪 7×24 的 feed 只保留约 6 天（实测翻到第 100 页" +
+      "就是 2026-10-30，再往后返回同样的数据），东财快讯的 sortEnd 游标翻不了历史；" +
+      "tushare news 接口这个 token 无权限。要接得买新闻历史库。",
     get: (m) => m.newsTone,
   },
   {
@@ -459,7 +462,17 @@ export const MONO_MIN = 0.8;export function gateMonotonic(means: number[], direc
 }
 
 /** G2：|t| ≥ 2 才算测出了东西。 */
-export const T_MIN = 2;
+/**
+ * G2 的显著性门槛。
+ *
+ * 2026-11-05 从 2 放宽到 1.5（用户拍板「变宽松一点」）。理由：
+ * **因子层是筛子，策略层才是判官**。因子层判 |t|≥2、策略层（白皮书 §4）又判聚类 |t|≥2，
+ * 同一道噪声门槛在两层各扣一次 → 因子层筛出来的候选到不了策略层就被砍掉了。
+ * 因子层放宽到 1.5，把「统计上有点苗头」的机会留给策略层那把更硬的尺子去判。
+ *
+ * ⚠️ 策略层的门槛（聚类 |t|≥2）**一个字没动**——那才是上线前的最后一道。
+ */
+export const T_MIN = 1.5;
 export function gateT(t: number): Gate {
   return { pass: Math.abs(t) >= T_MIN, detail: `t=${t.toFixed(2)}` };
 }
@@ -521,10 +534,24 @@ export function zCritical(p: number): number {
 }
 
 /**
- * G5 Bonferroni：按「已测因子总数 N」收紧阈值，α = 0.05。
- * N 越大临界 t 越高——这会让原来 t≈2.8 的信号在 N 变大后自己降级，这是对的。
+ * G5 多重检验。
+ *
+ * 2026-11-05 从 **Bonferroni（控制族错误率 FWER）换成 BH（Benjamini-Hochberg，控制错误发现率 FDR）**，
+ * q = 0.10（用户拍板「变宽松一点」）。理由：
+ * - Bonferroni 管的是「**一个都别错**」——测 34 个因子里只要一个假阳性就整批判负，
+ *   代价是 N 越大临界 t 越高（N=34 → 3.18；N=108 → 3.50），信号会自己降级。
+ * - BH 管的是「**假阳性占比**」（期望 FDR ≤ q）——这正是「挖因子」这种筛选场景要的：
+ *   允许少量假阳性换召回。step-up 之后，一旦某几个最强的站住，门槛随名次下降。
+ * - 两者的差别在 N 大的时候最明显：Bonferroni 是线性罚，q*i/N 是每名次一档。
+ *
+ * ⚠️ G5 是**展示层**证据（不过不挡路，队列的真判据是 G1~G4，见 backtest.ts 的 corePassed）。
+ * 但它决定页面上「全过 6 关」的数字、以及墓碑档案里 failedGates 的内容，所以要准。
  */
 export const ALPHA = 0.05;
+/** BH 的目标错误发现率 q。 */
+export const FDR_Q = 0.1;
+
+/** 旧口径（Bonferroni）保留：算历史批次的对照数时还要用。 */
 export function bonferroniThreshold(nTested: number): number {
   return zCritical(ALPHA / 2 / Math.max(1, nTested));
 }
@@ -533,6 +560,47 @@ export function gateBonferroni(t: number, nTested: number): Gate {
   return {
     pass: Math.abs(t) >= crit,
     detail: `|t|= ${t.toFixed(2)} vs 临界 ${crit.toFixed(2)}（N=${nTested}）`,
+  };
+}
+
+/**
+ * BH 的 step-up：把所有 |t| 降序排，第 i 名要满足 |t|_(i) ≥ z(q·i/N)，
+ * 找出满足的最大 i（= k），则名次 ≤ k 的全部判过。
+ * 返回 k 和每个名次各自的临界 t。
+ */
+export function bhCutoff(allAbsT: number[], q = FDR_Q): { k: number; critAt: (rank: number) => number } {
+  const n = allAbsT.length;
+  if (n === 0) return { k: 0, critAt: () => NaN };
+  const sorted = [...allAbsT].map((x) => Math.abs(x)).sort((a, b) => b - a);
+  const critAt = (rank: number) => zCritical((q * rank) / n / 2);
+  let k = 0;
+  for (let i = 1; i <= n; i += 1) {
+    if (sorted[i - 1] >= critAt(i)) k = i;
+  }
+  return { k, critAt };
+}
+
+/**
+ * G5 的一票判定：BH step-up。
+ * @param t 本因子的 t
+ * @param allAbsT 本轮**所有实测因子**的 t（用来算名次和 step-up 的 k）
+ */
+export function gateFdr(t: number, allAbsT: number[], q = FDR_Q): Gate {
+  const n = allAbsT.length;
+  if (n === 0) return { pass: false, detail: "本轮没有可比的因子" };
+  const mine = Math.abs(t);
+  const sorted = [...allAbsT].map((x) => Math.abs(x)).sort((a, b) => b - a);
+  // 我在降序里的名次（1-based；同值时按出现顺序占位，保守：取最后一个同值位置）
+  let rank = sorted.findIndex((x) => x < mine) + 1;
+  if (rank === 0) rank = n;
+  const { k, critAt } = bhCutoff(allAbsT, q);
+  const pass = rank <= k;
+  return {
+    pass,
+    detail:
+      `|t|= ${mine.toFixed(2)} vs BH 临界 ${critAt(rank).toFixed(2)}` +
+      `（名次 ${rank}/${n}，k=${k}，q=${q}）` +
+      (pass ? "" : `｜前 ${k} 名过线`),
   };
 }
 
