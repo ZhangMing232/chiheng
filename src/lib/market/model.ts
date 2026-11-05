@@ -89,7 +89,7 @@ export function boardOf(id: string): Board {
  * 美/港无涨跌停（markets.ts 的 limit: "none"），返回 null——
  * limitTag 恒 null、exitFill 的跌停封死检查跳过。A 股行为不变。
  */
-export function limitPct(quote: Quote): number | null {
+export function limitPct(quote: { id: string; name: string }): number | null {
   return boardLimit(quote.id, quote.name);
 }
 

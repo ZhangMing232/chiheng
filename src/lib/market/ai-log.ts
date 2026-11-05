@@ -34,8 +34,9 @@ const posixJoin = (...parts: string[]): string => parts.join("/");
 export type AILogEntry = {
   /** ISO 时间。 */
   at: string;
-  /** factor = 因子提议层；strategy = 挑战者提名层；agent = 全局诊断层（agent-loop.ts，只诊断不行动）。 */
-  layer: "factor" | "strategy" | "agent";
+  /** factor = 因子提议层；strategy = 挑战者提名层；agent = 全局诊断层（agent-loop.ts，只诊断不行动）；
+   *  genome = 策略基因组层（strategy-genome.ts，产出全新/更新的策略 spec）。 */
+  layer: "factor" | "strategy" | "agent" | "genome";
   /** manual = 人在 /ai 页点按钮；auto = 记账进程收盘后自动跑。 */
   trigger: "manual" | "auto";
   /** 这轮闭环整体跑成没有（配置缺失 / 调接口失败 = false，照样记账）。 */

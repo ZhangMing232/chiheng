@@ -23,6 +23,7 @@
 import { runFactorAILoop, type AILoopResult } from "./factor-queue.ts";
 import { runStrategyAILoop, type StrategyAILoopResult } from "./strategy-ai.ts";
 import { runAgentDiagnosis, type AgentLoopResult } from "./agent-loop.ts";
+import { runGenomeLoop, type GenomeLoopResult } from "./strategy-genome.ts";
 import type { FactorRunRow } from "./factor-runs-file.ts";
 
 export type EvolveResult = {
@@ -30,6 +31,8 @@ export type EvolveResult = {
   agent: AgentLoopResult | null;
   factor: AILoopResult;
   strategy: StrategyAILoopResult;
+  /** 策略基因组轨道：从失败死因产出全新/更新的策略 spec（不打参数微调的主意）。 */
+  genome: GenomeLoopResult;
 };
 
 export type EvolveDeps = {
@@ -42,9 +45,10 @@ export type EvolveOpts = {
   diagnose?: () => Promise<AgentLoopResult>;
   runFactor?: (trigger: "manual" | "auto") => Promise<AILoopResult>;
   runStrategy?: (trigger: "manual" | "auto") => Promise<StrategyAILoopResult>;
+  runGenome?: (trigger: "manual" | "auto") => Promise<GenomeLoopResult>;
 };
 
-/** 跑一轮完整进化：诊断（观察）→ 因子层 → 策略层。各层独立成败，互不断电。 */
+/** 跑一轮完整进化：诊断（观察）→ 因子层 → 策略层（参数挑战者）→ 基因组层（策略级进化）。各层独立成败，互不断电。 */
 export async function runEvolveLoop(
   deps: EvolveDeps,
   trigger: "manual" | "auto" = "manual",
@@ -60,7 +64,10 @@ export async function runEvolveLoop(
   // ②③ 计划/行动：两层顺序照旧（策略层看因子层上一轮的沉淀，不看当轮——给判决留时间）。
   const runFactor = opts.runFactor ?? ((t: "manual" | "auto") => runFactorAILoop(deps, t));
   const runStrategy = opts.runStrategy ?? ((t: "manual" | "auto") => runStrategyAILoop(t));
+  const runGenome = opts.runGenome ?? ((t: "manual" | "auto") => runGenomeLoop(t));
   const factor = await runFactor(trigger);
   const strategy = await runStrategy(trigger);
-  return { agent, factor, strategy };
+  // ④ 基因组层：从失败死因（因子墓碑 + 被拒挑战者 + 已淘汰 spec）产出全新策略 spec。
+  const genome = await runGenome(trigger);
+  return { agent, factor, strategy, genome };
 }

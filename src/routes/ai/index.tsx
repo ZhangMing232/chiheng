@@ -77,7 +77,7 @@ function AIConsolePage() {
     }
   };
 
-  /** 一键完整进化：全局诊断（观察）→ 因子层 → 策略层，各层各自记账，结果拼一句汇报。 */
+  /** 一键完整进化：全局诊断（观察）→ 因子层 → 策略层 → 基因组层，各层各自记账，结果拼一句汇报。 */
   const runEvolveOnce = async () => {
     setBusy("evolve");
     setEvolveMsg(null);
@@ -86,7 +86,10 @@ function AIConsolePage() {
       const part = (label: string, r: { ok: boolean; proposed: number; error?: string }): string =>
         `${label} ${r.ok ? `进 ${r.proposed} 个` : `没跑成（${r.error ?? "?"}）`}`;
       const diag = res.agent ? (res.agent.ok ? `诊断 ok（${res.agent.diagnosis?.summary ?? ""}）` : `诊断没跑成（${res.agent.error ?? "?"}）`) : "诊断缺席";
-      setEvolveMsg(`${diag} · ${part("因子层", res.factor)} · ${part("策略层", res.strategy)}。诊断的建议本轮就进了两层 prompt；两层的下场下一轮自己读账纠错。`);
+      setEvolveMsg(
+        `${diag} · ${part("因子层", res.factor)} · ${part("策略层", res.strategy)} · ${part("基因组层", res.genome)}。` +
+          `诊断的建议本轮就进了两层 prompt；两层的下场下一轮自己读账纠错。`,
+      );
       await router.invalidate();
     } catch (err) {
       setEvolveMsg(err instanceof Error ? err.message : "运行失败");
@@ -169,7 +172,7 @@ function AIConsolePage() {
                       {e.at.slice(0, 16).replace("T", " ")}
                     </td>
                     <td data-l="层" className="px-2.5 py-1.5 text-[11px]">
-                      {e.layer === "factor" ? "因子" : e.layer === "agent" ? "诊断" : "策略"}
+                      {e.layer === "factor" ? "因子" : e.layer === "agent" ? "诊断" : e.layer === "genome" ? "基因组" : "策略"}
                     </td>
                     <td data-l="触发" className="px-2.5 py-1.5 text-[11px] text-muted">
                       {e.trigger === "auto" ? "自动" : "手动"}

@@ -16,6 +16,7 @@ import {
   TOMBSTONE_AFTER,
   updateQueueAfterRun,
   parseAIProposals,
+  factorSignature,
   buildPrompt,
   type QueueEntry,
 } from "@/lib/market/factor-queue";
@@ -336,3 +337,49 @@ test("家族限额：不传死因档案时行为与旧版完全一致（限额�
   assert.equal(accepted.length, 2);
   assert.equal(rejected.length, 0);
 });
+
+// ── 距离约束 / 近亲封禁（治「换汤不换药」）─────────────────────────
+
+test("距离约束：结构同签名（只换窗口/常数）的因子被拒", () => {
+  const raw = JSON.stringify([
+    { id: "q_new1", name: "甲", category: "波动率", direction: -1, expr: "std60 / amp20", rationale: "足够长的经济逻辑说明" },
+    { id: "q_new2", name: "乙", category: "波动率", direction: -1, expr: "abs(d60) * volShrink", rationale: "足够长的经济逻辑说明" },
+  ]);
+  // 已存在：std20/amp20（std20 / amp20 的签名）与 abs(d20)*volShrink
+  const { accepted, rejected } = parseAIProposals(raw, empty(), undefined, [
+    "std20 / amp20",
+    "abs(d20) * volShrink",
+  ]);
+  assert.equal(accepted.length, 0, "两个都是近亲，应该全拒");
+  assert.equal(rejected.length, 2);
+  assert.match(rejected[0].reason, /近亲/);
+  assert.match(rejected[1].reason, /近亲/);
+});
+
+test("距离约束：换运算符（结构性改动）不算近亲，照常接收", () => {
+  const raw = JSON.stringify([
+    { id: "q_mul", name: "甲", category: "波动率", direction: -1, expr: "std20 * amp20", rationale: "足够长的经济逻辑说明" },
+  ]);
+  const { accepted, rejected } = parseAIProposals(raw, empty(), undefined, ["std20 / amp20"]);
+  assert.equal(accepted.length, 1, "运算符从 / 改成 * 是结构性改动，不算近亲");
+  assert.equal(rejected.length, 0);
+});
+
+test("距离约束：批内自撞也会去重（同签名第二个拒）", () => {
+  const raw = JSON.stringify([
+    { id: "q_a", name: "甲", category: "量能", direction: -1, expr: "volRatio", rationale: "足够长的经济逻辑说明" },
+    { id: "q_b", name: "乙", category: "量能", direction: -1, expr: "volRatio", rationale: "足够长的经济逻辑说明" },
+  ]);
+  const { accepted, rejected } = parseAIProposals(raw, empty());
+  assert.equal(accepted.length, 1, "批内同签名只留第一个");
+  assert.equal(rejected.length, 1);
+  assert.match(rejected[0].reason, /近亲/);
+});
+
+test("factorSignature：剥离变量里的窗口数字与 standalone 常数", () => {
+  assert.equal(factorSignature("std20 / amp20"), factorSignature("std60 / amp15"));
+  assert.notEqual(factorSignature("std20 / amp20"), factorSignature("std20 * amp20"));
+  assert.equal(factorSignature("abs(d20) * volShrink"), factorSignature("abs(d60) * volShrink"));
+  assert.notEqual(factorSignature("d5 - d20"), factorSignature("d5 + d20"));
+});
+

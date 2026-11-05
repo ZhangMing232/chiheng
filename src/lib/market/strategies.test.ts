@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daySlotsLeft, takeBuys, watchList, MAX_POSITIONS, type Listed } from "@/lib/market/strategies";
+import { daySlotsLeft, takeBuys, watchList, MAX_POSITIONS, specSelectionStats, quoteOrderForSpec, specSelectPass, specPrices, type Listed, type StrategySpec } from "@/lib/market/strategies";
 import { DEFAULT_RULES } from "@/lib/market/rules";
 
 function quote(id: string, chg = 0) {
@@ -225,4 +225,65 @@ test("二代判决后：低估值留在现役，放量突破已下线", async ()
   assert.ok(ACTIVE_STYLES.includes("value"), "value 必须在 ACTIVE_STYLES 里");
   assert.ok(!ACTIVE_STYLES.includes("breakout"), "放量突破 2026-11-05 下线：全池新窗口聚类 t 0.43，补闸后 -0.52，没过白皮书 §4 的 |t|≥2");
   assert.ok(!ACTIVE_STYLES.includes("rebound"), "中期反转按一代判决书淘汰，不许回现役");
+});
+
+// ── 策略 spec 解释器（数据驱动：选股条件 / 排序 / 定价都是数据，不是硬编码函数）──
+
+function spec(over: Partial<StrategySpec> = {}): StrategySpec {
+  return {
+    id: "t_spec",
+    name: "测试 spec",
+    select: ["pe <= 18"],
+    rankBy: "40 - pe",
+    pricing: { shape: "spot" },
+    holdDays: 8,
+    stopPct: 8,
+    targetPct: 20,
+    source: "manual",
+    ...over,
+  };
+}
+
+test("specSelectPass：选股条件全为真才入选，PE 超阈值的票被挡", () => {
+  const lo = quote("sz0001", 0);
+  const hi = { ...quote("sz0002", 0), pe: 40 };
+  assert.equal(specSelectPass(spec(), lo), true);
+  assert.equal(specSelectPass(spec(), hi), false);
+});
+
+test("specPrices·spot：现价买，卖/止损按百分比夹在买价两侧", () => {
+  const q = { ...quote("sz0001"), price: 10 };
+  const p = specPrices(spec({ targetPct: 20, stopPct: 8 }), q);
+  assert.deepEqual(p, { buy: 10, sell: 12, stop: 9.2 });
+});
+
+test("specPrices·peAnchor：缺 pe 或锚定倍数返回 null；给了就夹在买价两侧", () => {
+  const noPe = { ...quote("sz0001"), pe: null };
+  assert.equal(specPrices(spec({ pricing: { shape: "peAnchor", buyPe: 15, sellPe: 22, stopPe: 18 } }), noPe), null);
+  const q = { ...quote("sz0001"), price: 10, pe: 20 };
+  const p = specPrices(spec({ pricing: { shape: "peAnchor", buyPe: 15, sellPe: 22, stopPe: 18 } }), q);
+  assert.ok(p != null && p.stop < p.buy && p.buy < p.sell, "peAnchor 三价必须 stop<buy<sell");
+});
+
+test("quoteOrderForSpec：通过选股且可交易才返回 Order；ST / 选股不过都返回 null", () => {
+  const ok = quote("sz0001", 0);
+  const st = { ...quote("sz0002", 0), st: true };
+  const hi = { ...quote("sz0003", 0), pe: 40 };
+  assert.ok(quoteOrderForSpec(spec(), ok) != null, "正常票应给出 Order");
+  assert.equal(quoteOrderForSpec(spec(), st), null, "ST 不可交易");
+  assert.equal(quoteOrderForSpec(spec(), hi), null, "PE 超阈值选股不过");
+});
+
+test("specSelectionStats：在一组行情里数出通过选股的票数，并按分值排序取前 N", () => {
+  const universe = [
+    { ...quote("sz0001", 0), pe: 10 },
+    { ...quote("sz0002", 0), pe: 15 },
+    { ...quote("sz0003", 0), pe: 40 }, // 选股不过
+    { ...quote("sz0004", 0), pe: 8 },
+  ];
+  const stats = specSelectionStats(spec(), universe);
+  assert.equal(stats.total, 4, "allow 全通过，total=4");
+  assert.equal(stats.passed, 3, "pe<=18 通过 3 只");
+  // 排序按 rankBy=40-pe 降序：pe=8(score32) > pe=10(30) > pe=15(25)
+  assert.deepEqual(stats.top.map((t) => t.id), ["sz0004", "sz0001", "sz0002"]);
 });

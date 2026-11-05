@@ -52,7 +52,7 @@ export type AutoAttempt = { layer: string; ok: boolean; at: string };
  * 纯函数不碰 fs；调用方负责把「今天」的条目筛好传进来
  * （ai-log 的时间是 UTC ISO，record-journal 用 phase.date 对齐交易日）。
  */
-export function autoLayerDue(attempts: AutoAttempt[], layer: "factor" | "strategy", now: number = Date.now()): boolean {
+export function autoLayerDue(attempts: AutoAttempt[], layer: "factor" | "strategy" | "genome", now: number = Date.now()): boolean {
   const mine = attempts.filter((a) => a.layer === layer);
   if (mine.some((a) => a.ok)) return false;
   if (mine.length >= AUTO_RETRY.maxAttemptsPerDay) return false;

@@ -10,6 +10,7 @@
 import { HOLD_SESSIONS, limitPct, limitTag, planExit, screen, type Scored } from "./model.ts";
 import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
+import { compileSpecExpr, type SpecQuote } from "./factor-expr.ts";
 
 /** 各套策略的内部编号。页面上的中文名在 STYLES 里。 */
 export type StyleId = "early" | "trend" | "breakout" | "value" | "relay" | "rebound";
@@ -80,8 +81,10 @@ function prevClose(quote: Quote): number | null {
  * 这只票现在能不能拿来做计划。
  * 不要：ST、股价低于 4 元、总市值低于 40 亿、已经贴着涨停或跌停（那种价往往买不进或卖不出）。
  */
-function tradable(quote: Quote): boolean {
-  if (quote.st || quote.price < 4 || quote.cap < 40 || quote.chg == null) return false;
+function tradable(quote: SpecQuote): boolean {
+  if (quote.st || quote.price < 4 || quote.chg == null) return false;
+  // 市值拿不到 = 没法确认它不是小盘股 → 保守拒绝。null 不是 0（0 会被读成「市值就是 0」）。
+  if (quote.cap == null || quote.cap < 40) return false;
   const limit = limitPct(quote);
   if (limit != null && (quote.chg >= limit - 0.3 || quote.chg <= -limit + 0.3)) return false;
   return true;
@@ -435,6 +438,206 @@ export function takeBuys(
     .filter((row) => row.hit && limitTag(row.quote) !== "涨停" && !openIds.has(row.quote.id))
     .filter((row) => (seen.has(row.quote.id) ? false : (seen.add(row.quote.id), true)))
     .slice(0, daySlotsLeft(dayTrades, style));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 策略基因组（strategy genome）
+//
+// 上面那套 XxxOrder 函数是「硬编码策略」——选股逻辑和定价算法烤死在代码里，
+// AI 的挑战者只能拧三个出场旋钮，永远改不了「买什么」。这正是用户指出的
+// 「换汤不换药」的病根。
+//
+// 下面这套 StrategySpec 把「一套策略」变成**数据**：选股条件（spec 表达式）、
+// 排序依据、定价形状（或定价表达式）、持有/止损/目标。AI 的「策略基因组」轨道
+// 据此从失败死因里产出**全新或更新的策略 spec**，照样先过 6 关 + |t|≥2 才许上线。
+// 硬编码函数降级为「初始 spec 的来源」，不删除——保持向后兼容，旧通道照常跑。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 定价形状。枚举打底保证安全（AI 从已知形状里选），expr 形状保留灵活性。 */
+export type PricingShape = "spot" | "prevPct" | "peAnchor" | "breakout" | "expr";
+
+/** 一套策略的数据描述。改写这套 = 改写策略本身，不只是调出场参数。 */
+export type StrategySpec = {
+  /** 唯一 slug。 */
+  id: string;
+  name: string;
+  /** 选股条件：每条都是 spec 表达式，求值必须 === 1（真）才入选；数据缺失(null)整条不入选。 */
+  select: string[];
+  /** 排序依据：值越大越优先（取前 N 只）。 */
+  rankBy: string;
+  /** 定价：枚举形状或自写买/卖/止损表达式（引用 price/prev/pe 等）。 */
+  pricing: {
+    shape: PricingShape;
+    /** prevPct / breakout 用：买入价相对昨收的涨幅%。 */
+    pct?: number;
+    /** peAnchor 用：买/卖/止损对应的市盈率倍数。 */
+    buyPe?: number;
+    sellPe?: number;
+    stopPe?: number;
+    /** expr 形状用：买价至少要有；卖/止损缺省时按 targetPct/stopPct 夹在 buy 附近。 */
+    buyExpr?: string;
+    sellExpr?: string;
+    stopExpr?: string;
+  };
+  holdDays: number;
+  stopPct: number;
+  targetPct: number;
+  source: "genesis" | "ai" | "manual";
+  note?: string;
+};
+
+function clampN(x: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, x));
+}
+
+/** 一只 Quote 过 spec 的全部选股条件。任一为 null 或不为 1 → 不入选。 */
+export function specSelectPass(spec: StrategySpec, quote: SpecQuote): boolean {
+  for (const cond of spec.select) {
+    const v = compileSpecExpr(cond)(quote);
+    if (v == null || v !== 1) return false;
+  }
+  return true;
+}
+
+/** spec 的排序分值。非数/null 当 -Infinity（排最后）。 */
+export function specScore(spec: StrategySpec, quote: SpecQuote): number {
+  const v = compileSpecExpr(spec.rankBy)(quote);
+  return v == null || !Number.isFinite(v) ? -Infinity : v;
+}
+
+/** spec 的买/卖/止损价。算不出合法三价（stop<buy<sell）返回 null。 */
+export function specPrices(
+  spec: StrategySpec,
+  quote: SpecQuote,
+): { buy: number; sell: number; stop: number } | null {
+  const p = spec.pricing;
+  const prev = quote.chg != null && quote.chg > -100 && quote.price > 0 ? quote.price / (1 + quote.chg / 100) : null;
+  let buy: number | null = null;
+  let sell: number | null = null;
+  let stop: number | null = null;
+  if (p.shape === "expr") {
+    if (!p.buyExpr) return null;
+    const b = compileSpecExpr(p.buyExpr)(quote);
+    if (b == null || !(b > 0)) return null;
+    buy = b;
+    if (p.sellExpr) {
+      const s = compileSpecExpr(p.sellExpr)(quote);
+      if (s != null) sell = s;
+    }
+    if (p.stopExpr) {
+      const s = compileSpecExpr(p.stopExpr)(quote);
+      if (s != null) stop = s;
+    }
+    if (sell == null) sell = buy * (1 + spec.targetPct / 100);
+    if (stop == null) stop = buy * (1 - spec.stopPct / 100);
+  } else if (p.shape === "spot") {
+    buy = quote.price;
+    sell = buy * (1 + spec.targetPct / 100);
+    stop = buy * (1 - spec.stopPct / 100);
+  } else if (p.shape === "prevPct") {
+    if (prev == null || p.pct == null) return null;
+    buy = prev * (1 + p.pct / 100);
+    sell = buy * (1 + spec.targetPct / 100);
+    stop = buy * (1 - spec.stopPct / 100);
+  } else if (p.shape === "peAnchor") {
+    if (quote.pe == null || p.buyPe == null || p.sellPe == null || p.stopPe == null) return null;
+    buy = buy0(quote, p.buyPe);
+    sell = clampN(quote.price * (p.sellPe / quote.pe), buy * 1.05, buy * 1.12);
+    stop = clampN(quote.price * (p.stopPe / quote.pe), buy * 0.88, buy * 0.94);
+  } else if (p.shape === "breakout") {
+    if (prev == null || p.pct == null) return null;
+    buy = prev * (1 + p.pct / 100);
+    sell = buy * (1 + spec.targetPct / 100);
+    stop = buy * (1 - spec.stopPct / 100);
+  } else {
+    return null;
+  }
+  if (buy == null || sell == null || stop == null) return null;
+  buy = round2(buy);
+  sell = round2(sell);
+  stop = round2(stop);
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, sell, stop };
+}
+
+/** peAnchor 的买价 = 现价 × min(pe, buyPe)/pe。 */
+function buy0(quote: SpecQuote, buyPe: number): number {
+  return quote.pe == null ? quote.price : quote.price * (Math.min(quote.pe, buyPe) / quote.pe);
+}
+
+/**
+ * 用 spec 给一只票算计划价。通过 tradable + 全部选股条件 + 算得出合法三价才返回，
+ * 否则 null。hit / ceiling 逻辑交给调用方（breakout 要 price 落在 [buy, ceiling]）。
+ */
+export function quoteOrderForSpec(spec: StrategySpec, quote: SpecQuote): Order | null {
+  if (!tradable(quote)) return null;
+  if (!specSelectPass(spec, quote)) return null;
+  const prices = specPrices(spec, quote);
+  if (!prices) return null;
+  const score = specScore(spec, quote);
+  return {
+    score: Math.round(score),
+    reasons: [`策略 spec ${spec.id}`],
+    buy: prices.buy,
+    sell: prices.sell,
+    stop: prices.stop,
+    hit: quote.price <= prices.buy && quote.price >= prices.stop,
+  };
+}
+
+/** 用 spec 替代 style 跑观察名单。depth 默认取前 10 只（与 watchList 一致）。 */
+export function specWatchList(
+  spec: StrategySpec,
+  quotes: Quote[],
+  allow: (quote: Quote) => boolean,
+  depth = MAX_POSITIONS,
+): Listed[] {
+  const rows: Listed[] = [];
+  for (const quote of quotes) {
+    if (!allow(quote)) continue;
+    const order = quoteOrderForSpec(spec, quote);
+    if (!order) continue;
+    rows.push({
+      quote,
+      score: order.score,
+      reasons: order.reasons,
+      buy: order.buy,
+      sell: order.sell,
+      stop: order.stop,
+      hit: order.hit,
+    });
+  }
+  rows.sort((a, b) => b.score - a.score || b.quote.cap - a.quote.cap);
+  return rows.slice(0, depth);
+}
+
+/**
+ * spec 的「选股自检」：在一组行情里挑出候选并给出基本分布。不落地、不回测，
+ * 只是「这套 spec 能不能选出东西、挑出来的样本长什么样」的零门槛体检——
+ * 基因组轨道提完 spec 先用它看一眼：全市场 0 命中（选股条件太严）或几乎全命中
+ * （条件太松、等于没选）都是病态信号，先拦在进回测前。
+ */
+export type SpecSelectionStats = {
+  /** 通过全部选股条件 + 算得出合法三价的票数。 */
+  passed: number;
+  /** 允许进入候选池的票数（allow 通过的）。 */
+  total: number;
+  /** 排序后的前 depth 只：id / 名称 / 分值 / 买入价。 */
+  top: { id: string; name: string; score: number; buy: number }[];
+};
+
+export function specSelectionStats(
+  spec: StrategySpec,
+  quotes: Quote[],
+  allow: (q: Quote) => boolean = () => true,
+  depth = MAX_POSITIONS,
+): SpecSelectionStats {
+  const rows = specWatchList(spec, quotes, allow, depth);
+  return {
+    passed: rows.length,
+    total: quotes.filter(allow).length,
+    top: rows.map((r) => ({ id: r.quote.id, name: r.quote.name, score: r.score, buy: r.buy })),
+  };
 }
 
 /**

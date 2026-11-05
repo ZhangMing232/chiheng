@@ -10,7 +10,9 @@
  *
  * 已知的三处近似，读结果时要心里有数：
  * 1. 股票池是「今天还在交易的股票」，已退市的不在里面，结果偏乐观（幸存者偏差）
- * 2. 历史换手率、市值、市盈率拿不到，只能用量价替代 —— 所以 value 那套回测不了
+ * 2. 历史换手率（已用流通市值反推）、市盈率/市净率（已用 baostock 逐日序列补上，见
+ *    data/backtest/pe-history/）现在都拿得到了；只有「历史总市值」仍只有今日快照
+ *    （cap.json），value 的 100 亿门槛用 BT_CAP 卡的是今天的数，属已知近似。
  * 3. 成交额用「成交量 × 收盘价」折算，与实际成交额略有出入
  *
  * 还有一处更要紧的：**这个文件里的选股条件是另抄了一份，和线上
@@ -37,13 +39,52 @@
  * 用法：node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts
  */
 
-import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, appendFile, readdir } from "node:fs/promises";
 import { exitFill } from "@/lib/market/journal-book";
 import { boardLimit } from "@/lib/market/model";
+
+// 历史 PE/PB 日序列（baostock 抓取，data/backtest/pe-history/pe-<code>.json）。
+// value 变体用来做 PE<=18 / PB<=2 过滤 + 按 PE 锚定买卖价。这是真实逐日序列，
+// 不是市值快照回填（那会前视）。拿不到的交易日为 null，由策略函数决定怎么处理。
+type PeRow = { peTTM: number | null; pbMRQ: number | null; isST: boolean };
+const peMap: Record<string, Map<string, PeRow>> = {};
+// 总市值快照（今日，单位亿），value 变体的 100 亿门槛用，也供 BT_CAP 全局闸。
+// 这是今天的市值不是历史市值，属已知近似（见文件头注释），不能当精确结论。
+let capMap: Record<string, number> = {};
+
+async function loadPeHistory(): Promise<void> {
+  const dir = `${CACHE}/../pe-history`;
+  let files: string[] = [];
+  try {
+    files = await readdir(dir);
+  } catch {
+    console.log("（没有 pe-history 目录，value 变体不可用；先跑 python3 scripts/fetch-pe-batch.py）\n");
+    return;
+  }
+  let n = 0;
+  for (const f of files) {
+    if (!f.startsWith("pe-") || !f.endsWith(".json")) continue;
+    const code = f.slice(3, 9);
+    try {
+      const d = JSON.parse(await readFile(`${dir}/${f}`, "utf8")) as {
+        series?: Array<{ date: string; peTTM?: number | null; pbMRQ?: number | null; isST?: boolean }>;
+      };
+      const m = new Map<string, PeRow>();
+      for (const r of d.series ?? []) {
+        m.set(r.date, { peTTM: r.peTTM ?? null, pbMRQ: r.pbMRQ ?? null, isST: r.isST === true });
+      }
+      peMap[code] = m;
+      n += 1;
+    } catch {
+      // 坏文件跳过，不阻塞整体
+    }
+  }
+  if (n > 0) console.log(`历史 PE/PB 缓存 ${n} 只（value 变体用）\n`);
+}
 import { holdOf } from "@/lib/market/strategies";
 import type { BacktestRun, BacktestStyleStat } from "@/lib/market/backtest-runs";
 import { RUNS_PATH } from "@/lib/market/backtest-runs";
-import type { StyleId } from "@/lib/market/strategies";
+import type { StyleId, StrategySpec } from "@/lib/market/strategies";
 import type { Bar } from "@/lib/market/types";
 import {
   FACTORS,
@@ -65,6 +106,7 @@ import { loadQueueFactors, applyVerdictsToQueue } from "@/lib/market/factor-queu
 import { dsr as dsrOf, perPeriodSharpe, std as trialStd } from "@/lib/market/robustness";
 import { pitValue, recordsOf } from "@/lib/market/fundamentals";
 import type { FundamentalFile } from "@/lib/market/fundamentals";
+import { specBacktestSignal, loadGenomeSpec, type SpecBacktestRow } from "@/lib/market/spec-backtest";
 
 /** 财报基本面落盘文件（scripts/fetch-fundamentals.py / .ts 生成）。读不到就当没有——
  * 基本面因子全部取 null 自动退出分档，不影响量价因子检验。 */
@@ -140,9 +182,11 @@ function holdFor(key: string): number {
   // BT_HOLD 同时扫 spring：威科夫说 Spring→SOS→LPS 要 2~4 周（14~28 日），
   // 而项目已实测短周期因子普遍失效，所以持有期必须能扫。
   if ((key === "rebound" || key === "spring") && process.env.BT_HOLD) return Number(process.env.BT_HOLD);
+  // 基因组 spec 自带持有期（spec.holdDays），不看 StyleId 的默认表。
+  const own = STRATEGIES[key]?.hold;
+  if (own != null) return own;
   return holdOf(key as StyleId);
-}
-/**
+}/**
  * 数据目录。CHIHENG_DATA_DIR 可以换到别处（测试用），和 src/lib/market/gate-log.ts
  * 同一个约定。没设就是项目根下的 data/。
  */
@@ -427,6 +471,13 @@ function metrics(
     std20,
     std60,
     amp20,
+    /**
+     * 当日振幅（%）：(h-l)/c。
+     * 仓库里 amp20 是这同一套公式的 20 日均值，所以这里的单日值和 amp20 同源同口径。
+     * 和线上 Quote.amp（腾讯 zf）差一个分母：腾讯用昨收，这里用当日收盘。
+     * 给策略 spec 的表达式用时按本口径（spec-backtest.ts 的 FIELD_SOURCES 里写明了）。
+     */
+    ampDay: c > 0 && rows[i].h >= rows[i].l ? ((rows[i].h - rows[i].l) / c) * 100 : null,
     corrVRet,
     shrinkDays,
     distHigh20,
@@ -472,6 +523,16 @@ function metrics(
     newsTone: null,
     annCount: null,
     ...injectExt(ext, rows[i].date, id),
+    // 历史 PE/PB（baostock 真实逐日序列）。null 不是 0：null 是「那天没这个数」，
+    // 策略函数应该把 null 当「无法确认便宜」处理，不能当「便宜」通过。
+    // pe-history 按纯 6 位代码命名（pe-600000.json），kline 的 id 带 sh/sz 前缀，
+    // 查之前先把 id 归一化成 6 位，否则键对不上 PE/PB 永远取不到。
+    pe: peMap[id.replace(/[^0-9]/g, "")]?.get(rows[i].date)?.peTTM ?? null,
+    pb: peMap[id.replace(/[^0-9]/g, "")]?.get(rows[i].date)?.pbMRQ ?? null,
+    isST: peMap[id.replace(/[^0-9]/g, "")]?.get(rows[i].date)?.isST ?? null,
+    // 总市值快照（今日，亿），cap.json 按 sh/sz+6位 命名，和 id 同格式。
+    // null 不是 0：拿不到市值时策略函数应排除而非放行。
+    cap: capMap[id] ?? null,
   };
 }
 
@@ -840,7 +901,88 @@ function reversal3(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
   return { buy, stop, sell, score: -m.d5 };
 }
 
-const STRATEGIES = {
+/**
+ * 低估值回测变体（value）。镜像 src/lib/market/strategies.ts 的 valueOrder：
+ * PE<=18、PB<=2、d60>=-25、成交额>=3000万、流通市值>=40亿（floatCap 快照近似）。
+ * 100 亿总市值门槛由 m.cap（今日快照 capMap）在策略函数内部负责（已知近似，不能当精确结论）。
+ * 买卖价按 PE 锚定：min(pe,15)/pe 折算买价，目标 22 倍、止损 10 倍，夹在 +5~12% / -12~-6%。
+ *
+ * PE/PB 用 baostock 真实逐日序列，不是市值快照回填，所以「按当时拿得到的 PE 算买卖价」
+ * 这条无前视铁律守得住。拿不到 PE/PB 的交易日直接不入选——宁可少样本，不把「未知」当「便宜」。
+ */
+function valueBacktest(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  if (m.isST === true) return null;
+  if (m.pe == null || m.pb == null || m.pe <= 0 || m.pb <= 0) return null;
+  if (m.pe > 18 || m.pb > 2) return null;
+  if (m.d60 != null && m.d60 < -25) return null;
+  if (m.amountWan < 3000) return null;
+  if (m.c < 4) return null;
+  // 总市值>=100亿：价值策略的硬性门槛。用今日快照 capMap（已知近似，非历史市值）；
+  // 拿不到市值（capMap 无此票）视同无法确认资格，排除而非放行。
+  if (m.cap == null || m.cap < 100) return null;
+  // 流通市值>=40亿：线上 tradable 硬性要求；回测用 floatCap 快照（缺失不动，不卡）
+  if (m.floatCap != null && m.floatCap < 40) return null;
+  const c = m.c;
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const buy = r2(c * (Math.min(m.pe, 15) / m.pe));
+  const entryPe = m.pe * (buy / c);
+  const sell = r2(Math.max(Math.min(buy * (22 / entryPe), buy * 1.12), buy * 1.05));
+  const stop = r2(Math.min(Math.max(buy * (10 / entryPe), buy * 0.88), buy * 0.94));
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: Math.round(40 - m.pe) };
+}
+
+/**
+ * 策略函数签名：
+ *   m       = 该股在信号日（t 日）的指标行（metrics() 的产物）
+ *   stopPct = 全局止损覆盖（回测扫描用）
+ *   id      = 股票内部编号（带 sh/sz 前缀）。**spec 轨道需要它**：涨跌停板不同
+ *             （科创/创业 20%、北交所 30%、ST 5%、主板 10%），没有 id 判不出板，
+ *             会把「科创板涨 15%」错当成「贴涨停」拒掉。
+ */
+type StrategyFn = (m: ReturnType<typeof metrics>, stopPct?: number, id?: string) => Signal | null;
+
+/**
+ * 策略基因组轨道接进回测的入口。默认不注册（日常基线/页面账本不带它）。
+ *
+ * 两种跑法：
+ *   BT_GENOME=1                          → 把基因组里**所有待判的候选**都注册进来
+ *                                          （status = proposed / testing），一次回测判一批。
+ *   BT_GENOME=1 BT_GENOME_SPEC=<id>      → 只注册指定那一条（focused 调试/单跑一条）。
+ * spec 用到回测取不到的字段（inflow / ytd）→ 抛错拒跑，不换字段凑数。
+ *
+ * 注册进来的 key 统一是 `genome_<id>`，判决脚本按这个前缀找回来写进基因组文件。
+ */
+const genomeSpecId = process.env.BT_GENOME_SPEC ?? "";
+const genomeSpecs: { id: string; label: string; hold: number; spec: StrategySpec }[] = [];
+if (process.env.BT_GENOME === "1") {
+  if (genomeSpecId) {
+    const one = await loadGenomeSpec(genomeSpecId);
+    genomeSpecs.push({ id: genomeSpecId, label: one.label, hold: one.hold, spec: one.spec });
+  } else {
+    // 全量：把所有待判的候选拉进来。判不了的（口径缺字段）跳过并说明，不静默吞。
+    const { readGenome } = await import("@/lib/market/strategy-genome");
+    const { specBacktestReady } = await import("@/lib/market/spec-backtest");
+    const file = await readGenome();
+    for (const c of file.list) {
+      if (c.status !== "proposed" && c.status !== "testing") continue;
+      const ready = specBacktestReady(c);
+      if (!ready.ready) {
+        console.log(`（跳过候选 ${c.id}：${ready.missing.join("；")}）`);
+        continue;
+      }
+      genomeSpecs.push({ id: c.id, label: `基因组·${c.name}`, hold: c.holdDays, spec: c });
+    }
+  }
+}
+const genomeFns: Record<string, StrategyFn> = {};
+for (const g of genomeSpecs) {
+  const spec = g.spec;
+  genomeFns[`genome_${g.id}`] = (m, _stopPct, id) =>
+    specBacktestSignal(spec, m as unknown as SpecBacktestRow, id ?? "");
+}
+
+const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number }> = {
   trend: { label: "趋势回踩", fn: trend },
   breakout: { label: "放量突破", fn: breakout },
   early: { label: "启动前期", fn: early },
@@ -855,6 +997,13 @@ const STRATEGIES = {
   // 跑法：BT_GEN2=1 BT_STOP=8 BT_NO_LOG=1（详见 2026-11-05 判决报告）。
   ...(process.env.BT_GEN2 === "1"
     ? { gen2: { label: "二代·线上对齐", fn: breakoutGen2 } }
+    : {}),
+  // 低估值回测变体（value）。用 baostock 真实逐日 PE/PB，镜像 valueOrder 的锚定逻辑。
+  // 默认不注册：日常基线/页面账本不带它；跑法 BT_VALUE=1 BT_NO_LOG=1（100 亿门槛在
+  // 策略函数内部按个股查 capMap，不走 BT_CAP 全局闸——后者会删股票触发覆盖率闸口拒绝）。
+  // 100 亿总市值用今日快照 capMap（已知近似，见文件头注释，非历史市值）。
+  ...(process.env.BT_VALUE === "1"
+    ? { value: { label: "低估值·回测变体", fn: valueBacktest, hold: holdOf("value") } }
     : {}),
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
   // 天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写死 10。
@@ -871,7 +1020,12 @@ const STRATEGIES = {
   // 威科夫 Spring。只在回测里跑 —— ACTIVE_STYLES 在 strategies.ts:274，
   // 那一行是实盘记账的唯一开关，本方案绝不碰它。
   spring: { label: "Spring·威科夫", fn: springBuy, hold: holdOf("rebound") },
-} as const;
+  // 基因组候选（BT_GENOME=1 才注册）。这才是「失败 → 新策略」那条轨道能被判的地方：
+  // spec 拿到和别的策略同口径的回测待遇，判决由 genome-verdict.ts 写回基因组文件。
+  ...Object.fromEntries(
+    genomeSpecs.map((g) => [`genome_${g.id}`, { label: g.label, fn: genomeFns[`genome_${g.id}`], hold: g.hold }]),
+  ),
+};
 
 type Trade = {
   id: string;
@@ -981,17 +1135,18 @@ async function main() {
   // 用来回答「这个效应是不是只在小票上，线上那个门槛会不会正好把它滤掉」。
   // 口径的窟窿：这里用的是今天的市值，不是历史市值，多数票两年里量级没变，
   // 只能当稳健性粗检，不能当精确结论。
+  // 总市值快照（今日，亿）始终加载：value 变体的 100 亿门槛在策略函数内部按个股查，
+  // 不能靠下面这个 BT_CAP 全局闸（它会删股票、把覆盖率拉到 50% 以下触发请求闸口拒绝）。
+  try {
+    capMap = JSON.parse(await readFile(`${CACHE}/../cap.json`, "utf8")) as Record<string, number>;
+  } catch {
+    console.log("（没有 cap.json，value 的 100 亿门槛与 BT_CAP 过滤都不可用；先跑 node scripts/build-caps.mjs。）\n");
+  }
   const capFloor = Number(process.env.BT_CAP ?? 0);
   if (capFloor > 0) {
-    let cap: Record<string, number> = {};
-    try {
-      cap = JSON.parse(await readFile(`${CACHE}/../cap.json`, "utf8")) as Record<string, number>;
-    } catch {
-      console.log("（没有 cap.json，跳过市值过滤。先跑 node scripts/build-caps.mjs。）");
-    }
     let dropped = 0;
     for (const id of [...klines.keys()]) {
-      const value = cap[id];
+      const value = capMap[id];
       if (value != null && value >= capFloor) continue;
       klines.delete(id);
       dropped += 1;
@@ -1130,6 +1285,7 @@ async function main() {
   } catch {
     floatCapMap = {};
   }
+  await loadPeHistory();
   const useTurnoverGate = Object.keys(floatCapMap).length > 0 && process.env.BT_TURNOVER !== "0";
   if (useTurnoverGate) {
     console.log(`流通市值缓存 ${Object.keys(floatCapMap).length} 条，放量突破的换手率闸已启用（≥2%）\n`);
@@ -1199,7 +1355,7 @@ async function main() {
       if (idx < 61) continue;
       const m = metrics(rows, idx, useTurnoverGate ? floatCapMap[id] ?? null : null, useTurnoverGate, id, ext);
       for (const [key, def] of Object.entries(STRATEGIES)) {
-        const sig = def.fn(m, stopPct);
+        const sig = def.fn(m, stopPct, id);
         if (sig) picks[key].push({ id, sig });
       }
     }

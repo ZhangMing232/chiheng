@@ -277,10 +277,35 @@ function extractJsonArray(raw: string): unknown[] {
  *  只会死更多，饿死队列的是因子没 edge，所以约束加在提议端不碰 6 关）。 */
 export const FAMILY_DEATH_CAP = 5;
 
+/**
+ * 因子表达式的「结构签名」——剥掉常数和窗口数字，只看「用了哪些变量基名 + 哪些运算符 + 哪些函数」。
+ * 这是治「换汤不换药」的距离约束：同一套形状只换窗口/常数的提案直接判近亲拒掉。
+ *   "std20 / amp20" 和 "std60 / amp15" → 基名都是 {std, amp}、算符 {/} → 同签名 → 近亲
+ *   "std20 / amp20" 和 "std20 * amp20" → 算符不同（/ vs *）→ 不同签名 → 不是近亲（算子变了是结构性改动）
+ *   "abs(d20) * volShrink" 和 "abs(d60) * volShrink" → 基名 {d, volShrink}、函数 {abs}、算符 {*} → 同签名 → 近亲
+ * 注意它比对的是「形状」不是「值」：变量里的数字（std20 的 20）和 standalone 常数都剥掉，
+ * 所以换窗口、换阈值这类「微不足道的参数微调」逃不过这把刀。
+ */
+const SIGNATURE_FUNCS = new Set(["abs", "log", "sqrt"]);
+export function factorSignature(src: string): string {
+  const ids = src.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) ?? [];
+  const vars = new Set<string>();
+  const funcs = new Set<string>();
+  for (const id of ids) {
+    if (SIGNATURE_FUNCS.has(id)) funcs.add(`f:${id}`);
+    else vars.add(`v:${id.replace(/[0-9]+$/, "")}`);
+  }
+  const ops = src.match(/<=|>=|==|!=|[+\-*/<>]/g) ?? [];
+  const opSet = [...new Set(ops)].sort().map((o) => `o:${o}`);
+  return [...vars].sort().concat([...funcs].sort(), opSet).join("|");
+}
+
 export function parseAIProposals(
   raw: string,
   existing: { ids: Set<string>; names: Set<string> },
   deathStats?: { tombsByCategory?: Record<string, number> },
+  /** 已有因子表达式（队列 expr + 注册表因子 id 当伪表达式）。用于近亲/距离约束：结构同签名直接拒。 */
+  existingExprs?: string[],
 ): ProposalCheck {
   let arr: unknown[];
   try {
@@ -293,6 +318,8 @@ export function parseAIProposals(
   const ids = new Set(existing.ids);
   const names = new Set(existing.names);
   const usedByCategory = new Map<string, number>();
+  // 距离约束用的已存在结构签名集合（含本轮已接受的，做批内去重）。
+  const seenSigs = new Set(existingExprs?.map((e) => factorSignature(e)) ?? []);
   for (const item of arr) {
     const p = item as Partial<AIProposal>;
     const fail = (reason: string) => rejected.push({ proposal: item, reason });
@@ -309,6 +336,12 @@ export function parseAIProposals(
     const compiled = validateFactorExpr(p.expr);
     if (!compiled.ok) { fail(`表达式不过编译：${compiled.error}`); continue; }
     if (typeof p.rationale !== "string" || p.rationale.trim().length < 10) { fail("rationale（经济逻辑）太短，少于 10 字"); continue; }
+    // 距离约束（治「换汤不换药」）：新因子的结构签名若和已存在因子相同，就是只换窗口/常数的近亲，拒。
+    const sig = factorSignature(p.expr);
+    if (seenSigs.has(sig)) {
+      fail(`结构签名「${sig}」和已存在的因子近亲（只换窗口/常数，属于换汤不换药）——换正交思路再提`);
+      continue;
+    }
     // 家族多样性限额（DECISIONS #2 落地结论的提议层配套）：重度死亡家族一轮只收
     // 1 个。放在全部字段校验之后——格式不对的提案先按真实原因拒，限额只消耗合法提案。
     const tombsInFamily = deathStats?.tombsByCategory?.[category] ?? 0;
@@ -322,6 +355,7 @@ export function parseAIProposals(
     }
     ids.add(p.id);
     names.add(p.name.trim());
+    seenSigs.add(sig);
     usedByCategory.set(category, usedInFamily + 1);
     accepted.push({
       id: p.id,
@@ -718,7 +752,12 @@ export async function runFactorAILoop(
   }
   const ids = new Set([...deps.existingFactors.map((f) => f.id), ...entries.map((e) => e.id)]);
   const names = new Set([...deps.existingFactors.map((f) => f.name), ...entries.map((e) => e.name)]);
-  const { accepted, rejected } = parseAIProposals(raw, { ids, names }, { tombsByCategory });
+  // 距离约束的已有表达式来源：队列里所有条目的 expr + 注册表因子 id（当伪表达式，抓「换个窗口再提同一因子」）。
+  const existingExprs = [
+    ...entries.map((e) => e.expr),
+    ...deps.existingFactors.map((f) => f.id),
+  ].filter((x): x is string => typeof x === "string");
+  const { accepted, rejected } = parseAIProposals(raw, { ids, names }, { tombsByCategory }, existingExprs);
   if (accepted.length > 0) {
     const now = new Date().toISOString();
     await writeQueue([

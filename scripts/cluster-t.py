@@ -56,6 +56,12 @@ def stat(rows, cut=None):
     # K=1 → (N-1)/(N-K) = 1，写出来是提醒别漏了小样本修正那一项
     small = (n - 1) / (n - 1)
     v_clu = (g / (g - 1)) * small * meat / (n * n)
+    # 退化样本：所有超额几乎完全相同 → 簇内方差在浮点里 ≈1e-37 而不是 0，
+    # 直接代公式会算出 t≈1e16 的「巨额通过」假象。显式判退化并报 nan。
+    # （2026-11-05 补：老的 JS 版在同样样本上出过 5.76e15。）
+    scale = max(abs(mean), 1e-12)
+    if max(abs(x - mean) for x in e) <= scale * 1e-12:
+        return (n, g, mean, sum(1 for x in e if x > 0) / n * 100, t_iid, float("nan"))
     t_clu = mean / math.sqrt(v_clu) if v_clu > 0 else float("nan")
 
     win = sum(1 for t in rows if t["ret"] > 0) / n * 100

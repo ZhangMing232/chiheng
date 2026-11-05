@@ -56,6 +56,7 @@ import { readAILog } from "../src/lib/market/ai-log.ts";
 import { readFactorRuns } from "../src/lib/market/factor-runs-file.ts";
 import { readAIConfig, runFactorAILoop } from "../src/lib/market/factor-queue.ts";
 import { runStrategyAILoop } from "../src/lib/market/strategy-ai.ts";
+import { runGenomeLoop } from "../src/lib/market/strategy-genome.ts";
 import { robustnessReport, writeRobustness } from "../src/lib/market/challenger-robust.ts";
 import { FACTORS } from "../src/lib/market/factors.ts";
 
@@ -949,9 +950,12 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     const { autoLayerDue } = await import("../src/lib/market/evolve-breaker.ts");
     const dueFactor = autoLayerDue(todayAuto, "factor");
     const dueStrategy = autoLayerDue(todayAuto, "strategy");
+    // 基因组层（2026-11-05 新增）：产出全新/更新的策略 spec——「失败 → 新策略」那一层。
+    // 同样按层独立判「今天该不该跑」，失败也按 AUTO_RETRY 补跑。
+    const dueGenome = autoLayerDue(todayAuto, "genome");
     // 诊断（observe 层）跟着第一轮跑：任一层要跑且今天还没诊断过才诊断。
-    const dueDiagnosis = (dueFactor || dueStrategy) && !todayAuto.some((e) => e.layer === "agent");
-    if (prefs.autoEvolve && config && (dueFactor || dueStrategy)) {
+    const dueDiagnosis = (dueFactor || dueStrategy || dueGenome) && !todayAuto.some((e) => e.layer === "agent");
+    if (prefs.autoEvolve && config && (dueFactor || dueStrategy || dueGenome)) {
       // 熔断器：已断电的状态直接跳过（开关应该已被关掉，这里是双保险 + 审计）。
       const { readBreaker, nextBreakerState, writeBreaker, BREAKER_RULE } = await import(
         "../src/lib/market/evolve-breaker.ts"
@@ -972,8 +976,8 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
             console.error(`${time} AI 全局诊断失败（不影响提议）:`, diagError);
           }
         }
-        const retrying = [dueFactor && "因子层", dueStrategy && "策略层"].filter(Boolean).join("、");
-        console.log(`${time} AI 自动进化开始${retrying === "因子层、策略层" ? "" : `（补跑：${retrying}）`}`);
+        const retrying = [dueFactor && "因子层", dueStrategy && "策略层", dueGenome && "基因组层"].filter(Boolean).join("、");
+        console.log(`${time} AI 自动进化开始${retrying === "因子层、策略层、基因组层" ? "" : `（补跑：${retrying}）`}`);
         // 没到点的那层不跑，交给熔断器的 outcome 记 ok——今天这层已有产出，
         // 不能让补跑的另一层把整天算成「双败」。
         const skipOutcome = { ok: true, proposed: 0, rejected: 0, rejectReasons: [] };
@@ -984,8 +988,11 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
             )
           : skipOutcome;
         const strategy = dueStrategy ? await runStrategyAILoop("auto") : skipOutcome;
+        // 基因组层：失败只记它自己的账，不进熔断器的「双败」判定——
+        // 熔断是给「因子层+策略层」这两条老通道设的，基因组层挂了不该把整个进化断电。
+        const genome = dueGenome ? await runGenomeLoop("auto") : skipOutcome;
         console.log(
-          `${time} AI 自动进化：因子层 ${factor.ok ? `提议 ${factor.proposed}` : `没跑成（${factor.error ?? "?"}）`} · 策略层 ${strategy.ok ? `提名 ${strategy.proposed}` : `没跑成（${strategy.error ?? "?"}）`}`,
+          `${time} AI 自动进化：因子层 ${factor.ok ? `提议 ${factor.proposed}` : `没跑成（${factor.error ?? "?"}）`} · 策略层 ${strategy.ok ? `提名 ${strategy.proposed}` : `没跑成（${strategy.error ?? "?"}）`} · 基因组层 ${genome.ok ? `提议 ${genome.proposed} 套策略` : `没跑成（${genome.error ?? "?"}）`}`,
         );
         const next = nextBreakerState(breaker, factor, strategy, new Date().toISOString());
         if (next !== breaker) await writeBreaker(next);

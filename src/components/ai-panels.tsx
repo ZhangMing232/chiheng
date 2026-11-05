@@ -468,7 +468,7 @@ export function UsageSection({ usage }: { usage: UsagePayload }) {
                   {e.at.slice(5, 16).replace("T", " ")}
                 </td>
                 <td data-l="链路" className="px-2.5 py-1.5 text-[11px] text-muted">
-                  {e.layer === "factor" ? "因子" : e.layer === "strategy" ? "策略" : e.layer === "test" ? "测试" : e.layer}
+                  {e.layer === "factor" ? "因子" : e.layer === "strategy" ? "策略" : e.layer === "genome" ? "基因组" : e.layer === "test" ? "测试" : e.layer}
                   {e.trigger === "auto" ? "·自动" : ""}
                 </td>
                 <td data-l="模型" className="max-w-[16ch] truncate px-2.5 py-1.5 font-mono text-[11px] text-muted">
