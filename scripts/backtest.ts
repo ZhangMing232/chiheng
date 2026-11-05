@@ -670,6 +670,34 @@ function breakout4(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
 }
 
 /**
+ * 二代线上口径的可回测近似（2026-11-05 补，判决见
+ * data/backtest/2026-11-05/REPORT-GEN2-VERDICT.md）。
+ *
+ * 和 bk4 只差一道闸：线上 breakoutOrder 有 `quote.turnover < 2` 过滤，
+ * 白皮书 §3.1 写「选股条件等于回测 bk4 口径」时把这道闸漏了。
+ * bk4 保持原样不改——10-28 及更早的基线数字必须还能对得上，不能让口径偷偷漂移。
+ *
+ * 仍然对不齐、而且日线回测补不了的两处（报告里要明说，别拿这个数冒充线上）：
+ *   ① 线上盘中限价带 hit ∈ [buy, buy×1.015]（现价刚过买入价才买，冲远了不追），
+ *      要分钟数据；回测是 t+1 按日线限价单撮合。
+ *   ② 线上按分钟轮询判断「此刻正在这个价」，回测按日线当天是否触及。
+ * 这两条决定 gen2 只是「能对齐的部分对齐了」的判决口径，不是线上逐字复刻。
+ */
+function breakoutGen2(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  if (m.d5 == null || m.d20 == null) return null;
+  if (m.volRatio < 1.8 || m.volRatio > 5) return null;
+  if (m.amountWan < 8000 || m.c < 4) return null;
+  if (m.d5 < 0 || m.d5 > 8 || m.d20 < 0 || m.d20 > 10) return null;
+  if (m.chg < 0 || m.chg > 7) return null;
+  if (m.turnoverGateOn && (m.turnover == null || m.turnover < 2)) return null;
+  const buy = m.prev * 1.02;
+  const stop = stopPct == null ? m.prev : buy * (1 - stopPct / 100);
+  const sell = buy * (1 + Math.max(20 - m.d20, 2) / 100);
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: m.volRatio * 10, fill: "stop" };
+}
+
+/**
  * 反转策略的改进版。原版的问题是「接飞刀」：跌了就买，可它还在跌。
  * 这一版要求当天已经出现止跌迹象——收阳、不再创新低、缩量更明显。
  * 当日收阳与否在收盘时是已知的，不违反无前视。
@@ -822,6 +850,12 @@ const STRATEGIES = {
   bk2: { label: "突破·早期版", fn: breakout2 },
   bk3: { label: "突破·排天量", fn: breakout3 },
   bk4: { label: "突破·早期+排天量", fn: breakout4 },
+  // 二代判决专用：和 bk4 只差一道线上有的换手率 ≥2% 闸。默认不注册，
+  // 免得日常基线报告多一行、也免得污染页面读的 JSONL / runs.jsonl。
+  // 跑法：BT_GEN2=1 BT_STOP=8 BT_NO_LOG=1（详见 2026-11-05 判决报告）。
+  ...(process.env.BT_GEN2 === "1"
+    ? { gen2: { label: "二代·线上对齐", fn: breakoutGen2 } }
+    : {}),
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
   // 天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写死 10。
   rebound: { label: "中期反转", fn: rebound, hold: holdOf("rebound") },
