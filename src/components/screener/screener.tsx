@@ -12,7 +12,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { LabPanel } from "@/components/screener/lab-panel";
 import { Picks } from "@/components/screener/picks";
 import { PrefsBar } from "@/components/screener/prefs-bar";
 import { Frame } from "@/components/screener/nav";
@@ -21,13 +20,12 @@ import { SectionTabs } from "@/components/section-tabs";
 import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
-import { buildLabReport } from "@/lib/market/lab";
-import { cycleStyle, watchList, ACTIVE_STYLES, STYLES, styleOf, type Listed } from "@/lib/market/strategies";
+import { cycleStyle, watchList, ACTIVE_STYLES, STYLES, styleOf, type Listed, type StyleId } from "@/lib/market/strategies";
 import { CollapsibleSection } from "@/components/collapsible";
 import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getStrategyGates, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { AccountStatus, DataStatusBadge } from "@/components/screener/data-status";
-import { Panel, Tape } from "@/components/terminal";
+import { Panel, Tape, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, SessionInfo, Universe } from "@/lib/market/types";
@@ -166,7 +164,6 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   }, [quotes, rules, prefs, relay]);
 
   const indexTime = indices.find((item) => item.time)?.time;
-  const labReport = useMemo(() => buildLabReport(journal, rules), [journal, rules]);
   // 策略闸状态（记账进程判决、落盘）：左侧面板给停用/假释的策略挂标记，
   // 不然那套只是「永远没有票」，看起来像坏了。
   const { data: gateData } = useQuery({
@@ -191,6 +188,15 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     setPrefs(next);
     void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
   };
+
+  // 顶部「现役策略」条：每套现役策略今天的候选数（同一套筛选口径，和切过去看到的数字一致）。
+  const candidateCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const id of ACTIVE_STYLES) {
+      counts[id] = watchList(quotes, id, rules, (quote) => matchPrefs(quote, prefs)).length;
+    }
+    return counts;
+  }, [quotes, rules, prefs]);
 
   return (
     <Frame
@@ -237,7 +243,55 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           ariaLabel="策略"
           tabs={STRATEGY_TABS}
         />
-        <LabPanel report={labReport} />
+        {/* 现役策略条（2026-11-05 换掉原「策略实验台」：那块回答的是「样本够不够下结论」，
+            二代重跑后长期大面积空心，看着像坏了；结论判定在策略追踪/失败归因页都有，
+            这里不缺它。选股页开头该回答的是「现在有哪几套在跑、停了哪套、今天各挑了谁」——
+            被闸门停用的明说原因，别让那套只是「永远没有票」。 */}
+        <Panel
+          title="现役策略"
+          note="点卡片切换到那套策略；被闸门停用的标黄并写明原因"
+          className="mb-2"
+        >
+          <div className="grid gap-px bg-line sm:grid-cols-2">
+            {ACTIVE_STYLES.map((id) => {
+              const gate = gates[id];
+              const stopped = gate?.state === "disabled";
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => pickStyle(id)}
+                  aria-pressed={id === prefs.style}
+                  className={
+                    "px-3 py-2.5 text-left transition " +
+                    (id === prefs.style ? "bg-brand-soft" : "bg-surface hover:bg-surface-2/60")
+                  }
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className={`text-sm ${id === prefs.style ? "font-medium text-brand-text" : "font-medium text-fg"}`}>
+                      {STYLES.find((item) => item.id === id)?.name ?? id}
+                    </span>
+                    <span className="flex items-baseline gap-2 text-xs text-muted">
+                      <span className="tabular-nums">候选 {candidateCounts[id] ?? 0} · 持仓 {styleCounts[id] ?? 0}</span>
+                      {stopped ? (
+                        <Tag tone="warn">已停用</Tag>
+                      ) : gate ? (
+                        <Tag tone="brand">假释中</Tag>
+                      ) : (
+                        <Tag tone="up">在跑</Tag>
+                      )}
+                    </span>
+                  </div>
+                  {gate ? (
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                      {gate.since} 起 · {gate.reason}
+                    </p>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </Panel>
         {error ? (
           <StateBlock
             kind="error"
