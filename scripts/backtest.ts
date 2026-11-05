@@ -522,7 +522,7 @@ function metrics(
     sectorFlow: null,
     newsTone: null,
     annCount: null,
-    ...injectExt(ext, rows[i].date, id),
+    ...injectExt(ext, rows[i].date, id, amountWan),
     // 历史 PE/PB（baostock 真实逐日序列）。null 不是 0：null 是「那天没这个数」，
     // 策略函数应该把 null 当「无法确认便宜」处理，不能当「便宜」通过。
     // pe-history 按纯 6 位代码命名（pe-600000.json），kline 的 id 带 sh/sz 前缀，
@@ -543,6 +543,10 @@ type ExtData = Map<string, Map<string, {
   hotNetBuy?: number;
   marginRatio?: number;
   marginBuy?: number;
+  /** 融券余额（元）。两融源数据里有 rqye 字段，2026-11-05 接上（见下）。 */
+  shortBalance?: number;
+  /** 主力净流入（原始金额，元）。横截面用比率版，见 injectExt 里的换算。 */
+  mainFlowRaw?: number;
 }>>;
 
 function lookupExt(ext: ExtData | null | undefined, date: string, id: string) {
@@ -552,13 +556,19 @@ function lookupExt(ext: ExtData | null | undefined, date: string, id: string) {
   return day.get(id) ?? {};
 }
 
-function injectExt(ext: ExtData | null | undefined, date: string, id: string) {
+function injectExt(ext: ExtData | null | undefined, date: string, id: string, amountWan: number | null) {
   const v = lookupExt(ext, date, id);
   return {
     hotSeatCount: v.hotSeatCount ?? null,
     hotNetBuy: v.hotNetBuy ?? null,
     marginRatio: v.marginRatio ?? null,
     marginBuy: v.marginBuy ?? null,
+    shortBalance: v.shortBalance ?? null,
+    // 主力净流入：原始金额 ÷ 当日成交额（万元 → 元）= 占比 %。横截面可比。
+    mainFlow:
+      v.mainFlowRaw != null && amountWan != null && amountWan > 0
+        ? (v.mainFlowRaw / (amountWan * 1e4)) * 100
+        : null,
   };
 }
 
@@ -1180,6 +1190,10 @@ async function main() {
           const cur = day.get(prefixed) ?? {};
           if (row.ratio != null) cur.marginRatio = Number(row.ratio);
           if (row.rzjme != null) cur.marginBuy = Number(row.rzjme) / 1e4;
+          // 融券余额（元）。源数据里有（rqye），但这段加载器一直没读它——
+          // 于是 short_balance 因子每轮都是「没测到」（t=0），白占一个注册位。
+          // 2026-11-05 接上。
+          if (row.rqye != null) cur.shortBalance = Number(row.rqye);
           day.set(prefixed, cur);
         }
         if (day.size > 0) ext.set(date, day);
@@ -1210,7 +1224,29 @@ async function main() {
         ext.set(date, day);
       } catch { /* 坏文件跳过 */ }
     }
-    console.log(`外部数据加载：${ext.size} 个交易日\n`);
+    // 资金流（主力净流入）：data/backtest/flow/<id>.json（东财 120 日）。
+    // 口径：**主力净流入占当日成交额比**（%），不是原始金额——横截面比原始金额
+    // 比的是市值规模（大盘股金额天然大），不是资金流强度。BT_FLOW 探路当时也用
+    // ratio（mainRatio/mainRatio5），这里口径一致。原始金额另存在 mainFlowRaw。
+    let flowLoaded = 0;
+    for (const id of klines.keys()) {
+      try {
+        const rows = JSON.parse(await readFile(`${CACHE}/../flow/${id}.json`, "utf8")) as { date: string; main: number }[];
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+        for (const r of rows) {
+          if (!r?.date || r.main == null) continue;
+          const day = ext.get(r.date) ?? new Map();
+          const cur = day.get(id) ?? {};
+          cur.mainFlowRaw = Number(r.main);
+          day.set(id, cur);
+          ext.set(r.date, day);
+        }
+        flowLoaded += 1;
+      } catch {
+        // 没拉到缓存，跳过（那只票这天就是 null）
+      }
+    }
+    console.log(`外部数据加载：${ext.size} 个交易日（资金流缓存命中 ${flowLoaded} 只）\n`);
   } catch { ext = null; }
 
   // 日期 -> 该票在自己数组里的下标。主循环里天天 findIndex 太慢，顺手也为了算基准。
@@ -1732,15 +1768,41 @@ async function main() {
       return daily;
     };
 
-    const mid = Math.floor((startIdx + dates.length - 2) / 2);
-    const fullDaily = buildDaily(klines, idxOf, dates, benchOver, startIdx, dates.length - N);
-    const full = analyzeFactors(fullDaily, factorCount, buckets);
-    const first = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, startIdx, Math.min(mid, dates.length - N)), factorCount, buckets);
-    const second = analyzeFactors(buildDaily(klines, idxOf, dates, benchOver, mid, dates.length - N), factorCount, buckets);
+    /**
+     * 因子检验的样本池：**独立于策略回测的样本**（BT_FACTOR_SAMPLE，默认 1200）。
+     *
+     * 为什么独立（2026-11-05）：以前因子检验直接用策略回测那份样本（跟着 BT_SAMPLE 走），
+     * 于是同一天里「因子层的判决」和「策略层的判决」可能跑在不同样本上——每天的
+     * auto-verdict 用 BT_SAMPLE=300（因子层），strategy-verdict 用 2400（策略层）。
+     * 两层口径不一致，因子的 t 值还被小样本噪声压着：
+     * **300 只样本下「25 个因子无一全过 6 关」是噪声造成的假象**（见 data/backtest/2026-11-05/ 基线说明）。
+     *
+     * 1200 这个数不是随便挑的：G4「换样本」要求换一批**不同的**票，
+     * 所以样本池必须 ≤ 市场一半（step≥2）——否则主样本和换样本抽到同一批票，
+     * G4 就是空转（2400 只时实测「原 0.13% / 换样本 0.13%」一模一样）。
+     */
+    const FACTOR_SAMPLE = Number(process.env.BT_FACTOR_SAMPLE ?? 1200);
+    const fStep = Math.max(1, Math.floor(ids.length / FACTOR_SAMPLE));
+    if (fStep < 2) {
+      throw new Error(
+        `因子检验样本池 ${FACTOR_SAMPLE} 只 ≥ 市场一半（${ids.length} 只）：` +
+          `G4 换样本会抽到同一批票，这一关是空转（2026-11-05 实测过）。` +
+          `把 BT_FACTOR_SAMPLE 调到 ≤ ${Math.floor(ids.length / 2)}。`,
+      );
+    }
+    const factorIds = ids.filter((_, i) => (i + offsetVal) % fStep === 0).slice(0, FACTOR_SAMPLE);
+    const fp = await factorPrep(factorIds, capFloor);
+    const fStart = Math.max(0, fp.dates.length - LOOKBACK);
+    console.log(`因子检验样本池：${factorIds.length} 只（BT_FACTOR_SAMPLE=${FACTOR_SAMPLE}，step=${fStep}）\n`);
 
-    // G4 换样本：自动加载错开一位的一批票，跑同一套检验
-    const step = Math.max(1, Math.floor(ids.length / SAMPLE));
-    const resampleIds = ids.filter((_, i) => (i + offsetVal + 1) % step === 0).slice(0, SAMPLE);
+    const mid = Math.floor((fStart + fp.dates.length - 2) / 2);
+    const fullDaily = buildDaily(fp.klines, fp.idxOf, fp.dates, fp.benchOver, fStart, fp.dates.length - N);
+    const full = analyzeFactors(fullDaily, factorCount, buckets);
+    const first = analyzeFactors(buildDaily(fp.klines, fp.idxOf, fp.dates, fp.benchOver, fStart, Math.min(mid, fp.dates.length - N)), factorCount, buckets);
+    const second = analyzeFactors(buildDaily(fp.klines, fp.idxOf, fp.dates, fp.benchOver, mid, fp.dates.length - N), factorCount, buckets);
+
+    // G4 换样本：错开一位的**另一批**票（step≥2 保证与主样本不重叠），跑同一套检验
+    const resampleIds = ids.filter((_, i) => (i + offsetVal + 1) % fStep === 0).slice(0, FACTOR_SAMPLE);
     const rp = await factorPrep(resampleIds, capFloor);
     const rStart = Math.max(0, rp.dates.length - LOOKBACK);
     const resample = analyzeFactors(buildDaily(rp.klines, rp.idxOf, rp.dates, rp.benchOver, rStart, rp.dates.length - N), factorCount, buckets);
