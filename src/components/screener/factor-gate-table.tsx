@@ -18,6 +18,7 @@ import { Fragment, useState } from "react";
 import { Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { signedPct } from "@/lib/market/format";
 import { GATE_LEGEND, type FactorRowView } from "@/lib/market/factors-view";
+import { RETIRED_FACTORS } from "@/lib/market/retired-factors";
 
 /** 五档平均超额的形状图。左=因子值最低档，右=最高档。 */
 export function BucketShape({ means }: { means: number[] }) {
@@ -239,8 +240,10 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
             </span>
           </div>
           <p className="px-3 pb-2 text-[11px] leading-relaxed text-muted">
-            这些因子的历史数据压根没进回测（北向/融券/游资/主力/板块资金/快讯/公告那批序列），
-            所以**没测过**——不是「测了没效果」。它们不计入本轮检验族，真实因子的及格线不受它们影响。
+            这些因子这一轮没拿到有效样本（nDays = 0），所以是没测过——不是「测了没效果」。
+            它们不计入本轮检验族，真实因子的及格线不受它们影响。
+            说明：这是所选批次当时的状态；后来接上数据的因子看最新批次，
+            确认接不了的已经摘牌（见下方「已摘牌因子」）。
           </p>
           <Table className="data-table" caption="未测因子（数据缺失，本轮没测）">
             <GateHead />
@@ -250,6 +253,39 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
               ))}
             </tbody>
           </Table>
+        </div>
+      ) : null}
+
+      {/* 已摘牌因子：不藏，原因/证据/恢复条件全写出来。2026-11-05 摘的 4 个。 */}
+      {RETIRED_FACTORS.length > 0 ? (
+        <div className="rounded border border-line bg-surface">
+          <div className="flex items-center justify-between px-3 py-2 text-sm text-muted">
+            <span>
+              已摘牌因子（确认接不了 · 附原因）
+              <span className="ml-1 tabular-nums text-warn">{RETIRED_FACTORS.length}</span> 个
+            </span>
+          </div>
+          <p className="px-3 pb-2 text-[11px] leading-relaxed text-muted">
+            定义还留在注册表里、随时能摘回来，只是不再每轮占一个「未测」位。
+            「拿不到 ≠ 没有」——这里记的是为什么拿不到，不是这个思路没用。
+          </p>
+          <ul className="divide-y divide-line border-t border-line">
+            {RETIRED_FACTORS.map((r) => (
+              <li key={r.id} className="px-3 py-2.5 text-xs leading-relaxed">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="font-medium text-fg">{r.name}</span>
+                  <code className="text-[11px] text-muted">{r.id}</code>
+                  <span className="rounded border border-line px-1.5 py-0.5 text-[10px] text-muted">
+                    {r.kind === "no-source" ? "无数据源" : "结构性测不了"}
+                  </span>
+                  <span className="text-[10px] text-muted">{r.at} 摘牌</span>
+                </div>
+                <p className="mt-1 text-warn">{r.reason}</p>
+                <p className="mt-1 text-muted">实查证据：{r.evidence}</p>
+                <p className="mt-1 text-muted">恢复条件：{r.reviveWhen}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>

@@ -21,7 +21,7 @@
  * 4. 数据在 data/strategy-genome.json（在 .gitignore 里，换机器重跑）。
  */
 
-import { compileSpecExpr, SPEC_EXPR_VARS } from "./factor-expr.ts";
+import { compileSpecExpr, FACTOR_EXPR_VARS, SPEC_EXPR_VARS } from "./factor-expr.ts";
 import { SPEC_JUDGEABLE_VARS, SPEC_UNAVAILABLE, specVarsUsed } from "./spec-backtest.ts";
 import type { StrategySpec } from "./strategies.ts";
 import { readChallengers } from "./challenger.ts";
@@ -323,6 +323,63 @@ export function specFromFactor(
   return { ok: true, spec };
 }
 
+/**
+ * 融合回退：AI 那轮没产出可用提案时，把「已过 6 关」的因子熔成 spec 种子顶上。
+ *
+ * **遍历所有 passed 因子，而不是只试队首那一个**（2026-11-05 修）。
+ * 起因：20 个 passed 因子里只有 6 个能直接熔（其余用了 shrinkDays / rsi14 /
+ * rangePos20 这类因子变量，spec 上下文的 SPEC_VARS 里没有）。老代码只试
+ * `passedFactorSeeds[0]`，当时恰好队首 q_lcap 能熔所以没暴露；换一次队列顺序
+ * 或队首换成熔不了的因子，整条融合就哑火——**20 个料白攒**。
+ *
+ * 熔不了的**如实记进 rejected 并说清原因**（变量对不上、id 撞了、近亲），
+ * 不静默跳过、更不拿别的字段凑。这就是「拿不到 ≠ 没有」在融合层的落地。
+ * 返回的是纯函数结果，不写盘——调用方才负责 writeGenome。
+ */
+export function fusionFallback(
+  seeds: FactorSeed[],
+  existing: GenomeCandidate[],
+  deadSpecs: StrategySpec[],
+): {
+  accepted: (GenomeProposal & { seededFrom: string[]; seededFromHow: "fusion" })[];
+  rejected: { proposal: string; reason: string }[];
+} {
+  const accepted: (GenomeProposal & { seededFrom: string[]; seededFromHow: "fusion" })[] = [];
+  const rejected: { proposal: string; reason: string }[] = [];
+  const allSpecs: StrategySpec[] = [...existing, ...deadSpecs];
+  for (const seed of seeds) {
+    const fused = specFromFactor(seed);
+    if (!fused.ok) {
+      rejected.push({ proposal: seed.id, reason: fused.reason });
+      continue;
+    }
+    if (existing.some((c) => c.id === fused.spec.id) || accepted.some((a) => a.id === fused.spec.id)) {
+      rejected.push({ proposal: fused.spec.id, reason: "融合种子 id 已存在" });
+      continue;
+    }
+    const twin = isNearTwin(fused.spec, [...allSpecs, ...accepted]);
+    if (twin.twin) {
+      rejected.push({ proposal: fused.spec.id, reason: `融合种子和「${twin.withId}」近亲，不强行顶上` });
+      continue;
+    }
+    accepted.push({
+      ...fused.spec,
+      rationale: fused.spec.note ?? `融合自因子 ${seed.id}`,
+      // 溯源：这条是代码直接熔的（AI 那轮没产出可用提案时的兜底）。
+      seededFrom: [seed.id],
+      seededFromHow: "fusion",
+    });
+  }
+  return { accepted, rejected };
+}
+
+/**
+ * 因子层和 spec 层**同名**的变量：只有这些能直接抄进 spec 表达式。
+ * 其余因子变量在 spec 上下文里不存在，AI 想用得自己翻译成等价逻辑——
+ * 不在代码里硬造映射表（那等于把「翻译不了」伪装成「测了没效果」）。
+ */
+const COMMON_VARS: string[] = FACTOR_EXPR_VARS.filter((v) => (SPEC_EXPR_VARS as readonly string[]).includes(v));
+
 export function buildGenomePrompt(ctx: GenomeContext): string {
   const specLines = [...ctx.liveSpecs, ...ctx.deadSpecs].map((s) => {
     const sel = s.select.join(" 且 ");
@@ -356,6 +413,14 @@ export function buildGenomePrompt(ctx: GenomeContext): string {
     "",
     "被拒/淘汰的挑战者（参数通道也试过的出场思路）：",
     ctx.rejectedChallengers.length > 0 ? ctx.rejectedChallengers.join("\n") : "- （没有）",
+    "",
+    "🔴 融合前必读：下面因子的 expr 用的是**因子层变量名**，和 spec 的可用变量是两套白名单。",
+    `能直接写进 spec 的只有这 ${COMMON_VARS.length} 个同名变量：${COMMON_VARS.join(" ")}。` +
+      "其它因子变量（如 shrinkDays / rsi14 / rangePos20 / corrVRet / amountWan / marginBuy）" +
+      "在 spec 上下文里**根本不存在**，直接抄进 select 会被编译器拒掉。" +
+      "想用这类因子：要么换用上面同名变量写一条经济逻辑等价、但更简单的条件" +
+      "（此时在 seededFrom 里如实写它来自哪个因子），要么就别用它——" +
+      "**不许拿一个不相干的变量凑数**，那会把「翻译不了」伪装成「测了没效果」。",
     "",
     "已通过 6 关的因子（挖掘出来的真 edge，可熔进你的 spec 当选股/排序条件——这就是因子→策略融合）：",
     ctx.passedFactors.length > 0
@@ -428,28 +493,12 @@ export async function runGenomeLoop(trigger: "manual" | "auto" = "manual"): Prom
     genome.list,
     deadSpecs.map((d) => d),
   );
-  // 融合回退：AI 这轮没产出可用提案，但有已通过 6 关的因子 → 把头部那个熔成 spec 种子顶上。
-  // 这就是「因子→策略融合」的兜底落地：因子不再只是孤立信号。近亲/id 撞了就跳过，不强行顶。
+  // 融合回退：AI 这轮没产出可用提案，但有已通过 6 关的因子 → 熔成 spec 种子顶上。
+  // 遍历全部种子（不只队首），熔不了的如实记原因，不静默跳过、不硬凑（见 fusionFallback）。
   if (accepted.length === 0 && passedFactorSeeds.length > 0) {
-    const seed = specFromFactor(passedFactorSeeds[0]);
-    if (seed.ok && !genome.list.some((c) => c.id === seed.spec.id)) {
-      const twin = isNearTwin(seed.spec, [...genome.list, ...deadSpecs]);
-      if (!twin.twin) {
-        accepted.push({
-          ...seed.spec,
-          rationale: seed.spec.note ?? `融合自因子 ${passedFactorSeeds[0].id}`,
-          // 溯源：这条是代码直接熔的（AI 那轮没产出可用提案时的兜底）。
-          seededFrom: [passedFactorSeeds[0].id],
-          seededFromHow: "fusion",
-        });
-      } else {
-        rejected.push({ proposal: seed.spec.id, reason: `融合种子和「${twin.withId}」近亲，不强行顶上` });
-      }
-    } else if (seed.ok) {
-      rejected.push({ proposal: seed.spec.id, reason: "融合种子 id 已存在" });
-    } else {
-      rejected.push({ proposal: passedFactorSeeds[0].id, reason: seed.reason });
-    }
+    const fallback = fusionFallback(passedFactorSeeds, genome.list, deadSpecs);
+    accepted.push(...fallback.accepted);
+    rejected.push(...fallback.rejected);
   }
   if (accepted.length > 0) {
     const today = new Date().toISOString().slice(0, 10);

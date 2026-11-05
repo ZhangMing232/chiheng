@@ -87,7 +87,7 @@ import { RUNS_PATH } from "@/lib/market/backtest-runs";
 import type { StyleId, StrategySpec } from "@/lib/market/strategies";
 import type { Bar } from "@/lib/market/types";
 import {
-  FACTORS,
+  ACTIVE_FACTORS,
   analyzeFactors,
   gateMonotonic,
   gateT,
@@ -1775,11 +1775,12 @@ async function main() {
   if (process.env.BT_FACTOR === "1") {
     const N = Number(process.env.BT_N ?? 3);
     const buckets = Number(process.env.BT_BUCKETS ?? 5);
-    // 待验队列因子（AI/人工预登记、还没淘汰的）附加在注册表后面一起跑。
-    // 追加在尾部而不是插中间：后面 BT_DIAG 分支用 FACTORS.findIndex 定位下标，
-    // 追加能保持下标不变。淘汰（tombstone）的由 loadQueueFactors 内部跳过。
+    // 待验队列因子（AI/人工预登记、还没淘汰的）附加在**活跃**注册表后面一起跑。
+    // 2026-11-05 起用 ACTIVE_FACTORS（全量 FACTORS 去掉已摘牌的 4 个）——
+    // 摘牌的不再每轮占一个「未测」位。追加在尾部而不是插中间：后面 BT_DIAG
+    // 分支用 findIndex 定位下标，追加能保持下标不变。tombstone 由 loadQueueFactors 跳过。
     const queueFactors = await loadQueueFactors();
-    const factors = [...FACTORS, ...queueFactors];
+    const factors = [...ACTIVE_FACTORS, ...queueFactors];
     const factorCount = factors.length;
     /** 队列因子在本轮的判决，跑完一起回写队列（failCount/淘汰）。 */
     const queueVerdicts: { id: string; passed: boolean; at: string }[] = [];
@@ -1878,13 +1879,14 @@ async function main() {
     /**
      * 检验族大小 = **真正测过的**因子数。
      *
-     * 为什么不是 factorCount：有个别因子的数据整个没有（北向/融券/游资/主力/板块资金/
-     * 快讯/公告这批历史序列压根没注入回测，metrics() 里写死 null）。这些因子
-     * `nDays === 0`——**从来没测过**，不是「测了没效果」。
-     * 把它们算进检验族，多重检验的运气线（Bonferroni / DSR）就按「多试了 8 个」来罚，
-     * 真实因子的及格线被这 8 个从没做过的检验白白抬高。
+     * 为什么不是 factorCount：有的因子虽然注册了，但这一轮的有效样本日数为 0
+     * （数据没接上 / 横截面凑不齐分档），`nDays === 0`——**从来没测过**，
+     * 不是「测了没效果」。把它算进检验族，多重检验的运气线（BH-FDR / DSR）
+     * 就按「多试了一个」来罚，真实因子的及格线被没做过的检验白白抬高。
      *
      * 「拿不到 ≠ 没有」在因子层的落地：没做的检验不算检验，也没资格占一个判决位。
+     * 2026-11-05：当初那 8 个里已接上 4 个（融券/主力/板块/公告），
+     * 剩下 4 个**已摘牌**（见 retired-factors.ts），不再每轮占一个「未测」位。
      */
     const nTested = measuredFlags.filter(Boolean).length;
     /**
@@ -2007,7 +2009,7 @@ async function main() {
       // 2026-10-27 从 6 关改 4 关：g1~g4 过即算 passed。
       // g5（Bonferroni）和 g6（可交易）变展示层证据——不过不挡路，但双不过的因子
       // 在 verdict 里依然会标出来，方便审计。
-      if (f >= FACTORS.length) {
+      if (f >= ACTIVE_FACTORS.length) {
         const corePassed = [g1, g2, g3, g4].every((g) => g.pass);
         const allPassed = corePassed && g5.pass && g6.pass;
         queueVerdicts.push({
@@ -2045,8 +2047,8 @@ async function main() {
 
     // —— 缩量天数归因（BT_DIAG=shrinkDays，研究性，不进 6 关）——
     if (process.env.BT_DIAG === "shrinkDays") {
-      const fShrink = FACTORS.findIndex((f) => f.id === "shrinkDays");
-      const fD60 = FACTORS.findIndex((f) => f.id === "d60");
+      const fShrink = ACTIVE_FACTORS.findIndex((f) => f.id === "shrinkDays");
+      const fD60 = ACTIVE_FACTORS.findIndex((f) => f.id === "d60");
       if (fShrink >= 0 && fD60 >= 0) {
         const diag = diagnoseShrinkDays(fullDaily, fShrink, fD60, buckets);
         console.log("\n缩量天数归因（BT_DIAG=shrinkDays）：");
@@ -2122,9 +2124,9 @@ async function main() {
 
     // —— 缩量+止跌复合诊断（BT_DIAG=shrinkBull，研究性）——
     if (process.env.BT_DIAG === "shrinkBull") {
-      const fShrink = FACTORS.findIndex((f) => f.id === "shrinkDays");
-      const fChg = FACTORS.findIndex((f) => f.id === "chg");
-      const fD60 = FACTORS.findIndex((f) => f.id === "d60");
+      const fShrink = ACTIVE_FACTORS.findIndex((f) => f.id === "shrinkDays");
+      const fChg = ACTIVE_FACTORS.findIndex((f) => f.id === "chg");
+      const fD60 = ACTIVE_FACTORS.findIndex((f) => f.id === "d60");
       if (fShrink >= 0 && fChg >= 0 && fD60 >= 0) {
         const byDay = diagnoseShrinkBull(fullDaily, fShrink, fChg, buckets);
         const mean = (l: number[]) => (l.length ? l.reduce((a, b) => a + b, 0) / l.length : 0);

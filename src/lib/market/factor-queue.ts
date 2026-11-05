@@ -44,6 +44,7 @@ import { GATE_KEYS } from "./factors-view.ts";
 import { appendTombstones, buildRecord, diffTombstones, liveDeaths, readTombstones } from "./factor-tombstones.ts";
 import { edgeFamilyLines, necropsyLines } from "./factor-necropsy.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
+import { RETIRED_VARS, retiredVarReason } from "./retired-factors.ts";
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
@@ -356,6 +357,10 @@ export function parseAIProposals(
     if (typeof p.expr !== "string") { fail("expr 缺失"); continue; }
     const compiled = validateFactorExpr(p.expr);
     if (!compiled.ok) { fail(`表达式不过编译：${compiled.error}`); continue; }
+    // 已摘牌的变量：编译器还认得（旧队列条目要能读），但回测里恒 null。
+    // 在这里显式拒掉并说清原因，别让 AI 再白提一轮「永远未测」的因子。
+    const retiredUsed = [...RETIRED_VARS].filter((v) => new RegExp(`\\b${v}\\b`).test(p.expr as string));
+    if (retiredUsed.length > 0) { fail(retiredVarReason(retiredUsed)); continue; }
     if (typeof p.rationale !== "string" || p.rationale.trim().length < 10) { fail("rationale（经济逻辑）太短，少于 10 字"); continue; }
     // 距离约束（治「换汤不换药」）：新因子的结构签名若和已存在因子相同，就是只换窗口/常数的近亲，拒。
     const sig = factorSignature(p.expr);
@@ -396,6 +401,9 @@ export function parseAIProposals(
 /** 把最新一批判决压成给 AI 的败因摘要。数字原样来自日志，不加工。
  *  history = AI 自己之前提议的下场（factorSelfHistory 产物），给了就加一段
  *  自我反馈——自我进化的核心：让它读到自己的历史成败再提下一轮。 */
+export /** 给 AI 看的可用字段白名单：编译器白名单去掉已摘牌的变量（恒 null，提了也测不了）。 */
+const USABLE_VARS = FACTOR_EXPR_VARS.filter((v) => !RETIRED_VARS.has(v));
+
 export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?: string[], marketEvidence?: string[], diagnosisHints?: string[], edgeFamilies?: string[]): string {
   const lines = rows.map((r) => {
     const failed = GATE_KEYS.filter((k) => r.gates[k] === false).map((k) => k.toUpperCase());
@@ -411,10 +419,11 @@ export function buildPrompt(rows: FactorRunRow[], history?: string[], necropsy?:
     "",
     "检验铁律（你的提议必须遵守）：",
     "1. 每个因子必须预登记方向和经济逻辑，不许看结果反推。",
-    `2. 因子表达式只允许用字段白名单里的变量做四则运算，函数只能用 ${FACTOR_EXPR_FUNCS.join("/")}。字段白名单（共 ${FACTOR_EXPR_VARS.length} 个，逐字抄，一个字母都不能错；发明白名单外的名字（比如 f_dtyoy）会被编译器直接拒掉，那一轮提议就白跑）：${FACTOR_EXPR_VARS.join(" ")}`,
+    `2. 因子表达式只允许用字段白名单里的变量做四则运算，函数只能用 ${FACTOR_EXPR_FUNCS.join("/")}。字段白名单（共 ${USABLE_VARS.length} 个，逐字抄，一个字母都不能错；发明白名单外的名字（比如 f_dtyoy）会被编译器直接拒掉，那一轮提议就白跑）：${USABLE_VARS.join(" ")}`,
     "3. 优先针对败因提假设：时段翻号的要想「什么条件下它才成立」；形状和方向不符的按真实形状重新立方向；全灭的维度别再试微调。",
     "4. 不许提议和现有因子逻辑等价的换皮（比如换个窗口再测一遍 d60）。",
     "5. 提 1~3 个你最看好的，宁缺毋滥。每个给：id（小写字母开头 slug）、name（中文名）、category（只能填一个词，从这六个里选：动量 / 反转 / 波动率 / 量能 / 形态 / 规模。不要自造组合类别，「量能/反转」这种会被拒）、direction（1 或 -1）、expr（表达式）、rationale（经济逻辑，一两句）。",
+    `6. 🔴 已摘牌字段禁用（这些变量在回测里恒为 null，用了就是永远「未测」，不是「测了没效果」）：${[...RETIRED_VARS].join("、")}。北向成交额/快讯情绪是数据源已停披露或没有历史；游资热度/游资净买是龙虎榜横截面太小、G4 换样本失去意义。别拿它们换皮重提；等解禁条件满足会重新开放。`,
     "",
     "最近一轮判决：",
     ...lines,

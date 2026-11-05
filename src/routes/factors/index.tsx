@@ -438,12 +438,16 @@ function FactorsIndexPage() {
             </p>
             {summary.unmeasured > 0 ? (
               <p className="mt-2 max-w-[56ch] text-xs leading-relaxed text-warn">
-                另有 {summary.unmeasured} 个因子这一轮**没测**（历史数据没进回测，不是「测了没效果」），
-                不计入上面的分母——「拿不到 ≠ 没有」。
+                另有 {summary.unmeasured} 个因子这一轮没测（nDays = 0，不是「测了没效果」），
+                不计入上面的分母——「拿不到 ≠ 没有」。已确认接不了的 4 个已摘牌，原因在「6 关判决」页底部。
               </p>
             ) : null}
             <p className="mt-3 max-w-[56ch] text-xs leading-relaxed text-muted">
-              0 个过关不等于挖得不用心——是这套数据、这套判据下确实没有一个站得住的单因子。
+              {/* 2026-11-05 修：以前写死「没有一个站得住的单因子」，门槛放宽后
+                  页面明明显示 20 个全过 6 关，这句话自己打自己嘴巴。改成跟着数字走。 */}
+              {summary.passed > 0
+                ? "过了 6 关也只是「这批数据、这套判据下和噪声分得开」，不等于能赚钱——上线前还要过策略层的聚类 t 和方向稳定双闸。"
+                : "0 个过关不等于挖得不用心——是这套数据、这套判据下确实没有一个站得住的单因子。"}
               {summary.strongest
                 ? ` |t| 最大的是「${summary.strongest.name}」（${summary.strongest.t.toFixed(2)}），` +
                   // 全过时不能说「也只过了 6/6 关」——这话在放宽带生效后就自相矛盾了

@@ -415,3 +415,56 @@ test("真·失败（测了但没过）照旧累加 failCount 并淘汰——别�
   out = updateQueueAfterRun(out, [{ id: "q_test", passed: false, at: "2026-11-07T01:00:00Z" }]);
   assert.equal(out[0].status, "tombstone", "测了没过、连续 2 次就该淘汰");
 });
+
+// ── 已摘牌字段（2026-11-05）────────────────────────────────────
+// 4 个确认接不了的因子摘牌后，AI 不该再拿这些恒 null 的字段重提——
+// 提了也是每轮 nDays=0 的「未测」，白占一轮检验还在界面上多一行假信息。
+
+test("摘牌档案：4 个 id 都在注册表里、且确实从活跃表里排除", async () => {
+  const { ACTIVE_FACTORS, FACTORS } = await import("@/lib/market/factors");
+  const { RETIRED_FACTORS, RETIRED_IDS, RETIRED_VARS } = await import("@/lib/market/retired-factors");
+  assert.equal(RETIRED_FACTORS.length, 4);
+  for (const r of RETIRED_FACTORS) {
+    assert.ok(FACTORS.some((f) => f.id === r.id), `全量档案里得留着 ${r.id} 的定义（可恢复）`);
+    assert.ok(!ACTIVE_FACTORS.some((f) => f.id === r.id), `${r.id} 不该再进活跃检验`);
+    assert.ok(r.reviveWhen.length > 10, "每条都要写清恢复条件，不许只写「接不了」");
+    assert.ok(r.evidence.length > 10, "每条都要有实查证据");
+  }
+  assert.equal(ACTIVE_FACTORS.length, FACTORS.length - RETIRED_IDS.size);
+  assert.equal(RETIRED_VARS.size, 4);
+});
+
+test("prompt 里列出已摘牌禁区，且给 AI 的字段白名单不再包含它们", () => {
+  const prompt = buildPrompt([]);
+  assert.match(prompt, /已摘牌字段禁用/);
+  assert.match(prompt, /northAmount/);
+  assert.match(prompt, /hotSeatCount/);
+  // 白名单那一行（第 2 条）不能还列着摘牌变量，否则等于一边禁一边发许可
+  const whitelistLine = prompt.split("\n").find((l) => l.startsWith("2. 因子表达式"));
+  assert.ok(whitelistLine, "找不到白名单那行");
+  for (const v of ["northAmount", "newsTone", "hotSeatCount", "hotNetBuy"]) {
+    assert.ok(!whitelistLine!.includes(v), `白名单里不该还有 ${v}`);
+  }
+});
+
+test("AI 提案用了已摘牌变量 → 拒掉并说清原因（不是静默编译失败）", () => {
+  const raw = JSON.stringify([
+    { id: "north_revive", name: "北向资金换个窗口", category: "量能", direction: 1,
+      expr: "northAmount / amountWan", rationale: "北向成交额占成交额比高说明外资在买，应该有超额" },
+  ]);
+  const { accepted, rejected } = parseAIProposals(raw, { ids: new Set(), names: new Set() });
+  assert.equal(accepted.length, 0);
+  assert.equal(rejected.length, 1);
+  assert.match(rejected[0]!.reason, /已摘牌/);
+  assert.match(rejected[0]!.reason, /northAmount/);
+  assert.match(rejected[0]!.reason, /数据源已停披露|横截面结构性不够/);
+});
+
+test("没用摘牌变量的正常提案照旧收（别把闸门关死）", () => {
+  const raw = JSON.stringify([
+    { id: "vol_shrink_ratio", name: "缩量比", category: "量能", direction: 1,
+      expr: "volShrink / std20", rationale: "缩量叠加低波动代表抛压枯竭，后续容易修复" },
+  ]);
+  const { accepted } = parseAIProposals(raw, { ids: new Set(), names: new Set() });
+  assert.equal(accepted.length, 1, "正常因子不该被摘牌闸门误伤");
+});

@@ -12,6 +12,7 @@ import {
   specSignature,
   isNearTwin,
   parseGenomeProposals,
+  fusionFallback,
   type GenomeCandidate,
   type GenomeContext,
 } from "@/lib/market/strategy-genome";
@@ -170,4 +171,77 @@ test("溯源：prompt 里要求 AI 声明用了哪些因子（不然页面接不
   const prompt = buildGenomePrompt(ctx);
   assert.match(prompt, /seededFrom/);
   assert.match(prompt, /缩量天数/, "已过 6 关的因子要列进 prompt，AI 才知道能融哪个");
+});
+
+// ── 融合回退（2026-11-05 修：老代码只试队首一个）──────────────────
+
+test("fusionFallback：队首熔不了时，后面能熔的因子照样顶上（老代码这里会整轮哑火）", () => {
+  // 真实场景（11-05 实测 20 个 passed 因子）：队首若换成 largecap_shrink_days
+  // （用了 shrinkDays，spec 上下文没有这个变量）→ 老代码直接 return，
+  // 后面 6 个能熔的料全部白攒。
+  const seeds = [
+    { id: "largecap_shrink_days", name: "大市值缩量活跃", expr: "shrinkDays / log(floatCap)", direction: 1 as const, rationale: "缩量叠加大市值" },
+    { id: "q_lcap", name: "大市值溢价", expr: "floatCap", direction: 1 as const, rationale: "大市值有溢价" },
+    { id: "d10_largecap", name: "大盘10日动量", expr: "d10 * floatCap", direction: 1 as const, rationale: "动量叠大市值" },
+  ];
+  const r = fusionFallback(seeds, [], []);
+  assert.equal(r.accepted.length, 2, "队首熔不了，后面两个能熔的都要顶上");
+  assert.equal(r.accepted[0]!.seededFrom[0], "q_lcap");
+  assert.equal(r.accepted[0]!.seededFromHow, "fusion");
+  assert.equal(r.rejected.length, 1, "熔不了的那个要如实记一条，不静默跳过");
+  assert.match(r.rejected[0]!.reason, /shrinkDays/, "拒绝理由要说清是哪个变量对不上");
+});
+
+test("fusionFallback：熔不了的因子留原因，不拿别的字段凑", () => {
+  const r = fusionFallback(
+    [{ id: "bad", name: "用了 rsi14", expr: "floatCap * rsi14", direction: 1, rationale: "超买叠大市值" }],
+    [], [],
+  );
+  assert.equal(r.accepted.length, 0);
+  assert.equal(r.rejected.length, 1);
+  assert.match(r.rejected[0]!.reason, /rsi14/);
+  assert.match(r.rejected[0]!.reason, /白名单|没有/);
+});
+
+test("fusionFallback：id 撞了 / 近亲了要分别说清，不硬顶", () => {
+  const seed = { id: "q_lcap", name: "大市值溢价", expr: "floatCap", direction: 1 as const, rationale: "大市值有溢价" };
+  const withExisting = [{
+    id: "fused_q_lcap", name: "已有", status: "proposed" as const, since: "2026-11-05", source: "ai" as const,
+    select: ["pe <= 18"], rankBy: "pe", pricing: { shape: "spot" as const }, holdDays: 8, stopPct: 8, targetPct: 20,
+  }] as GenomeCandidate[];
+  const r = fusionFallback([seed], withExisting, []);
+  assert.equal(r.accepted.length, 0);
+  assert.match(r.rejected[0]!.reason, /id 已存在/);
+});
+
+test("fusionFallback：空种子不产出，也不编理由", () => {
+  const r = fusionFallback([], [], []);
+  assert.deepEqual(r, { accepted: [], rejected: [] });
+});
+
+test("融合回退的 prompt 把 20 个 passed 因子全列给 AI（AI 可以自己翻译变量）", () => {
+  const passed = Array.from({ length: 20 }, (_, i) => ({
+    id: `f${i}`, name: `因子${i}`, expr: "d10 * floatCap", direction: 1 as const, rationale: "动量叠大市值",
+  }));
+  const ctx: GenomeContext = {
+    factorTombstones: [], rejectedChallengers: [], deadSpecs: [], liveSpecs: [], gateLines: [], passedFactors: passed,
+  };
+  const p = buildGenomePrompt(ctx);
+  assert.equal(passed.filter((f) => p.includes(f.id)).length, 20);
+  assert.match(p, /seededFrom/);
+});
+
+test("融合 prompt 说清「因子变量 ≠ spec 变量」，并列出能直用的同名变量", () => {
+  // 11-05 实测：20 个 passed 因子里 14 个用了 shrinkDays / rsi14 / rangePos20
+  // 这类因子层变量，spec 上下文根本没有。prompt 不说明，AI 会直接把 expr
+  // 抄进 select → 编译器拒 → 白提一轮，还看不出为什么。
+  const ctx: GenomeContext = {
+    factorTombstones: [], rejectedChallengers: [], deadSpecs: [], liveSpecs: [], gateLines: [],
+    passedFactors: [{ id: "mom10_shrinkdays", name: "缩量整理的10日动量", expr: "d10 * (1 + shrinkDays)", direction: 1, rationale: "缩量后动量延续" }],
+  };
+  const p = buildGenomePrompt(ctx);
+  assert.match(p, /两套白名单/);
+  assert.match(p, /shrinkDays/);
+  assert.match(p, /d10/, "能直用的同名变量要列出来");
+  assert.match(p, /不许拿一个不相干的变量凑数/);
 });
