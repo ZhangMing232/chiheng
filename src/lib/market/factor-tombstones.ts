@@ -102,6 +102,26 @@ export async function appendTombstones(records: TombstoneRecord[]): Promise<void
 }
 
 /** 读全部档案。文件不存在/坏了 → 空数组，绝不抛错（和 readQueue 同一取舍）。 */
+/**
+ * 死因档案里**现在还死着**的那些。
+ *
+ * 档案是纯追加的历史（只追加、不改历史）——但有个后果：因子换了把尺子重考之后可能
+ * 「复活」（2026-11-05：样本池 300→1200 后，74 个墓碑里有 20 个在新尺子下过了核心 4 关，
+ * 队列状态回到 passed）。这时候还把它们当死因喂给 AI，AI 就会去避开
+ * **已经活着的**因子。
+ *
+ * 所以：**档案留着当历史，喂 prompt 的只给现在还死着的。**
+ * 参数用结构化类型而不是 QueueEntry —— factor-queue.ts 已经 import 本文件，
+ * 反向 import 会成循环依赖。
+ */
+export function liveDeaths(
+  records: TombstoneRecord[],
+  queue: { id: string; status: string }[],
+): TombstoneRecord[] {
+  const alive = new Set(queue.filter((e) => e.status === "passed").map((e) => e.id));
+  return records.filter((r) => !alive.has(r.id));
+}
+
 export async function readTombstones(): Promise<TombstoneRecord[]> {
   try {
     const { readFile } = await fsApi();

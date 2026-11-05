@@ -37,7 +37,7 @@ import { callAIWithFallback, readAIConfig, readQueue } from "./factor-queue.ts";
 import { appendAILog, evolveStats, readAILog } from "./ai-log.ts";
 import { necropsyLines } from "./factor-necropsy.ts";
 import { readFactorRuns, type FactorRunRow } from "./factor-runs-file.ts";
-import { readTombstones } from "./factor-tombstones.ts";
+import { liveDeaths, readTombstones } from "./factor-tombstones.ts";
 import { readChallengers, readChampions, CHALLENGER_RULE, loadChallengerRule } from "./challenger.ts";
 import { readUserBook, OWNER_ID } from "./book-file.ts";
 import {
@@ -504,7 +504,8 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
     factorLines: (batch?.rows ?? []).map(summarizeRunRow),
     factorMeta,
     queueLines: summarizeQueue(entries),
-    necropsy: necropsyLines(await readTombstones()),
+    // 只喂现在还死着的（复活的因子不算死因）
+    necropsy: necropsyLines(liveDeaths(await readTombstones(), entries)),
     championLines,
     chalLines,
     chalSampleLines,

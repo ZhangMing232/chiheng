@@ -26,7 +26,7 @@ import { SPEC_JUDGEABLE_VARS, SPEC_UNAVAILABLE, specVarsUsed } from "./spec-back
 import type { StrategySpec } from "./strategies.ts";
 import { readChallengers } from "./challenger.ts";
 import { readQueue, callAIWithFallback, readAIConfig } from "./factor-queue.ts";
-import { readTombstones } from "./factor-tombstones.ts";
+import { liveDeaths, readTombstones } from "./factor-tombstones.ts";
 import { readStrategyGates } from "./strategy-gate.ts";
 import { appendAILog } from "./ai-log.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
@@ -384,7 +384,8 @@ export async function runGenomeLoop(trigger: "manual" | "auto" = "manual"): Prom
   const genome = await readGenome();
   const { entries } = await readQueue();
   const challengers = await readChallengers();
-  const tombstones = await readTombstones();
+  // 只喂现在还死着的（复活的因子不算死因，见 liveDeaths 的说明）
+  const tombstones = liveDeaths(await readTombstones(), entries);
   const gates = await readStrategyGates();
 
   // 已通过 6 关的因子 = 挖掘出来的真 edge，既能进 prompt 让 AI 融合，也能当「AI 沉默时」的融合回退种子。

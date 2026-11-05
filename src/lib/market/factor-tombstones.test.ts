@@ -12,6 +12,7 @@ import type { QueueEntry } from "./factor-queue.ts";
 import {
   appendTombstones,
   buildRecord,
+  liveDeaths,
   diffTombstones,
   readTombstones,
   type TombstoneRecord,
@@ -104,3 +105,25 @@ test("read：文件不存在 → 空数组，不抛错", async () => {
 // 类型兜底：档案字段改动时这里会提醒同步测试。
 const _shape: TombstoneRecord = buildRecord(entry({}), undefined);
 void _shape;
+
+test("liveDeaths：复活的因子（队列里已 passed）不再算死因", () => {
+  // 2026-11-05：因子换把尺子（样本池 300→1200）重考后，有 20 个因子在新尺子下
+  // 过了核心 4 关、队列状态回到 passed。档案是纯追加的历史，但喂给 AI 的死因档案
+  // 里不能还留着活着的因子——AI 会因此去避开已经活着的因子。
+  const records = [
+    { id: "dead_one", name: "还死着的" },
+    { id: "alive_one", name: "复活的" },
+  ] as unknown as TombstoneRecord[];
+  const queue = [
+    { id: "alive_one", status: "passed" },
+    { id: "dead_one", status: "tombstone" },
+  ];
+  const live = liveDeaths(records, queue);
+  assert.equal(live.length, 1);
+  assert.equal(live[0]!.id, "dead_one");
+});
+
+test("liveDeaths：队列里没有的（比如手工登记的老因子）照旧算死因", () => {
+  const records = [{ id: "x", name: "老因子" }] as unknown as TombstoneRecord[];
+  assert.equal(liveDeaths(records, []).length, 1);
+});

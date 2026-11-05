@@ -41,7 +41,7 @@ import { appendAILog, factorSelfHistory, readAILog } from "./ai-log.ts";
 import type { Factor, MetricRow } from "./factors.ts";
 import { readAllRunRows, type FactorRunRow } from "./factor-runs-file.ts";
 import { GATE_KEYS } from "./factors-view.ts";
-import { appendTombstones, buildRecord, diffTombstones, readTombstones } from "./factor-tombstones.ts";
+import { appendTombstones, buildRecord, diffTombstones, liveDeaths, readTombstones } from "./factor-tombstones.ts";
 import { edgeFamilyLines, necropsyLines } from "./factor-necropsy.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
 
@@ -483,9 +483,14 @@ export async function writeQueue(entries: QueueEntry[]): Promise<void> {
 export async function loadQueueFactors(): Promise<Factor[]> {
   const { entries } = await readQueue();
   const out: Factor[] = [];
+  // 重考开关：让墓碑里的因子在某把新尺子下再考一次（2026-11-05 加）。
+  // 起因：因子判决的样本池从 300 换成 1200，旧的判决是在小样本噪声下做的。
+  // 只在显式开关下生效——默认行为不变，墓碑照旧不再跑。
+  const retryTombstones = process.env.BT_FACTOR_RETRY_TOMBSTONES === "1";
   for (const e of entries) {
     // decayed 也不再跑：它已经确认失效，继续占样本只会挤掉别的假设
-    if (e.status === "tombstone" || e.status === "decayed") continue;
+    if (e.status === "decayed") continue;
+    if (e.status === "tombstone" && !retryTombstones) continue;
     const compiled = validateFactorExpr(e.expr);
     if (!compiled.ok) continue; // 登记后白名单没变过；万一变了，跳过而不是炸掉整轮回测
     const get = compiled.get as (m: MetricRow) => number | null;
@@ -727,7 +732,9 @@ export async function runFactorAILoop(
   const { entries } = await readQueue();
   const history = factorSelfHistory(await readAILog(), entries);
   // 死因档案喂给下一轮：26 个死因子躺在档案里，不读就是每轮从零猜。
-  const tombs = await readTombstones();
+  // 只喂「现在还死着的」：因子换把尺子重考后可能复活（2026-11-05 有 20 个复活），
+  // 活着的还当死因喂给 AI，AI 就会去避开已经活着的因子。
+  const tombs = liveDeaths(await readTombstones(), entries);
   const necropsy = necropsyLines(tombs);
   // 家族多样性限额的原料：6 关打死的按类别计数（衰减退役不算——那不是「提议错了」）。
   // 口径和 necropsyLines 面的统计一致，prompt 里看得见数字，解析端用同一把尺执行。
