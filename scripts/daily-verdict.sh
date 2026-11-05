@@ -1,18 +1,18 @@
 #!/bin/bash
 # 这个文件是干什么的：
-# 每日全池回测判决刷新（scripts/strategy-verdict.ts 的包装）。
+# **手动**触发一次策略/基因组判决刷新（scripts/strategy-verdict.ts 的包装）。
 #
-# 为什么要有这个壳（而不是直接把命令写进 plist）：
-# 1. **launchd 进不了外置卷**——macOS 对可移动磁盘的隐私保护会让 launchd 起的进程
-#    getcwd 报 "Operation not permitted"。start-mac.sh 早就踩过这坑：它用
-#    `ROOT="$(cd "$(dirname "$0")/.." && pwd)"` 从**脚本自己的绝对路径**解析项目根，
-#    绕开 getcwd。这里照抄同一套写法。
-# 2. **node 路径要固定**：沙箱里那个 node 在 WorkBuddy 目录下（版本号带在路径里，
-#    升级就变）。项目自己用的是 /Users/zhangweimin/nodejs/bin/node（v22.23.3，稳定）。
-# 3. 日志落在项目内的 data/verdict.log，不写到 ~/Library/Logs（盘不在也能看）。
+# 每日自动的那条路已经不需要定时器了：record-journal 收盘封印后 detached 拉起
+# scripts/auto-verdict.ts，它里面第②步就会跑 strategy-verdict.ts。
+# （本来想用 launchd 每天 16:10 跑，但 2026-11-05 实测：这台机器已经**建不了新的
+#  launchd job** —— 连能用的 com.chiheng.serve.plist 原样复制一份换个 Label 加载都报
+#  "Load failed: 5: Input/output error"。项目笔记里早有「launchd 进不了外置卷」的记录，
+#  serve 那个也是靠登录项兜的。所以改走 record-journal，和项目其它每日任务一致。）
 #
+# 这个壳留着是为了「想立刻刷一次判决」的时候有句现成的话：
+#   bash scripts/daily-verdict.sh
 # 跑法（手动也行）：bash scripts/daily-verdict.sh
-# 定时：见 ~/Library/LaunchAgents/com.chiheng.verdict.plist（每天 16:10）。
+# 定时：见 scripts/auto-verdict.ts（record-journal 每日收盘封印后自动跑）。
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -27,9 +27,14 @@ fi
 cd "$ROOT" || exit 1
 mkdir -p "$ROOT/data"
 
+# 走 auto-verdict.ts（不是直接调 strategy-verdict.ts）：这样能白拿数据审计闸
+# （行情快照/K 线缓存有 block 级问题就别出数）和网络抖动的重试机制。
+# AUTO_VERDICT_SKIP_FACTOR=1 = 只跑策略/基因组判决，不动因子队列
+# （因子判决会改队列状态 = 实盘候选池，不能随手重跑）。
+#
 # NODE_OPTIONS= 是为了甩掉沙箱注入的 language shim（沙箱里 node 会被注入语言 shim，
 # 卡死腾讯出口；用户终端没这问题，代码没为沙箱改一行）。
-NODE_OPTIONS= "$NODE" --experimental-strip-types --import ./scripts/alias.mjs scripts/strategy-verdict.ts >> "$LOG" 2>&1
+AUTO_VERDICT_SKIP_FACTOR=1 NODE_OPTIONS= "$NODE" --experimental-strip-types --import ./scripts/alias.mjs scripts/auto-verdict.ts >> "$LOG" 2>&1
 CODE=$?
 # 注意用 ${CODE} 而不是 $CODE：后面紧跟全角括号时，bash 会把多字节字符当成变量名的一部分
 # （报 "CODE：unbound variable"）。这个坑踩过。
