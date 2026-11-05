@@ -78,3 +78,32 @@ test("trigger 原样传给四层（auto/manual 记账凭据不能丢）", async 
   });
   assert.deepEqual(seen, ["agent:auto", "factor:auto", "strategy:auto", "genome:auto"]);
 });
+
+test("🔴 漏注入基因组层假实现 → 立刻抛错，绝不偷偷调真 AI 接口", async () => {
+  // 2026-11-05 事故：evolve.test.ts 只给前三层注入假实现，漏了基因组层，
+  // 于是 `npm test` 会调真的 runGenomeLoop——真打 AI 接口、真往 strategy-genome.json
+  // 写候选、真往 ai-log 记账。13:56~14:43 跑了 13 次，还因为泄漏在 ai-log 里留了条
+  // 「auto 成功」记录，把当天真正的自动进化挤掉了。
+  // 现在漏注入必须报错：报错好过偷偷烧钱、偷偷改生产数据。
+  await assert.rejects(
+    () =>
+      runEvolveLoop(DEPS, "manual", {
+        diagnose: async () => diagOk(),
+        runFactor: async () => factorOk(),
+        runStrategy: async () => strategyOk(),
+        // 故意不给 runGenome，也不给 allowRealGenome
+      }),
+    /基因组层必须注入假实现/,
+  );
+});
+
+test("显式 allowRealGenome 才放行真跑（生产路径用）", async () => {
+  // 生产路径（/ai 页按钮、cron）必须能跑真的基因组层——它就是靠这个开关放行的。
+  const result = await runEvolveLoop(DEPS, "manual", {
+    diagnose: async () => diagOk(),
+    runFactor: async () => factorOk(),
+    runStrategy: async () => strategyOk(),
+    runGenome: async () => genomeOk(),
+  });
+  assert.equal(result.genome.ok, true);
+});

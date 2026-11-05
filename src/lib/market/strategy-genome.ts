@@ -21,7 +21,6 @@
  * 4. 数据在 data/strategy-genome.json（在 .gitignore 里，换机器重跑）。
  */
 
-import { readFile } from "node:fs/promises";
 import { compileSpecExpr, SPEC_EXPR_VARS } from "./factor-expr.ts";
 import { SPEC_JUDGEABLE_VARS, SPEC_UNAVAILABLE, specVarsUsed } from "./spec-backtest.ts";
 import type { StrategySpec } from "./strategies.ts";

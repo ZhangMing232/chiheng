@@ -1124,10 +1124,13 @@ export const runEvolve = createServerFn({ method: "POST" }).handler(async () => 
   await aiGate({ userId, isOwner, plan }, "evolve");
   const { runEvolveLoop } = await import("@/lib/market/evolve");
   const { FACTORS } = await import("@/lib/market/factors");
-  return runEvolveLoop({
-    readRows: readFactorRuns,
-    existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })),
-  });
+  return runEvolveLoop(
+    { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
+    "manual",
+    // 生产路径：四层都跑真的。基因组层要显式声明 allowRealGenome（漏注入假实现时
+    // 编排会抛错，别偷偷调真接口——见 evolve.ts 的说明）。
+    { allowRealGenome: true },
+  );
 });
 
 /** AI 运行账本（自我进化历史）。非主人只回 allowed: false。 */

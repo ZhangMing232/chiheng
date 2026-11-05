@@ -46,6 +46,18 @@ export type EvolveOpts = {
   runFactor?: (trigger: "manual" | "auto") => Promise<AILoopResult>;
   runStrategy?: (trigger: "manual" | "auto") => Promise<StrategyAILoopResult>;
   runGenome?: (trigger: "manual" | "auto") => Promise<GenomeLoopResult>;
+  /**
+   * 允许**真的**跑基因组层（生产路径用）。
+   *
+   * 为什么单独要一个开关：2026-11-05 出过一场事故——evolve.test.ts 只给前三层注入了
+   * 假实现，漏了基因组层，于是 `npm test` 会调**真的** runGenomeLoop：真打 AI 接口、
+   * 真往 data/strategy-genome.json 写候选、真往 ai-log 记账。13:56~14:43 之间跑了 13 次，
+   * 还因为泄漏在 ai-log 里留了条「auto 成功」记录，把当天真正的自动进化挤掉了。
+   *
+   * 现在的规矩：基因组层**要么注入假实现，要么显式声明 allowRealGenome: true**。
+   * 漏注入 → 立刻抛错。报错好过偷偷烧钱、偷偷改生产数据。
+   */
+  allowRealGenome?: boolean;
 };
 
 /** 跑一轮完整进化：诊断（观察）→ 因子层 → 策略层（参数挑战者）→ 基因组层（策略级进化）。各层独立成败，互不断电。 */
@@ -64,6 +76,13 @@ export async function runEvolveLoop(
   // ②③ 计划/行动：两层顺序照旧（策略层看因子层上一轮的沉淀，不看当轮——给判决留时间）。
   const runFactor = opts.runFactor ?? ((t: "manual" | "auto") => runFactorAILoop(deps, t));
   const runStrategy = opts.runStrategy ?? ((t: "manual" | "auto") => runStrategyAILoop(t));
+  // 基因组层：漏注入假实现时立刻抛错，别偷偷调真接口（见 EvolveOpts.allowRealGenome）。
+  if (!opts.runGenome && !opts.allowRealGenome) {
+    throw new Error(
+      "runEvolveLoop：基因组层必须注入假实现（opts.runGenome），" +
+        "或显式声明 opts.allowRealGenome = true —— 漏注入会偷偷调真 AI 接口并改生产数据",
+    );
+  }
   const runGenome = opts.runGenome ?? ((t: "manual" | "auto") => runGenomeLoop(t));
   const factor = await runFactor(trigger);
   const strategy = await runStrategy(trigger);

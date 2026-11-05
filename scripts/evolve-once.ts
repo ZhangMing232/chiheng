@@ -14,10 +14,12 @@ import { runEvolveLoop } from "@/lib/market/evolve";
 import { FACTORS } from "@/lib/market/factors";
 import { readFactorRuns } from "@/lib/market/factor-runs-file";
 
-const { agent, factor, strategy, genome } = await runEvolveLoop({
-  readRows: readFactorRuns,
-  existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })),
-});
+const { agent, factor, strategy, genome } = await runEvolveLoop(
+  { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
+  "manual",
+  // 生产路径：基因组层跑真的（要显式声明，漏注入假实现时编排会抛错——见 evolve.ts）。
+  { allowRealGenome: true },
+);
 
 const line = (label: string, r: { ok: boolean; proposed: number; rejected: number; rejectReasons: string[]; error?: string }) =>
   `${label}：${r.ok ? "ok" : "失败"}｜提议 ${r.proposed}｜拒 ${r.rejected}${r.error ? `｜${r.error}` : ""}` +
