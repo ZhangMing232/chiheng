@@ -506,6 +506,8 @@ function attrRow(row: AttrRow) {
  * （回测管道三口径修复后重跑的基线），不许手改——下次重跑基线时整表替换。
  * alpha = 同期全池超额（百分点）；t = Welch t；null = 本基线测不了。
  * ⚠️ 旧口径结论（中期反转 +1.03%、t=5.06）已被这份基线推翻，别再引用。
+ * 2026-11-05 二代换代（STRATEGY-GEN2）：现役只剩 breakout+value 两套，其余四套按一代
+ * 判决书淘汰——表里保留它们是历史对照，不是"还在跑"。
  */
 type BaselineRow = { name: string; kind: "live" | "variant"; alpha: number | null; t: number | null; count?: number; note?: string };
 const BASELINE_2026_10_25: BaselineRow[] = [
@@ -982,7 +984,7 @@ function Positions() {
 
         {/* 回测结论速览：实盘归因看的是几十笔的样本，这边是几百笔的同尺对照——
             两边数字打架时先信样本大的。放归因正下方，看实盘之前先扫一眼回测怎么说。 */}
-        <Panel title="回测结论 · 速览" note={<span>2026-10-25 基线 · 300 只抽样 · 250 日窗口 · 超额=减同期全池</span>}>
+        <Panel title="回测结论 · 速览" note={<span>2026-10-25 基线 · 二代现役：突破+低估值（其余四套已按一代判决书淘汰）</span>}>
           <Table className="data-table" caption="各策略与变体在 2026-10-25 修复版基线里的判定">
             <thead>
               <tr className="border-b border-line">

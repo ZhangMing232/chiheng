@@ -198,3 +198,31 @@ test("深扫：第 11~20 名也全被持仓挡死时返回 null", async () => {
   const held = list.map((r) => trade(r.quote.id, "breakout"));
   assert.equal(deepScanChallengerBuy(list, held), null);
 });
+
+// ── 二代回归钉（STRATEGY-GEN2 §2.2 / §3.1）───────────────────────
+// 这两条不是测选股逻辑——是钉住「执行参数 = 验证参数」：
+// 早期版 t=2.57 的回测口径是 −8% 止损，实盘曾跑 −2% 被滑点反复收割（归因：
+// 滑点止损 64 笔比计划多亏 43%）。谁再把它改回去，这里先红。
+
+test("二代钉：突破止损必须是 −8%（回测验证口径），不是浅止损", () => {
+  const q = { ...quote("sz0001"), price: 10.3, chg: 3, volRatio: 2.5, turnover: 5, amount: 20000, d5: 3, d20: 5, pe: 20, pb: 1.5, cap: 200 };
+  const rows = watchList([q], "breakout", DEFAULT_RULES, () => true);
+  assert.equal(rows.length, 1);
+  const stop = rows[0].stop!;
+  const buy = rows[0].buy!;
+  assert.ok(Math.abs(stop / buy - 0.92) < 0.005, `止损应为买入价 −8%（实得 ${(stop / buy).toFixed(3)}）`);
+});
+
+test("二代钉：量比超过 5（天量出货）不进名单", () => {
+  const ok = { ...quote("sz0001"), price: 10.3, chg: 3, volRatio: 2.5, turnover: 5, amount: 20000, d5: 3, d20: 5 };
+  const blast = { ...quote("sz0002"), price: 10.3, chg: 6, volRatio: 6.2, turnover: 5, amount: 20000, d5: 3, d20: 5 };
+  const rows = watchList([ok, blast], "breakout", DEFAULT_RULES, () => true);
+  assert.deepEqual(rows.map((r) => r.quote.id), ["sz0001"]);
+});
+
+test("二代钉：低估值回到现役（一代判决书唯一实盘正收益的恢复）", async () => {
+  const { ACTIVE_STYLES } = await import("@/lib/market/strategies");
+  assert.ok(ACTIVE_STYLES.includes("value"), "value 必须在 ACTIVE_STYLES 里");
+  assert.ok(ACTIVE_STYLES.includes("breakout"), "breakout 必须在 ACTIVE_STYLES 里");
+  assert.ok(!ACTIVE_STYLES.includes("rebound"), "中期反转按一代判决书淘汰，不许回现役");
+});

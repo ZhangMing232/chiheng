@@ -113,13 +113,14 @@ test("已下线的策略标 retired，needMore 是 0——不会再来样本，�
   const relay = report.byStyle.find((row) => row.style === "relay");
   const active = report.byStyle.find((row) => row.style === "breakout");
   assert.ok(value && relay && active);
-  // 历史样本照常显示——历史要看得见，这是正确行为
+  // 二代（STRATEGY-GEN2 §3.2）恢复 value 现役：它是实盘唯一正收益的一套，
+  // 2026-10-03 被裁撤属误伤。现役套不再 retired，样本目标照常显示。
   assert.equal(value.total, 1);
-  assert.equal(value.retired, true);
-  assert.equal(value.needMore, 0);
+  assert.equal(value.retired, false);
+  assert.equal(value.needMore, PER_STYLE_GOAL);
   assert.equal(relay.retired, true);
   assert.equal(relay.needMore, 0);
-  // 「还在跑」的样本用 breakout：2026-10-28 中期反转下线后它是 ACTIVE_STYLES 里唯一一套
+  // 「还在跑」的样本用 breakout：二代现役是 breakout + value 两套
   assert.equal(active.retired, false);
   assert.equal(active.needMore, PER_STYLE_GOAL);
 });

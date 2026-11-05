@@ -141,13 +141,19 @@ function trendOrder(quote: Quote): Order | null {
 function breakoutOrder(quote: Quote): Order | null {
   const prev = prevClose(quote);
   if (!tradable(quote) || prev == null || quote.d5 == null || quote.d20 == null) return null;
-  if (quote.volRatio < 1.8 || quote.turnover < 2 || quote.amount < 8000) return null;
+  // 量比上限 5（STRATEGY-GEN2 §3.1「排天量」）：超过 5 倍是天量，多半是出货，不接。
+  // 回测排天量变体独立过线（t=2.03），与早期版（t=2.57）合并为二代现役口径。
+  if (quote.volRatio < 1.8 || quote.volRatio > 5 || quote.turnover < 2 || quote.amount < 8000) return null;
   // 20 日涨幅上限从 20% 收到 10%：回测里更早介入的一批平均单笔从 +0.36%
   // 提到 +0.50%，而且前后半段都为正。已经走远的票不再追。
   if (quote.d5 < 0 || quote.d5 > 8 || quote.d20 < 0 || quote.d20 > 10) return null;
   if (quote.chg == null || quote.chg < 0 || quote.chg > 7) return null;
   const buy = round2(prev * 1.02);
-  const stop = round2(prev);
+  // 二代第一刀（GEN2 §2.2）：止损从 prev（约 −2%）对齐到回测验证口径 −8%。
+  // 早期版 t=2.57 是在 −8% 止损下测出来的，实盘却一直跑 −2%——量比 1.8+ 的票
+  // 日内波动远超 2%，浅止损把正常波动当风险砍（归因：滑点止损 64 笔比计划止损
+  // 多亏 43%）。执行参数终于等于验证参数。
+  const stop = round2(buy * 0.92);
   const sell = round2(buy * (1 + Math.max(20 - quote.d20, 2) / 100));
   if (!(stop < buy && buy < sell)) return null;
   const ceiling = round2(buy * 1.015);
@@ -302,7 +308,10 @@ export function cycleStyle<T>(order: readonly T[], current: T, dir: -1 | 1): T |
  * 三处都指向同一件事：赚的是活跃票的贝塔，不是选股挑出来的。
  * 它现在是唯一在跑的策略，去留等主人拍板，我不擅自停。
  */
-export const ACTIVE_STYLES: StyleId[] = ["breakout"];
+/** 二代现役（STRATEGY-GEN2 §3）：突破·早期排天量（攻）+ 低估值（守，实盘唯一
+ *  正收益 20 笔 +0.24%，2026-10-03 被裁撤是误伤，恢复）。反转/趋势/早期/补涨
+ *  四套按一代判决书淘汰，未结持仓照常结算到清。 */
+export const ACTIVE_STYLES: StyleId[] = ["breakout", "value"];
 /** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;
 
