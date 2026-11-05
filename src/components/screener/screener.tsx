@@ -319,82 +319,92 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             <div>
               <div className="text-[10px] tracking-widest text-muted">策略</div>
               <div className="mt-1 flex flex-col gap-0.5">
-                {/* 只有 ACTIVE_STYLES 会真的建仓（见 strategies.ts 的下线记录），
-                    筛选列表只把它们平铺；下线的收进下面折叠区，不和可用的混在一起
-                    （2026-10-21 用户点名：筛选条件里不该出现已下线策略）。 */}
-                {STYLES.filter((item) => (ACTIVE_STYLES as string[]).includes(item.id)).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => pickStyle(item.id)}
-                    aria-pressed={item.id === prefs.style}
-                    className={
-                      "flex items-center justify-between rounded px-2 py-1.5 text-sm text-left " +
-                      (item.id === prefs.style
-                        ? "bg-brand-soft font-medium text-brand-text"
-                        : "text-muted hover:bg-surface-2 hover:text-fg")
-                    }
-                  >
-                    <span className="flex min-w-0 items-center gap-1">
-                      <span className="truncate">{item.name}</span>
-                      {gates[item.id] ? (
-                        <span
-                          title={gates[item.id].reason}
-                          className={
-                            "shrink-0 rounded px-1 text-[10px] " +
-                            (gates[item.id].state === "disabled"
-                              ? "bg-warn-soft text-warn"
-                              : "bg-accent-soft text-accent")
-                          }
-                        >
-                          {gates[item.id].state === "disabled" ? "已停用" : "假释中"}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
-                  </button>
-                ))}
+                {/* 只平铺今天真正在跑的（和上方「现役策略」同一份 running）。
+                    被闸门停用的、已下线的都收进下面折叠区，不和能用的混在一起
+                    （2026-10-21 用户点名不该出现已下线；2026-11-05 补上已停用）。
+                    假释中仍在建仓，留在主列表并标注，不算停用。 */}
+                {running.length === 0 ? (
+                  <p className="px-2 py-1.5 text-xs text-muted">
+                    现役策略都被停用了，今天不建仓；下面可切过去查看历史。
+                  </p>
+                ) : (
+                  STYLES.filter((item) => (running as string[]).includes(item.id)).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => pickStyle(item.id)}
+                      aria-pressed={item.id === prefs.style}
+                      className={
+                        "flex items-center justify-between rounded px-2 py-1.5 text-sm text-left " +
+                        (item.id === prefs.style
+                          ? "bg-brand-soft font-medium text-brand-text"
+                          : "text-muted hover:bg-surface-2 hover:text-fg")
+                      }
+                    >
+                      <span className="flex min-w-0 items-center gap-1">
+                        <span className="truncate">{item.name}</span>
+                        {/* disabled 已被 running 过滤掉，这里只可能是 paroled。 */}
+                        {gates[item.id] ? (
+                          <span
+                            title={gates[item.id].reason}
+                            className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent"
+                          >
+                            假释中
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
+                    </button>
+                  ))
+                )}
               </div>
               {(() => {
-                const retired = STYLES.filter(
-                  (item) => !(ACTIVE_STYLES as string[]).includes(item.id),
+                // 不在 running 里的都收这儿：已下线的、以及被闸门停用的现役策略。
+                // 不删掉——还能切过去看历史候选，也能看清它为什么没在跑。
+                const parked = STYLES.filter(
+                  (item) => !(running as string[]).includes(item.id),
                 );
-                if (retired.length === 0) return null;
+                if (parked.length === 0) return null;
                 return (
                   <CollapsibleSection
                     storageKey="ch-collapse-retired-styles"
-                    // 选中的恰是下线策略时默认展开，不然用户找不到当前选中项在哪。
-                    defaultOpen={retired.some((item) => item.id === prefs.style)}
+                    // 选中的恰是停用/下线策略时默认展开，不然用户找不到当前选中项在哪。
+                    defaultOpen={parked.some((item) => item.id === prefs.style)}
                     className="mt-1"
                     headerClassName="bg-surface-2"
                     header={
                       <>
-                        <h3 className="text-xs font-medium">已下线（{retired.length}）</h3>
-                        <p className="text-[11px] text-muted">只留查看，不再自动建仓</p>
+                        <h3 className="text-xs font-medium">停用 / 已下线（{parked.length}）</h3>
+                        <p className="text-[11px] text-muted">不参与建仓，只留查看；停用原因见「策略管理」</p>
                       </>
                     }
                   >
                     <div className="flex flex-col gap-0.5 px-1.5 py-1.5">
-                      {retired.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => pickStyle(item.id)}
-                          aria-pressed={item.id === prefs.style}
-                          className={
-                            "flex items-center justify-between rounded px-2 py-1.5 text-sm text-left " +
-                            (item.id === prefs.style
-                              ? "bg-brand-soft font-medium text-brand-text"
-                              : "text-muted hover:bg-surface-2 hover:text-fg")
-                          }
-                        >
-                          <span className="flex min-w-0 items-center gap-1">
-                            <span className="truncate">{item.name}</span>
-                            <span className="shrink-0 rounded bg-warn-soft px-1 text-[10px] text-warn">已下线</span>
-                          </span>
-                          <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
-                        </button>
-                      ))}
+                      {parked.map((item) => {
+                        const gate = gates[item.id];
+                        const label = gate?.state === "disabled" ? "已停用" : "已下线";
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => pickStyle(item.id)}
+                            aria-pressed={item.id === prefs.style}
+                            title={gate?.reason ?? "已下线，不再自动建仓"}
+                            className={
+                              "flex items-center justify-between rounded px-2 py-1.5 text-sm text-left " +
+                              (item.id === prefs.style
+                                ? "bg-brand-soft font-medium text-brand-text"
+                                : "text-muted hover:bg-surface-2 hover:text-fg")
+                            }
+                          >
+                            <span className="flex min-w-0 items-center gap-1">
+                              <span className="truncate">{item.name}</span>
+                              <span className="shrink-0 rounded bg-warn-soft px-1 text-[10px] text-warn">{label}</span>
+                            </span>
+                            <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </CollapsibleSection>
                 );
