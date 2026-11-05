@@ -3,7 +3,7 @@
  * 选股页里可展开的「筛选范围」。按板块、股价、市值三行按钮缩小名单。
  *
  * 你需要知道的：
- * 只影响名单里出现谁。五套策略的账仍然分开记，每套最多 10 只。
+ * 只影响名单里出现谁。各套策略的账仍然分开记，每套最多 10 只。
  */
 
 import type { Prefs } from "@/lib/market/prefs";
@@ -69,7 +69,7 @@ export function PrefsBar({ prefs, onChange }: { prefs: Prefs; onChange: (next: P
   return (
     <details className="rounded border border-line bg-surface px-3 py-2">
       <summary className="cursor-pointer text-sm font-medium">筛选范围</summary>
-      <p className="mt-2 text-xs text-muted">只影响名单里出现谁。五套的账仍然分开记，每套最多 10 只。</p>
+      <p className="mt-2 text-xs text-muted">只影响名单里出现谁。各套策略的账分开记，每套最多 10 只。</p>
       <div className="mt-3 flex flex-col gap-3 pb-1">
         <Row label="板块" value={prefs.board} options={BOARDS} onPick={(board) => onChange({ ...prefs, board })} />
         <Row label="股价" value={prefs.price} options={PRICES} onPick={(price) => onChange({ ...prefs, price })} />

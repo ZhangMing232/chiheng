@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 五套选股策略。每套自己算买入价、卖出价、止损价，互不混用。
+ * 各套选股策略。每套自己算买入价、卖出价、止损价，互不混用。
  *
  * 你需要知道的：
  * 每套最多同时拿 10 只。现价打到买入价才算买进，打到卖出价或止损价才算卖出。
@@ -11,7 +11,7 @@ import { HOLD_SESSIONS, limitPct, limitTag, planExit, screen, type Scored } from
 import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
 
-/** 五套策略的内部编号。页面上的中文名在 STYLES 里。 */
+/** 各套策略的内部编号。页面上的中文名在 STYLES 里。 */
 export type StyleId = "early" | "trend" | "breakout" | "value" | "relay" | "rebound";
 
 /**
@@ -26,7 +26,7 @@ export type Order = Scored & {
   hit: boolean;
 };
 
-/** 页面上的五套标签。hint 是给用户看的一句人话，真正的门槛在下面各个函数里。 */
+/** 页面上的各套标签。hint 是给用户看的一句人话，真正的门槛在下面各个函数里。 */
 export const STYLES: { id: StyleId; name: string; hint: string }[] = [
   {
     id: "early",
@@ -257,7 +257,7 @@ function reboundOrder(quote: Quote): Order | null {
   };
 }
 
-/** 五套策略的固定顺序。页面上的标签就按这个排。 */
+/** 各套策略的固定顺序。页面上的标签就按这个排。 */
 export const STYLE_IDS: StyleId[] = ["early", "trend", "breakout", "value", "relay", "rebound"];
 /**
  * 在策略列表里循环（快捷键 ← → 用）。
@@ -295,23 +295,30 @@ export function cycleStyle<T>(order: readonly T[], current: T, dir: -1 | 1): T |
  *   重开要有新证据（新窗口 / 新持有期 / 新选股条件各自跑过三批互换），
  *   不能因为「跌多了该反弹」这种叙事就重开——它亏的正是这句话。
  *
- * 低估值、次日补涨 2026-10-06 下线，理由与上面几套不同：
- * 这两套**从来没被回测过**。低估值要历史 PE/PB、当日补涨要板块快照，
- * 回测侧拿不到这些数（见 scripts/backtest.ts 顶部的三条近似），
- * 于是它们每天在真金白银下单、却没有任何证据说它们赚不赚钱。
- * （2026-10-28 补记：低估值是账本里唯一正超额的策略，+3.33pp/20 笔——
- *  越是这样越该先回测验证，否则分不清是选股能力还是单月运气。）
+ * 次日补涨 2026-10-06 下线：它从来没被回测过（要板块快照，回测侧拿不到），
+ * 每天真金白银下单却没有任何证据说它赚不赚钱。
  *
- * 放量突破留着，但它现在几乎没有确证的超额，账得摆在这里：
- * 近全池回测 836 笔超额 -0.05pp（t=-0.30），2026-09-29 之后 62 笔 -0.34pp，
- * 真账本 98 笔均 -2.17%（胜率 9%，同期全池上涨占比 30%）。
- * 三处都指向同一件事：赚的是活跃票的贝塔，不是选股挑出来的。
- * 它现在是唯一在跑的策略，去留等主人拍板，我不擅自停。
+ * 低估值 2026-11-05 恢复现役（一代判决书里唯一实盘正收益，20 笔 +0.24%，
+ * 10-03 裁撤属误伤）。**但它至今没被回测验证过**：回测侧缺历史 PE/PB 日序列
+ * （scripts/backtest.ts 顶部三条近似之一）。线上 20 笔 +3.33pp 超额可能只是
+ * 单月运气。这是当前最大的证据缺口，别把「唯一在跑」当成「已验证」。
+ *
+ * **放量突破 2026-11-05 下线**，二代全池新窗口判决没站住：
+ *   - 白皮书声明口径 bk4 + −8% 止损：614 笔 +0.15pp，聚类 t=+0.43；
+ *   - 补上线上漏写的换手率 ≥2% 闸（gen2）：580 笔 **−0.18pp，聚类 t=−0.52**，
+ *     尾段 −0.55pp。白皮书 §4 自定 |t|≥2 → 触发「回滚条件并记墓碑」。
+ *   - 一代口径（−2% 止损）聚类 t=−2.00，显著负，回滚参数没有意义。
+ *   - 策略闸 10-29 已把它 disabled，实盘早就不建仓；这步只是让代码清单和现实一致。
+ *   - 完整判决 data/backtest/2026-11-05/REPORT-GEN2-VERDICT.md，
+ *     墓碑见 design/DECISIONS.md。
+ *   重开要有新证据（新窗口 / 新条件各自过 |t|≥2，并做独立样本交叉验证），
+ *   不能因为「+0.15pp 看着还行」就加回来——那个正值是漏掉换手闸的假象。
+ *
+ * 结算不依赖这张表：record-journal.ts:723 按 day.trades 遍历，下线策略的
+ * 未结持仓照常走到期（breakout 下线时还有 10 笔未平仓）。
  */
-/** 二代现役（STRATEGY-GEN2 §3）：突破·早期排天量（攻）+ 低估值（守，实盘唯一
- *  正收益 20 笔 +0.24%，2026-10-03 被裁撤是误伤，恢复）。反转/趋势/早期/补涨
- *  四套按一代判决书淘汰，未结持仓照常结算到清。 */
-export const ACTIVE_STYLES: StyleId[] = ["breakout", "value"];
+/** 2026-11-05 二代判决后的现役清单。下线与重开条件见上面那段，别在这里改口径。 */
+export const ACTIVE_STYLES: StyleId[] = ["value"];
 /** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;
 
@@ -338,7 +345,7 @@ export function holdOf(style: StyleId | undefined): number {
   return (style ? STYLE_HOLD[style] : undefined) ?? HOLD_SESSIONS;
 }
 
-/** 一笔成交属于哪一套。旧账上没有这五套之一的名字时返回空，不塞进任何一套。 */
+/** 一笔成交属于哪一套。旧账上没有这各套之一的名字时返回空，不塞进任何一套。 */
 export function styleOf(trade: { style?: string }): StyleId | null {
   if (
     trade.style === "early" ||
