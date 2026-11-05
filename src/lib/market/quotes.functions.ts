@@ -1018,6 +1018,23 @@ export const getTombstones = createServerFn({ method: "GET" }).handler(async () 
 });
 
 /**
+ * 策略基因组的候选 + 策略层的全池回测判决（策略基因组页 / 因子页「因子→策略的去向」用）。
+ *
+ * 为什么要有这个读口：这两份数据（data/strategy-genome.json 和
+ * data/strategy-verdicts.json）之前**只有服务端在读**——策略闸靠前者决定停不停用某套策略，
+ * 但「AI 到底在提什么、判得对不对」在界面上一个字都看不到。用户没法监督 AI 提了什么、
+ * 判得对不对，这跟「AI 只有请求权」的前提是矛盾的：看不见就谈不上监督。
+ *
+ * 读不到就返回空（不编数）：没有基因组候选是正常状态（还没提过）。
+ */
+export const getGenomeView = createServerFn({ method: "GET" }).handler(async () => {
+  const { readGenome } = await import("@/lib/market/strategy-genome");
+  const { readBacktestVerdicts } = await import("@/lib/market/strategy-gate");
+  const [file, verdicts] = await Promise.all([readGenome(), readBacktestVerdicts()]);
+  return { candidates: file.list, strategyVerdicts: verdicts };
+});
+
+/**
  * 失败归因数据（失败归因页用）：逐笔亏损按退出原因分 cause + 挑战者判决归因。
  * 读不到账本/没有亏损 → summary.losses=0、verdicts=[]，不编造。
  */

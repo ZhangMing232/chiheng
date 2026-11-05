@@ -230,22 +230,24 @@ export function applyGenomeVerdict(
   at: string = new Date().toISOString(),
 ): GenomeCandidate[] {
   const outcome = judgeGenomeVerdict(v);
-  return list.map((c) =>
-    c.id === specId
-      ? {
-          ...c,
-          status: outcome.status,
-          failedGates: outcome.failedGates.length > 0 ? outcome.failedGates : c.failedGates,
-          note: `${c.note ?? ""}｜判决 ${at.slice(0, 10)}：${outcome.reason}`.trim(),
-          verdict: {
-            at,
-            trades: v.trades,
-            excessPp: v.excessPp,
-            clusteredT: v.clusteredT,
-            halvesSameSign: v.halvesSameSign,
-            reason: outcome.reason,
-          },
-        }
-      : c,
-  );
+  return list.map((c) => {
+    if (c.id !== specId) return c;
+    // 判决段幂等：**先剥掉上一次写的判决段再写新的**。
+    // 否则每日判决刷新一次、note 就长一段——跑一个月 note 里堆 30 遍同一个判决。
+    const base = (c.note ?? "").split("｜判决 ")[0].trim();
+    return {
+      ...c,
+      status: outcome.status,
+      failedGates: outcome.failedGates.length > 0 ? outcome.failedGates : c.failedGates,
+      note: `${base}｜判决 ${at.slice(0, 10)}：${outcome.reason}`.trim(),
+      verdict: {
+        at,
+        trades: v.trades,
+        excessPp: v.excessPp,
+        clusteredT: v.clusteredT,
+        halvesSameSign: v.halvesSameSign,
+        reason: outcome.reason,
+      },
+    };
+  });
 }

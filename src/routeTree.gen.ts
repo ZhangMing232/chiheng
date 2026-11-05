@@ -59,6 +59,7 @@ import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewFlowRouteImport } from './routes/review/flow'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
 import { Route as StrategiesAutopsyRouteImport } from './routes/strategies/autopsy'
+import { Route as StrategiesGenomeRouteImport } from './routes/strategies/genome'
 import { Route as StrategiesManageRouteImport } from './routes/strategies/manage'
 import { Route as StrategiesPositionsRouteImport } from './routes/strategies/positions'
 import { Route as StrategiesScreenerRouteImport } from './routes/strategies/screener'
@@ -324,6 +325,11 @@ const StrategiesAutopsyRoute = StrategiesAutopsyRouteImport.update({
   path: '/autopsy',
   getParentRoute: () => StrategiesRoute,
 } as any)
+const StrategiesGenomeRoute = StrategiesGenomeRouteImport.update({
+  id: '/genome',
+  path: '/genome',
+  getParentRoute: () => StrategiesRoute,
+} as any)
 const StrategiesManageRoute = StrategiesManageRouteImport.update({
   id: '/manage',
   path: '/manage',
@@ -442,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
+  '/strategies/genome': typeof StrategiesGenomeRoute
   '/strategies/manage': typeof StrategiesManageRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
@@ -504,6 +511,7 @@ export interface FileRoutesByTo {
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
+  '/strategies/genome': typeof StrategiesGenomeRoute
   '/strategies/manage': typeof StrategiesManageRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
@@ -571,6 +579,7 @@ export interface FileRoutesById {
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
+  '/strategies/genome': typeof StrategiesGenomeRoute
   '/strategies/manage': typeof StrategiesManageRoute
   '/strategies/positions': typeof StrategiesPositionsRoute
   '/strategies/screener': typeof StrategiesScreenerRoute
@@ -639,6 +648,7 @@ export interface FileRouteTypes {
     | '/review/flow'
     | '/review/signals'
     | '/strategies/autopsy'
+    | '/strategies/genome'
     | '/strategies/manage'
     | '/strategies/positions'
     | '/strategies/screener'
@@ -701,6 +711,7 @@ export interface FileRouteTypes {
     | '/review/events'
     | '/review/signals'
     | '/strategies/autopsy'
+    | '/strategies/genome'
     | '/strategies/manage'
     | '/strategies/positions'
     | '/strategies/screener'
@@ -767,6 +778,7 @@ export interface FileRouteTypes {
     | '/review/flow'
     | '/review/signals'
     | '/strategies/autopsy'
+    | '/strategies/genome'
     | '/strategies/manage'
     | '/strategies/positions'
     | '/strategies/screener'
@@ -1178,6 +1190,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StrategiesAutopsyRouteImport
       parentRoute: typeof StrategiesRoute
     }
+    '/strategies/genome': {
+      id: '/strategies/genome'
+      path: '/genome'
+      fullPath: '/strategies/genome'
+      preLoaderRoute: typeof StrategiesGenomeRouteImport
+      parentRoute: typeof StrategiesRoute
+    }
     '/strategies/manage': {
       id: '/strategies/manage'
       path: '/manage'
@@ -1370,6 +1389,7 @@ const ReviewRouteWithChildren =
 
 interface StrategiesRouteChildren {
   StrategiesAutopsyRoute: typeof StrategiesAutopsyRoute
+  StrategiesGenomeRoute: typeof StrategiesGenomeRoute
   StrategiesManageRoute: typeof StrategiesManageRoute
   StrategiesPositionsRoute: typeof StrategiesPositionsRoute
   StrategiesScreenerRoute: typeof StrategiesScreenerRoute
@@ -1379,6 +1399,7 @@ interface StrategiesRouteChildren {
 
 const StrategiesRouteChildren: StrategiesRouteChildren = {
   StrategiesAutopsyRoute: StrategiesAutopsyRoute,
+  StrategiesGenomeRoute: StrategiesGenomeRoute,
   StrategiesManageRoute: StrategiesManageRoute,
   StrategiesPositionsRoute: StrategiesPositionsRoute,
   StrategiesScreenerRoute: StrategiesScreenerRoute,

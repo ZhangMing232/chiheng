@@ -15,5 +15,6 @@ export const STRATEGY_TABS: { to: string; label: string }[] = [
   { to: "/strategies/positions", label: "策略追踪" },
   { to: "/strategies/signals", label: "跟单信号" },
   { to: "/strategies/manage", label: "策略管理" },
+  { to: "/strategies/genome", label: "策略基因组" },
   { to: "/strategies/autopsy", label: "失败归因" },
 ];

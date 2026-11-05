@@ -45,6 +45,21 @@ export type GenomeCandidate = StrategySpec & {
   fromFailure?: string;
   /** 若被 6 关/回测淘汰，记败在哪。 */
   failedGates?: string[];
+  /**
+   * 这个 spec 用到的已过 6 关因子（因子→策略融合的溯源）。
+   *
+   * 为什么必须记：融合这一步的**输入**是因子、**输出**是策略 spec，两边分属两层。
+   * 不记这条线，因子页只能显示「过 6 关」，看不到「它后来长成了哪套策略、那套判得怎么样」——
+   * 用户要的「因子挖掘完融合也是一样的」在界面上就断了。页面靠这个字段把两层接上。
+   *
+   * how = "fusion" 是代码直接熔的（AI 那轮沉默时的兜底）；
+   * how = "ai" 是 AI 自己声明用了哪些因子（它在提案里写 seededFrom）。
+   */
+  seededFactors?: {
+    factorIds: string[];
+    factorNames: string[];
+    how: "fusion" | "ai";
+  };
   /** 最近一次判决的数字（页面展示用，不参与判决逻辑）。见 genome-verdict.ts。 */
   verdict?: {
     at: string;
@@ -139,7 +154,17 @@ export function isNearTwin(
 
 // ── 纯函数：校验 AI 产出 ───────────────────────────────────────────
 
-export type GenomeProposal = StrategySpec & { rationale: string };
+export type GenomeProposal = StrategySpec & {
+  rationale: string;
+  /**
+   * AI 声明「这个 spec 用了哪些已过 6 关的因子」（因子 id 数组）。
+   * 这是因子→策略融合的溯源：没有它，页面没法把「过了 6 关的因子」和
+   * 「长出来的策略候选」接起来。缺省就是没融合（不许瞎编 id）。
+   */
+  seededFrom?: string[];
+  /** seededFrom 的来源：fusion = 代码直接熔的兜底；ai = AI 自己声明的。 */
+  seededFromHow?: "fusion" | "ai";
+};
 
 const ID_RE = /^[a-z][a-z0-9_-]{1,31}$/;
 const PRICING_SHAPES = ["spot", "prevPct", "peAnchor", "breakout", "expr"] as const;
@@ -226,7 +251,15 @@ export function parseGenomeProposals(
       continue;
     }
     ids.add(p.id);
-    accepted.push({ ...(p as GenomeProposal), fromFailure: (p as { fromFailure?: string }).fromFailure });
+    // seededFrom 只收字符串数组（AI 偶尔会塞对象/数字进来，别让它污染类型）。
+    const seededFrom = Array.isArray(p.seededFrom)
+      ? p.seededFrom.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+      : [];
+    accepted.push({
+      ...(p as GenomeProposal),
+      fromFailure: (p as { fromFailure?: string }).fromFailure,
+      ...(seededFrom.length > 0 ? { seededFrom } : {}),
+    });
   }
   return { accepted, rejected };
 }
@@ -312,7 +345,8 @@ export function buildGenomePrompt(ctx: GenomeContext): string {
     "3. select 至少 1 条、必须含比较运算；rankBy 是数值表达式（越大越优先，如 \"40 - pe\" 或 \"-d60\"）；pricing 至少给形状。",
     "4. 范围：holdDays 1~60、stopPct 3~40、targetPct 1~80。",
     "5. 每个给：id（小写slug）、name（中文）、select、rankBy、pricing、holdDays、stopPct、targetPct、rationale（经济逻辑，一两句，说清这套为什么可能和死掉的那些不一样）。可附 fromFailure 字段注明你针对哪条死因。",
-    "6. 提 1~2 个，宁缺毋滥。只输出 JSON 数组。",
+    "6. **如果你的选股/排序条件来自下面「已通过 6 关的因子」，必须写 seededFrom 字段列出那些因子 id**（数组，如 [\"shrinkDays\"]）。这是「因子→策略融合」的溯源，页面靠它把两层接起来。没用到就别写（别硬凑 id）。",
+    "7. 提 1~2 个，宁缺毋滥。只输出 JSON 数组。",
     "",
     "现有/已淘汰策略（选股逻辑签名已比对，近亲会被拒）：",
     specLines.length > 0 ? specLines.join("\n") : "- （还没有）",
@@ -400,7 +434,13 @@ export async function runGenomeLoop(trigger: "manual" | "auto" = "manual"): Prom
     if (seed.ok && !genome.list.some((c) => c.id === seed.spec.id)) {
       const twin = isNearTwin(seed.spec, [...genome.list, ...deadSpecs]);
       if (!twin.twin) {
-        accepted.push({ ...seed.spec, rationale: seed.spec.note ?? `融合自因子 ${passedFactorSeeds[0].id}` });
+        accepted.push({
+          ...seed.spec,
+          rationale: seed.spec.note ?? `融合自因子 ${passedFactorSeeds[0].id}`,
+          // 溯源：这条是代码直接熔的（AI 那轮没产出可用提案时的兜底）。
+          seededFrom: [passedFactorSeeds[0].id],
+          seededFromHow: "fusion",
+        });
       } else {
         rejected.push({ proposal: seed.spec.id, reason: `融合种子和「${twin.withId}」近亲，不强行顶上` });
       }
@@ -412,6 +452,9 @@ export async function runGenomeLoop(trigger: "manual" | "auto" = "manual"): Prom
   }
   if (accepted.length > 0) {
     const today = new Date().toISOString().slice(0, 10);
+    // 因子 id → 名字的查表：AI 声明 seededFrom 时只给 id，名字从已过 6 关的因子里查。
+    // 查不到（AI 编了个不存在的 id）→ 名字留空，但 id 照样记着（不替它圆）。
+    const factorNameById = new Map(passedFactorSeeds.map((f) => [f.id, f.name]));
     await writeGenome({
       list: [
         ...genome.list,
@@ -421,6 +464,15 @@ export async function runGenomeLoop(trigger: "manual" | "auto" = "manual"): Prom
           since: today,
           source: "ai" as const,
           note: `AI 提议：${a.rationale}`,
+          ...(a.seededFrom && a.seededFrom.length > 0
+            ? {
+                seededFactors: {
+                  factorIds: a.seededFrom,
+                  factorNames: a.seededFrom.map((id) => factorNameById.get(id) ?? ""),
+                  how: a.seededFromHow ?? "ai",
+                },
+              }
+            : {}),
         })),
       ],
     });

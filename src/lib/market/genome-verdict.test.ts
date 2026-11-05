@@ -188,3 +188,13 @@ test("verdictFromTrades：从逐笔明细造出判决输入", () => {
 test("GENOME_T_GATE 就是白皮书 §4 的 |t|≥2（别偷偷改松）", () => {
   assert.equal(GENOME_T_GATE, 2);
 });
+
+test("判决段幂等：跑第二次判决不重复堆 note（每日刷新会天天写一次）", () => {
+  const list = [cand({ id: "g1", note: "AI 提议：原始理由" })];
+  const input = { ran: true, trades: 350, excessPp: 0.58, clusteredT: 0.72, halvesSameSign: true };
+  const once = applyGenomeVerdict(list, "g1", input, "2026-11-05T10:00:00Z");
+  const twice = applyGenomeVerdict(once, "g1", input, "2026-11-06T10:00:00Z");
+  const count = (twice[0].note ?? "").split("｜判决 ").length - 1;
+  assert.equal(count, 1, "判决段只能有一段，不能每天追加一段");
+  assert.match(twice[0].note ?? "", /^AI 提议：原始理由｜判决 2026-11-06/);
+});

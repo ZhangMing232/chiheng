@@ -142,3 +142,32 @@ test("buildGenomePrompt：告诉 AI 哪些变量回测能判（省得提一堆�
   assert.match(prompt, /只能用回测能判的变量/);
   assert.match(prompt, /不许用：inflow、ytd/);
 });
+
+test("溯源：AI 声明的 seededFrom 因子 id 要留住（非字符串的丢掉）", () => {
+  const raw = JSON.stringify([
+    { id: "cc", name: "SpecC", select: ["pe <= 18"], rankBy: "40 - pe", pricing: { shape: "spot" }, holdDays: 8, stopPct: 8, targetPct: 20, rationale: "用了已过 6 关的因子做选股条件", seededFrom: ["shrinkDays", 123, null] },
+  ]);
+  const { accepted, rejected } = parseGenomeProposals(raw, []);
+  assert.equal(accepted.length, 1);
+  assert.equal(rejected.length, 0);
+  assert.deepEqual(accepted[0].seededFrom, ["shrinkDays"], "只留字符串 id，数字/null 丢掉");
+});
+
+test("溯源：没声明 seededFrom 就是没融合，不硬凑", () => {
+  const raw = JSON.stringify([
+    { id: "dd", name: "SpecD", select: ["pb <= 2"], rankBy: "pb", pricing: { shape: "spot" }, holdDays: 8, stopPct: 8, targetPct: 20, rationale: "没用任何已过 6 关的因子，纯新思路" },
+  ]);
+  const { accepted } = parseGenomeProposals(raw, []);
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].seededFrom, undefined, "没声明就不该有 seededFrom");
+});
+
+test("溯源：prompt 里要求 AI 声明用了哪些因子（不然页面接不上线）", () => {
+  const ctx: GenomeContext = {
+    factorTombstones: [], rejectedChallengers: [], deadSpecs: [], liveSpecs: [], gateLines: [],
+    passedFactors: [{ id: "shrinkDays", name: "缩量天数", expr: "shrinkDays", direction: 1, rationale: "量能萎缩" }],
+  };
+  const prompt = buildGenomePrompt(ctx);
+  assert.match(prompt, /seededFrom/);
+  assert.match(prompt, /缩量天数/, "已过 6 关的因子要列进 prompt，AI 才知道能融哪个");
+});

@@ -39,7 +39,7 @@ const PAGES = [
   "/factors", "/factors/gates", "/factors/attrib", "/factors/baseline", "/factors/buckets", "/factors/flow",
   "/backtest",
   // 竞技场（策略竞技场 + 信号系统，10-28）
-  "/strategies/signals", "/strategies/manage", "/strategies/autopsy",
+  "/strategies/signals", "/strategies/manage", "/strategies/autopsy", "/strategies/genome",
   "/strategies/tracking", "/arena/signals", "/arena/autopsy",
   "/guide",
   // 资金流向并入复盘后的真实子页（10-23，b183e00）

@@ -22,13 +22,15 @@ import { Stat, Panel, Tag, Prog } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { SourceLine } from "@/components/source-line";
 import { signedPct } from "@/lib/market/format";
-import { getFactorRuns, getTombstones, runFactorTest } from "@/lib/market/quotes.functions";
+import { getFactorRuns, getGenomeView, getTombstones, runFactorTest } from "@/lib/market/quotes.functions";
 import { PARAM_BOUNDS } from "@/lib/market/factor-test-runner";
-import { batchSummary, GATE_LEGEND, type BatchSummary } from "@/lib/market/factors-view";
+import { batchSummary, factorRows, GATE_LEGEND, type BatchSummary, type FactorRowView } from "@/lib/market/factors-view";
 import { Term } from "@/components/term";
 import type { GlossaryKey } from "@/lib/ui/glossary";
 import type { FactorRunsPayload } from "@/lib/market/factor-runs-file";
 import type { TombstoneRecord } from "@/lib/market/factor-tombstones";
+import type { GenomeCandidate } from "@/lib/market/strategy-genome";
+import type { BacktestVerdict } from "@/lib/market/strategy-gate";
 import {
   BatchPicker,
   FactorSectionTabs,
@@ -42,7 +44,7 @@ export const Route = createFileRoute("/factors/")({
   validateSearch: (search: Record<string, unknown>) => ({ batch: parseBatch(search) }),
   loaderDeps: ({ search }) => ({ batch: search.batch }),
   loader: async ({ deps }) => {
-    const [runs, tombstones] = await Promise.all([
+    const [runs, tombstones, genome] = await Promise.all([
       getFactorRuns({ data: { batch: deps.batch } }).catch(
         (e: unknown): FactorRunsPayload => ({
           batch: null,
@@ -53,8 +55,10 @@ export const Route = createFileRoute("/factors/")({
         }),
       ),
       getTombstones().catch((): TombstoneRecord[] => []),
+      // 因子→策略的去向（见页面上的「因子 → 策略的去向」区块）：读不到就空着。
+      getGenomeView().catch(() => ({ candidates: [] as GenomeCandidate[], strategyVerdicts: {} as Record<string, BacktestVerdict> })),
     ]);
-    return { runs, tombstones };
+    return { runs, tombstones, genome };
   },
   component: FactorsIndexPage,
 });
@@ -138,6 +142,108 @@ function TestControls({ defaults }: { defaults: { n: number; buckets: number } }
         只调采样参数；6 关判据和因子注册表预登记在代码里，这里碰不到。跑完自动追加为最新一批，批次选择器里能和老批次对比。
       </span>
     </div>
+  );
+}
+
+/**
+ * 因子 → 策略的去向：把「因子过了 6 关」和「策略站住了」这两层接起来。
+ *
+ * 为什么要有这个区块（2026-11-05）：用户要的「因子挖掘完融合也是一样的」在界面上
+ * 原来是**断的**——因子页只显示「过 6 关」，看不见「这个因子后来长成了哪套策略、
+ * 那套策略判得怎么样」。而基因组的候选和判决只躺在 data/ 里，界面上一个字都没有。
+ * 看不见就谈不上监督，AI 提了什么、判得对不对都没法盯。
+ *
+ * 显示的全是真数据：
+ * - 「过了 6 关的因子」取自本批 rows 里 allPass 的那些（跟上面的六关卡片同源）
+ * - 「长成了哪些策略」取自候选自带的 seededFactors 溯源（strategy-genome.ts 记的）
+ * - 「那套策略判得怎么样」取自候选的 verdict（全池回测的聚类 t）
+ * 没有数据就说没有，不拿 0 顶替。
+ */
+function FactorToStrategy({
+  rows,
+  candidates,
+}: {
+  rows: FactorRowView[];
+  candidates: GenomeCandidate[];
+}) {
+  const passed = rows.filter((r) => r.allPass);
+  // 反查：因子 id → 用到它的候选
+  const byFactor = new Map<string, GenomeCandidate[]>();
+  for (const c of candidates) {
+    for (const fid of c.seededFactors?.factorIds ?? []) {
+      const list = byFactor.get(fid) ?? [];
+      list.push(c);
+      byFactor.set(fid, list);
+    }
+  }
+  const fusedCount = byFactor.size;
+
+  return (
+    <Section
+      title="因子 → 策略的去向"
+      hint="过了 6 关的因子会被拿去熔成策略 spec（因子→策略融合），那些 spec 再过一遍全池回测。这里显示这条链现在走到哪一步——哪套策略站住了、哪套判死了。"
+    >
+      <div className="px-3.5 py-4">
+        {candidates.length === 0 ? (
+          <StateBlock
+            kind="empty"
+            title="还没有策略候选"
+            hint="AI 提的策略 spec 还没产出（收盘后自动进化时才有）。候选和它们的判决在「策略基因组」页。"
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
+              <span>
+                本批过了 6 关的因子 <span className="tabular-nums text-fg">{passed.length}</span> 个
+              </span>
+              <span>
+                已经长成策略的 <span className="tabular-nums text-fg">{fusedCount}</span> 个
+              </span>
+              <span>
+                策略候选共 <span className="tabular-nums text-fg">{candidates.length}</span> 套
+              </span>
+              <Link to="/strategies/genome" className="text-brand transition hover:underline">
+                去「策略基因组」看全部判决 →
+              </Link>
+            </div>
+
+            {passed.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {passed.map((r) => {
+                  const specs = byFactor.get(r.id) ?? [];
+                  return (
+                    <div key={r.id} className="rounded border border-line bg-surface px-2.5 py-1.5 text-xs">
+                      <div className="font-medium">
+                        {r.name}
+                        <span className="ml-1.5 text-[11px] text-muted">{r.id}</span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-muted">
+                        {specs.length === 0 ? (
+                          <span>还没长成策略（AI 可以拿它当选股条件）</span>
+                        ) : (
+                          specs.map((s) => (
+                            <span key={s.id} className="mr-2">
+                              → {s.name}
+                              <span className={s.status === "promoted" ? "text-up" : "text-muted"}>
+                                （{s.verdict?.clusteredT != null ? `聚类 t ${s.verdict.clusteredT.toFixed(2)}` : "待判"}）
+                              </span>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted">
+                这一批没有因子全过 6 关——没有「过关因子」可以拿去熔策略（不是融合失败，是上游没货）。
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </Section>
   );
 }
 
@@ -268,7 +374,7 @@ function FactorLabCard({ summary, tombstones, batchIndex }: { summary: BatchSumm
 }
 
 function FactorsIndexPage() {
-  const { runs, tombstones } = Route.useLoaderData();
+  const { runs, tombstones, genome } = Route.useLoaderData();
 
   const summary = useMemo(() => batchSummary(runs.batch?.rows ?? []), [runs.batch]);
 
@@ -306,6 +412,9 @@ function FactorsIndexPage() {
         {runs.batch ? <TestControls defaults={{ n: runs.batch.n, buckets: runs.batch.buckets }} /> : null}
         <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/" />
       </div>
+
+      {/* 1b 因子 → 策略的去向：把「因子过关」和「策略站住」这两层接起来 */}
+      <FactorToStrategy rows={factorRows(runs.batch?.rows ?? [])} candidates={genome.candidates} />
 
       {/* 1 结论 */}
       <Section
