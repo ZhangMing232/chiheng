@@ -1057,7 +1057,14 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
   try {
     const { readQueue } = await import("../src/lib/market/factor-queue.ts");
     const { entries: queueEntries } = await readQueue();
-    if (queueEntries.some((e) => e.status !== "tombstone")) {
+    // 待判的东西：队列里有活着的因子，**或者**基因组里有待判的策略候选。
+    // 两个都要看——只看因子队列的话，队列清空那天策略判决会跟着一起静默停掉
+    // （2026-11-05 补：策略/基因组判决也挂在这条路上）。
+    const { readGenome } = await import("../src/lib/market/strategy-genome.ts");
+    const genomeCandidates = (await readGenome()).list;
+    const hasPendingFactor = queueEntries.some((e) => e.status !== "tombstone");
+    const hasPendingGenome = genomeCandidates.some((c) => c.status === "proposed" || c.status === "testing");
+    if (hasPendingFactor || hasPendingGenome) {
       const stampDir = join(process.cwd(), "data", "backtest");
       const stamp = join(stampDir, `.auto-verdict-${phase.date}.stamp`);
       try {
@@ -1072,7 +1079,10 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
           { cwd: process.cwd(), detached: true, stdio: ["ignore", logFd, logFd] },
         );
         child.unref();
-        console.log(`${time} 待验因子判决回测已异步启动（${phase.date}）`);
+        console.log(
+          `${time} 判决回测已异步启动（${phase.date}）` +
+            `——待验因子 ${hasPendingFactor ? "有" : "无"}，待判策略 ${hasPendingGenome ? "有" : "无"}`,
+        );
       }
     }
   } catch (error) {
