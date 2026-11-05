@@ -27,6 +27,7 @@ import { dayHeading, groupByDay, needsAction, overallOf, rowReturn, sortByUrgenc
 import { ACTIVE_STYLES, STYLES, styleOf } from "@/lib/market/strategies";
 import { MAX_RUNNING_PER_STYLE } from "@/lib/market/challenger";
 import { SectionTabs } from "@/components/section-tabs";
+import { Term } from "@/components/term";
 import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
@@ -659,8 +660,8 @@ function Positions() {
         {/* 挑战者池（重设计效果图的「进化」页签名件）：在跑几个、容量多少、都是谁。
             容量 = 每套在跑上限 × 现役策略套数，真实可算，不抄效果图的 0/30。 */}
         <Panel
-          title="挑战者池"
-          note="同一份选股名单只换出场参数，和冠军并行攒样本，Welch 判决说了算"
+          title={<span><Term k="challenger">挑战者</Term>池</span>}
+          note={<span>同一份选股名单只换出场参数，和<Term k="champion">冠军</Term>并行攒样本，<Term k="welchT">Welch 判决</Term>说了算</span>}
           action={<Tag tone="brand">诚实运行 · 不虚构盈利</Tag>}
           bodyClassName="px-3.5 py-3"
         >
@@ -981,7 +982,7 @@ function Positions() {
 
         {/* 回测结论速览：实盘归因看的是几十笔的样本，这边是几百笔的同尺对照——
             两边数字打架时先信样本大的。放归因正下方，看实盘之前先扫一眼回测怎么说。 */}
-        <Panel title="回测结论 · 速览" note={<span>2026-10-25 基线 · 300 只抽样 · 250 日窗口</span>}>
+        <Panel title="回测结论 · 速览" note={<span>2026-10-25 基线 · 300 只抽样 · 250 日窗口 · 超额=减同期全池</span>}>
           <Table className="data-table" caption="各策略与变体在 2026-10-25 修复版基线里的判定">
             <thead>
               <tr className="border-b border-line">

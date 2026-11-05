@@ -25,6 +25,8 @@ import { signedPct } from "@/lib/market/format";
 import { getFactorRuns, getTombstones, runFactorTest } from "@/lib/market/quotes.functions";
 import { PARAM_BOUNDS } from "@/lib/market/factor-test-runner";
 import { batchSummary, GATE_LEGEND, type BatchSummary } from "@/lib/market/factors-view";
+import { Term } from "@/components/term";
+import type { GlossaryKey } from "@/lib/ui/glossary";
 import type { FactorRunsPayload } from "@/lib/market/factor-runs-file";
 import type { TombstoneRecord } from "@/lib/market/factor-tombstones";
 import {
@@ -145,6 +147,16 @@ function TestControls({ defaults }: { defaults: { n: number; buckets: number } }
  * 那套「数据清洗/信号生成」——那是画图的人想当然的流水线，赤轨的六关是判决关，
  * 硬抄过来等于编数据。每关的「x/y 过」按本批 rows 逐关数出来，鼠标悬停看判据。
  */
+/** 六关 → 术语卡 key：卡片标题上的词悬停即可看白话判据。 */
+const GATE_TERM_KEY: Record<string, GlossaryKey> = {
+  g1: "gateMonotonic",
+  g2: "gateSignificant",
+  g3: "gateTwoHalves",
+  g4: "gateResample",
+  g5: "gateMultiple",
+  g6: "gateTradable",
+};
+
 function GateCards({ rows }: { rows: NonNullable<FactorRunsPayload["batch"]>["rows"] }) {
   return (
     <Panel title="六关判决" note="逐关数本批因子过了几只——悬停看判据" bodyClassName="px-3.5 py-3">
@@ -165,7 +177,9 @@ function GateCards({ rows }: { rows: NonNullable<FactorRunsPayload["batch"]>["ro
                   {passed}/{total} 过
                 </span>
               </div>
-              <div className="mt-0.5 text-sm font-medium">{gate.label}</div>
+              <div className="mt-0.5 text-sm font-medium">
+                <Term k={GATE_TERM_KEY[gate.key]}>{gate.label}</Term>
+              </div>
               <Prog value={rate} className="mt-1.5" />
             </li>
           );

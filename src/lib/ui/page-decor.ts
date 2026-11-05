@@ -19,6 +19,7 @@
 
 import {
   Bell,
+  Compass,
   BrainCircuit,
   Coins,
   CreditCard,
@@ -104,6 +105,12 @@ export type OrnamentKind =
  * 靠 `decorFor` 的前缀匹配继承父页面——它们本来就是同一个功能区。
  */
 export const PAGE_DECOR: Record<string, PageDecor> = {
+  "/guide": {
+    title: "系统导览",
+    icon: Compass,
+    purpose: "它是什么、每天自动发生什么、每个页面看什么",
+    hue: "brand",
+  },
   "/": {
     title: "主控台",
     icon: LayoutDashboard,

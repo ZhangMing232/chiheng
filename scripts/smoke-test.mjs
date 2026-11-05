@@ -41,6 +41,7 @@ const PAGES = [
   // 竞技场（策略竞技场 + 信号系统，10-28）
   "/strategies/signals", "/strategies/manage", "/strategies/autopsy",
   "/strategies/tracking", "/arena/signals", "/arena/autopsy",
+  "/guide",
   // 资金流向并入复盘后的真实子页（10-23，b183e00）
   "/review/flow", "/review/flow/stocks", "/review/flow/sectors", "/review/flow/margin",
   "/review/flow/north", "/review/flow/industries", "/review/flow/hot", "/review/flow/close", "/review/flow/futures",

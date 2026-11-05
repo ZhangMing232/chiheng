@@ -16,6 +16,7 @@ import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-ro
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  Compass,
   Bot,
   ChevronDown,
   FileSearch,
@@ -99,9 +100,9 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/guide" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
-  { label: "总览", items: [{ to: "/", label: "总览", icon: LayoutDashboard }] },
+  { label: "总览", items: [{ to: "/", label: "总览", icon: LayoutDashboard }, { to: "/guide", label: "系统导览", icon: Compass }] },
   {
     label: "市场",
     items: [
@@ -406,6 +407,7 @@ function PageTitle() {
  */
 const COMMANDS: { label: string; keywords: string; to: string; search?: Record<string, unknown> }[] = [
   { label: "总览", keywords: "home dashboard 首页", to: "/" },
+  { label: "系统导览", keywords: "guide 导览 帮助 术语 怎么用", to: "/guide" },
   { label: "涨跌分布", keywords: "market overview 大盘 广度", to: "/overview" },
   { label: "复盘与资金", keywords: "review flow 资金流向", to: "/review" },
   { label: "情绪信号", keywords: "signals 涨停", to: "/review/signals" },
