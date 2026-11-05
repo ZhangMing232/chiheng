@@ -445,7 +445,11 @@ function FactorsIndexPage() {
             <p className="mt-3 max-w-[56ch] text-xs leading-relaxed text-muted">
               0 个过关不等于挖得不用心——是这套数据、这套判据下确实没有一个站得住的单因子。
               {summary.strongest
-                ? ` |t| 最大的是「${summary.strongest.name}」（${summary.strongest.t.toFixed(2)}），也只过了 ${summary.strongest.passed}/6 关。`
+                ? ` |t| 最大的是「${summary.strongest.name}」（${summary.strongest.t.toFixed(2)}），` +
+                  // 全过时不能说「也只过了 6/6 关」——这话在放宽带生效后就自相矛盾了
+                  (summary.strongest.passed >= 6
+                    ? "过了全部 6 关。"
+                    : `也只过了 ${summary.strongest.passed}/6 关。`)
                 : ""}
             </p>
             <div className="mt-5 grid gap-px bg-line sm:grid-cols-3">
