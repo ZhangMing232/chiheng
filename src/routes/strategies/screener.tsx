@@ -10,7 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Screener } from "@/components/screener/screener";
 import { sessionPhase } from "@/lib/market/session";
 import type { IndexQuote } from "@/lib/market/types";
-import { getIndices, getPrefs, getRecorder, getRules, getServerJournal } from "@/lib/market/quotes.functions";
+import { getIndices, getPrefs, getRecorder, getRules, getServerJournal, getStrategyGates } from "@/lib/market/quotes.functions";
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import { DEFAULT_PREFS } from "@/lib/market/prefs";
 
@@ -21,12 +21,13 @@ export const Route = createFileRoute("/strategies/screener")({
   loader: async () => {
     const phase = sessionPhase();
     try {
-      const [indices, journal, rules, prefs, recorder] = await Promise.all([
+      const [indices, journal, rules, prefs, recorder, gateData] = await Promise.all([
         getIndices(),
         getServerJournal(),
         getRules(),
         getPrefs(),
         getRecorder(),
+        getStrategyGates(),
       ]);
       return {
         universe: null,
@@ -37,6 +38,9 @@ export const Route = createFileRoute("/strategies/screener")({
         rules,
         prefs,
         recorder,
+        // 首屏就带上闸门状态：不然 SSR 会先把被停用的策略画进「现役策略」，
+        // 客户端拉到闸门再抽掉，用户会看到闪一下。getStrategyGates 自带兜底，读不到返回空。
+        gates: gateData.gates,
         error: null,
         phase,
       };
@@ -50,6 +54,9 @@ export const Route = createFileRoute("/strategies/screener")({
         rules: DEFAULT_RULES,
         prefs: DEFAULT_PREFS,
         recorder: { at: null, ok: true },
+        // 初始化整体失败时闸门状态也没拿到：空对象 = 没有策略被停用，
+        // 页面照常打开，别让一块状态把整页拖成报错。
+        gates: {},
         error: error instanceof Error ? error.message : "行情暂时拉不下来，请稍后再刷新",
         phase,
       };

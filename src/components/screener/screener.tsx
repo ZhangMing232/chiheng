@@ -18,6 +18,7 @@ import { Frame } from "@/components/screener/nav";
 import { cycleTheme } from "@/components/screener/nav";
 import { SectionTabs } from "@/components/section-tabs";
 import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
+import { runningStyles, type GateLike } from "@/lib/ui/running-styles";
 import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
 import { cycleStyle, watchList, ACTIVE_STYLES, STYLES, styleOf, type Listed, type StyleId } from "@/lib/market/strategies";
@@ -62,6 +63,8 @@ export type ScreenerInitial = {
   recorder: { at: number | null; ok: boolean };
   error: string | null;
   phase: SessionInfo;
+  /** 策略闸状态随首屏一起下发，不然 SSR 会先把被停用的策略画出来、客户端拉到闸门再抽掉，闪一下。 */
+  gates: Record<string, GateLike>;
 };
 
 /** 选股页总装。负责拉行情、记住你点开的股票，并把筛选和名单交给下面几块。 */
@@ -164,14 +167,16 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   }, [quotes, rules, prefs, relay]);
 
   const indexTime = indices.find((item) => item.time)?.time;
-  // 策略闸状态（记账进程判决、落盘）：左侧面板给停用/假释的策略挂标记，
-  // 不然那套只是「永远没有票」，看起来像坏了。
+  // 策略闸状态（记账进程判决、落盘）：首屏用 loader 下发的那份，之后每分钟刷新。
+  // 「现役策略」条只列没被停用的；左侧筛选列表仍给停用的挂标记，方便切过去看历史。
   const { data: gateData } = useQuery({
     queryKey: ["strategy-gates"],
     queryFn: () => getStrategyGates(),
+    initialData: { gates: initial.gates },
     refetchInterval: 60_000,
   });
   const gates = gateData?.gates ?? {};
+  const running = runningStyles(ACTIVE_STYLES, gates);
   // 左侧面板要标每个策略今天建仓了几只（和 Picks 里页签数字同一口径）。
   const styleCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -243,54 +248,62 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           ariaLabel="策略"
           tabs={STRATEGY_TABS}
         />
-        {/* 现役策略条（2026-11-05 换掉原「策略实验台」：那块回答的是「样本够不够下结论」，
-            二代重跑后长期大面积空心，看着像坏了；结论判定在策略追踪/失败归因页都有，
-            这里不缺它。选股页开头该回答的是「现在有哪几套在跑、停了哪套、今天各挑了谁」——
-            被闸门停用的明说原因，别让那套只是「永远没有票」。 */}
+        {/* 现役策略条（2026-11-05 换掉原「策略实验台」）。
+            这块只回答一件事：今天哪几套真正在跑、各自挑了几只。
+            被策略闸停用的、已下线的都不上来（用户 2026-11-05 点名，和 10-21
+            「筛选条件里不该出现已下线策略」是同一条规矩）——停用原因和冷却进度
+            去「策略管理」页看，不在选股页开头占位置。全被停了要明说，不许留空白。 */}
         <Panel
           title="现役策略"
-          note="点卡片切换到那套策略；被闸门停用的标黄并写明原因"
+          note="只列今天真正在跑的；被停用的去「策略管理」看原因"
           className="mb-2"
         >
-          <div className="grid gap-px bg-line sm:grid-cols-2">
-            {ACTIVE_STYLES.map((id) => {
-              const gate = gates[id];
-              const stopped = gate?.state === "disabled";
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => pickStyle(id)}
-                  aria-pressed={id === prefs.style}
-                  className={
-                    "px-3 py-2.5 text-left transition " +
-                    (id === prefs.style ? "bg-brand-soft" : "bg-surface hover:bg-surface-2/60")
-                  }
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className={`text-sm ${id === prefs.style ? "font-medium text-brand-text" : "font-medium text-fg"}`}>
-                      {STYLES.find((item) => item.id === id)?.name ?? id}
-                    </span>
-                    <span className="flex items-baseline gap-2 text-xs text-muted">
-                      <span className="tabular-nums">候选 {candidateCounts[id] ?? 0} · 持仓 {styleCounts[id] ?? 0}</span>
-                      {stopped ? (
-                        <Tag tone="warn">已停用</Tag>
-                      ) : gate ? (
-                        <Tag tone="brand">假释中</Tag>
-                      ) : (
-                        <Tag tone="up">在跑</Tag>
-                      )}
-                    </span>
-                  </div>
-                  {gate ? (
-                    <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                      {gate.since} 起 · {gate.reason}
-                    </p>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
+          {running.length === 0 ? (
+            <StateBlock
+              compact
+              kind="empty"
+              title="今天没有现役策略在跑"
+              hint="现役的几套都被策略闸停了。去「策略管理」看停用原因和冷却进度；已有持仓照常结算，不受影响。"
+            />
+          ) : (
+            <div className="grid gap-px bg-line sm:grid-cols-2">
+              {running.map((id) => {
+                const gate = gates[id];
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => pickStyle(id)}
+                    aria-pressed={id === prefs.style}
+                    className={
+                      "px-3 py-2.5 text-left transition " +
+                      (id === prefs.style ? "bg-brand-soft" : "bg-surface hover:bg-surface-2/60")
+                    }
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className={`text-sm ${id === prefs.style ? "font-medium text-brand-text" : "font-medium text-fg"}`}>
+                        {STYLES.find((item) => item.id === id)?.name ?? id}
+                      </span>
+                      <span className="flex items-baseline gap-2 text-xs text-muted">
+                        <span className="tabular-nums">候选 {candidateCounts[id] ?? 0} · 持仓 {styleCounts[id] ?? 0}</span>
+                        {gate ? (
+                          <Tag tone="brand">假释中</Tag>
+                        ) : (
+                          <Tag tone="up">在跑</Tag>
+                        )}
+                      </span>
+                    </div>
+                    {/* 假释中仍在建仓，但为什么被盯着要写清，别让人以为它跟正常在跑一样。 */}
+                    {gate ? (
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                        {gate.since} 起 · {gate.reason}
+                      </p>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </Panel>
         {error ? (
           <StateBlock
