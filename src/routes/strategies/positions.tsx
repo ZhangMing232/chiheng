@@ -509,14 +509,14 @@ function attrRow(row: AttrRow) {
  * 2026-11-05 二代换代（STRATEGY-GEN2）：现役只剩 breakout+value 两套，其余四套按一代
  * 判决书淘汰——表里保留它们是历史对照，不是"还在跑"。
  */
-type BaselineRow = { name: string; kind: "live" | "variant"; alpha: number | null; t: number | null; count?: number; note?: string };
+type BaselineRow = { name: string; kind: "live" | "variant" | "retired"; alpha: number | null; t: number | null; count?: number; note?: string };
 const BASELINE_2026_10_25: BaselineRow[] = [
-  { name: "启动前期", kind: "live", alpha: 0.19, t: 1.26, count: 1145 },
-  { name: "趋势回踩", kind: "live", alpha: -0.08, t: -0.39, count: 1293 },
+  { name: "启动前期", kind: "retired", alpha: 0.19, t: 1.26, count: 1145 },
+  { name: "趋势回踩", kind: "retired", alpha: -0.08, t: -0.39, count: 1293 },
   { name: "放量突破", kind: "live", alpha: 0.8, t: 1.85, count: 177 },
   { name: "低估值", kind: "live", alpha: null, t: null, note: "回测期几乎买不到，无样本" },
-  { name: "中期反转", kind: "live", alpha: 0.14, t: 1.1, count: 2234, note: "旧口径 +1.03%/t=5.06 已被管道修复推翻" },
-  { name: "次日补涨", kind: "live", alpha: null, t: null, note: "尾盘冻结机制，不在本基线表内" },
+  { name: "中期反转", kind: "retired", alpha: 0.14, t: 1.1, count: 2234, note: "旧口径 +1.03%/t=5.06 已被管道修复推翻" },
+  { name: "次日补涨", kind: "retired", alpha: null, t: null, note: "尾盘冻结机制，不在本基线表内" },
   { name: "突破·早期版", kind: "variant", alpha: 1.24, t: 2.57, count: 154 },
   { name: "突破·排天量", kind: "variant", alpha: 0.82, t: 2.03, count: 198 },
   { name: "反转·加收阳", kind: "variant", alpha: -1.04, t: -2.53, count: 129 },
@@ -999,9 +999,10 @@ function Positions() {
               {BASELINE_2026_10_25.map((row) => {
                 const verdict = verdictOf(row.t);
                 return (
-                  <tr key={row.name} className={`border-b border-line last:border-0 hover:bg-surface-2${row.kind === "variant" ? " text-muted" : ""}`}>
-                    <td data-l="策略" className={`sticky left-0 bg-surface px-2.5 py-1.5 text-left${row.kind === "variant" ? "" : " font-medium"}`}>
+                  <tr key={row.name} className={`border-b border-line last:border-0 hover:bg-surface-2${row.kind !== "live" ? " text-muted" : ""}`}>
+                    <td data-l="策略" className={`sticky left-0 bg-surface px-2.5 py-1.5 text-left${row.kind === "variant" || row.kind === "retired" ? "" : " font-medium"}`}>
                       {row.kind === "variant" ? `▸ ${row.name}` : row.name}
+                      {row.kind === "retired" ? <Tag tone="muted">已淘汰</Tag> : null}
                       {row.note ? <span className="ml-1.5 text-[11px] text-muted">（{row.note}）</span> : null}
                     </td>
                     <td data-l="样本" className={tdClass("tabular-nums")}>{row.count ? `${row.count} 笔` : "—"}</td>

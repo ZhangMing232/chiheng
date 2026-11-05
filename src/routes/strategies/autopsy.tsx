@@ -19,7 +19,8 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { Panel, Prog, Stat } from "@/components/terminal";
+import { ACTIVE_STYLES } from "@/lib/market/strategies";
+import { Panel, Prog, Stat, Tag} from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
 import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { StateBlock } from "@/components/state-block";
@@ -81,7 +82,14 @@ function StyleRow({ item }: { item: StyleLossSummary }) {
   return (
     <li className="px-3.5 py-2.5 text-xs">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-sm font-medium">{item.styleName}</span>
+        <span className="flex items-baseline gap-1.5 text-sm font-medium">
+          {item.styleName}
+          {/* 已淘汰的策略还在亏——那是历史仓在结算，不是「还要处理」的活。不标的话
+              读者会把 50 笔反转亏损当成待办。 */}
+          {item.style !== "other" && !(ACTIVE_STYLES as string[]).includes(item.style) ? (
+            <Tag tone="muted">已下线·历史仓结算中</Tag>
+          ) : null}
+        </span>
         <span className="tabular-nums text-muted">
           {item.count} 笔 · 占 {Math.round(item.share * 100)}% · 均{" "}
           <span className={pctClass(item.avgRetPct)}>{item.avgRetPct}%</span>

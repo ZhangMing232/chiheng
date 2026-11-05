@@ -80,7 +80,7 @@ export function LabPanel({ report }: { report: LabReport }) {
               {report.needMore}
               <span className="text-sm font-normal text-muted"> 笔</span>
             </div>
-            <div className="mt-1 text-[11px] text-muted">中期反转拿满 10 个交易日出结果</div>
+            <div className="mt-1 text-[11px] text-muted">持有到期出结果（突破/价值 8 个交易日）</div>
           </div>
           <div>
             <div className="text-xs text-muted">同期沪深300</div>

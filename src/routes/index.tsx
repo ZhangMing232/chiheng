@@ -94,6 +94,8 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+import { ACTIVE_STYLES } from "@/lib/market/strategies";
+
 const STYLE_LABEL: Record<string, string> = {
   early: "启动",
   trend: "趋势",
@@ -321,7 +323,12 @@ function Dashboard() {
               label="持仓策略"
               value={styles.length}
               suffix="套"
-              hint={journal.why ?? undefined}
+              hint={
+                journal.why ??
+                (styles.some((st) => !(ACTIVE_STYLES as string[]).includes(st))
+                  ? "含已下线策略的历史仓（结算到清，不再开新）"
+                  : undefined)
+              }
             />
           </div>
           {/* 挑战者进化进度：效果图「总览」里的进度卡，用真实样本数 / 目标数画条。
@@ -337,7 +344,7 @@ function Dashboard() {
                   return (
                     <div key={c.id}>
                       <div className="flex items-baseline justify-between text-xs">
-                        <span className="text-fg">{STYLE_LABEL[c.id] ?? c.id}</span>
+                        <span className="text-fg">{c.name}</span>
                         <span className="num text-muted">{n}/{target}</span>
                       </div>
                       <Prog value={n / target} className="mt-1" />

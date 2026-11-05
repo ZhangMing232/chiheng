@@ -446,7 +446,7 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
       await writeFile(stampPath, JSON.stringify({ date: phase.date }));
       void sendPushPlus(
         "赤轨行情源降级",
-        [`腾讯行情接口不可用，已切换新浪财经源。`, `新浪缺近 5/20/60 日涨幅和量比：放量突破、中期反转今天不出新票（不是选不出票）；持仓结算照常。`, `时间：${time}`].join("\n"),
+        [`腾讯行情接口不可用，已切换新浪财经源。`, `新浪缺近 5/20/60 日涨幅和量比：现役两套里放量突破今天不出新票（不是选不出票）；低估值不依赖这些字段照常；持仓结算不受影响。`, `时间：${time}`].join("\n"),
       );
     }
   }
@@ -879,6 +879,47 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     if (rets.length > 0) {
       const nav = 1 + rets.reduce((sum, ret) => sum + ret, 0) / rets.length;
       await appendNav(userId, { date: phase.date, nav, index: indexPrice });
+    }
+  }
+
+  // ── 日终汇总推送：收盘后当天第一次跑时推一条当日账本流水 ──────────
+  // 板块逻辑梳理（2026-11-05）补的通知缺口：闸门/判决/预警都有推送，唯独
+  // 「今天到底结算成什么样」没有——人不在 Mac 前时只能开盘后自己翻账本。
+  // 和净值沉淀同一时机（sealed + 交易日），stamp 去重一天只推一次。
+  if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+    const stampPath = join("data", `daily-digest-${userId}.json`);
+    let digested = "";
+    try {
+      digested = (JSON.parse(await readFile(stampPath, "utf8")) as { date?: string }).date ?? "";
+    } catch {
+      /* 没跑过 */
+    }
+    if (digested !== phase.date) {
+      const bought = days.find((day) => day.date === phase.date)?.trades ?? [];
+      const soldToday = days.flatMap((day) => day.trades).filter((t) => t.exitDate === phase.date && t.exit != null);
+      const openNow = days.flatMap((day) => day.trades).filter((t) => t.exit == null);
+      const realized = soldToday.reduce((sum, t) => sum + (t.exit! - t.entry) / t.entry, 0);
+      const wins = soldToday.filter((t) => (t.exit! - t.entry) > 0).length;
+      const byStyle = new Map<string, number>();
+      for (const t of bought) {
+        const key = t.style ?? "other";
+        byStyle.set(key, (byStyle.get(key) ?? 0) + 1);
+      }
+      const styleText = [...byStyle.entries()]
+        .map(([style, n]) => `${STYLES.find((item) => item.id === style)?.name ?? style} ${n}`)
+        .join("、");
+      void sendPushPlus(
+        "赤轨日终",
+        [
+          `今日买入 ${bought.length} 笔${bought.length > 0 ? `（${styleText}）` : ""}，卖出 ${soldToday.length} 笔${soldToday.length > 0 ? `（${wins} 赚 ${soldToday.length - wins} 亏）` : ""}。`,
+          soldToday.length > 0 ? `已实现合计 ${(realized * 100).toFixed(2)}%（逐笔收益率相加）。` : null,
+          `当前持仓 ${openNow.length} 笔，未结风险挂在策略追踪页。`,
+          `时间：${time}`,
+        ]
+          .filter((line): line is string => line != null)
+          .join("\n"),
+      );
+      await writeFile(stampPath, JSON.stringify({ date: phase.date }));
     }
   }
 
