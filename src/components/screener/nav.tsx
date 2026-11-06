@@ -258,7 +258,7 @@ function SideNav() {
 /**
  * 侧栏底部的系统状态块（对齐参考图「系统状态」区）。
  * 全部接真实数据源，不编假数：
- * - 系统状态 / 记账心跳：data/recorder.json（经 getRecorder），心跳 5 分钟没更新算超时。
+ * - 系统状态 / 上次记账：data/recorder.json（经 getRecorder），5 分钟没更新算超时。
  * - 数据延迟：行情快照时间戳 universe.asOf（getUniverse 返回），延迟 = now - asOf。
  * - 因子待验：因子队列里还没过关、仍在管道中的条目数（pending + tested，来自 getFactorQueue）。
  * - AI 今日轮数：ai-log 里 at 落在今天（本地日期）的闭环次数（来自 getAILog）。
@@ -267,7 +267,7 @@ function SideNav() {
 /**
  * 系统状态数据源（侧栏底部块与全局底部状态条共用同一份查询，两处数字永不打架）。
  * 全部接真实数据源，不编假数：
- * - 系统状态 / 记账心跳：data/recorder.json（经 getRecorder），心跳 5 分钟没更新算超时。
+ * - 系统状态 / 上次记账：data/recorder.json（经 getRecorder），5 分钟没更新算超时。
  * - 数据延迟：行情快照时间戳 universe.asOf（getUniverse 返回），延迟 = now - asOf。
  * - 因子待验：因子队列里还没过关、仍在管道中的条目数（pending + tested，来自 getFactorQueue）。
  * - AI 今日轮数：ai-log 里 at 落在今天（本地日期）的闭环次数（来自 getAILog）。
@@ -293,7 +293,9 @@ function useSysStatus() {
   const uni = data?.uni ?? null;
   const at = rec?.at ?? null;
   const ok = rec?.ok ?? false;
-  const beat = at != null ? snapshotAge(at) : "无心跳";
+  // snapshotAge 要的是「多久之前」（时长），不是时间戳——传 at 本身会算出
+  // 「1970 年距今 49 万小时」这种鬼数（2026-11-06 实测踩到）。
+  const beat = at != null ? snapshotAge(Date.now() - at) : "还没跑";
   const fresh = at != null && Date.now() - at < 5 * 60_000;
   const online = ok && fresh;
   const dotClass = online ? "bg-down" : ok ? "bg-warn" : "bg-up";
@@ -331,7 +333,7 @@ function SystemStatus() {
         <span className={s.online ? "text-down" : "text-muted"}>{s.stateText}</span>
       </div>
       <div className="flex items-center justify-between text-muted">
-        <span>记账心跳</span>
+        <span>上次记账</span>
         <span className="tabular-nums">{s.beat}</span>
       </div>
       <div className="flex items-center justify-between text-muted">

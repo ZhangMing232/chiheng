@@ -65,7 +65,7 @@ function SettingsPage() {
         )
       }
     >
-      <Panel title="系统状态" note={beat ? `记账心跳 ${beat}` : "没有心跳"}>
+      <Panel title="系统状态" note={beat ? `上次记账 ${beat}` : "没有心跳"}>
         <div className="grid grid-cols-2 gap-3 px-3.5 py-3 sm:grid-cols-4">
           <Stat label="记账进程" value={recorder.ok ? "正常" : "异常"} hint={beat ?? "从没记过账"} />
           <Stat

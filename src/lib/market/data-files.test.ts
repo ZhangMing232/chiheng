@@ -46,7 +46,7 @@ test("过了 TTL 就是过期，没过就是新鲜", () => {
   assert.match(stale.note, /已过新鲜期/);
 });
 
-test("不看新鲜度的文件（记账心跳、笔记）只报多久没更新", () => {
+test("不看新鲜度的文件（自动记账、笔记）只报多久没更新", () => {
   const f = freshnessOf(notes, { [notes.path]: { size: 200, mtime: NOW - 3 * 24 * 60 * MIN } }, NOW);
   assert.equal(f.state, "na");
   assert.match(f.note, /3 天前更新/);
@@ -62,7 +62,7 @@ test("必需项缺失能单独挑出来（那是真问题，不只是过期）",
   };
   const rows = allFreshness(facts, NOW);
   const missing = missingRequired(rows);
-  assert.deepEqual(missing.map((m) => m.label), ["记账心跳"]);
+  assert.deepEqual(missing.map((m) => m.label), ["自动记账"]);
 });
 
 test("每份文件都写了怎么补（refresh 不能空）", () => {

@@ -22,7 +22,7 @@ export type FileFact = {
   path: string;
   /** 给人看的名字 */
   label: string;
-  /** 这个文件多久算新鲜（缓存键）；null = 不看新鲜度（记账心跳那种） */
+  /** 这个文件多久算新鲜（缓存键）；null = 不看新鲜度（自动记账那种） */
   ttlKey: Parameters<typeof ttlOf>[0] | null;
   /** 怎么补（命令）。文件没抓过时显示这个 */
   refresh: string;
@@ -55,7 +55,7 @@ export const DATA_FILES: FileFact[] = [
   },
   {
     path: "data/recorder.json",
-    label: "记账心跳",
+    label: "自动记账",
     ttlKey: null,
     refresh: "服务自己维护（记账进程每分钟写）",
     required: true,

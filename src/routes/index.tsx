@@ -296,7 +296,7 @@ function Dashboard() {
         <Panel title="产品与进化状态" note={recorderDead ? <span className="text-warn">记账异常</span> : "系统正常"}>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 p-3">
             <KeyNum
-              label="记账心跳"
+              label="上次记账"
               value={recorderDead ? "中断" : "正常"}
               tone={recorderDead ? "text-warn" : "text-down"}
               hint={recorder.at ? `更新于 ${new Date(recorder.at).toTimeString().slice(0, 5)}` : "心跳丢失"}

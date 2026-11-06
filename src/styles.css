@@ -44,6 +44,12 @@
      浅色主题反向：侧栏比页面底略灰一档。 */
   --color-sidebar: #08090b;
   --color-sidebar-line: rgba(255, 255, 255, 0.06);
+  /* AI 区专用青（#67e8f9）：AI 页的状态点、健康环、进化流水线、发送键。
+     只在 /ai 与 /butler 用——它表达「AI 系统自己的状态」，不挪作它用，
+     不然和 accent（链接冰蓝）、up（涨红）的语义就混了。 */
+  --color-ai: #67e8f9;
+  --color-ai-soft: rgba(103, 232, 249, 0.1);
+  --color-ai-line: rgba(103, 232, 249, 0.35);
   --shadow-card: 0 8px 24px rgb(0 0 0 / 0.28);
   --shadow-pop: 0 6px 18px rgb(0 0 0 / 0.28);
 }
@@ -87,6 +93,10 @@ html[data-theme="light"] {
   --color-navy: #2b3245;
   --color-sidebar: #eef0f4;
   --color-sidebar-line: #e3e7ee;
+  /* AI 青的浅底版：亮青在白底对比度不够，压深到可读档。 */
+  --color-ai: #0e7490;
+  --color-ai-soft: #e6f9fd;
+  --color-ai-line: rgba(14, 116, 144, 0.35);
   --shadow-card: 0 8px 24px rgb(22 28 37 / 0.08);
   --shadow-pop: 0 6px 18px rgb(22 28 37 / 0.12);
 }
@@ -115,6 +125,9 @@ html[data-theme="light"] {
     --color-navy: #2b3245;
     --color-sidebar: #eef0f4;
     --color-sidebar-line: #e3e7ee;
+    --color-ai: #0e7490;
+    --color-ai-soft: #e6f9fd;
+    --color-ai-line: rgba(14, 116, 144, 0.35);
     --shadow-card: 0 8px 24px rgb(22 28 37 / 0.08);
     --shadow-pop: 0 6px 18px rgb(22 28 37 / 0.12);
   }

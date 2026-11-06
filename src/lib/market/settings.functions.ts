@@ -91,7 +91,7 @@ export const getSettings = createServerFn({ method: "GET" }).handler(async (): P
   const root = process.cwd();
   const gaps: string[] = [];
 
-  // 记账心跳
+  // 自动记账状态
   let recorder = { at: null as number | null, ok: false };
   try {
     const parsed = JSON.parse(await (await import("node:fs/promises")).readFile(join(root, "data", "recorder.json"), "utf8")) as {
@@ -100,7 +100,7 @@ export const getSettings = createServerFn({ method: "GET" }).handler(async (): P
     };
     recorder = { at: typeof parsed.at === "number" ? parsed.at : null, ok: parsed.ok !== false };
   } catch {
-    gaps.push("读不到记账心跳 data/recorder.json——服务可能没在跑，或从没记过账");
+    gaps.push("读不到自动记账状态 data/recorder.json——服务可能没在跑，或从没记过账");
   }
 
   // 行情快照
