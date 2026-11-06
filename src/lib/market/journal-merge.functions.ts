@@ -17,7 +17,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireUserId } from "@/lib/auth/verify.server";
-import { readUserBook, writeUserBook } from "@/lib/market/book-file";
+import { readUserBookWithVersion, writeUserBook } from "@/lib/market/book-file";
 import { backupJournal } from "@/lib/market/journal-backup";
 import { mergeBooks, type MergeStats } from "@/lib/market/journal-merge";
 import { shanghaiDate } from "@/lib/market/session";
@@ -47,7 +47,7 @@ export const mergeBrowserJournal = createServerFn({ method: "POST" })
   .validator((data: unknown) => parseBrowserDays(data))
   .handler(async ({ data }): Promise<{ stats: MergeStats; dropped: number; serverDaysBefore: number }> => {
     const userId = await requireUserId();
-    const book = await readUserBook<PaperDay>(userId);
+    const { book, version } = await readUserBookWithVersion<PaperDay>(userId);
     if (data.days.length === 0) {
       // 浏览器账是空的：没什么可合，但别报错——用户可能就是来确认一下的。
       return { stats: { addedDays: 0, addedTrades: 0, duplicatedTrades: 0, stylessTrades: 0, invalidDays: 0 }, dropped: data.dropped, serverDaysBefore: book.days.length };
@@ -58,6 +58,6 @@ export const mergeBrowserJournal = createServerFn({ method: "POST" })
     const backup = await backupJournal(userId, shanghaiDate());
     if (!backup.ok) console.warn(`[merge] 合并前备份失败（已继续合并）：${backup.reason}`);
     const { days, stats } = mergeBooks(book.days, data.days);
-    await writeUserBook(userId, { joinedAt: book.joinedAt, days, nextSettleAt: book.nextSettleAt });
+    await writeUserBook(userId, { joinedAt: book.joinedAt, days, nextSettleAt: book.nextSettleAt }, { expectedVersion: version });
     return { stats, dropped: data.dropped, serverDaysBefore: book.days.length };
   });

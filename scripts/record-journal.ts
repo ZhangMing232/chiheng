@@ -22,7 +22,7 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { BACKUP_KEEP_DAYS, backupJournal, pruneBackups } from "@/lib/market/journal-backup";
-import { OWNER_ID, listUserIds, readUserBook, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
+import { OWNER_ID, listUserIds, readUserBook, readUserBookWithVersion, writeUserBook, type StoredBook } from "../src/lib/market/book-file.ts";
 import { hardGate, nthClose, softGate, dayReliable, netReturn } from "../src/lib/market/journal-book.ts";
 import { isStuck, settleOne } from "@/lib/market/settle";
 import { evaluateGate, readStrategyGates, writeStrategyGates, readBacktestVerdicts, STRATEGY_GATE } from "../src/lib/market/strategy-gate.ts";
@@ -470,7 +470,7 @@ async function kline(id: string) {
   return data;
 }
 
-async function runBook(userId: string, book: Book): Promise<boolean> {
+async function runBook(userId: string, book: Book, expectedVersion: string | null): Promise<boolean> {
   const speak = userId === OWNER_ID;
   let days = book.days;
   let changed = false;
@@ -924,15 +924,17 @@ async function runBook(userId: string, book: Book): Promise<boolean> {
     }
   }
 
-  if (changed) await writeUserBook(userId, { joinedAt: book.joinedAt, days, nextSettleAt });
+  if (changed) await writeUserBook(userId, { joinedAt: book.joinedAt, days, nextSettleAt }, { expectedVersion });
   return changed;
 }
 
 const ids = await listUserIds();
 let any = false;
 for (const userId of ids) {
-  const book = await readUserBook<Day>(userId);
-  if (await runBook(userId, book)) any = true;
+  // 读时记下内容版本，写回时校验：这一轮拉行情/跑闸门可能几十秒，
+  // 期间网页手动合并或 backfill 若改过账本，宁可跳过这一轮也不整本覆盖。
+  const { book, version } = await readUserBookWithVersion<Day>(userId);
+  if (await runBook(userId, book, version)) any = true;
 }
 if (!any) console.log(`${time} ${phase.label} no change`);
 if (alertsChanged) await writeAlerts(alerts);

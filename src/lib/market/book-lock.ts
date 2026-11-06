@@ -27,8 +27,15 @@ export type BookLockTicket = {
   at: number;
 };
 
-/** 锁超过这个年龄就当死锁清理（正常一次读改写是毫秒级）。 */
+/**
+ * 锁的「绝对上限」：只有超过这个年龄、且持锁进程查不到了，才当死锁清理。
+ * 2026-11-06 接线时改过：原实现是「超 30s 就清，不管进程死没死」，
+ * 而 `runBook` 一轮要拉行情/跑闸门/推送，长事务会被别的写方误清。
+ * 现在短临界区只持有写文件那几十毫秒，进程活着就不清。
+ */
 export const BOOK_LOCK_STALE_MS = 30_000;
+/** 硬上限：即便进程还"活着"，超过 10 分钟也强制清（防进程卡死永久占锁）。 */
+export const BOOK_LOCK_HARD_STALE_MS = 10 * 60 * 1000;
 /** 拿不到锁时最多等多久。 */
 export const BOOK_LOCK_WAIT_MS = 3_000;
 /** 重试间隔。 */
@@ -62,17 +69,17 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  * 抢锁。`open(path, "wx")` 是原子创建：同一时刻只有一个进程能成功，
  * 不需要「先 exists 再写」那种有竞态的判断。
  *
- * 遇到旧锁：写它的进程已经不在、或锁超过 STALE_MS，就清掉重抢。
+ * 遇到旧锁：写它的进程已不在、或超过硬上限（10 分钟），才清掉重抢。
  * 清理也带 token 比对，避免「A 判定 stale → B 已经抢到新锁 → A 把 B 的锁删了」。
  */
 export async function acquireBookLock(
   target: string,
-  opts: { waitMs?: number; staleMs?: number; now?: () => number } = {},
+  opts: { waitMs?: number; hardStaleMs?: number; now?: () => number } = {},
 ): Promise<BookLockTicket> {
   const { open, readFile, unlink, mkdir } = await fsApi();
   const path = lockPathFor(target);
   const waitMs = opts.waitMs ?? BOOK_LOCK_WAIT_MS;
-  const staleMs = opts.staleMs ?? BOOK_LOCK_STALE_MS;
+  const hardStaleMs = opts.hardStaleMs ?? BOOK_LOCK_HARD_STALE_MS;
   const now = opts.now ?? Date.now;
   const deadline = now() + waitMs;
   // 目录可能还不存在（第一本账）
@@ -101,10 +108,13 @@ export async function acquireBookLock(
     } catch {
       // 写了一半的坏锁内容 —— 也按死锁处理，但不能盲删（见下）
     }
-    const stale = held == null
-      ? true
-      : (typeof held.at === "number" && now() - held.at > staleMs)
-        || (typeof held.pid === "number" && !alive(held.pid));
+    // 判死锁的三条，缺一不可：
+    // ① 坏内容（写了一半）→ 清；② 持锁进程确实已不在 → 清；
+    // ③ 超过硬上限（10 分钟）→ 清，防进程卡死。
+    // **进程活着且没超硬上限就不清**，哪怕超过 staleMs —— 长事务不该被误伤。
+    const pidDead = held != null && typeof held.pid === "number" && !alive(held.pid);
+    const age = held != null && typeof held.at === "number" ? now() - held.at : 0;
+    const stale = held == null || pidDead || age > hardStaleMs;
     if (stale) {
       // 只删我们刚读到的那把锁：删之前再读一次比对 token，防止别人已经抢到新锁。
       // 坏内容（写了一半）没有 token 可比，直接删——但删完必须回到抢锁循环，
@@ -155,7 +165,7 @@ export async function releaseBookLock(ticket: BookLockTicket | null | undefined)
 export async function withBookLock<T>(
   target: string,
   fn: () => Promise<T>,
-  opts?: { waitMs?: number; staleMs?: number; now?: () => number },
+  opts?: { waitMs?: number; hardStaleMs?: number; now?: () => number },
 ): Promise<T> {
   const ticket = await acquireBookLock(target, opts);
   try {

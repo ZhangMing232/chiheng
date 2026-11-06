@@ -46,7 +46,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { backupJournal } from "@/lib/market/journal-backup";
-import { OWNER_ID, readUserBook, writeUserBook, type StoredBook } from "@/lib/market/book-file";
+import { OWNER_ID, readUserBook, readUserBookWithVersion, writeUserBook, type StoredBook } from "@/lib/market/book-file";
 import { exitFill } from "@/lib/market/journal-book";
 import { boardLimit, HOLD_SESSIONS } from "@/lib/market/model";
 import { shanghaiDate } from "@/lib/market/session";
@@ -403,7 +403,7 @@ async function main(): Promise<void> {
   }
   say(`\n备份：${backup.path}`);
 
-  const fresh = await readUserBook<Day>(OWNER_ID);
+  const { book: fresh, version } = await readUserBookWithVersion<Day>(OWNER_ID);
   const byKey = new Map<string, Plan>();
   for (const plan of willWrite) byKey.set(`${plan.day}:${plan.trade.id}`, plan);
 
@@ -419,7 +419,7 @@ async function main(): Promise<void> {
       written += 1;
     }
   }
-  await writeUserBook<Day>(OWNER_ID, fresh as StoredBook<Day>);
+  await writeUserBook<Day>(OWNER_ID, fresh as StoredBook<Day>, { expectedVersion: version });
 
   const check = await readUserBook<Day>(OWNER_ID);
   let confirmed = 0;

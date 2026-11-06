@@ -251,19 +251,33 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 - 🔴 **11-06 13:14 盘中，尚未接线**。`writeUserBook` 一行未改，锁模块没被任何
   运行中的代码 import，对线上零影响。接线留到收盘后（15:00 之后）。
 
-**接线方案（收盘后照做，三个写方都要改，缺一个就不完整）**：
-1. `writeUserBook` 只锁最后一步**是不够的** —— A、B 的「读」都发生在写之前，
-   只锁写等于没锁。必须把 `readUserBook → 改 → writeUserBook` 整段放进
-   `withBookLock(bookPath(userId), ...)`；或者在 `writeUserBook` 里加
-   `expectedVersion`（读时的内容 hash）做乐观并发校验，不一致就抛错让调用方重试。
-2. 三个写方逐一检查：`scripts/record-journal.ts:927`（每分钟记账）、
-   `src/lib/market/journal-merge.functions.ts:61`（网页「两本账对齐」手动合并）、
-   `scripts/backfill-exit-reason.ts:422`（回填脚本，406 行已重读一次 fresh 但无硬保证）。
-   `ensureUserBook` 的初始化写也要走锁（或确认只在单进程启动期发生）。
-3. 验收：真账本**只读**观察两个心跳周期，确认 `data/books/*.lock` 出现又消失、
-   账本笔数不回退、`data/recorder.json` 心跳连续；再跑全量测试 + build。
-4. 回滚：锁模块独立、接线只是一层包装，出问题直接退回旧 `writeUserBook`；
-   11-06 11:58 全量快照仍可恢复账本。
+**✅ 2026-11-06 15:1x 收盘后已接线（采用上面第 1 条的第二个方案：乐观并发）**
+
+为什么没用「整段读-改-写放进互斥锁」：`runBook` 一轮要拉全市场行情、跑闸门、
+推送、写 stamp，可能几十秒。整段持锁会让网页手动合并 / backfill 等 3 秒就超时，
+还可能被 stale 判定误清。所以改成：
+- **短临界区**：`writeUserBook` 只在「校验版本 + 写 tmp + rename」几十毫秒内持锁。
+- **乐观并发校验**：`readUserBookWithVersion()` 一次读取、就地算内容 sha256 前 16 位；
+  写回时传 `expectedVersion`，锁内重新读版本比对，不一致抛 `BookConcurrentError`
+  **拒绝整本覆盖**（记账下一分钟重跑，手动操作提示刷新重试）。
+- 不传 `expectedVersion` 时行为与旧版一致（只加互斥），`ensureUserBook` 初始化写不受影响。
+
+**三个写方全部接上**（`book-file.test.ts` 有守门测试扫源码钉住，新增写方必须加进 WRITERS）：
+`scripts/record-journal.ts`（`runBook` 签名带版本）、
+`src/lib/market/journal-merge.functions.ts`、`scripts/backfill-exit-reason.ts`。
+
+**实测验收**：
+- 5 条新测试，最关键一条复现「读与写之间被别人改过」→ 抛错、别人那笔仍在磁盘上、
+  我的旧版本写不进去、异常路径无残留锁。
+- 真账本实跑两个心跳周期：15:24:30 → 15:26:23，账本 318 笔 / 17 天不回退，
+  无残留 `.lock` / `.tmp`，日志无 `BookConcurrentError` / `ENOENT` / 锁占用报错。
+- 全量 1456 测试 0 fail、typecheck 干净、lint 0 error、ai-log 116→116 无泄漏。
+
+顺带修了锁的 stale 判定：原来「超 30 s 就清，不管进程死没死」会误伤长事务，
+现改为「进程已死 / 超 10 分钟硬上限才清」，死参数 `staleMs` 清成 `hardStaleMs`。
+
+**回滚**：接线是一层包装，出问题退回旧 `writeUserBook` 即可；
+15:14 全量快照（`~/chiheng-backup/full-2026-11-06-1514`）可恢复账本。
 
 **已否决**：B（接 PGlite，双写灰度几天量级）、C（新引 SQLite 方言，和 B 重复造轮子）。
 129 KB 的账本没有查询/规模问题，迁库治不了丢更新。
