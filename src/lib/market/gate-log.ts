@@ -58,9 +58,61 @@ function logPath(): string {
   return join(dir, "gate-blocks.jsonl");
 }
 
+/**
+ * 同一条拦截的「身份」——去重键。
+ *
+ * 2026-11-06 拍板「只去重、不轮转」后落地。为什么是这五项：
+ * - **tradingDate 必须在**：跨天同一句 reason 是两件事，合并掉就丢「哪天被拦」了。
+ * - gate / style / reason：区分「哪套策略、被哪道闸、为什么」。
+ * - candidates **只取股票 id 集合，不取整块对象**：候选名单是「本来想买什么」的
+ *   证据，整个丢掉会让这份日志失去存在意义；但里面的 buy/score 是行情价，
+ *   每分钟都在动，整块塞进键会把同一天同一理由撑成上百种「不同」记录
+ *   （实测 2026-10-09 一天就有 159 种），等于没去重。
+ *
+ * 三种口径的实测压缩比（6789 行）：不含 candidates → 51 行（0.75%，丢证据）、
+ * 含候选 id → **222 行（3.27%，采用）**、含完整 candidates → 621 行（9.15%，白留噪声）。
+ */
+export function gateDedupeKey(block: GateBlock): string {
+  const ids = (block.candidates ?? []).map((c) => c.id).sort().join(",");
+  return JSON.stringify([block.tradingDate, block.gate, block.style, block.reason, ids]);
+}
+
+/**
+ * 写一条拦截记录；**同一交易日内的同一条只写一次**（保留首次）。
+ *
+ * 为什么要在这里去重，而不是在 record-journal 的调用点：那份脚本每分钟新起一个
+ * 进程，`buysPresentThisRun` 这类进程内标志每次都重置，正是「一天 240 行同一句」
+ * 的根因（见 design/REMAINING.md §12.2）。判据必须落在磁盘上。
+ *
+ * 读全量再过滤当天：文件压缩后稳定在几百行，开销可忽略；压缩前 1.6 MB /
+ * 六千多行解析一次约几十毫秒，每分钟一次也在可接受范围。
+ *
+ * ⚠️ 并发：两个进程同时写同一签名可能各写一行。记账只有一个 launchd 进程在跑，
+ * 且日志重复不毁数据，所以不引入锁；真出现并发重复，下一轮也不会再追加。
+ */
 export function appendGateLog(block: GateBlock): void {
   try {
-    appendFileSync(logPath(), `${JSON.stringify(block)}\n`, "utf8");
+    const path = logPath();
+    let needsNewline = false;
+    if (existsSync(path)) {
+      const raw = readFileSync(path, "utf8");
+      const key = gateDedupeKey(block);
+      for (const line of raw.split("\n")) {
+        const text = line.trim();
+        if (!text) continue;
+        try {
+          const prev = JSON.parse(text) as GateBlock;
+          // 只比当天：文件按时间追加，跨天直接跳过省解析。
+          if (prev.tradingDate === block.tradingDate && gateDedupeKey(prev) === key) return;
+        } catch {
+          // 崩溃时写了一半的坏行，跳过（readGateLogs 同一取舍）。
+        }
+      }
+      // 崩溃可能留下一条**没有换行结尾**的半行；直接 append 会把新行粘在它后面，
+      // 两条一起变坏数据（去重测试抓到过）。先补换行，坏行原样留着当证据。
+      needsNewline = raw.length > 0 && !raw.endsWith("\n");
+    }
+    appendFileSync(path, `${needsNewline ? "\n" : ""}${JSON.stringify(block)}\n`, "utf8");
   } catch (err) {
     // 写不进去不能拖垮记账——风控日志是「证据」，不是「闸门」本身。
     // 闸门的判断已经在调用方做完了，这里挂了只影响事后复盘。

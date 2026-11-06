@@ -571,29 +571,96 @@ export function fallbackCandidates(file: {
  * 每次尝试带各自的计价钱包快照，用量监控台看到的就是实际用的那个模型。
  * 全部失败抛最后一个错（ai-log 记账照旧）。
  */
+/**
+ * 一轮 AI 调用的总预算（毫秒）。
+ *
+ * 2026-11-06 实测（ai-usage 224 次）：失败 49 次里 **37 次耗满 150 s 被掐**，
+ * p90/p95 都钉在 150 s；但 **90~145 s 区间有 29 次成功**（factor 最长 144.1 s）。
+ * 所以「把 factor 缩到 90 s 早切档案」是错的——会砍掉真能成功的调用。
+ *
+ * 改法：**不动单次上限**（仍是 150 s，保留慢成功的机会），只给整轮设总预算；
+ * 第一个档案用满额度，第二个档案只剩「预算减去第一个已耗掉的时间」。
+ * 以前两个档案各 150 s，一轮最坏白等 300 s；现在最坏 210 s。
+ * 主档案若是秒失败（429 / 网络），第二个档案仍能拿到完整 150 s。
+ */
+export const AI_ROUND_BUDGET_MS = 210_000;
+/** 单个档案的默认超时。显式 meta.timeoutMs（海报等长任务）优先，不在这里被压。 */
+export const AI_SINGLE_TIMEOUT_MS = 150_000;
+
+/** 第 2 个档案的超时：总预算减去第一个已耗时间，但不低于 30 s（太短没意义）。 */
+export function nextAttemptTimeout(budgetMs: number, spentMs: number): number {
+  return Math.max(30_000, Math.min(AI_SINGLE_TIMEOUT_MS, budgetMs - spentMs));
+}
+
 export async function callAIWithFallback(prompt: string, meta: AIMeta = {}): Promise<string> {
+  const { appendAIAttemptRound, classifyAIError } = await import("./ai-attempts.ts");
+  const layer = meta.layer ?? "unknown";
+  const trigger = meta.trigger ?? "manual";
+  const roundStart = Date.now();
+  const attempts: import("./ai-attempts.ts").AIAttempt[] = [];
+  const finish = async (ok: boolean, via: "dsh" | "direct") => {
+    await appendAIAttemptRound({
+      at: new Date().toISOString(), layer, trigger, ms: Date.now() - roundStart, ok, attempts,
+      failed: attempts.filter((a) => !a.ok).length,
+      timedOut: attempts.filter((a) => a.errorKind === "timeout").length,
+      via,
+    });
+  };
+
   // DeepSeek HARNESS 优先：设置了 CHIHENG_DSH_URL 且桥接在线时走它（AI 大脑运行时层）。
   // 连不上/报错原样回退下面的直连 fallback；不设该变量则完全不碰 DSH，零影响。
-  // 注：走 DSH 时 token 用量由 DSH 自己记账（不写 ai-usage.json），额度闸（按次）不受影响。
+  // ⚠️ 2026-11-06 补超时：以前 callDSH 是裸 fetch 无 signal，桥接挂住会把整轮拖死，
+  // 连下面的直连 fallback 都到不了。现在和直连共用同一把超时尺子。
   if (process.env.CHIHENG_DSH_URL) {
+    const dshStart = Date.now();
+    const dshTimeout = meta.timeoutMs ?? AI_SINGLE_TIMEOUT_MS;
     try {
       const { callDSH } = await import("./chiheng-dsh-client.ts");
-      return await callDSH(prompt);
-    } catch {
-      // DSH 不可用 → 落到直连 fallback
+      const text = await callDSH(prompt, { timeoutMs: dshTimeout });
+      attempts.push({ index: 1, profileId: "dsh", timeoutMs: dshTimeout, ms: Date.now() - dshStart, ok: true, errorKind: null });
+      await finish(true, "dsh");
+      return text;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      attempts.push({ index: 1, profileId: "dsh", timeoutMs: dshTimeout, ms: Date.now() - dshStart,
+        ok: false, errorKind: classifyAIError(reason), error: reason.slice(0, 200) });
+      // DSH 不可用 → 落到直连 fallback（这一轮把 DSH 的失败也记着，不再静默）
     }
   }
+
   const { readProfiles } = await import("./ai-profiles.ts");
   const candidates = fallbackCandidates(await readProfiles());
-  if (candidates.length === 0) throw new Error("AI 接口还没配置（/ai 页填 baseUrl / apiKey / model）");
+  const roundOk = async (text: string): Promise<string> => { await finish(true, "direct"); return text; };
+  if (candidates.length === 0) {
+    const err = new Error("AI 接口还没配置（/ai 页填 baseUrl / apiKey / model）");
+    attempts.push({ index: attempts.length + 1, profileId: null, timeoutMs: 0, ms: 0,
+      ok: false, errorKind: "other", error: err.message });
+    await finish(false, "direct");
+    throw err;
+  }
+  const budget = meta.timeoutMs ? Math.max(meta.timeoutMs, AI_ROUND_BUDGET_MS) : AI_ROUND_BUDGET_MS;
   let lastError: unknown = null;
-  for (const c of candidates) {
+  for (const [i, c] of candidates.entries()) {
+    // 第一个档案：显式 timeoutMs 优先；第二个起只给剩余预算。
+    const timeoutMs = i === 0
+      ? (meta.timeoutMs ?? AI_SINGLE_TIMEOUT_MS)
+      : nextAttemptTimeout(budget, Date.now() - roundStart);
+    const started = Date.now();
     try {
-      return await callAI(c.config, prompt, { ...meta, profileId: c.profileId, pricePromptPerM: c.pricePromptPerM, priceCompletionPerM: c.priceCompletionPerM });
+      const text = await callAI(c.config, prompt, {
+        ...meta, timeoutMs, profileId: c.profileId,
+        pricePromptPerM: c.pricePromptPerM, priceCompletionPerM: c.priceCompletionPerM,
+      });
+      attempts.push({ index: i + 1, profileId: c.profileId, timeoutMs, ms: Date.now() - started, ok: true, errorKind: null });
+      return await roundOk(text);
     } catch (error) {
       lastError = error;
+      const reason = error instanceof Error ? error.message : String(error);
+      attempts.push({ index: i + 1, profileId: c.profileId, timeoutMs, ms: Date.now() - started,
+        ok: false, errorKind: classifyAIError(reason), error: reason.slice(0, 200) });
     }
   }
+  await finish(false, "direct");
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 

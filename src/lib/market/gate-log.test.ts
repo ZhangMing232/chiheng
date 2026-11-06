@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { hardGate, softGate, liveGate } from "@/lib/market/journal-book";
 import { DEFAULT_RULES } from "@/lib/market/rules";
-import { appendGateLog, readGateLogs, hardBlocksOn } from "@/lib/market/gate-log";
+import { appendGateLog, readGateLogs, hardBlocksOn, gateDedupeKey } from "@/lib/market/gate-log";
 
 /** 造一笔已结算的交易。ret 是小数（0.05 = +5%）。 */
 function closed(ret: number, date: string) {
@@ -138,4 +138,83 @@ test("闸门日志：写到一半崩了留下的坏行被跳过，不会把整�
     assert.equal(logs.length, 1, "坏行要跳过，好的那行要还在");
     assert.equal(logs[0].reason, "好的一条");
   });
+});
+
+// ── 去重（2026-11-06 拍板「只去重、不轮转」）────────────────────
+// 根因：record-journal 每分钟新起进程，进程内的 buysPresentThisRun 标志
+// 每次重置，同一句「交易日记录 N/60」一天写 240 遍。判据必须落在磁盘上。
+
+test("去重：同一天同一条拦截只写一次（保留首次）", () => {
+  withTempDataDir(() => {
+    const block = { at: 1, tradingDate: "2026-11-06", style: "value" as const, gate: "soft" as const,
+      reason: "交易日记录 17/60，样本还不够下结论", candidates: [] };
+    appendGateLog(block);
+    appendGateLog({ ...block, at: 2 });
+    appendGateLog({ ...block, at: 3 });
+    const logs = readGateLogs();
+    assert.equal(logs.length, 1, "三次同签名只该留一行");
+    assert.equal(logs[0].at, 1, "保留首次出现那条");
+  });
+});
+
+test("去重：跨天同一句要各留一条（不能丢「哪天被拦」）", () => {
+  withTempDataDir(() => {
+    const base = { style: "value" as const, gate: "soft" as const,
+      reason: "交易日记录 17/60，样本还不够下结论", candidates: [] };
+    appendGateLog({ ...base, at: 1, tradingDate: "2026-11-05" });
+    appendGateLog({ ...base, at: 2, tradingDate: "2026-11-06" });
+    assert.equal(readGateLogs().length, 2);
+    assert.equal(hardBlocksOn("2026-11-05").length, 0, "soft 不算硬闸拦过");
+  });
+});
+
+test("去重：候选名单按股票 id 判，买入价变动不该算新的一条", () => {
+  withTempDataDir(() => {
+    const base = { tradingDate: "2026-11-06", style: "rebound" as const, gate: "hard" as const,
+      reason: "已连续亏损 3 个交易日，停止新开仓" };
+    appendGateLog({ ...base, at: 1, candidates: [{ id: "sh600000", name: "浦发", buy: 10.0, score: 1 }] });
+    // 行情动了，买价变了 —— 同一批票，不该再写一行
+    appendGateLog({ ...base, at: 2, candidates: [{ id: "sh600000", name: "浦发", buy: 10.3, score: 2 }] });
+    // 换了票 —— 这是「本来想买什么」变了，要另留一行
+    appendGateLog({ ...base, at: 3, candidates: [{ id: "sz000001", name: "平安", buy: 12, score: 3 }] });
+    const logs = readGateLogs();
+    assert.equal(logs.length, 2, "价格波动不另记，换票要另记");
+    assert.equal(logs[0].candidates[0].buy, 10.0, "保留首次的价，别拿后来的价冒充首次证据");
+  });
+});
+
+test("去重：不同的闸/理由/策略各自留一条", () => {
+  withTempDataDir(() => {
+    const base = { at: 1, tradingDate: "2026-11-06", candidates: [] };
+    appendGateLog({ ...base, style: "value", gate: "soft", reason: "样本不够" });
+    appendGateLog({ ...base, style: "value", gate: "hard", reason: "样本不够" });
+    appendGateLog({ ...base, style: "value", gate: "soft", reason: "快照过期" });
+    appendGateLog({ ...base, style: "rebound", gate: "soft", reason: "样本不够" });
+    assert.equal(readGateLogs().length, 4);
+  });
+});
+
+test("去重：历史文件里有坏行也不会把新的写入卡死", () => {
+  withTempDataDir((dir) => {
+    appendFileSync(join(dir, "gate-blocks.jsonl"), '{"at":1,"tradingDate":"2026-11-0', "utf8");
+    appendGateLog({ at: 2, tradingDate: "2026-11-06", style: "value", gate: "soft", reason: "样本不够", candidates: [] });
+    assert.equal(readGateLogs().length, 1, "坏行跳过，新的一条照写");
+  });
+});
+
+test("去重键：候选名单只认股票 id，价格/分数变动不改变键", () => {
+  const base = { tradingDate: "2026-11-06", style: "rebound" as const, gate: "hard" as const,
+    reason: "已连续亏损 3 个交易日，停止新开仓" };
+  const a = { ...base, at: 1, candidates: [{ id: "sh600000", name: "浦发", buy: 10.0, score: 1 }] };
+  const b = { ...base, at: 2, candidates: [{ id: "sh600000", name: "浦发", buy: 10.3, score: 9 }] };
+  const c = { ...base, at: 3, candidates: [{ id: "sz000001", name: "平安", buy: 12, score: 3 }] };
+  assert.equal(gateDedupeKey(a), gateDedupeKey(b));
+  assert.notEqual(gateDedupeKey(a), gateDedupeKey(c), "换票就是另一条证据");
+  // 顺序无关：同一批票顺序颠倒也算同一条
+  const d = { ...base, at: 4, candidates: [
+    { id: "sz000001", name: "平安", buy: 12, score: 3 },
+    { id: "sh600000", name: "浦发", buy: 10, score: 1 },
+  ] };
+  const e = { ...base, at: 5, candidates: [...d.candidates].reverse() };
+  assert.equal(gateDedupeKey(d), gateDedupeKey(e));
 });

@@ -23,13 +23,19 @@ function dshBase(): string {
 /** 系统提示。和直连 callAI 里写死的那句对齐：严谨量化、只出 JSON。 */
 const SYSTEM = "你是一个严谨的量化研究助理。只输出要求的 JSON，不输出别的。";
 
-/** 一次桥接调用。返回 DSH 生成的文本；任何失败抛错（交给上层回退/记 ai-log）。 */
+/** 一次桥接调用。返回 DSH 生成的文本；任何失败抛错（交给上层回退/记 ai-log）。
+ *
+ * ⚠️ 2026-11-06 补 `signal`：以前是裸 fetch，桥接挂住时这次调用永远不会结束，
+ * 而 `callAIWithFallback` 又是先无条件走 DSH——等于把整轮 AI 闭环和直连 fallback
+ * 一起拖死。超时直接抛（上层 catch 后落直连），和直连共用同一把超时尺子。
+ */
 export async function callDSH(
   prompt: string,
-  opts: { system?: string; provider?: string; model?: string } = {},
+  opts: { system?: string; provider?: string; model?: string; timeoutMs?: number } = {},
 ): Promise<string> {
   const res = await fetch(`${dshBase()}/chihengapi/chat`, {
     method: "POST",
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 150_000),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       system: opts.system ?? SYSTEM,

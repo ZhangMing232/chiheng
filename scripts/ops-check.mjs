@@ -56,8 +56,11 @@ if (rows.length > 0) {
   console.log(`  ${mb(bytes)} · ${rows.length} 行 · ${dates[0]} ~ ${dates[dates.length - 1]}（${Object.keys(byDay).length} 个交易日）`);
   console.log(`  每日行数 min/中位/max：${daily[0]} / ${daily[Math.floor(daily.length / 2)]} / ${daily[daily.length - 1]}`);
   console.log(`  按大小估增速：${(bytes / rows.length * daily[Math.floor(daily.length / 2)] / 1024).toFixed(1)} KB/天 ≈ ${(bytes / rows.length * daily[Math.floor(daily.length / 2)] * 250 / 1024 / 1024).toFixed(1)} MB/年`);
-  console.log(`  🔴 唯一签名 ${uniq.size} / ${rows.length}（${pct(uniq.size / rows.length)}）—— ${pct(1 - uniq.size / rows.length)} 是重复行`);
-  console.log(`  根因：提示闸标志在每分钟新起的记账进程里重置，同一句一天写 240 遍（见 REMAINING.md §12.2）`);
+  const dup = 1 - uniq.size / rows.length;
+  console.log(`  唯一签名 ${uniq.size} / ${rows.length} —— 重复率 ${pct(dup)}`);
+  console.log(dup > 0.2
+    ? `  🔴 仍有大量重复：提示闸标志在每分钟新起的记账进程里重置（见 REMAINING.md §12.2）`
+    : `  ✅ 2026-11-06 已落地按天去重（appendGateLog 落盘判重），历史 6789 行压到 222 行；这行数不再随时间涨`);
 } else console.log("  读不到 gate-blocks.jsonl");
 
 // ── 3. AI 超时 ─────────────────────────────────────────────
@@ -77,7 +80,17 @@ if (usage.length > 0) {
   console.log(`  ai-usage ${usage.length} 次 · 失败 ${bad.length}（${pct(bad.length / usage.length)}）· 其中 ≥149s 超时被掐 ${timedOut.length} 次`);
   console.log(`  耗时 中位 ${q(0.5)}s / p90 ${q(0.9)}s / p95 ${q(0.95)}s / max ${(ms[ms.length - 1] / 1000).toFixed(1)}s`);
   console.log(`  ai-log 只记 ${log.filter((e) => !e.ok).length} 条失败 / ${log.length} 轮 —— 🔴 fallback 成功后整轮算 ok，中间超时被掩盖`);
-  console.log(`  DSH 通道：${process.env.CHIHENG_DSH_URL ? "已启用" : "未启用"}；callDSH 的 fetch 无 signal = 无超时（等拍板）`);
+  console.log(`  DSH 通道：${process.env.CHIHENG_DSH_URL ? "已启用" : "未启用"}；callDSH 已补 AbortSignal.timeout（11-06 修，此前裸 fetch 会拖死整轮）`);
+  // 轮级尝试账本：fallback 成功不再把中间超时洗成 ok
+  const rounds = (() => { try { const d = JSON.parse(readFileSync(join(DATA, "ai-attempts.json"), "utf8")); return d.rounds ?? []; } catch { return []; } })();
+  if (rounds.length > 0) {
+    const silent = rounds.filter((r) => r.ok && (r.failed ?? 0) > 0).length;
+    const failed = rounds.reduce((n, r) => n + (r.failed ?? 0), 0);
+    const to = rounds.reduce((n, r) => n + (r.timedOut ?? 0), 0);
+    console.log(`  ai-attempts ${rounds.length} 轮 · 中间失败 ${failed} 次（超时 ${to}）· 🔴 成功但中途挂过 ${silent} 轮`);
+  } else {
+    console.log(`  ai-attempts 账本还是空的（11-06 新增，下一次 AI 调用起才有数据）`);
+  }
 } else console.log("  读不到 ai-usage.json");
 
 // ── 4. 深扫 ────────────────────────────────────────────────
