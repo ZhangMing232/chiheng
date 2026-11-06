@@ -310,7 +310,7 @@ export function decorFor(path: string): PageDecor | null {
 
 /** L1 底纹色相 → 具体色值。深浅两套（跟随 data-theme）。 */
 export const HUE_COLORS: Record<DecorHue, { dark: string; light: string }> = {
-  brand: { dark: "#0e7490", light: "#0e7490" },
+  brand: { dark: "#0e7490", light: "#155e75" },
   blue: { dark: "#3d8bff", light: "#1f6fd0" },
   amber: { dark: "#c9a869", light: "#8a6a1f" },
   green: { dark: "#0bb97b", light: "#0b7040" },
