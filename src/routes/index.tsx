@@ -145,6 +145,19 @@ function Dashboard() {
         value: `${buysToday.length + sellsToday.length} 条`,
         tone: buysToday.length + sellsToday.length > 0 ? "brand" : "neutral",
       }}
+      freshness={
+        universe
+          ? {
+              state: universe.stale ? "delayed" : "healthy",
+              label: universe.stale ? "行情延迟" : "行情正常",
+              source: "腾讯行情 · 备份新浪",
+              updatedAt: universe.asOf ? new Date(universe.asOf).toTimeString().slice(0, 8) : undefined,
+              latencySeconds: universe.asOf ? Math.round((Date.now() - universe.asOf) / 1000) : undefined,
+              message: universe.stale ? "当前数据仅供查看，别拿它当现价用" : undefined,
+              canRetry: true,
+            }
+          : { state: "unavailable", label: "行情还没拉到", message: "点重试再拉一次", canRetry: true }
+      }
     >
       {/* ── Zone A 市场核心状态 ── */}
       <h1 className="font-display text-xl font-medium tracking-wide">总览</h1>

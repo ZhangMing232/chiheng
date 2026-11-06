@@ -45,6 +45,18 @@ function OverviewPage() {
   return (
     <Frame wide
       aside="股市总览"
+      freshness={
+        flow
+          ? {
+              state: flow.asOf && Date.now() - flow.asOf > 120_000 ? "delayed" : "healthy",
+              label: flow.asOf && Date.now() - flow.asOf > 120_000 ? "涨跌数据延迟" : "涨跌数据正常",
+              source: "腾讯全市场快照",
+              updatedAt: flow.asOf ? new Date(flow.asOf).toTimeString().slice(0, 8) : undefined,
+              latencySeconds: flow.asOf ? Math.round((Date.now() - flow.asOf) / 1000) : undefined,
+              canRetry: true,
+            }
+          : { state: "unavailable", label: "涨跌统计暂未拉到", message: "行情源还没返回全市场快照", canRetry: true }
+      }
       status={{
         label: "上涨",
         // **真实数据**：getBreadth 服务端算好的计数。没有快照就是 null，

@@ -38,6 +38,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
+import { getAlerts } from "@/lib/market/alerts.functions";
+import { FreshnessBar } from "@/components/status-widgets";
+import type { StatusSnapshot } from "@/lib/ui/app-status";
 import { isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { snapshotAge } from "@/lib/market/format";
@@ -193,9 +196,53 @@ function SideNav() {
       return next;
     });
   }
+  // 侧栏收窄（2026-11-06 参考实现 §2）：208px → 68px，只留图标 + title 悬浮提示。
+  // 默认展开；收窄记在浏览器里。
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    try {
+      setNarrow(localStorage.getItem("ch-side-narrow") === "1");
+    } catch {
+      /* 默认展开 */
+    }
+  }, []);
+  function toggleNarrow() {
+    setNarrow((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("ch-side-narrow", next ? "1" : "0");
+      } catch {
+        /* 隐私模式：本次会话内生效 */
+      }
+      return next;
+    });
+  }
+  // 侧栏「消息与提醒」的未读红点：和 /inbox 页用**同一个**已读水位
+  // （chiheng-alert-read-at），两处计数永远一致。
+  const inboxQuery = useQuery({
+    queryKey: ["sidebar-inbox-unread"],
+    queryFn: () => getAlerts(),
+    refetchInterval: 120_000,
+  });
+  const [inboxMark, setInboxMark] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setInboxMark(localStorage.getItem("chiheng-alert-read-at") ?? "");
+    } catch {
+      setInboxMark("");
+    }
+  }, []);
+  const inboxRows = inboxQuery.data ?? [];
+  const inboxUnread =
+    inboxMark == null ? 0 : inboxRows.filter((r) => r.at > inboxMark && r.id !== inboxMark).length;
   return (
-    <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col border-r border-sidebar-line bg-sidebar md:flex">
-      <Link to="/" className="flex items-center gap-2.5 px-4 pt-4 pb-3">
+    <aside
+      className={
+        "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-sidebar-line bg-sidebar transition-[width] duration-200 md:flex " +
+        (narrow ? "w-[68px]" : "w-52")
+      }
+    >
+      <Link to="/" className={"flex items-center px-4 pt-4 pb-3 " + (narrow ? "justify-center px-0" : "gap-2.5")} title={narrow ? "赤轨 · 策略实验台" : undefined}>
         {/* 效果图签名：渐变红圆角方块 mark。全站唯一的大面积品牌用色之一。 */}
         <span
           className="h-[26px] w-[26px] shrink-0 rounded-[8px]"
@@ -205,44 +252,64 @@ function SideNav() {
             boxShadow: "inset 0 0 0 1px rgba(229,72,77,.4)",
           }}
         />
-        <span className="leading-tight">
-          <span className="block text-[15px] font-bold tracking-wide text-fg">赤轨</span>
-          <span className="block text-[10px] text-muted">策略实验台</span>
-        </span>
+        {narrow ? null : (
+          <span className="leading-tight">
+            <span className="block text-[15px] font-bold tracking-wide text-fg">赤轨</span>
+            <span className="block text-[10px] text-muted">策略实验台</span>
+          </span>
+        )}
       </Link>
       <nav className="flex-1 overflow-y-auto scroll-slim px-2 pb-4" aria-label="主导航">
         {SIDEBAR.map((group) => {
           const open = !closed.includes(group.label);
           return (
             <div key={group.label}>
-              <button
-                type="button"
-                onClick={() => toggle(group.label)}
-                aria-expanded={open}
-                className="flex w-full items-center justify-between rounded px-3 pt-4 pb-1 text-[10px] tracking-widest text-muted hover:text-fg"
-              >
-                {group.label}
-                <ChevronDown className={"size-3 transition-transform " + (open ? "" : "-rotate-90")} aria-hidden />
-              </button>
+              {narrow ? (
+                <div className="mx-3 mt-3 border-t border-sidebar-line/70 pt-1" aria-hidden />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggle(group.label)}
+                  aria-expanded={open}
+                  className="flex w-full items-center justify-between rounded px-3 pt-4 pb-1 text-[10px] tracking-widest text-muted hover:text-fg"
+                >
+                  {group.label}
+                  <ChevronDown className={"size-3 transition-transform " + (open ? "" : "-rotate-90")} aria-hidden />
+                </button>
+              )}
               {open &&
                 group.items.map((item) => {
                   const active = path === item.to;
                   const Icon = item.icon;
+                  const isInbox = item.to === "/inbox";
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
                       aria-current={active ? "page" : undefined}
+                      title={narrow ? item.label : undefined}
                       className={
-                        "relative flex items-center gap-2 rounded px-3 py-2 text-sm " +
+                        "relative flex items-center rounded text-sm " +
+                        (narrow ? "justify-center px-0 py-2.5" : "gap-2 px-3 py-2") +
                         // 效果图导航激活态：品牌浅底 + 主文字 + 悬挂在侧栏左缘的 3px 红条
                         (active
-                          ? "bg-brand-soft font-medium text-fg before:absolute before:-left-2 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-full before:bg-brand"
-                          : "text-muted hover:bg-surface-2 hover:text-fg")
+                          ? " bg-brand-soft font-medium text-fg before:absolute before:-left-2 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-full before:bg-brand"
+                          : " text-muted hover:bg-surface-2 hover:text-fg")
                       }
                     >
                       <Icon className={"size-3.5 shrink-0 " + (active ? "text-brand-text" : "")} aria-hidden />
-                      {item.label}
+                      {narrow ? null : item.label}
+                      {isInbox && inboxUnread > 0 ? (
+                        <span
+                          className={
+                            "flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[10px] font-medium text-white tabular-nums " +
+                            (narrow ? "absolute right-1 top-1 h-2 min-w-2 px-0 text-[0px]" : "ml-auto")
+                          }
+                          aria-label={`${inboxUnread} 条未读`}
+                        >
+                          {narrow ? null : inboxUnread}
+                        </span>
+                      ) : null}
                     </Link>
                   );
                 })}
@@ -250,7 +317,19 @@ function SideNav() {
           );
         })}
       </nav>
-      <SystemStatus />
+      {narrow ? null : <SystemStatus />}
+      <button
+        type="button"
+        onClick={toggleNarrow}
+        aria-label={narrow ? "展开侧栏" : "收起侧栏"}
+        title={narrow ? "展开侧栏" : "收起侧栏"}
+        className={
+          "border-t border-sidebar-line py-2 text-[11px] text-muted transition hover:text-fg " +
+          (narrow ? "text-center" : "px-4 text-left")
+        }
+      >
+        {narrow ? "›" : "‹ 收起侧栏"}
+      </button>
     </aside>
   );
 }
@@ -741,6 +820,15 @@ function PushConfig() {
  * "已读水位"是浏览器里存的最后一条 key：铃铛红点数 = 水位之后的新条目；
  * 页面打开时如果没有水位，就把当前最新一条当水位——旧账不补报，不弹 Toast 风暴。
  */
+/**
+ * 顶栏铃铛 + 右侧统一通知抽屉（2026-11-06 按参考实现 §5「提醒中心」升级：
+ * 原来的 details 下拉只装得下卖出提醒，现在四个 tab——全部 / 未读 / 卖出提醒 /
+ * 系统提醒，两个真实数据源（卖出提醒 getAlerts 卖出册 + 系统提醒 /inbox 的
+ * alerts），**各用各的已读水位，和铃铛红点、侧栏红点、inbox 页四处计数一致**。
+ * Toast（新提醒 8 秒自动消失）原样保留。
+ * 空态规则：没有未读时「全部标为已读」禁用并给下一步动作（参考实现 §5 的要求）。
+ * PushConfig（微信推送配置）挪进抽屉底部的「通知设置」——低频配置不占顶栏。
+ */
 function AlertBell() {
   const navigate = useNavigate();
   const { data } = useQuery({
@@ -753,6 +841,26 @@ function AlertBell() {
   const [seenKey, setSeenKey] = useState<string | null>(null);
   const [toast, setToast] = useState<(typeof alerts)[number] | null>(null);
   const toastedKeyRef = useRef<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"all" | "unread" | "sell" | "inbox">("all");
+
+  // 系统提醒（/inbox 的 alerts）：打开抽屉才拉，60s 轮询。
+  const inboxQuery = useQuery({
+    queryKey: ["bell-inbox-alerts"],
+    queryFn: () => getAlerts(),
+    enabled: open,
+    refetchInterval: 60_000,
+  });
+  const inboxRows = inboxQuery.data ?? [];
+  // 系统提醒的已读水位：和 /inbox 页同一个 key（chiheng-alert-read-at）。
+  const [inboxMark, setInboxMark] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setInboxMark(localStorage.getItem("chiheng-alert-read-at") ?? "");
+    } catch {
+      setInboxMark("");
+    }
+  }, []);
 
   useEffect(() => {
     setSeenKey(localStorage.getItem("chiheng-alerts-seen"));
@@ -785,64 +893,192 @@ function AlertBell() {
   }, [toast]);
 
   const seenIndex = seenKey ? alerts.findIndex((alert) => alert.key === seenKey) : 0;
-  const unread = seenIndex === -1 ? 0 : seenIndex;
+  const sellUnread = seenIndex === -1 ? 0 : seenIndex;
+  const inboxUnread = inboxMark == null ? 0 : inboxRows.filter((r) => r.at > inboxMark && r.id !== inboxMark).length;
+  const totalUnread = sellUnread + inboxUnread;
 
   function markAllRead() {
     const newest = alerts[0];
-    if (!newest) return;
-    localStorage.setItem("chiheng-alerts-seen", newest.key);
-    setSeenKey(newest.key);
+    if (newest) {
+      localStorage.setItem("chiheng-alerts-seen", newest.key);
+      setSeenKey(newest.key);
+    }
+    const newestInbox = inboxRows[0];
+    if (newestInbox) {
+      try {
+        localStorage.setItem("chiheng-alert-read-at", newestInbox.id);
+      } catch {
+        /* 隐私模式：不影响查看 */
+      }
+      setInboxMark(newestInbox.id);
+    }
   }
+
+  const TABS: { id: typeof tab; label: string }[] = [
+    { id: "all", label: "全部" },
+    { id: "unread", label: totalUnread > 0 ? `未读 ${totalUnread}` : "未读" },
+    { id: "sell", label: "卖出提醒" },
+    { id: "inbox", label: "系统提醒" },
+  ];
+
+  /** 卖出提醒一条。unread = 水位之后的。 */
+  const sellRow = (alert: (typeof alerts)[number], index: number) => (
+    <div key={alert.key} className={"border-b border-line px-3 py-2 text-sm last:border-b-0 " + (index < sellUnread ? "bg-up-soft/50" : "")}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate">
+          {alert.name ?? alert.id}
+          <span className="ml-2 text-xs text-muted">{alert.reason}</span>
+        </span>
+        <span className="shrink-0 text-xs text-muted">{alert.date.slice(5)}</span>
+      </div>
+      {alert.exit != null ? <div className="mt-0.5 text-xs tabular-nums text-muted">卖出价 {alert.exit.toFixed(2)}</div> : null}
+    </div>
+  );
+
+  /** 系统提醒一条（/inbox 同源同貌）。 */
+  const inboxRow = (r: (typeof inboxRows)[number], i: number) => {
+    const isUnread = inboxMark != null && r.at > inboxMark && r.id !== inboxMark;
+    return (
+      <div key={r.id} className={"border-b border-line px-3 py-2 text-sm last:border-b-0 " + (isUnread ? "bg-brand-soft/30" : "")}>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className={"min-w-0 truncate " + (isUnread ? "font-medium text-fg" : "text-muted")}>
+            {r.kind === "failed" ? <span className="mr-1.5 rounded bg-warn-soft px-1 text-[10px] text-warn">没跑成</span> : null}
+            {r.title}
+          </span>
+          <span className="shrink-0 text-xs text-muted tabular-nums">{r.at.slice(5, 16).replace("T", " ")}</span>
+        </div>
+        <p className="mt-0.5 text-xs leading-snug text-muted">{r.detail}</p>
+      </div>
+    );
+  };
 
   return (
     <>
-      <details className="group relative shrink-0">
-        <summary
-          aria-label={`卖出提醒，${unread} 条未读`}
-          className="relative inline-flex h-8 cursor-pointer list-none items-center rounded border border-line bg-surface px-2.5 text-muted hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden"
+      <button
+        type="button"
+        aria-label={`消息与提醒，${totalUnread} 条未读`}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="relative inline-flex h-8 shrink-0 items-center rounded border border-line bg-surface px-2.5 text-muted hover:bg-surface-2 hover:text-fg"
+      >
+        <Bell className="size-3.5" />
+        {totalUnread > 0 ? (
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[10px] font-medium text-white tabular-nums">
+            {totalUnread}
+          </span>
+        ) : null}
+      </button>
+      {open ? <div className="fixed inset-0 z-40 bg-fg/30" aria-hidden onClick={() => setOpen(false)} /> : null}
+      {open ? (
+        <aside
+          className="fixed top-0 right-0 z-50 flex h-screen w-[380px] max-w-[calc(100vw-1.5rem)] flex-col border-l border-line bg-surface shadow-pop"
+          aria-label="消息与提醒"
         >
-          <Bell className="size-3.5" />
-          {unread > 0 ? (
-            <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[10px] font-medium text-white tabular-nums">
-              {unread}
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <span className="flex items-baseline gap-2">
+              <span className="text-sm font-medium">消息与提醒</span>
+              {totalUnread > 0 ? <span className="text-xs text-up">未读 {totalUnread}</span> : null}
             </span>
-          ) : null}
-        </summary>
-        <div className="absolute right-0 z-40 mt-2 w-80 rounded border border-line bg-surface shadow-pop">
-          <div className="flex items-baseline justify-between border-b border-line px-3 py-2">
-            <span className="text-sm font-medium">卖出提醒</span>
-            <button type="button" onClick={markAllRead} className="text-xs text-accent hover:underline">
-              全部已读
+            <button type="button" onClick={() => setOpen(false)} aria-label="关闭通知抽屉" className="text-muted hover:text-fg">
+              ×
             </button>
           </div>
-          <div className="max-h-72 overflow-y-auto scroll-slim">
-            {alerts.length === 0 ? (
-              <div className="px-3 py-6 text-center text-sm text-muted">还没有触发过卖出提醒</div>
-            ) : (
-              alerts.map((alert, index) => (
-                <div key={alert.key} className={"border-b border-line px-3 py-2 text-sm last:border-b-0 " + (index < unread ? "bg-up-soft/50" : "")}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 truncate">
-                      {alert.name ?? alert.id}
-                      <span className="ml-2 text-xs text-muted">{alert.reason}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-muted">{alert.date.slice(5)}</span>
-                  </div>
-                  {alert.exit != null ? (
-                    <div className="mt-0.5 text-xs tabular-nums text-muted">卖出价 {alert.exit.toFixed(2)}</div>
-                  ) : null}
-                </div>
-              )))}
+          <div className="flex gap-1 border-b border-line px-3 py-2">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={
+                  "rounded px-2.5 py-1 text-xs transition " +
+                  (tab === t.id ? "bg-brand-soft font-medium text-brand-text" : "text-muted hover:bg-surface-2 hover:text-fg")
+                }
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-          <Link
-            to="/strategies/positions"
-            className="block border-t border-line px-3 py-2 text-center text-xs text-accent hover:bg-surface-2"
-          >
-            去策略追踪看持仓 →
-          </Link>
-          <PushConfig />
-        </div>
-      </details>
+          <div className="min-h-0 flex-1 overflow-y-auto scroll-slim">
+            {tab === "all" || tab === "sell" ? (
+              <section>
+                {(tab === "all" || tab === "sell") && (
+                  <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">卖出提醒</p>
+                )}
+                {alerts.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-muted">
+                    还没有触发过卖出提醒
+                    <Link to="/strategies/positions" onClick={() => setOpen(false)} className="mt-2 block text-xs text-accent hover:underline">
+                      去策略追踪看持仓 →
+                    </Link>
+                  </div>
+                ) : (
+                  alerts.map(sellRow)
+                )}
+              </section>
+            ) : null}
+            {tab === "all" || tab === "inbox" ? (
+              <section>
+                <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">系统提醒</p>
+                {inboxRows.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-muted">
+                    收件箱还是空的
+                    <Link to="/my-stocks" onClick={() => setOpen(false)} className="mt-2 block text-xs text-accent hover:underline">
+                      把股票加进自选，收盘后自动核对预警 →
+                    </Link>
+                  </div>
+                ) : (
+                  inboxRows.map(inboxRow)
+                )}
+              </section>
+            ) : null}
+            {tab === "unread" ? (
+              totalUnread === 0 ? (
+                <div className="px-3 py-6 text-center text-sm text-muted">
+                  没有未读提醒
+                  <p className="mt-1 text-xs">卖出提醒和系统提醒都会在这里聚齐；下次触发会自动亮红点。</p>
+                </div>
+              ) : (
+                <>
+                  {sellUnread > 0 ? (
+                    <section>
+                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">卖出提醒 · {sellUnread}</p>
+                      {alerts.slice(0, sellUnread).map(sellRow)}
+                    </section>
+                  ) : null}
+                  {inboxUnread > 0 ? (
+                    <section>
+                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">系统提醒 · {inboxUnread}</p>
+                      {inboxRows
+                        .filter((r) => inboxMark != null && r.at > inboxMark && r.id !== inboxMark)
+                        .map(inboxRow)}
+                    </section>
+                  ) : null}
+                </>
+              )
+            ) : null}
+          </div>
+          <div className="border-t border-line px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={markAllRead}
+                disabled={totalUnread === 0}
+                className="rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+                title={totalUnread === 0 ? "没有未读，无需标记" : undefined}
+              >
+                全部标为已读
+              </button>
+              <Link to="/inbox" onClick={() => setOpen(false)} className="text-xs text-accent hover:underline">
+                打开收件箱 →
+              </Link>
+            </div>
+            <div className="mt-2 border-t border-line/60 pt-2">
+              <p className="mb-1 text-[10px] tracking-widest text-muted">通知设置</p>
+              <PushConfig />
+            </div>
+          </div>
+        </aside>
+      ) : null}
       {toast ? (
         <button
           type="button"
@@ -932,6 +1168,9 @@ export function Frame({
   status,
   /** 页头专属装饰件的额外内容（真实数据，null 就不显示） */
   ornamentContent,
+  /** 模块级数据新鲜度条（状态·数据源·更新时间·延迟·重试）——
+   *  口径纪律：必须来自本页 loader/universe 的真实时间戳，不许编。 */
+  freshness,
   children,
 }: {
   aside?: ReactNode;
@@ -943,6 +1182,7 @@ export function Frame({
   status?: import("@/lib/ui/page-decor").PageStatus | null;
   /** 专属装饰件的额外内容（真实数据） */
   ornamentContent?: ReactNode;
+  freshness?: StatusSnapshot | null;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -1036,6 +1276,10 @@ export function Frame({
           {decor?.ornament ? (
             <DecorOrnament kind={decor.ornament}>{ornamentContent}</DecorOrnament>
           ) : null}
+
+          {/* L3.5 模块级新鲜度条：状态 · 数据源 · 更新时间 · 延迟 · 重试。
+              只有页面传了真实 snapshot 才渲染——没有数据源的页面不挂空壳。 */}
+          {freshness ? <FreshnessBar snapshot={freshness} onRetry={refresh} className="relative z-[1]" /> : null}
 
           <div className="relative z-[1] flex flex-col gap-3">{children}</div>
         </main>
