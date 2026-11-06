@@ -33,7 +33,6 @@ import {
   RefreshCw,
   Search,
   Settings,
-  Settings2,
   Sparkles,
   Star,
   type LucideIcon,
@@ -89,6 +88,8 @@ function AccountChip() {
  *   - 「进化」从「策略因子」改名并收编策略看板：策略看板 / 因子实验室 / 回测
  *     （挑战者、进化日志两个入口等 P0-6 的独立页落地后再加，不挂死链）
  *   - AI 从底部 pinned 单链扩成整组：工作台 / 大管家 / 接口与模型 / 行为边界
+ *     （2026-11-06 收敛：接口与模型、行为边界都是 /ai 页内 tab，侧栏不再单列；
+ *      现为 工作台 / 大管家 两项。下面「保留的三条老原则」第 1 条即此依据。）
  *   - admin / membership 按方案藏出侧栏（直链可达，会员功能落地后再亮出）
  *   - 板块、日历、模拟持仓维持重定向现状：它们的真实页面在资金流向/复盘/策略追踪下，
  *     侧栏不再单列，避免和二级子页撞车
@@ -144,7 +145,12 @@ const SIDEBAR: {
     items: [
       { to: "/ai", label: "工作台", icon: Sparkles },
       { to: "/butler", label: "大管家", icon: Bot },
-      { to: "/ai/config", label: "接口与模型", icon: Settings2 },
+      // 2026-11-06 收掉「接口与模型」(/ai/config) 侧栏入口：它本来就是 /ai 页内
+      // AISectionTabs 的第 2 个 tab，侧栏再列一次是同一目的地的两级重复导航，
+      // 也违反本文件头注释「最多两级，第三级只许在页面里切，不占侧栏」。
+      // 沿用 10-26 处理「行为边界」的同一做法：入口收进 tab，直链不删。
+      // /ai/config 路由、页面、smoke PAGES、QuickSearch 直达词条全部保留；
+      // navHit 的前缀匹配会把 /ai/config 归到 /ai，顶栏名和激活态都不丢。
       // 2026-10-26 去掉「行为边界」侧栏入口：AI 能做什么全文在 AI-BOUNDARY.md，
       // 页面直链 /ai/rules 仍可达。
     ],
@@ -429,7 +435,7 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "回测", keywords: "backtest", to: "/backtest" },
   { label: "AI 工作台", keywords: "ai 智能", to: "/ai" },
   { label: "大管家", keywords: "butler", to: "/butler" },
-  { label: "接口与模型", keywords: "ai config 配置 token", to: "/ai/config" },
+  { label: "接口配置", keywords: "接口与模型 ai config 配置 token 工作台 tab", to: "/ai/config" },
   { label: "设置", keywords: "settings", to: "/settings" },
 ];
 

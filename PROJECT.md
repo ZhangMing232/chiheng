@@ -74,8 +74,9 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 每日复盘 `/review`（含资金流向、信号、公司事件子页）、全球行情 `/overseas`；
 快讯 `/news`、消息与提醒 `/inbox`、自媒体图文 `/studio`；个股研判 `/research`、
 自选 `/my-stocks`；**策略看板 `/strategies`**（选股/追踪/跟单信号/策略管理/失败归因
-五个子页）、因子实验室 `/factors`、回测 `/backtest`；AI 工作台 `/ai`、
-大管家 `/butler`、接口与模型 `/ai/config`；设置与状态 `/settings`。
+五个子页）、因子实验室 `/factors`、回测 `/backtest`；AI 工作台 `/ai`（页内二级 tab：
+进化控制台 / 接口配置 / Token 用量 / 闸门与判据）、大管家 `/butler`；设置与状态 `/settings`。
+`/ai/config` 等子页直链保留可达，侧栏不再单列。
 个股详情 `/symbol` 从任意代码点入。
 
 规模：550+ 提交 · 71,000 行（src + scripts）· 1,430 条测试。
