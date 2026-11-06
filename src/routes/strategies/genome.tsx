@@ -62,7 +62,7 @@ function GenomePage() {
   const styles = Object.entries(strategyVerdicts);
 
   return (
-    <Frame>
+    <Frame wide>
       <SectionTabs tabs={STRATEGY_TABS} />
       <div className="flex flex-col gap-4">
         <Panel
@@ -91,7 +91,7 @@ function GenomePage() {
               hint="AI 提的策略 spec 会出现在这儿（收盘后自动进化时产出）。没有候选是正常状态——还没提过，或者这轮全被近亲封禁拒了。"
             />
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="grid gap-3 md:grid-cols-2">
               {candidates.map((c) => (
                 <CandidateCard key={c.id} c={c} />
               ))}
@@ -116,7 +116,7 @@ function GenomePage() {
                 .slice()
                 .sort((a, b) => a[1].clusterT - b[1].clusterT)
                 .map(([key, v]) => (
-                  <div key={key} className="rounded border border-line bg-surface px-2.5 py-2 text-xs">
+                  <div key={key} className="rounded-lg border border-line bg-surface px-2.5 py-2 text-xs">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate font-medium">{key}</span>
                       <span className={`tabular-nums ${v.clusterT <= -2 ? "text-down" : v.clusterT >= 2 ? "text-up" : "text-muted"}`}>
@@ -145,7 +145,7 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
   const v = c.verdict;
   const seeded = c.seededFactors;
   return (
-    <div className="rounded border border-line bg-surface px-3 py-2.5 text-xs">
+    <div className="rounded-lg border border-line bg-surface px-3 py-2.5 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{c.name}</span>
@@ -181,7 +181,7 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
       ) : null}
 
       {v ? (
-        <div className="mt-2 rounded border border-line bg-surface2 px-2.5 py-2">
+        <div className="mt-2 rounded-lg border border-line bg-surface-2 px-2.5 py-2">
           <div className="flex items-center gap-1.5 text-[11px] font-medium">
             <FlaskConical size={12} className="text-brand" />
             全池回测判决

@@ -294,6 +294,23 @@ html[data-theme="light"] {
   .data-table tbody td[data-opt] {
     display: table-cell;
   }
+  /* 桌面端表格的卡片化细节：表头一条极淡的色带（和功能组色相对齐，不抢内容）、
+     行 hover 给一点反馈、单元格上下多喘口气。手机端仍是卡片流（见上方 max-width 媒体查询）。
+     颜色一律走 token，深浅主题自动跟随。 */
+  .data-table thead th {
+    background: var(--color-surface-2);
+    font-weight: 500;
+  }
+  .data-table tbody tr {
+    transition: background-color 0.12s ease;
+  }
+  .data-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  .data-table tbody td {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
   /* 鼠标为主，页签的触达尺寸可以收一点。左右内边距要在这里给——
      页签现在是「选中项垫底」的药丸式，没有左右内边距会挤成一坨 */
   .nav-tab {

@@ -46,6 +46,27 @@
 
 ## UI
 
-- 界面规范 `design/DESIGN.md` 与 `design/ui-upgrade-2026-10.md`（侧栏七组 IA、朱砂 token、红涨绿跌）。
+- 界面规范旧文档 `design/ui-upgrade-2026-10.md` 仍写「朱砂红是唯一主强调」，**已过时**：
+  **2026-11-06 起全站强调色统一为青**（`--color-brand`/`--color-accent` = `#0e7490` / `#67e8f9`），
+  朱砂红只保留 `src/components/screener/nav.tsx` 的 logo 方块那一处品牌标识。新页面**严禁**再引入朱砂红/冰蓝当强调色。
 - 面向用户的页面给白话：术语用 `src/lib/ui/glossary.ts` 的 `<Term>` 悬停卡，别在页面上裸抛黑话；
   「已下线」的东西明说「历史仓结算中」，不和现役混排。
+
+### 新页面标齐清单（照着做，别后改）
+
+新建一个路由页，从上往下对齐这套，不要等"看起来割裂了再返工"：
+
+1. **页面根用 `<Frame>`**（`@/components/screener/nav`）：它给顶栏（标题/刷新/主题切换）、
+   L1 环境光晕、L2 页头（图标+页面名+一句话职能+状态药丸）、L3 专属装饰件。
+   数据密集页传 `<Frame wide>`（max-w-[1440px] 铺满）；阅读型页不传（窄栏 max-w-3xl）。
+2. **在 `src/lib/ui/page-decor.ts` 的 `PAGE_DECOR` 里登记路由**：填 `title`/`icon`/`purpose`/`hue`
+   （and 可选 `status`/`ornament`）。**不登记就没有 L2 页头**——页头权威来源是这张表，不靠侧栏。
+3. **卡片一律用共享组件**：`Panel`/`Stat`/`Tag`/`Table`（来自 `@/components/terminal`）、
+   `Section`（来自 `factor-sections`/`flow-sections`）。它们已 token 化、`rounded-lg`(8px)、
+   `border-line`、`bg-surface`。**不要自己写裸 `border`/`bg-` 色值**，用 token。
+4. **表格必须落在卡片里**：`<Table>` 放进 `Panel`/`Section`，别在页面里裸放 `<table>`。
+   桌面端统一带 `data-table` class（已集中做好表头色带 + 行 hover + 间距；手机端自动变卡片流）。
+5. **强调色只有这几类 token**：`brand`/`accent`（青）、`up`·`down`（红涨绿跌，A 股铁律）、
+   `warn`（异常/饱和）、`gold`（评分/冠军）、`ai`（AI 自身状态）。**页面 JSX 不许写死 hex**。
+6. **圆角**：卡片统一 `rounded-lg`；小控件（按钮/标签/输入框）才用 `rounded`。
+7. 改完跑 `npm run build:mac`，浏览器强刷（Cmd+Shift+R）核对；提交走既有闸门。
