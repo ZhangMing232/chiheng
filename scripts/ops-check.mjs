@@ -9,7 +9,9 @@
  * 用法：node scripts/ops-check.mjs
  * 输出只打印聚合指标；**任何密钥、token、apiKey 都不读不打印**（AI 配置只读条数）。
  */
-import { readFileSync, statSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 const DATA = process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
@@ -98,5 +100,26 @@ if (existsSync(bookPath)) {
   }
   console.log(`  分层统计：只读，不接进判决（等拍板）`);
 }
+
+// ── 5. 备份验活 ────────────────────────────────────────────
+// 2026-11-06 补：上一版只说「目录里有 23:15 快照」，把手动测试留下的文件
+// 当成定时任务活着，误报「全绿」。教训（OPS.md）：验活认 launchctl print 的
+// last exit code，不能看目录。但光看 exit code 也不够——kickstart 手动跑成功
+// 同样是 0；要真正确认「定时触发成功」，还得看 23:30 那个点的日志/快照。
+console.log("\n【5】备份任务验活（只看目录会假阳性）");
+const backupRoot = join(homedir(), "chiheng-backup");
+let snaps = [];
+try { snaps = readdirSync(backupRoot).filter((n) => n.startsWith("full-")).sort(); } catch { /* 读不到就说读不到 */ }
+console.log(`  快照目录 ${snaps.length} 份，最新：${snaps.at(-1) ?? "（读不到，不等于没有）"}`);
+let lastExit = "拿不到";
+try {
+  const printed = execFileSync("launchctl", ["print", `gui/${process.getuid?.() ?? 501}/com.chiheng.backup`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const m = printed.match(/last exit code\s*=\s*(\d+)/);
+  if (m) lastExit = m[1];
+} catch { /* launchctl 不让查就明写拿不到，不拿 0 顶替 */ }
+console.log(`  launchctl last exit code = ${lastExit}${lastExit === "0" ? "（也可能是 kickstart 手动跑出来的，不等于定时触发过）" : ""}`);
+const timed = snaps.filter((n) => /-23(2[5-9]|3[0-5])$/.test(n));
+console.log(`  23:30 定时触发留下的快照（名字带 2330 左右）：${timed.length ? timed.join(", ") : "🔴 一份都没有 —— 定时任务从未成功触发过"}`);
+console.log(`  明早验活三件套：日志 ~/Library/Logs/chiheng-backup.log 有 23:30 新行 + 快照名带 2330 + last exit code=0`);
 
 console.log("\n（只读体检结束：未写任何文件。四件大件的拍板选项见 design/REMAINING.md §12）");
