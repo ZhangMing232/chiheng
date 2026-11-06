@@ -135,11 +135,16 @@
 
 | 项 | 内容 |
 |---|---|
-| 自动 | launchd `com.chiheng.backup`，**每天 23:30** 全量快照（plist 在 `~/Library/LaunchAgents/`） |
-| 手动 | `node scripts/snapshot-data.mjs`（约 8 秒；动 data/ 前、改判决函数前、大改造前必跑） |
+| 自动 | launchd `com.chiheng.backup`，**每天 23:30** 全量快照（plist 在 `~/Library/LaunchAgents/`，调 `scripts/backup.sh`） |
+| 手动 | `bash scripts/backup.sh`（等价于 `node scripts/snapshot-data.mjs`；动 data/ 前、改判决函数前、大改造前必跑） |
 | 落点 | `~/chiheng-backup/full-<日期-时分>/`，**保留最近 5 份**，更旧的自动清 |
-| 日志 | `data/snapshot.log`（成功行是「✅ 已快照：…」） |
+| 日志 | `~/Library/Logs/chiheng-backup.log`（成功行是「✅ 已快照：…」） |
 | 恢复 | `rm -rf data && cp -R ~/chiheng-backup/full-<最新>/ data`，然后 `launchctl kickstart -k gui/$(id -u)/com.chiheng.serve` |
 
-检查备份活没活：`ls -t ~/chiheng-backup | head -1` 里的日期应该是昨天或今天。
-注意外置盘没挂载时 23:30 那次会失败（log 都写不进去）——第二天补跑手动命令即可。
+检查备份活没活（两步，缺一不可）：`ls -t ~/chiheng-backup | head -1` 的日期是昨天或今天，
+**且** `launchctl print gui/$(id -u)/com.chiheng.backup | grep "last exit"` 是 0——
+目录里有快照只说明某次手动跑过，不说明定时任务活着。2026-11-05 深夜实测踩坑：
+plist plutil 通过、手动 node 跑完全正常，但 launchd fire 时直接 EX_CONFIG(78) 拒跑，
+坑有两层——① launchd 直接调 node 二进制拒跑，必须包一层 bash（本机 serve/verdict
+两个 bash 作业一直正常）；② StandardOutPath 开在外置盘 /Volumes 上也拒跑，
+日志必须落内盘 `~/Library/Logs`。查状态认准 `last exit code`，别拿目录里的旧快照当证据。
