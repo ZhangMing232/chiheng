@@ -1,0 +1,102 @@
+#!/usr/bin/env node
+/**
+ * 运维四件大件的**只读**体检。不写任何文件、不改账本、不碰 AI 接口。
+ *
+ * 为什么要有它（2026-11-06）：四件大件（账本存储 / 流水轮转 / AI 超时 / 深扫复盘）
+ * 等用户拍板，拍板前先把底数量化下来、留个可复跑的出处。以前这些数字散在
+ * 临时 python 片段里，下周复盘时没法核对是不是同一口径。
+ *
+ * 用法：node scripts/ops-check.mjs
+ * 输出只打印聚合指标；**任何密钥、token、apiKey 都不读不打印**（AI 配置只读条数）。
+ */
+import { readFileSync, statSync, existsSync } from "node:fs";
+import { join } from "node:path";
+
+const DATA = process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
+const lines = (p) => {
+  if (!existsSync(p)) return [];
+  return readFileSync(p, "utf8").split("\n").filter((l) => l.trim());
+};
+const jsonLines = (p) => {
+  const out = [];
+  for (const l of lines(p)) {
+    try { out.push(JSON.parse(l)); } catch { /* 坏行跳过，和 gate-log.ts 同一取舍 */ }
+  }
+  return out;
+};
+const pct = (n) => `${(n * 100).toFixed(2)}%`;
+const mb = (n) => `${(n / 1024 / 1024).toFixed(2)} MB`;
+
+// ── 1. 账本 ────────────────────────────────────────────────
+console.log("【1】账本（JSON → SQLite 决策用）");
+const bookPath = join(DATA, "books", "dev-user.json");
+if (existsSync(bookPath)) {
+  const b = JSON.parse(readFileSync(bookPath, "utf8"));
+  const days = Array.isArray(b.days) ? b.days : [];
+  const trades = days.flatMap((d) => (Array.isArray(d.trades) ? d.trades : []));
+  const open = trades.filter((t) => t && t.exit == null).length;
+  console.log(`  文件 ${statSync(bookPath).size} 字节（${mb(statSync(bookPath).size)}）· ${days.length} 天 · ${trades.length} 笔 · 未结 ${open}`);
+  console.log(`  写入方式：writeUserBook 整本读改写 + tmp + rename（临时名带 pid+随机数）`);
+  console.log(`  ⚠️ 未防「A 读 → B 读 → A 写 → B 写」的丢更新；这是现存真风险，与存储引擎无关`);
+} else console.log("  读不到 dev-user.json（拿不到 ≠ 没有，不拿 0 顶替）");
+
+// ── 2. 流水 ────────────────────────────────────────────────
+console.log("\n【2】流水 gate-blocks.jsonl（轮转决策用）");
+const gatePath = join(DATA, "gate-blocks.jsonl");
+const rows = jsonLines(gatePath);
+if (rows.length > 0) {
+  const bytes = statSync(gatePath).size;
+  const dates = rows.map((r) => r.tradingDate).filter(Boolean).sort();
+  const byDay = {};
+  for (const d of dates) byDay[d] = (byDay[d] ?? 0) + 1;
+  const daily = Object.values(byDay).sort((a, b) => a - b);
+  const uniq = new Set(rows.map((r) => JSON.stringify([r.tradingDate, r.gate, r.style, r.reason, r.candidates ?? []])));
+  console.log(`  ${mb(bytes)} · ${rows.length} 行 · ${dates[0]} ~ ${dates[dates.length - 1]}（${Object.keys(byDay).length} 个交易日）`);
+  console.log(`  每日行数 min/中位/max：${daily[0]} / ${daily[Math.floor(daily.length / 2)]} / ${daily[daily.length - 1]}`);
+  console.log(`  按大小估增速：${(bytes / rows.length * daily[Math.floor(daily.length / 2)] / 1024).toFixed(1)} KB/天 ≈ ${(bytes / rows.length * daily[Math.floor(daily.length / 2)] * 250 / 1024 / 1024).toFixed(1)} MB/年`);
+  console.log(`  🔴 唯一签名 ${uniq.size} / ${rows.length}（${pct(uniq.size / rows.length)}）—— ${pct(1 - uniq.size / rows.length)} 是重复行`);
+  console.log(`  根因：提示闸标志在每分钟新起的记账进程里重置，同一句一天写 240 遍（见 REMAINING.md §12.2）`);
+} else console.log("  读不到 gate-blocks.jsonl");
+
+// ── 3. AI 超时 ─────────────────────────────────────────────
+console.log("\n【3】AI 超时（治理决策用）");
+const usage = (() => {
+  try {
+    const d = JSON.parse(readFileSync(join(DATA, "ai-usage.json"), "utf8"));
+    return Array.isArray(d) ? d : d.entries ?? [];
+  } catch { return []; }
+})();
+const log = (() => { try { const d = JSON.parse(readFileSync(join(DATA, "ai-log.json"), "utf8")); return d.entries ?? []; } catch { return []; } })();
+if (usage.length > 0) {
+  const ms = usage.map((e) => e.ms).filter((x) => typeof x === "number").sort((a, b) => a - b);
+  const bad = usage.filter((e) => e.ok === false);
+  const timedOut = bad.filter((e) => (e.ms ?? 0) >= 149000);
+  const q = (p) => (ms[Math.min(ms.length - 1, Math.floor(ms.length * p))] / 1000).toFixed(1);
+  console.log(`  ai-usage ${usage.length} 次 · 失败 ${bad.length}（${pct(bad.length / usage.length)}）· 其中 ≥149s 超时被掐 ${timedOut.length} 次`);
+  console.log(`  耗时 中位 ${q(0.5)}s / p90 ${q(0.9)}s / p95 ${q(0.95)}s / max ${(ms[ms.length - 1] / 1000).toFixed(1)}s`);
+  console.log(`  ai-log 只记 ${log.filter((e) => !e.ok).length} 条失败 / ${log.length} 轮 —— 🔴 fallback 成功后整轮算 ok，中间超时被掩盖`);
+  console.log(`  DSH 通道：${process.env.CHIHENG_DSH_URL ? "已启用" : "未启用"}；callDSH 的 fetch 无 signal = 无超时（等拍板）`);
+} else console.log("  读不到 ai-usage.json");
+
+// ── 4. 深扫 ────────────────────────────────────────────────
+console.log("\n【4】深扫样本（下周复盘用）");
+if (existsSync(bookPath)) {
+  const b = JSON.parse(readFileSync(bookPath, "utf8"));
+  const deep = [];
+  for (const d of b.days ?? []) {
+    for (const t of d.trades ?? []) {
+      if (t && t.deepScan) deep.push({ date: d.date, ...t });
+    }
+  }
+  const closed = deep.filter((t) => typeof t.exit === "number");
+  const rets = closed.map((t) => t.exit / t.entry - 1);
+  const stops = closed.filter((t) => t.exitReason === "stop").length;
+  console.log(`  深扫票 ${deep.length} 笔 · 已平 ${closed.length} · 未平 ${deep.length - closed.length}`);
+  if (rets.length > 0) {
+    console.log(`  已平平均 ${pct(rets.reduce((a, b) => a + b, 0) / rets.length)} · 止损 ${stops}/${closed.length}`);
+    console.log(`  ⚠️ 样本 ${rets.length} 笔，远不够下结论；DECISIONS #4 承诺的「判决注明含深扫 N 笔」分层归因尚未落地`);
+  }
+  console.log(`  分层统计：只读，不接进判决（等拍板）`);
+}
+
+console.log("\n（只读体检结束：未写任何文件。四件大件的拍板选项见 design/REMAINING.md §12）");
