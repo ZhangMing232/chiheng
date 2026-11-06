@@ -18,6 +18,7 @@ import { Frame } from "@/components/screener/nav";
 import { RESEARCH_TABS, SectionTabs } from "@/components/section-tabs";
 import { Panel, Tag, pctClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
+import { Callout } from "@/components/callout";
 import { knowledgeFromReport, runResearch, type StageResult, type ResearchReport } from "@/lib/market/research";
 import { collectEvidence, runAiSynthesis, type AiSynthesis } from "@/lib/market/research-ai";
 import { linkifyEvidenceText } from "@/lib/market/evidence";
@@ -256,9 +257,31 @@ function ResearchPage() {
       ) : null}
 
       {report.blocked > 0 ? (
-        <div className="rounded border border-warn/60 bg-warn-soft px-3 py-2 text-xs leading-relaxed text-warn">
-          有 {report.blocked} 条结论在生成时被红线拦下并标了位置。赤轨不做投资建议，越线的那几句没有显示原文。
-        </div>
+        <Callout
+          tone="warning"
+          title={`${report.blocked} 条结论被红线拦下`}
+          detail="生成时被越线检测标了位置。赤轨不做投资建议，越线的那几句没有显示原文。"
+        />
+      ) : null}
+
+      {report.gaps.length > 0 || report.numbersReplaced > 0 ? (
+        <Callout
+          tone="warning"
+          title={
+            <>
+              {report.gaps.length > 0 ? `${report.gaps.length} 处数据缺口` : null}
+              {report.numbersReplaced > 0
+                ? `${report.gaps.length > 0 ? " · " : ""}换掉 ${report.numbersReplaced} 个数字`
+                : null}
+            </>
+          }
+          detail="拿不到或存疑的字段已明写出来，没替你猜。点开「结构化分析」看每阶段缺口。"
+          action={{
+            label: "查看缺口 →",
+            onClick: () =>
+              document.getElementById("research-structured")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+          }}
+        />
       ) : null}
 
       {/* 引用链自检（P0-3）：每个算出来的数字都能走回它的原始序列。

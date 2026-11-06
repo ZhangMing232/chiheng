@@ -8,21 +8,23 @@
 
 import type { Prefs } from "@/lib/market/prefs";
 
-const BOARDS: { id: Prefs["board"]; label: string }[] = [
+// 这三个数组是板块/股价/市值选项的唯一来源（中文标签也在这里）。
+// 选股页要渲染「已激活筛选」芯片时直接引用，别在别处另写一套标签。
+export const BOARDS: { id: Prefs["board"]; label: string }[] = [
   { id: "all", label: "不限" },
   { id: "main", label: "沪深主板" },
   { id: "cyb", label: "创业板" },
   { id: "kcb", label: "科创板" },
 ];
 
-const PRICES: { id: Prefs["price"]; label: string }[] = [
+export const PRICES: { id: Prefs["price"]; label: string }[] = [
   { id: "all", label: "不限" },
   { id: "low", label: "10元以下" },
   { id: "mid", label: "10到30元" },
   { id: "high", label: "30元以上" },
 ];
 
-const CAPS: { id: Prefs["cap"]; label: string }[] = [
+export const CAPS: { id: Prefs["cap"]; label: string }[] = [
   { id: "all", label: "不限" },
   { id: "small", label: "100亿以下" },
   { id: "mid", label: "100到500亿" },

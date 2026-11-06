@@ -13,7 +13,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { Picks } from "@/components/screener/picks";
-import { PrefsBar } from "@/components/screener/prefs-bar";
+import { PrefsBar, BOARDS, PRICES, CAPS } from "@/components/screener/prefs-bar";
+import { FilterChip } from "@/components/filter-chip";
 import { Frame } from "@/components/screener/nav";
 import { cycleTheme } from "@/components/screener/nav";
 import { SectionTabs } from "@/components/section-tabs";
@@ -40,6 +41,28 @@ function RecordLine({ at, ok, now }: { at: number | null; ok: boolean; now: numb
   if (!ok) return <span className="text-up">记账失败 {clock}</span>;
   if (stale) return <span className="text-up">记账中断 {clock}</span>;
   return <span className="tabular-nums">上次记账 {clock}</span>;
+}
+
+// 选股页「已激活筛选」可视化：把 board/price/cap 里不是 all 的维度渲染成可移除芯片。
+// 纯展示 + 复位，不动底层 matchPrefs 过滤逻辑（#114）。
+const PREF_GROUPS: { dim: "board" | "price" | "cap"; name: string; options: { id: string; label: string }[] }[] = [
+  { dim: "board", name: "板块", options: BOARDS },
+  { dim: "price", name: "股价", options: PRICES },
+  { dim: "cap", name: "市值", options: CAPS },
+];
+
+function activePrefChips(prefs: Prefs) {
+  return PREF_GROUPS.flatMap((g) => {
+    const opt = g.options.find((o) => o.id === prefs[g.dim]);
+    if (!opt || prefs[g.dim] === "all") return [];
+    return [{ dim: g.dim, name: g.name, label: opt.label }];
+  });
+}
+
+function resetPrefDim(prefs: Prefs, dim: "board" | "price" | "cap"): Prefs {
+  if (dim === "board") return { ...prefs, board: "all" };
+  if (dim === "price") return { ...prefs, price: "all" };
+  return { ...prefs, cap: "all" };
 }
 
 export const INDEX_LABEL: Record<string, string> = {
@@ -411,6 +434,26 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
               })()}
               <p className="mt-2 text-xs text-muted">{STYLES.find((item) => item.id === prefs.style)?.hint}</p>
             </div>
+            {activePrefChips(prefs).length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] tracking-widest text-muted">已选</span>
+                {activePrefChips(prefs).map((chip) => (
+                  <FilterChip
+                    key={chip.dim}
+                    label={
+                      <>
+                        <span className="text-muted">{chip.name}</span> {chip.label}
+                      </>
+                    }
+                    onRemove={() => {
+                      const next = resetPrefDim(prefs, chip.dim);
+                      setPrefs(next);
+                      void savePrefs({ data: next }).catch(() => setError("偏好没保存上，刷新后会回到上次的选择"));
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
             <PrefsBar
               prefs={prefs}
               onChange={(next) => {
