@@ -39,19 +39,19 @@ function useChart(height: number) {
   return host;
 }
 
-function toneOf(up: string, down: string) {
+function toneOf() {
   return {
-    up,
-    down,
-    muted: cssVar("--color-muted", "#8b95a6"),
-    fg: cssVar("--color-fg", "#e6eaf2"),
+    up: cssVar("--color-up", "#e84d4d"),
+    down: cssVar("--color-down", "#0bb97b"),
+    muted: cssVar("--color-muted", "#9aa1ad"),
+    fg: cssVar("--color-fg", "#edeff4"),
   };
 }
 
 const AXIS = {
-  axisLine: { lineStyle: { color: "#242f45" } },
-  axisLabel: { color: "#8b95a6", fontSize: 10 },
-  splitLine: { lineStyle: { color: "#1a2233" } },
+  axisLine: { lineStyle: { color: cssVar("--color-line", "#242f45") } },
+  axisLabel: { color: cssVar("--color-muted", "#9aa1ad"), fontSize: 10 },
+  splitLine: { lineStyle: { color: cssVar("--color-line", "#1a2233") } },
 };
 
 /** 累计收益（可选基准线）。dates 是 YYYY-MM-DD，series[0].data 是小数。 */
@@ -67,7 +67,7 @@ export function LineChart({
   height?: number;
 }) {
   const host = useChart(height);
-  const { up, muted, fg } = toneOf("#f2495c", "#0bb97b");
+  const { up, down, muted, fg } = toneOf();
 
   // 依赖提成变量：数组/对象直接进 deps 没法被静态检查， ESLint 会报警
   const datesKey = dates.join(",");
@@ -87,8 +87,8 @@ export function LineChart({
         tooltip: {
           trigger: "axis",
           valueFormatter: (v: number) => `${(v * 100).toFixed(2)}%`,
-          backgroundColor: "#111826",
-          borderColor: "#242f45",
+          backgroundColor: cssVar("--color-surface-2", "#111826"),
+          borderColor: cssVar("--color-line", "#242f45"),
           textStyle: { color: fg, fontSize: 11 },
         },
         xAxis: { type: "category", data: dates, boundaryGap: false, ...AXIS },
@@ -104,8 +104,8 @@ export function LineChart({
             data: s.data,
             showSymbol: false,
             smooth: false,
-            lineStyle: { width: 2, color: last >= 0 ? up : "#0bb97b" },
-            itemStyle: { color: last >= 0 ? up : "#0bb97b" },
+            lineStyle: { width: 2, color: last >= 0 ? up : down },
+            itemStyle: { color: last >= 0 ? up : down },
           })),
           // 基准线：虚线、中性色，别和主曲线抢
           ...(bench.length > 0
@@ -134,7 +134,7 @@ export function LineChart({
 /** 回撤面积图。data 是正数（0 = 在高点）。 */
 export function AreaChart({ dates, data, height = 160 }: { dates: string[]; data: number[]; height?: number }) {
   const host = useChart(height);
-  const { down, muted, fg } = toneOf("#f2495c", "#0bb97b");
+  const { down, muted, fg } = toneOf();
 
   const datesKey = dates.join(",");
   const dataKey = data.join(",");
@@ -151,8 +151,8 @@ export function AreaChart({ dates, data, height = 160 }: { dates: string[]; data
         tooltip: {
           trigger: "axis",
           valueFormatter: (v: number) => `${(v * 100).toFixed(1)}%`,
-          backgroundColor: "#111826",
-          borderColor: "#242f45",
+          backgroundColor: cssVar("--color-surface-2", "#111826"),
+          borderColor: cssVar("--color-line", "#242f45"),
           textStyle: { color: fg, fontSize: 11 },
         },
         xAxis: { type: "category", data: dates, boundaryGap: false, ...AXIS },
@@ -184,7 +184,7 @@ export function AreaChart({ dates, data, height = 160 }: { dates: string[]; data
 /** 月度/年度柱状图。data 是小数（该周期的等权平均）。 */
 export function BarChart({ labels, data, height = 160 }: { labels: string[]; data: number[]; height?: number }) {
   const host = useChart(height);
-  const { up, down, fg } = toneOf("#f2495c", "#0bb97b");
+  const { up, down, fg } = toneOf();
 
   const labelsKey = labels.join(",");
   const dataKey = data.join(",");
@@ -201,8 +201,8 @@ export function BarChart({ labels, data, height = 160 }: { labels: string[]; dat
         tooltip: {
           trigger: "axis",
           valueFormatter: (v: number) => `${(v * 100).toFixed(2)}%`,
-          backgroundColor: "#111826",
-          borderColor: "#242f45",
+          backgroundColor: cssVar("--color-surface-2", "#111826"),
+          borderColor: cssVar("--color-line", "#242f45"),
           textStyle: { color: fg, fontSize: 11 },
         },
         xAxis: { type: "category", data: labels, ...AXIS },

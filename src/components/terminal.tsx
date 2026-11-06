@@ -43,7 +43,7 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <section id={id} className={`overflow-hidden rounded border border-line bg-surface ${className}`}>
+    <section id={id} className={`overflow-hidden rounded-lg border border-line bg-surface ${className}`}>
       {title ? (
         <header className="flex items-baseline justify-between gap-3 border-b border-line px-3 py-2">
           {/* 效果图签名：标题前的朱砂竖条。品牌色四用法之一（顶栏线 / 名字旁竖条 /

@@ -70,7 +70,7 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-24 overflow-hidden rounded border border-line bg-surface">
+    <section id={id} className="scroll-mt-24 overflow-hidden rounded-lg border border-line bg-surface">
       <header className="border-b border-line px-3.5 py-2">
         <h2 className="text-sm font-medium">{title}</h2>
         {hint ? <p className="mt-1 text-xs leading-relaxed text-muted">{hint}</p> : null}
