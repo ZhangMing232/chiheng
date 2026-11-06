@@ -154,7 +154,7 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 
 | 项 | 状态 |
 |---|---|
-| 服务 | **在跑**：launchd 托管三件——serve（开机自启 · 网页 8787）、tunnel（对外 meanwhy.top）、backup（每天 23:30 快照）。⚠️ `com.chiheng.verdict`（每天 16:10）的 plist 文件已不存在，只剩 launchd 内存里的幽灵 job；每日判决早已改由 `record-journal` 收盘封印段拉起 `auto-verdict.ts`（15:08），16:10 那次是重复跑。详见 `design/REMAINING.md` §13 |
+| 服务 | **在跑**：launchd 托管三件——serve（开机自启 · 网页 8787）、tunnel（对外 meanwhy.top）、backup（每天 23:30 快照）。⚠️ `com.chiheng.verdict`（原每天 16:10 的重复判决）**11-06 已 bootout 卸载**，plist 早就不存在；每日判决统一走 `record-journal` 收盘封印段的 `auto-verdict.ts`（15:08）。详见 `design/REMAINING.md` §13 |
 | 测试 | 1,430 条全绿 · typecheck 干净 · lint 0 error（87 个既有 warning） |
 | 策略 | 现役 2 套：低估值在跑；放量突破被闸门暂停（10-29 起，冷却中）。已下线 4 套只结算历史仓 |
 | 记账 | 每分钟记账正常；「赤轨日终」推送 2026-11-05 首次触发成功（stamp 去重一天一次） |

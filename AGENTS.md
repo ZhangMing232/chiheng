@@ -36,10 +36,10 @@
 
 - launchd 三件：`com.chiheng.serve`（网页 8787，KeepAlive）、`com.chiheng.tunnel`
   （对外 meanwhy.top）、`com.chiheng.backup`（23:30 全量快照）。
-- ⚠️ `com.chiheng.verdict` 是**幽灵 job**：plist 文件已被删，但 launchd 内存里还挂着，
-  每天 16:10 仍会跑一次 `daily-verdict.sh`。每日判决的正路是 `record-journal` 收盘封印
-  拉起 `scripts/auto-verdict.ts`（带当日 stamp 防重），16:10 那次是重复跑且重启后就没了。
-  别把这个 job 写成「在跑的服务」。手动刷判决用 `bash scripts/daily-verdict.sh`。
+- ⚠️ `com.chiheng.verdict` **已于 2026-11-06 bootout 卸载**：它原是个幽灵 job
+  （plist 已不存在、只剩 launchd 内存里挂着），每天 16:10 重复跑一次判决。
+  现在每日判决只走 `record-journal` 收盘封印 → `scripts/auto-verdict.ts`（15:08，
+  带当日 stamp 防重）。手动想立刻刷一次判决：`bash scripts/daily-verdict.sh`（壳留着）。
 - 重启 serve：`launchctl kickstart -k gui/$(id -u)/com.chiheng.serve`。
 - **探活用 `curl --noproxy '*'`，不要用 lsof**（本机无权限，必误报）；本机代理会把
   localhost 请求发出去返回假 502，必须绕。判断记账活着看 `data/recorder.json` 心跳，不看 HTTP。

@@ -153,10 +153,15 @@ for (const job of jobs) {
     const s = printed.match(/state = (running|not running)/);
     if (s) state = s[1];
   } catch { /* job 没加载就明写拿不到 */ }
-  const ghost = !hasPlist && exit !== "拿不到";
-  console.log(`  ${job.padEnd(24)} plist=${hasPlist ? "在" : "🔴 不在"} exit=${exit} state=${state}${ghost ? "  ← 幽灵 job（重启即消失，文档别写成在跑）" : ""}`);
+  const loaded = exit !== "拿不到";
+  let tag = "";
+  if (!loaded && !hasPlist && job === "com.chiheng.verdict") tag = "  ← ✅ 已卸载（11-06 拍板，预期状态）";
+  else if (!loaded && !hasPlist) tag = "  ← 未加载且无 plist（确认是否预期）";
+  else if (loaded && !hasPlist) tag = "  ← 🔴 幽灵 job（plist 不在但内存里还挂着）";
+  else if (hasPlist && !loaded) tag = "  ← ⚠️ 有 plist 但 job 没加载";
+  console.log(`  ${job.padEnd(24)} plist=${hasPlist ? "在" : "不在"} exit=${exit} state=${state}${tag}`);
 }
-console.log(`  每日判决正路：record-journal 收盘封印 → scripts/auto-verdict.ts（15:08，当日 stamp 防重）`);
-console.log(`  data/verdict.log 里的 16:10 记录来自 daily-verdict.sh（幽灵 job），属重复跑`);
+console.log(`  每日判决只走 record-journal 收盘封印 → auto-verdict.ts（15:08，当日 stamp 防重）`);
+console.log(`  verdict 的 16:10 重复跑已消除；data/verdict.log 留作手动刷判决的历史日志`);
 
 console.log("\n（只读体检结束：未写任何文件。四件大件的拍板选项见 design/REMAINING.md §12）");

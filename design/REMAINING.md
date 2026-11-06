@@ -409,12 +409,21 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 - `scripts/ops-check.mjs` 新增【6】定时任务验活：直接查 job + plist，
   幽灵 job 会标红。已实跑验证能揪出 verdict。
 
-**待拍板（我没动系统状态）**：
-1. 卸载幽灵 job：`launchctl bootout gui/$(id -u)/com.chiheng.verdict`。
-   好处是消掉每天一次重复全池回测；风险是这台机器建不了新 launchd job
-   （见 MEMORY / daily-verdict.sh 注释），卸了就装不回去——但正路本来就不靠它。
-   **我倾向卸载**，但需要你点头，因为这是改系统状态、不可逆。
-2. 或者留着不管：它重启后自然消失，期间只是多跑一遍回测，不影响账本。
-3. `data/rules.json` 缺失（走 `DEFAULT_RULES`）、`data/mail-config.json` 缺失
-   （日终邮件静默跳过并明写 reason）—— 都是**显式降级**不是占位绕过，
-   要补齐得你给规则参数和 SMTP 授权码，我不擅自造配置文件。
+**✅ 2026-11-06 14:03 用户拍板「卸载」，已执行**：
+`launchctl bootout gui/$(id -u)/com.chiheng.verdict` 退出码 0；
+之后 `launchctl print` 报 `Could not find service ... in domain for user gui: 501`，
+确认 job 真的没了；serve / tunnel / backup 三件的 `last exit code` 仍是 0，未受影响。
+从此每天只有 15:08 一次判决，不再白烧一遍 2646 只全池回测。
+
+**「没用的都删掉」也已执行，但只删了一个真没用的**：
+`~/Library/Logs/chiheng-verdict.log`（0 B 空 stdout）→ 移到
+`~/.Trash/chiheng-verdict.log.retired-20261106`（可恢复，没用 `rm`）。
+**保留并说明理由**：`data/verdict.log`（42 KB，`daily-verdict.sh` 仍用 `>>` 写，
+删了丢历史）、`scripts/daily-verdict.sh`（AGENTS.md 里的手动入口）、
+`data/books/*.bak-20261022` 与 `data/signals/tracking.json.bak-*`（备份，绝不碰）、
+`pe-failures.jsonl`（空但抓取器会追加）、`chiheng-launchd.log`（是 **serve** 的 stdout，
+serve 还在跑）、tunnel / backup 日志（对应 job 活着）。
+
+**仍待用户给参数（不擅自造配置）**：`data/rules.json` 缺失走 `DEFAULT_RULES`、
+`data/mail-config.json` 缺失日终邮件静默跳过并明写 reason——两者都是**显式降级**
+不是占位绕过，要补齐得给规则参数和 SMTP 授权码。
