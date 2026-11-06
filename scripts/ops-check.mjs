@@ -135,4 +135,28 @@ const timed = snaps.filter((n) => /-23(2[5-9]|3[0-5])$/.test(n));
 console.log(`  23:30 定时触发留下的快照（名字带 2330 左右）：${timed.length ? timed.join(", ") : "🔴 一份都没有 —— 定时任务从未成功触发过"}`);
 console.log(`  明早验活三件套：日志 ~/Library/Logs/chiheng-backup.log 有 23:30 新行 + 快照名带 2330 + last exit code=0`);
 
+// ── 6. 定时任务验活（2026-11-06：备份那个假阳性之后加的）──────
+// 只看「目录里有快照」或「last exit code=0」都会误报：前者可能是手动跑的，
+// 后者也可能是 kickstart。这里额外查 plist 文件在不在，把幽灵 job 揪出来。
+console.log("\n【6】定时任务（看 job + plist，别看目录）");
+const jobs = ["com.chiheng.serve", "com.chiheng.tunnel", "com.chiheng.verdict", "com.chiheng.backup"];
+const laDir = join(homedir(), "Library", "LaunchAgents");
+for (const job of jobs) {
+  const plist = join(laDir, `${job}.plist`);
+  const hasPlist = existsSync(plist);
+  let exit = "拿不到";
+  let state = "拿不到";
+  try {
+    const printed = execFileSync("launchctl", ["print", `gui/${process.getuid?.() ?? 501}/${job}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const m = printed.match(/last exit code\s*=\s*(\d+)/);
+    if (m) exit = m[1];
+    const s = printed.match(/state = (running|not running)/);
+    if (s) state = s[1];
+  } catch { /* job 没加载就明写拿不到 */ }
+  const ghost = !hasPlist && exit !== "拿不到";
+  console.log(`  ${job.padEnd(24)} plist=${hasPlist ? "在" : "🔴 不在"} exit=${exit} state=${state}${ghost ? "  ← 幽灵 job（重启即消失，文档别写成在跑）" : ""}`);
+}
+console.log(`  每日判决正路：record-journal 收盘封印 → scripts/auto-verdict.ts（15:08，当日 stamp 防重）`);
+console.log(`  data/verdict.log 里的 16:10 记录来自 daily-verdict.sh（幽灵 job），属重复跑`);
+
 console.log("\n（只读体检结束：未写任何文件。四件大件的拍板选项见 design/REMAINING.md §12）");

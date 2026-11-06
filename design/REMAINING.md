@@ -371,3 +371,50 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 **仍待拍板（我建议先不做）**：② 把分层接进每日判决（当年 DECISIONS #4 承诺的
 「注明含深扫 N 笔 / 按层拆归因」至今没落地，但这属于改判决口径）；
 ③ 暂停深扫等样本攒够（改策略行为）。
+
+---
+
+## 13. 定时任务真实存活状态（2026-11-06 13:5x 体检，接续备份假阳性）
+
+上次备份那条是「看目录里有快照就当任务活着」。用同一把尺子（**last exit code
++ plist 文件在不在 + 产物时间戳**）把四件全查了一遍，又揪出一个。
+
+| job | plist | exit | state | 判定 |
+|---|---|---|---|---|
+| `com.chiheng.serve` | 在 | 0 | running | 正常（8787 在跑） |
+| `com.chiheng.tunnel` | 在 | 0 | running | 正常（meanwhy.top） |
+| `com.chiheng.backup` | 在 | 0 | not running | 11-06 修好，今晚 23:30 首次真实定时触发 |
+| **`com.chiheng.verdict`** | **🔴 不在** | 0 | not running | **幽灵 job** |
+
+**`com.chiheng.verdict` 的真相**：
+- plist 文件 `~/Library/LaunchAgents/com.chiheng.verdict.plist` 已经不存在了
+  （目录里只剩 serve/tunnel/backup 三个），但 launchd 内存里还挂着这个 job，
+  每天 16:10 仍会跑 `scripts/daily-verdict.sh`。**机器一重启它就没了**。
+- 文档 `PROJECT.md` / `AGENTS.md` 原来都写「launchd 四件，verdict 每天 16:10
+  收盘判决」——又一个假阳性，已改成三件 + 幽灵 job 说明。
+- **每日判决的正路早就换过了**：`scripts/record-journal.ts` 收盘封印段拉起
+  `scripts/auto-verdict.ts`（带 `.auto-verdict-<date>.stamp` 当日防重），
+  `daily-verdict.sh` 头注释自己写明了「每日自动那条路已经不需要定时器了」。
+- 于是 **每天判决跑两次**：`data/backtest/auto-verdict.log` 15:08（正路）、
+  `data/verdict.log` 16:10（幽灵 job）。11-05 两份都在，退出码都是 0。
+  两次都跑全池回测（2646 只），是白烧一遍机器；结果因 stamp/去重没造成重复推送，
+  但日志会被写成两遍，事后复盘容易看错。
+- `~/Library/Logs/chiheng-verdict.log` 是 0 字节（脚本输出重定向到 `data/verdict.log`），
+  别拿这个空文件判断它没跑。
+
+**本轮已做（零风险）**：
+- `data/push-config.json` 权限 644 → **600**（同类 `ai-config` / `tushare-config` /
+  `harness/.credentials.yaml` 都是 600，就它松着）。
+- `PROJECT.md` / `AGENTS.md` 更正「四件在跑」的假阳性。
+- `scripts/ops-check.mjs` 新增【6】定时任务验活：直接查 job + plist，
+  幽灵 job 会标红。已实跑验证能揪出 verdict。
+
+**待拍板（我没动系统状态）**：
+1. 卸载幽灵 job：`launchctl bootout gui/$(id -u)/com.chiheng.verdict`。
+   好处是消掉每天一次重复全池回测；风险是这台机器建不了新 launchd job
+   （见 MEMORY / daily-verdict.sh 注释），卸了就装不回去——但正路本来就不靠它。
+   **我倾向卸载**，但需要你点头，因为这是改系统状态、不可逆。
+2. 或者留着不管：它重启后自然消失，期间只是多跑一遍回测，不影响账本。
+3. `data/rules.json` 缺失（走 `DEFAULT_RULES`）、`data/mail-config.json` 缺失
+   （日终邮件静默跳过并明写 reason）—— 都是**显式降级**不是占位绕过，
+   要补齐得你给规则参数和 SMTP 授权码，我不擅自造配置文件。
