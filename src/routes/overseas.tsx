@@ -91,8 +91,8 @@ function OverseasPage() {
         indices && indices.quotes.length > 0 ? (
           <span className="text-[11px] tabular-nums">
             {indices.quotes[0]!.name}
-            {/* 用 chg（涨跌幅）不用 price：指数点位要 ÷100 还原，写错就错 100 倍；
-                涨跌幅是现价和昨收算的比例，缩放无关（见 overseas-list.functions.ts 注释）。 */}
+            {/* 用 chg（涨跌幅）不用 price：涨跌幅始终是现价和昨收算的比例，
+                与点位的缩放口径无关（见 overseas-index-batch.ts 的口径纪律）。 */}
             {indices.quotes[0]!.chg != null
               ? ` ${indices.quotes[0]!.chg > 0 ? "+" : ""}${indices.quotes[0]!.chg.toFixed(2)}%`
               : " 涨跌未取到"}

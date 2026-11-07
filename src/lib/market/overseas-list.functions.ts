@@ -7,6 +7,8 @@
  * 1. **按需分页，不做全市场缓存**。港股 17429 + 美股 13854 = 3 万只，一次拉不完
  *    也没必要（实测接口都通：A 股是一次拉全市场 4606，港美走同一接口但只取一页）。
  * 2. **东财有风控**：串行 + 间隔查 fetch-policy（港美域在 eastmoney 名下）。
+ *    指数那块 2026-11-07 改成「一次批量 + 两次批量之间节流」，别在循环里逐个 sleep：
+ *    6 次 sleep×1300ms 实测把首页 SSR 拖到 9~24 秒才出首字节。
  * 3. 指数跨两个域（恒生/国企/道指/纳指/标普在 100，**恒生科技在 124**），
  *    这条实测踩过：按恒生系列的直觉写成 100.HSTECH 返回 null。
  * 4. 自选那几行是逐只拉的（串行限速），只拉 hk / us 前缀的，A 股自选不走这里。
@@ -26,6 +28,7 @@ import { readWatchlist } from "./watchlist.ts";
 import { secidOf } from "./providers/overseas.ts";
 import { parseQuote, type OverseasQuote } from "./providers/overseas.ts";
 import { currencyLabelOf } from "./markets.ts";
+import { OVERSEAS_INDICES, parseOverseasIndexBatch, type OverseasIndexQuote } from "@/lib/market/overseas-index-batch";
 
 const UA = "Mozilla/5.0";
 const LIST_URL = "https://push2.eastmoney.com/api/qt/clist/get";
@@ -33,10 +36,6 @@ const KLINE_URL = "https://push2.eastmoney.com/api/qt/stock/kline/get";
 
 /** 东财市场筛选串。港股 116；美股 105/106/107 是三个交易所。 */
 const FS: Record<OverseasMarket, string> = { hk: "m:116", us: "m:105,m:106,m:107" };
-
-function numOf(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
 
 async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, {
@@ -88,70 +87,33 @@ export const getOverseasList = createServerFn({ method: "GET" })
     };
   });
 
-/** 一批港美指数的行情。跨 100 和 124 两个域，逐个拉（串行限速）。 */
-export type IndexQuote = { id: string; name: string; price: number | null; chg: number | null; secid: string };
+/** 一批港美指数的行情：一次批量拉 6 个，解析与口径见 overseas-index-batch.ts。 */
+export type IndexQuote = OverseasIndexQuote;
+
+const INDEX_BATCH_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get";
+const INDEX_BATCH_FIELDS = "f2,f3,f12,f13,f14,f18";
 
 /**
- * 指数点位要 ÷100 还原。实测（2026-10-14）：道指 5167010 → 51670.10、
- * 纳指 2720438 → 27204.38、标普 780545 → 7805.45、恒生 2434522 → 24345.22，
- * 都是真实点位。东财没给指数的 decimal 标记（f59 是 null），所以写死 ÷100。
- *
- * 涨跌幅**不**用 f170（那也要 ÷100，错了就错 100 倍），改成用现价和昨收算比例——
- * 缩放无关，÷100 写错了也只是点位显示错，涨跌幅不会跟着错。
- *
- * 指数的 kline 接口（push2his/stock/kline）对 100/124 域返回 `klines: []`
- * （dktotal=0），所以指数只能拿现价+昨收，拿不到日内走势。要走势图得另找源。
+ * 指数改成批量后只剩「一次请求」，限速语义从「循环里每两个之间 sleep」变成
+ * 「两次批量之间至少隔 minGapMs」：模块级时间戳，防首页和 /overseas 并发打爆东财。
+ * 首次调用不等待——这是首页 SSR 从 9 秒降到毫秒级的关键。
  */
-const INDEX_SCALE = 100;
-
-const INDICES: { id: string; secid: string }[] = [
-  { id: "hsi", secid: "100.HSI" },
-  { id: "hscei", secid: "100.HSCEI" },
-  // 恒生科技在 124 域。按恒生系列的直觉写成 100.HSTECH 实测返回 null。
-  { id: "hstech", secid: "124.HSTECH" },
-  { id: "djia", secid: "100.DJIA" },
-  { id: "ndx", secid: "100.NDX" },
-  { id: "spx", secid: "100.SPX" },
-];
+let lastIndexBatchAt = 0;
+async function fetchIndexBatch(): Promise<unknown> {
+  const gap = rateLimitOf("eastmoney").minGapMs;
+  const wait = lastIndexBatchAt + gap - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastIndexBatchAt = Date.now();
+  const secids = OVERSEAS_INDICES.map((item) => item.secid).join(",");
+  return getJson(
+    `${INDEX_BATCH_URL}?secids=${secids}&ut=fa5fd1943c7b386f172d6893dbfba10b&fltt=2&invt=2&fields=${INDEX_BATCH_FIELDS}`,
+  );
+}
 
 export const getOverseasIndices = createServerFn({ method: "GET" }).handler(async (): Promise<{
   quotes: IndexQuote[];
   gaps: string[];
-}> => {
-  const gap = rateLimitOf("eastmoney").minGapMs;
-  const quotes: IndexQuote[] = [];
-  const gaps: string[] = [];
-  for (const item of INDICES) {
-    const url =
-      `https://push2.eastmoney.com/api/qt/stock/get?secid=${item.secid}` +
-      `&ut=fa5fd1943c7b386f172d6893dbfba10b&fields=f57,f58,f43,f60`;
-    const body = (await getJson(url)) as { data?: Record<string, unknown> } | null;
-    const data = body?.data ?? null;
-    const raw = numOf(data?.f43);
-    const prev = numOf(data?.f60);
-    const name = typeof data?.f58 === "string" ? data.f58 : item.id;
-    if (raw == null || prev == null) {
-      // 港股指数在非交易时段 f43 给 0（只有昨收）。这不是「没这只指数」，
-      // 是「现在没有新价格」——说清楚，别显示成 0 点位。
-      gaps.push(
-        prev != null && raw === 0
-          ? `${name} 这会儿没有新价格（只有昨收 ${(prev / INDEX_SCALE).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}，多半是休市）`
-          : `${name}（${item.secid}）没拉到`,
-      );
-      quotes.push({ id: item.id, name, price: prev != null ? prev / INDEX_SCALE : null, chg: null, secid: item.secid });
-    } else {
-      quotes.push({
-        id: item.id,
-        name,
-        price: raw / INDEX_SCALE,
-        chg: prev > 0 ? ((raw - prev) / prev) * 100 : null,
-        secid: item.secid,
-      });
-    }
-    await new Promise((r) => setTimeout(r, gap));
-  }
-  return { quotes, gaps };
-});
+}> => parseOverseasIndexBatch(await fetchIndexBatch()));
 
 export type WatchQuoteRow = OverseasQuote & { currency: string };
 
