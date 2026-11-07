@@ -76,6 +76,7 @@ async function main() {
     [
       "--headless=new",
       `--remote-debugging-port=${port}`,
+      "--no-sandbox",
       "--disable-gpu",
       // **必须绕代理**：本机 shell 里有 HTTP_PROXY（ agent 环境注入的），Chrome 会
       // 继承它，于是访问 localhost:8787 全被送去代理、拿到假 502——smoke 就永远
