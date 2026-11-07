@@ -3,14 +3,16 @@
  * 「设置与状态」页——回答三个问题：系统现在什么状态、配置现在是什么值、哪些数据旧了怎么补。
  *
  * 对标 Vibe-Research 的设置收拢（它的配置散在多处，这页把它们收到一处）。
- * 但**这一页不做设置表单**：改规则在策略选股页、改 AI 档案在 /ai。这里只读展示。
+ * 例外（2026-11-07）：**每日复盘邮件在这页有真表单**。让人打开 data/ 手改
+ * JSON 不是产品该有的样子——表单 POST 到服务端写盘，授权码只进不出、只回尾号。
+ * 其余配置仍是只读展示（改选股规则在策略页、改 AI 档案在 /ai、推送在铃铛里）。
  * 摆一堆跳转链接看着整齐，实际什么也没回答。
  *
  * 你需要知道的：
  * 1. **「必需项没有」和「过期」分开说**。前者是真问题（页面开不了、记账不发生），
  *    后者只是该重抓。原因不同，混成一句「数据有问题」会让人查错方向。
  * 2. **每份数据都写着怎么补**（真命令，不是「联系管理员」）。
- * 3. 配置值只读，每项标「在哪儿改」，别让人以为在这儿改了能存。
+ * 3. 除邮件配置外，配置值只读，每项标「在哪儿改」，别让人以为在这儿改了能存。
  * 4. 这一页不给买卖建议，也不预测——它只是把现状摆出来。
  */
 
@@ -18,13 +20,23 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Stat, Tag, thClass, tdClass } from "@/components/terminal";
 import { GapList } from "@/components/source-line";
+import { MailConfigCard } from "@/components/mail-config-card";
 import { getSettings } from "@/lib/market/settings.functions";
+import { getMailStatus } from "@/lib/market/mail.functions";
 import { sourceLabel } from "@/lib/market/data-status";
 import { snapshotAge } from "@/lib/market/format";
 import type { Universe } from "@/lib/market/types";
 
 export const Route = createFileRoute("/settings")({
-  loader: () => getSettings().catch(() => null),
+  loader: async () => {
+    // 邮件配置状态一起在 loader 里取：SSR 首屏直接出表单，不闪「读不出来」，
+    // 也和 loader 数据一起序列化（hydration 两边一致，不触发 #418）。
+    const [settings, mail] = await Promise.all([
+      getSettings().catch(() => null),
+      getMailStatus().catch(() => null),
+    ]);
+    return settings ? { ...settings, mail } : null;
+  },
   component: SettingsPage,
 });
 
@@ -41,7 +53,7 @@ function SettingsPage() {
     );
   }
 
-  const { recorder, universe, files, missing, config, gaps } = data;
+  const { recorder, universe, files, missing, config, gaps, mail } = data;
   const beat = recorder.at ? snapshotAge(recorder.at) : null;
   const stale = files.filter((f) => f.state === "stale");
 
@@ -78,6 +90,9 @@ function SettingsPage() {
         </div>
         {gaps.length > 0 ? <GapList items={gaps} title="现在的问题" /> : null}
       </Panel>
+
+      {/* 唯一的设置表单：网页填完由服务端写盘，不用去 data/ 手改 JSON。 */}
+      <MailConfigCard initial={mail} />
 
       <Panel title="配置现状" note="只读展示，改的地方都标了">
         <table className="data-table w-full">
@@ -118,7 +133,7 @@ function SettingsPage() {
           </tbody>
         </table>
         <p className="px-3.5 py-2 text-[11px] text-muted">
-          这一页只读。要改值去它右边写的那一页改——在这儿改不会存。
+          除上面的「每日复盘邮件」外，这里都是只读展示；要改值去它右边写的那一页，在这儿改不会存。
         </p>
       </Panel>
 

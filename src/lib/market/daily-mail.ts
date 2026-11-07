@@ -7,8 +7,10 @@
  *
  * 你需要知道的：
  * - 配置在 data/mail-config.json（不进 git）：{host, port, secure, auth:{user,pass},
- *   to:[...], from?}。QQ/163 都是 465 TLS 直连 + 授权码登录（授权码不是密码）。
- *   没配 = 静默跳过。邮件和推送一样是锦上添花，绝不能因为它把记账进程带崩。
+ *   to:[...], from?}。**网页入口在 /settings 的「每日复盘邮件」卡片**（mail.functions.ts
+ *   由服务端写盘，不用手改文件）；本文件只读。QQ/163 都是 465 TLS 直连 +
+ *   授权码登录（授权码不是密码）。没配 = 静默跳过。邮件和推送一样是锦上添花，
+ *   绝不能因为它把记账进程带崩。
  * - best-effort：发送失败只返回原因让调用方记日志，不抛。
  * - 拿不到的数据显式说「没跑/读不到」，不拿 0 顶替「不知道」（本项目第一条规矩）。
  * - 多用户说明：挑战者/因子队列/诊断都是全局文件（data/ 根下），样本数只算
@@ -17,7 +19,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mailConfigPath } from "./mail-config-store.ts";
 import { readAgentDiagnosis } from "./agent-loop.ts";
 import {
   bucketReturns,
@@ -34,11 +36,6 @@ import { sendMail, type SmtpConfig } from "./smtp.ts";
 
 export type MailConfig = SmtpConfig & { to: string[]; from?: string };
 
-/** 数据目录：和 challenger/ai-log/factor-queue 一个约定（测试靠它指到临时目录）。 */
-function dataDir(): string {
-  return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
-}
-
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
@@ -50,7 +47,7 @@ function num(v: unknown): number | null {
 /** 读邮件配置；缺项/文件不在都返回 null（调用方静默跳过）。 */
 export async function readMailConfig(): Promise<MailConfig | null> {
   try {
-    const parsed = JSON.parse(await readFile(join(dataDir(), "mail-config.json"), "utf8")) as Record<string, unknown>;
+    const parsed = JSON.parse(await readFile(mailConfigPath(), "utf8")) as Record<string, unknown>;
     const host = str(parsed.host);
     const port = num(parsed.port);
     const auth = (parsed.auth ?? {}) as Record<string, unknown>;
