@@ -12,7 +12,8 @@
  * 你需要知道的：
  * 1. **「必需项没有」和「过期」分开说**。前者是真问题（页面开不了、记账不发生），
  *    后者只是该重抓。原因不同，混成一句「数据有问题」会让人查错方向。
- * 2. **每份数据都写着怎么补**（真命令，不是「联系管理员」）。
+ * 2. 每份数据都写清它是干什么用的、要不要紧；手动重抓命令收在「给开发者」
+ *    折叠里，不摆在普通用户眼前（2026-11-07 用户视角走查）。
  * 3. 除邮件配置外，配置值只读，每项标「在哪儿改」，别让人以为在这儿改了能存。
  * 4. 这一页不给买卖建议，也不预测——它只是把现状摆出来。
  */
@@ -25,7 +26,7 @@ import { MailConfigCard } from "@/components/mail-config-card";
 import { getSettings } from "@/lib/market/settings.functions";
 import { getMailStatus } from "@/lib/market/mail.functions";
 import { sourceLabel } from "@/lib/market/data-status";
-import { snapshotAge } from "@/lib/market/format";
+import { snapshotAgeSince } from "@/lib/market/format";
 import type { Universe } from "@/lib/market/types";
 
 export const Route = createFileRoute("/settings")({
@@ -36,7 +37,9 @@ export const Route = createFileRoute("/settings")({
       getSettings().catch(() => null),
       getMailStatus().catch(() => null),
     ]);
-    return settings ? { ...settings, mail } : null;
+    // serverNow 随数据序列化：「上次记账多久前」在 SSR 与 hydration 用同一时刻，
+    // 既不会因时刻差触发 #418，也不会再把时间戳误当成差值。
+    return settings ? { ...settings, mail, serverNow: Date.now() } : null;
   },
   component: SettingsPage,
 });
@@ -54,8 +57,8 @@ function SettingsPage() {
     );
   }
 
-  const { recorder, universe, files, missing, config, gaps, mail } = data;
-  const beat = recorder.at ? snapshotAge(recorder.at) : null;
+  const { recorder, universe, files, missing, config, gaps, mail, serverNow } = data;
+  const beat = snapshotAgeSince(recorder.at, serverNow);
   const stale = files.filter((f) => f.state === "stale");
 
   return (
@@ -66,13 +69,14 @@ function SettingsPage() {
         // **真实数据**：files 里各数据源的状态。missing 是缺失的、
         // stale 是过期的——两个都是"不健康"，所以分开报。
         value: files.length > 0 ? `${files.length - stale.length} / ${files.length} 正常` : null,
-        tone: stale.length > 0 || missing.length > 0 ? "warn" : "ok",
+        // 周末休市导致的「待更新」是常态，不该用告警色制造焦虑；缺必需项才是真问题。
+        tone: missing.length > 0 ? "warn" : "ok",
       }}
       ornamentContent={
         missing.length > 0 ? (
           <span className="text-[11px] text-warn">缺 {missing.length} 项数据源</span>
         ) : stale.length > 0 ? (
-          <span className="text-[11px] text-warn">{stale.length} 项已过期</span>
+          <span className="text-[11px] text-muted">{stale.length} 项待更新（不影响看盘）</span>
         ) : (
           <span className="text-[11px]">所有数据源都是新的</span>
         )
@@ -96,7 +100,8 @@ function SettingsPage() {
       </Panel>
 
       <Panel title="配置现状" note="只读展示，改的地方都标了">
-        <table className="data-table w-full">
+        <div className="overflow-x-auto scroll-slim">
+        <table className="data-table w-full min-w-[520px]">
           <caption className="sr-only">当前配置值与修改入口</caption>
           <thead>
             <tr className="border-b border-line">
@@ -133,44 +138,59 @@ function SettingsPage() {
             </tr>
           </tbody>
         </table>
+        </div>
         <p className="px-3.5 py-2 text-[11px] text-muted">
           除上面的「每日复盘日报」外，这里都是只读展示；要改值去它右边写的那一页，在这儿改不会存。
         </p>
       </Panel>
 
-      <Panel title="数据新鲜度" note={`${files.length} 份 · 过期 ${stale.length} · 缺 ${missing.length}`}>
-        <table className="data-table w-full">
-          <caption className="sr-only">本机数据文件的大小、最后更新时间和怎么补</caption>
-          <thead>
-            <tr className="border-b border-line">
-              <th className={thClass("text-left")}>数据</th>
-              <th className={thClass()}>大小</th>
-              <th className={thClass("text-left")}>状态</th>
-              <th className={thClass("text-left")}>怎么补</th>
-            </tr>
-          </thead>
-          <tbody>
-            {files.map((f) => (
-              <tr key={f.label} className="border-b border-line/60">
-                <td className={tdClass("text-left")}>
-                  <span className="text-fg">{f.label}</span>
-                  {f.required ? <span className="ml-1.5 text-[11px] text-muted">必需</span> : null}
-                </td>
-                <td className={tdClass("text-right text-muted")}>{f.sizeKb == null ? "—" : `${f.sizeKb} KB`}</td>
-                <td className={tdClass("text-left")}>
-                  <Tag tone={f.state === "ok" ? "muted" : f.state === "na" ? "muted" : "warn"}>{f.note}</Tag>
-                </td>
-                <td className={tdClass("text-left text-muted")}>
-                  <code className="text-[11px]">{f.refresh}</code>
-                </td>
+      <Panel title="数据新鲜度" note={`${files.length} 份 · 待更新 ${stale.length} · 缺 ${missing.length}`}>
+        <div className="overflow-x-auto scroll-slim">
+          <table className="data-table w-full min-w-[600px]">
+            <caption className="sr-only">本机数据的大小、最后更新时间和用途</caption>
+            <thead>
+              <tr className="border-b border-line">
+                <th className={thClass("text-left")}>数据</th>
+                <th className={thClass()}>大小</th>
+                <th className={thClass("text-left")}>状态</th>
+                <th className={thClass("text-left")}>说明</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="px-3.5 py-2 text-[11px] text-muted">
-          「没抓过」和「过期」不是一回事：前者是某份数据压根没跑过脚本，后者是跑过但太旧了。
-          必需项没有会真出不来东西（页面开不了、记账不发生），其余的只影响相关页面。
+            </thead>
+            <tbody>
+              {files.map((f) => (
+                <tr key={f.label} className="border-b border-line/60">
+                  <td className={tdClass("text-left")}>
+                    <span className="text-fg">{f.label}</span>
+                    {f.required ? <span className="ml-1.5 text-[11px] text-muted">必需</span> : null}
+                  </td>
+                  <td className={tdClass("text-right text-muted")}>{f.sizeKb == null ? "—" : `${f.sizeKb} KB`}</td>
+                  <td className={tdClass("text-left")}>
+                    <Tag tone={f.state === "ok" ? "muted" : f.state === "na" ? "muted" : "warn"}>{f.note}</Tag>
+                  </td>
+                  <td className={tdClass("text-left text-muted")}>
+                    <span className="text-[11px] leading-snug">{f.refresh}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="px-3.5 py-2 text-[11px] leading-relaxed text-muted">
+          「没抓过」和「待更新」不是一回事：前者压根没生成过，后者是生成过但旧了。
+          <span className="text-fg">标「待更新」多半是周末休市或后台任务还没轮到，不影响今天看盘</span>；
+          必需项都在就行（缺必需项页面会真的开不了）。真要手动重抓，命令收在最下面的「给开发者」里，平时不用管。
         </p>
+        <details className="border-t border-line/60 px-3.5 py-2 text-[11px] text-muted">
+          <summary className="cursor-pointer select-none">给开发者：手动重抓命令</summary>
+          <ul className="mt-2 space-y-1.5">
+            {files.filter((f) => f.command).map((f) => (
+              <li key={f.label}>
+                <span className="text-fg">{f.label}</span>
+                <code className="ml-2 break-all">{f.command}</code>
+              </li>
+            ))}
+          </ul>
+        </details>
       </Panel>
     </Frame>
   );

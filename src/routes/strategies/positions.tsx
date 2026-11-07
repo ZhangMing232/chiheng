@@ -301,7 +301,7 @@ function ChallengerPanel({
       {alive.length > 0 ? (
         <ul className="space-y-1">{alive.map(renderRow)}</ul>
       ) : (
-        <p className="text-xs text-muted">还没有在跑的挑战者。AI 可以读策略闸和判决记录后提名，也可以手工编辑 data/challengers.json。</p>
+        <p className="text-xs text-muted">还没有在跑的挑战者，这一块暂时是空的。等自动进化或手动跑一轮完整进化后，这里会列出新的候选。</p>
       )}
       {dead.length > 0 ? (
         <CollapsibleSection

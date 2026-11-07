@@ -51,10 +51,7 @@ function FactorFlowPage() {
             <StateBlock
               kind="empty"
               title="资金流探路还没跑"
-              hint={
-                "两步：先 node scripts/build-flow.mjs 拉 300 只票的资金流缓存（约 10 分钟），" +
-                "再 for N in 5 10 20; do BT_FLOW=1 BT_N=$N node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts; done"
-              }
+              hint="这份分析要用到资金流缓存，以及 5 / 10 / 20 日窗口的回测结果，目前都还没生成。数据准备好后，这里会自动出现对比图。"
             />
           </div>
         )}

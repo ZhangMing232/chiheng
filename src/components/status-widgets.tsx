@@ -38,7 +38,7 @@ export function StatusBadge({ snapshot, compact = false }: { snapshot: StatusSna
       title={describeSnapshot(snapshot)}
     >
       <span aria-hidden className="leading-none">{meta.icon}</span>
-      <span>{snapshot.label}</span>
+      <span className="whitespace-nowrap">{snapshot.label}</span>
       {snapshot.latencySeconds != null && !compact ? <span className="tabular-nums opacity-80">{formatLatency(snapshot.latencySeconds)}</span> : null}
     </span>
   );

@@ -425,7 +425,7 @@ function AIConsolePage() {
       <Section
         id="rule-changes"
         title="待确认规则变更（优化闭环）"
-        hint="混合审批：纸面参数类规则（提前否决时间盒）优化循环自动生效并留审计；核心判决阈值（起判笔数 / Welch t / 淘汰线）只进这里，你点「批准」才写进 data/challenger-rule.json。"
+        hint="混合审批：纸面参数类规则（提前否决时间盒）优化循环自动生效并留审计；核心判决阈值（起判笔数 / Welch t / 淘汰线）只进这里，你点「批准」才会写进判决规则。"
       >
         <div className="px-3.5 py-3">
           {pending === 0 ? (

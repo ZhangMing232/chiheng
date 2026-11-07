@@ -71,6 +71,17 @@ export function snapshotAge(ms: number): string {
 }
 
 /**
+ * 绝对时间戳 → 「多久之前」。和 snapshotAge 的区别：这里传**时间戳**，函数自己算差值。
+ * 2026-11-07 /settings 曾把 recorder.at 直接塞给 snapshotAge(ms)，算出
+ * 「498351 小时前」（约 57 年）。UI 一律用这个函数，别再自己减错。
+ * now 必须由 loader / queryFn 下发（SSR 与 hydration 共用同一时刻），不许在 render 里取。
+ */
+export function snapshotAgeSince(at: number | null | undefined, now: number): string | null {
+  if (at == null || !Number.isFinite(at)) return null;
+  return snapshotAge(now - at);
+}
+
+/**
  * 金额（元）。带千分位，超过一万时缩写成「万」，中文盯盘习惯。
  * 超过一亿缩写成「亿」。小数位给的是「万元」口径下的两位——调用方自己决定传什么。
  */

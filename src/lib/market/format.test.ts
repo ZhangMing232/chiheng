@@ -12,7 +12,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fmtMoney, snapshotAge } from "@/lib/market/format";
+import { fmtMoney, snapshotAge, snapshotAgeSince } from "@/lib/market/format";
 
 test("快照多久了，说法要跟得上", () => {
   assert.equal(snapshotAge(2_000), "刚刚");
@@ -23,6 +23,18 @@ test("快照多久了，说法要跟得上", () => {
 
 test("系统时间往回跳时不能说出负数", () => {
   assert.equal(snapshotAge(-5_000), "刚刚");
+});
+
+test("🔴 时间戳要自己减：/settings 曾把时间戳当差值，显示「498351 小时前」", () => {
+  const now = Date.parse("2026-11-07T23:03:21+08:00");
+  const at = Date.parse("2026-11-07T23:03:10+08:00");
+  assert.equal(snapshotAgeSince(at, now), "11 秒前");
+  assert.equal(snapshotAgeSince(now - 2_000, now), "刚刚");
+  assert.equal(snapshotAgeSince(now - 5 * 60_000, now), "5 分钟前");
+  assert.equal(snapshotAgeSince(null, now), null);
+  assert.equal(snapshotAgeSince(Number.NaN, now), null);
+  // 反证：直接把绝对时间戳塞给 snapshotAge(ms) 会得到荒谬的大数——旧 bug 的样子
+  assert.match(snapshotAge(at), /\d{5,} 小时前/);
 });
 
 test("金额要能一眼看出量级", () => {

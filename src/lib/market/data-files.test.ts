@@ -65,15 +65,23 @@ test("必需项缺失能单独挑出来（那是真问题，不只是过期）",
   assert.deepEqual(missing.map((m) => m.label), ["自动记账"]);
 });
 
-test("每份文件都写了怎么补（refresh 不能空）", () => {
-  for (const f of DATA_FILES) assert.ok(f.refresh.length > 5, `${f.path} 没写怎么补`);
+test("每份文件都写了给人看的说明（refresh 不能空）", () => {
+  for (const f of DATA_FILES) assert.ok(f.refresh.length > 5, `${f.path} 没写说明`);
 });
 
-test("refresh 点名的脚本必须真实存在——指向不存在的脚本等于假补救", () => {
+test("🔴 给人看的说明里不许再出现命令行或 data/ 路径", () => {
+  // 2026-11-07 用户视角走查：设置页整列都在教人开终端跑脚本，跟「打开配置文件夹」
+  // 是同一个毛病。命令挪到 command 字段、页面收进折叠，这里钉住不许爬回来。
+  for (const f of DATA_FILES) {
+    assert.ok(!/scripts\/|python3 |npm run |data\//.test(f.refresh), `${f.path} 的说明里又有工程命令：${f.refresh}`);
+  }
+});
+
+test("command 点名的脚本必须真实存在——指向不存在的脚本等于假补救", () => {
   // 2026-10-24 踩过：cap.json 的补救命令写着 build-floatcap.mjs，而那个脚本并不建
   // cap.json（它只建 floatcap.json），于是 cap.json 静默腐烂 19 天没人知道该跑什么。
   for (const f of DATA_FILES) {
-    for (const m of f.refresh.matchAll(/scripts\/[\w.-]+\.(?:mjs|ts|py)/g)) {
+    for (const m of (f.command ?? "").matchAll(/scripts\/[\w.-]+\.(?:mjs|ts|py)/g)) {
       assert.ok(existsSync(join(process.cwd(), m[0])), `${f.path} 的补救命令指向不存在的脚本：${m[0]}`);
     }
   }

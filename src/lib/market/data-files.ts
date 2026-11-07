@@ -24,8 +24,10 @@ export type FileFact = {
   label: string;
   /** 这个文件多久算新鲜（缓存键）；null = 不看新鲜度（自动记账那种） */
   ttlKey: Parameters<typeof ttlOf>[0] | null;
-  /** 怎么补（命令）。文件没抓过时显示这个 */
+  /** 给人看的一句话：这份数据干什么用、要不要紧。**不许放命令行或文件路径** */
   refresh: string;
+  /** 给开发者的手动重抓命令。页面收在折叠里，普通用户看不到 */
+  command?: string;
   /** 是否必须有（false = 有就赚，没有也能用） */
   required: boolean;
 };
@@ -41,6 +43,8 @@ export type Freshness = {
   /** 人话说明。页面直接显示它，不要自己再编一句 */
   note: string;
   refresh: string;
+  /** 给开发者的手动重抓命令；null = 这份不需要（或没有）命令 */
+  command: string | null;
   required: boolean;
 };
 
@@ -64,14 +68,16 @@ export const DATA_FILES: FileFact[] = [
     path: "data/backtest/cap.json",
     label: "总市值快照",
     ttlKey: "cap",
-    refresh: "node scripts/build-caps.mjs（不联网，读本地行情缓存）",
+    refresh: "市值快照，回测算换手率要用。由后台脚本生成",
+    command: "node scripts/build-caps.mjs",
     required: true,
   },
   {
     path: "data/backtest/floatcap.json",
     label: "流通市值快照",
     ttlKey: "cap",
-    refresh: "node scripts/build-caps.mjs（不联网，读本地行情缓存）",
+    refresh: "流通市值快照，放量突破的换手率闸要用。由后台脚本生成",
+    command: "node scripts/build-caps.mjs",
     // 缺了不挡页面，但回测的换手率闸会整个不生效（放量突破结果偏宽松）——
     // 所以是「有就赚」而不是「无所谓」：审计 A6 会盯它的年龄。
     required: false,
@@ -80,35 +86,40 @@ export const DATA_FILES: FileFact[] = [
     path: "data/backtest/fundamentals.json",
     label: "财报基本面库",
     ttlKey: "fundamentals",
-    refresh: "python3 scripts/fetch-fundamentals.py",
+    refresh: "财报数据，估值类策略要用。由后台抓取任务生成",
+    command: "python3 scripts/fetch-fundamentals.py",
     required: false,
   },
   {
     path: "data/backtest/industry.json",
     label: "行业分类（东财三级）",
     ttlKey: "industry",
-    refresh: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/fetch-industry.mjs",
+    refresh: "行业分类，板块归属要用。由后台抓取任务生成",
+    command: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/fetch-industry.mjs",
     required: false,
   },
   {
     path: "data/backtest/industry-monthly.json",
     label: "行业月度温度计",
     ttlKey: "industryMonthly",
-    refresh: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/fetch-industry-monthly.mjs",
+    refresh: "行业月度温度计，行业轮动要用。由后台抓取任务生成",
+    command: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/fetch-industry-monthly.mjs",
     required: false,
   },
   {
     path: "data/backtest/tdx-daily",
     label: "通达信盘后包（全市场日线）",
     ttlKey: "tdxDaily",
-    refresh: "python3 scripts/fetch-tdx-package.py（收盘后数小时才有当天的包）",
+    refresh: "全市场日线，回测 K 线要用。收盘后由盘后包生成",
+    command: "python3 scripts/fetch-tdx-package.py",
     required: false,
   },
   {
     path: "data/backtest/runs.jsonl",
     label: "回测运行记录",
     ttlKey: null,
-    refresh: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts",
+    refresh: "回测运行记录，跑过回测就有",
+    command: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts",
     required: false,
   },
   {
@@ -125,7 +136,7 @@ export type Facts = Record<string, { size: number; mtime: number } | null>;
 /** 判一份文件的新鲜度。事实表按 path 索引，缺的当「没这个文件」。 */
 export function freshnessOf(fact: FileFact, facts: Facts, now = Date.now()): Freshness {
   const hit = facts[fact.path] ?? null;
-  const base = { label: fact.label, refresh: fact.refresh, required: fact.required };
+  const base = { label: fact.label, refresh: fact.refresh, command: fact.command ?? null, required: fact.required };
   if (!hit) {
     return {
       ...base,

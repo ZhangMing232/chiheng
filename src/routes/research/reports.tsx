@@ -187,7 +187,7 @@ function ReportsPage() {
           {!cmp ? (
             <div className="px-3 py-6 text-center text-sm text-muted">正在读两份原文…</div>
           ) : !cmp.base || !cmp.next ? (
-            <StateBlock kind="error" title="有一份报告读不到" hint="文件可能被手动删了。对比需要两份原文都在。" />
+            <StateBlock kind="error" title="有一份报告读不到" hint="两份原文要都在才能对比，其中一份现在读不到。重新生成一份报告后就能比。" />
           ) : (
             (() => {
               // 旧 → 新：按生成时间排，不按勾选顺序
@@ -207,7 +207,7 @@ function ReportsPage() {
           ) : opened?.md ? (
             <pre className="max-h-[32rem] overflow-auto scroll-slim px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">{opened.md}</pre>
           ) : (
-            <StateBlock kind="error" title="这份报告读不到" hint="文件可能被手动删了，或者这台机器不是当初存它的那台（data 目录不进 git）。" />
+            <StateBlock kind="error" title="这份报告读不到" hint="报告原文读不到了，可能已被删除，或是在另一台机器上生成的。重新生成一份即可。" />
           )}
         </Panel>
       ) : null}
@@ -304,7 +304,7 @@ function DocLibraryPanel({ library }: { library: Awaited<ReturnType<typeof getDo
         <StateBlock
           kind="empty"
           title="还没有摄入任何文档"
-          hint="跑一次 python3 scripts/ingest-doc.py <路径>（支持 PDF / docx / md / txt / json）。PDF 用 pypdf 解析，扫描件抽不出字会直接报错不入库。"
+          hint="还没有导入过文档，所以这里搜不到原文。支持 PDF / Word / Markdown / 文本；文档导入后就能全文搜索、也拿来和研判报告做对比。导入方式见页面下方的「给开发者」。"
         />
       ) : (
         <>
@@ -374,11 +374,17 @@ function DocLibraryPanel({ library }: { library: Awaited<ReturnType<typeof getDo
             </p>
           ) : null}
 
-          <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
-            摄入脚本：<code>python3 scripts/ingest-doc.py &lt;路径&gt;</code>。PDF 用 pypdf（纯 Python，
-            arm64 能装）；.docx 是 zip+XML 同样零依赖手写解析，老式 .doc 读不了。
-            <strong>扫描件（图片版 PDF）抽不出字会直接报错不入库</strong>——那需要 OCR。
+          <p className="border-t border-line px-3.5 py-2 text-[11px] leading-relaxed text-muted">
+            文档存在本机，换一台机器不会跟过来。PDF 和 Word 都能解析；
+            <strong>扫描件（图片版 PDF）抽不出字，需要 OCR，不会入库</strong>。
           </p>
+          <details className="border-t border-line/60 px-3.5 py-2 text-[11px] text-muted">
+            <summary className="cursor-pointer select-none">给开发者：导入文档的命令</summary>
+            <p className="mt-2 leading-relaxed">
+              <code className="break-all">python3 scripts/ingest-doc.py &lt;路径&gt;</code>（支持 PDF / docx / md / txt / json）。
+              PDF 用 pypdf；.docx 是 zip+XML 零依赖解析，老式 .doc 读不了。
+            </p>
+          </details>
         </>
       )}
     </Panel>

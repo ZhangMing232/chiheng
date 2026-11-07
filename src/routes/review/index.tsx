@@ -456,7 +456,7 @@ function SocialFinancingPanel({ social }: { social: Awaited<ReturnType<typeof ge
   if (!social?.file) {
     return (
       <Panel title="社会融资规模（社融）" note="没数据">
-        <StateBlock kind="empty" title="社融还没抓过" hint={social?.why ?? "跑一次 python3 scripts/fetch-social-financing.py"} />
+        <StateBlock kind="empty" title="社融还没抓过" hint={social?.why ?? "社融数据还没生成，抓到后这里会显示曲线和同比。"} />
       </Panel>
     );
   }

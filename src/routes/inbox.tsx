@@ -106,12 +106,12 @@ function InboxPage() {
               markRead(rows[0]?.id ?? "");
               setMark(rows[0]?.id ?? "");
             }}
-            className="rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg disabled:opacity-40"
+            className="shrink-0 whitespace-nowrap rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg disabled:opacity-40"
             disabled={rows.length === 0}
           >
             全部标为已读
           </button>
-          <span className="text-[11px] text-muted">
+          <span className="min-w-0 flex-1 text-[11px] leading-snug text-muted">
             只在服务运行时更新：电脑关机、服务没开就不会有新提醒；行情拉不到的那天会收到「没跑成」说明，不会收到猜的告警。
           </span>
         </div>
@@ -120,7 +120,7 @@ function InboxPage() {
           <StateBlock
             kind="empty"
             title="收件箱还是空的"
-            hint="把股票加进自选（自选与持仓页）并跑过一次个股研判，收盘后记账进程会自动核对上次的预警——应验了就进来。数据在 data/alerts.json，不在 git 里。"
+            hint="把股票加进自选（自选与持仓页）并跑过一次个股研判，收盘后服务会自动核对上次的预警——应验了就进来。服务没开的时候不会有新提醒。"
           />
         ) : (
           <table className="data-table w-full">
