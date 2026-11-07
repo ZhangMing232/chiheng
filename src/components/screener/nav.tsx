@@ -38,6 +38,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
+import { getMailStatus } from "@/lib/market/mail.functions";
+import { MailConfigCard } from "@/components/mail-config-card";
 import { getAlerts } from "@/lib/market/alerts.functions";
 import { FreshnessBar } from "@/components/status-widgets";
 import type { StatusSnapshot } from "@/lib/ui/app-status";
@@ -833,7 +835,11 @@ function PushConfig() {
  * alerts），**各用各的已读水位，和铃铛红点、侧栏红点、inbox 页四处计数一致**。
  * Toast（新提醒 8 秒自动消失）原样保留。
  * 空态规则：没有未读时「全部标为已读」禁用并给下一步动作（参考实现 §5 的要求）。
- * PushConfig（微信推送配置）挪进抽屉底部的「通知设置」——低频配置不占顶栏。
+ * **默认停在「未读」tab（2026-11-07）**：以前默认「全部」，已读完的历史一直摊在
+ * 抽屉里，看着像没清掉。现在点铃铛先看要处理的，历史点「全部」或空态里的按钮还能查，
+ * 一条都没删。
+ * PushConfig（微信推送）和 MailConfigCard（每日复盘邮件）都在抽屉底部「通知设置」：
+ * 低频配置不占顶栏，而且用户本来就在通知这儿找配置。
  */
 function AlertBell() {
   const navigate = useNavigate();
@@ -848,7 +854,14 @@ function AlertBell() {
   const [toast, setToast] = useState<(typeof alerts)[number] | null>(null);
   const toastedKeyRef = useRef<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"all" | "unread" | "sell" | "inbox">("all");
+  // 默认只看未读：已读完的历史不该一直摊在抽屉里（想看历史点「全部」）。
+  const [tab, setTab] = useState<"all" | "unread" | "sell" | "inbox">("unread");
+  // 抽屉里的邮件配置标题要显示「已配置/未配置」，和 /settings 卡片共用同一份查询缓存。
+  const mailQuery = useQuery({
+    queryKey: ["mail-status"],
+    queryFn: () => getMailStatus(),
+    enabled: open,
+  });
 
   // 系统提醒（/inbox 的 alerts）：打开抽屉才拉，60s 轮询。
   const inboxQuery = useQuery({
@@ -1042,6 +1055,13 @@ function AlertBell() {
                 <div className="px-3 py-6 text-center text-sm text-muted">
                   没有未读提醒
                   <p className="mt-1 text-xs">卖出提醒和系统提醒都会在这里聚齐；下次触发会自动亮红点。</p>
+                  <button
+                    type="button"
+                    onClick={() => setTab("all")}
+                    className="mt-3 rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg"
+                  >
+                    查看全部历史 →
+                  </button>
                 </div>
               ) : (
                 <>
@@ -1081,6 +1101,15 @@ function AlertBell() {
             <div className="mt-2 border-t border-line/60 pt-2">
               <p className="mb-1 text-[10px] tracking-widest text-muted">通知设置</p>
               <PushConfig />
+              {/* 邮件配置和微信推送放一起：用户本来就在通知抽屉里找配置，不用再跳 /settings */}
+              <details className="mt-2 border-t border-line/60 pt-2">
+                <summary className="cursor-pointer text-[11px] text-muted hover:text-fg">
+                  每日复盘邮件 · {mailQuery.data?.allowed && mailQuery.data.configured ? "已配置" : "未配置"}
+                </summary>
+                <div className="mt-2">
+                  <MailConfigCard initial={null} />
+                </div>
+              </details>
             </div>
           </div>
         </aside>

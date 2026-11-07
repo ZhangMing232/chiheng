@@ -77,6 +77,9 @@ function SettingsPage() {
         )
       }
     >
+      {/* 唯一的设置表单，放最上面：来找配置的人第一眼就该看见，不用往下翻 */}
+      <MailConfigCard initial={mail} />
+
       <Panel title="系统状态" note={beat ? `上次记账 ${beat}` : "没有心跳"}>
         <div className="grid grid-cols-2 gap-3 px-3.5 py-3 sm:grid-cols-4">
           <Stat label="记账进程" value={recorder.ok ? "正常" : "异常"} hint={beat ?? "从没记过账"} />
@@ -90,9 +93,6 @@ function SettingsPage() {
         </div>
         {gaps.length > 0 ? <GapList items={gaps} title="现在的问题" /> : null}
       </Panel>
-
-      {/* 唯一的设置表单：网页填完由服务端写盘，不用去 data/ 手改 JSON。 */}
-      <MailConfigCard initial={mail} />
 
       <Panel title="配置现状" note="只读展示，改的地方都标了">
         <table className="data-table w-full">

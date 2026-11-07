@@ -33,7 +33,7 @@ type MailStatusResponse = Awaited<ReturnType<typeof getMailStatus>>;
 export function MailConfigCard({ initial }: { initial: MailStatusResponse | null }) {
   // initialData 来自 route loader：SSR 首屏就有表单，不会先闪一句「读不出来」；
   // 保存后 invalidate 会重新拉，不会被这个初值盖回去。
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ["mail-status"],
     queryFn: () => getMailStatus(),
     initialData: initial ?? undefined,
@@ -42,7 +42,9 @@ export function MailConfigCard({ initial }: { initial: MailStatusResponse | null
   if (!data) {
     return (
       <Panel title="每日复盘邮件" note="每个交易日收盘后一封">
-        <p className="px-3.5 py-3 text-sm text-muted">配置状态读不出来——多半是服务没在跑。</p>
+        <p className="px-3.5 py-3 text-sm text-muted">
+          {isError ? "配置状态读不出来——多半是服务没在跑。" : "正在读取配置状态…"}
+        </p>
       </Panel>
     );
   }
