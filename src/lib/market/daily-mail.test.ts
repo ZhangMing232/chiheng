@@ -20,7 +20,14 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { collectDailyMail, renderDailyMail, type DailyMailReport, type MailBookDay } from "@/lib/market/daily-mail";
+import {
+  collectDailyMail,
+  readMailConfig,
+  renderDailyMail,
+  sendDailyMail,
+  type DailyMailReport,
+  type MailBookDay,
+} from "@/lib/market/daily-mail";
 
 const DATE = "2026-10-25";
 const YESTERDAY = "2026-10-24";
@@ -388,4 +395,82 @@ test("渲染：纯函数——同一个 report 渲染两遍一字不差", () => 
   const a = renderDailyMail(report);
   const b = renderDailyMail(report);
   assert.deepEqual(a, b);
+});
+
+// ── 配置读取 ────────────────────────────────────────────────────────────
+// 为什么要钉：record-journal 对「没配 mail-config.json」是**静默跳过**的。
+// 人建了文件但格式写错一个字（port 写成字符串、少个 to），表现和「没配」一模一样，
+// 日志一声不吭、每天照跳。这一层不测，配了也白发。测试全用假值，不碰真实密钥。
+
+const MAIL_CFG = {
+  host: "smtp.example.com",
+  port: 465,
+  auth: { user: "sender@example.com", pass: "fake-auth-code" },
+  to: ["reader@example.com"],
+};
+
+async function withMailConfig(raw: string | null, fn: () => Promise<void>): Promise<void> {
+  await withDataDir({}, async () => {
+    if (raw !== null) {
+      await writeFile(join(process.env.CHIHENG_DATA_DIR!, "mail-config.json"), raw);
+    }
+    await fn();
+  });
+}
+
+test("配置：文件不存在或坏 JSON 都返回 null，不抛（调用方静默跳过）", async () => {
+  await withMailConfig(null, async () => assert.equal(await readMailConfig(), null));
+  await withMailConfig("{坏JSON", async () => assert.equal(await readMailConfig(), null));
+});
+
+test("配置：缺 host / port / auth.user / auth.pass / to 任一项就当没配，不半配半发", async () => {
+  const cases = [
+    { ...MAIL_CFG, host: "" },
+    { ...MAIL_CFG, port: undefined },
+    { ...MAIL_CFG, auth: { user: "u" } },
+    { ...MAIL_CFG, auth: { user: "u", pass: "" } },
+    { ...MAIL_CFG, to: [] },
+    { ...MAIL_CFG, to: "reader@example.com" },
+  ];
+  for (const c of cases) {
+    await withMailConfig(JSON.stringify(c), async () => assert.equal(await readMailConfig(), null));
+  }
+});
+
+test("配置：port 写成字符串会被判没配 —— JSON 里必须是数字 465", async () => {
+  await withMailConfig(JSON.stringify({ ...MAIL_CFG, port: "465" }), async () => {
+    assert.equal(await readMailConfig(), null);
+  });
+});
+
+test("配置：字段齐就读得到；465 默认 secure=true、587 默认 false、显式 secure 优先", async () => {
+  await withMailConfig(JSON.stringify(MAIL_CFG), async () => {
+    const cfg = await readMailConfig();
+    assert.ok(cfg);
+    assert.equal(cfg.host, "smtp.example.com");
+    assert.equal(cfg.port, 465);
+    assert.equal(cfg.secure, true);
+    assert.equal(cfg.to.length, 1);
+    assert.equal(cfg.from, undefined);
+    assert.equal(cfg.timeoutMs, undefined);
+    // 这里刻意不断言 cfg.auth.pass 的值：密钥不进测试输出、不进对话
+  });
+  await withMailConfig(JSON.stringify({ ...MAIL_CFG, port: 587 }), async () => {
+    assert.equal((await readMailConfig())?.secure, false);
+  });
+  await withMailConfig(JSON.stringify({ ...MAIL_CFG, secure: false, from: "noreply@example.com", timeoutMs: 8000 }), async () => {
+    const cfg = await readMailConfig();
+    assert.equal(cfg?.secure, false);
+    assert.equal(cfg?.from, "noreply@example.com");
+    assert.equal(cfg?.timeoutMs, 8000);
+  });
+});
+
+test("没配置时 sendDailyMail 返回明确原因且不抛（record-journal 靠它静默跳过）", async () => {
+  await withMailConfig(null, async () => {
+    assert.deepEqual(await sendDailyMail({ date: DATE, days: [] }), {
+      sent: false,
+      reason: "没配 mail-config.json",
+    });
+  });
 });
