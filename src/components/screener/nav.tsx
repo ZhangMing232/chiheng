@@ -40,6 +40,7 @@ import {
 import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
 import { getMailStatus } from "@/lib/market/mail.functions";
 import { MailConfigCard } from "@/components/mail-config-card";
+import { useMountedNow } from "@/lib/ui/relative-time";
 import { getAlerts } from "@/lib/market/alerts.functions";
 import { FreshnessBar } from "@/components/status-widgets";
 import type { StatusSnapshot } from "@/lib/ui/app-status";
@@ -862,8 +863,11 @@ function AlertBell() {
     queryFn: () => getMailStatus(),
     enabled: open,
   });
+  // 抽屉里这份没有 loader 数据：SSR/hydration 统一显示「读取中」，挂载后才用真实状态，
+  // 否则和 /settings 页那个实例共用 ["mail-status"] 缓存会对不上文本（#418）。
+  const bellMounted = useMountedNow() != null;
   const mailChannelLabel =
-    !mailQuery.data || !mailQuery.data.allowed
+    !bellMounted || !mailQuery.data || !mailQuery.data.allowed
       ? "读取中"
       : mailQuery.data.pushConfigured
         ? "微信已就绪"
@@ -1115,7 +1119,7 @@ function AlertBell() {
                   每日复盘日报 · {mailChannelLabel}
                 </summary>
                 <div className="mt-2">
-                  <MailConfigCard initial={null} />
+                  <MailConfigCard initial={null} clientOnly />
                 </div>
               </details>
             </div>

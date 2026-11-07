@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Panel } from "@/components/terminal";
+import { useMountedNow } from "@/lib/ui/relative-time";
 import { getMailStatus, saveMailConfig, sendTestMail } from "@/lib/market/mail.functions";
 import type { MailConfigStatus } from "@/lib/market/mail-config-store";
 
@@ -34,16 +35,33 @@ function splitTo(raw: string): string[] {
 }
 
 type MailStatusResponse = Awaited<ReturnType<typeof getMailStatus>>;
-type CardStatus = MailConfigStatus & { pushConfigured: boolean };
+type CardStatus = MailConfigStatus & { pushConfigured: boolean; lastDelivery: string | null };
 
-export function MailConfigCard({ initial }: { initial: MailStatusResponse | null }) {
+export function MailConfigCard({
+  initial,
+  clientOnly = false,
+}: {
+  initial: MailStatusResponse | null;
+  /** 没有 loader 数据的实例（铃铛抽屉）：SSR/hydration 统一占位，挂载后才读真实状态。
+   *  否则两个实例共用 ["mail-status"] 缓存，服务端和客户端读到的初始值不同 → #418。 */
+  clientOnly?: boolean;
+}) {
   // initialData 来自 route loader：SSR 首屏就有内容，不会先闪一句「读不出来」；
   // 保存后 invalidate 会重新拉，不会被这个初值盖回去。
+  const mountedNow = useMountedNow();
   const { data, isError } = useQuery({
     queryKey: ["mail-status"],
     queryFn: () => getMailStatus(),
     initialData: initial ?? undefined,
   });
+
+  if (clientOnly && mountedNow == null) {
+    return (
+      <Panel title="每日复盘日报" note="每个交易日收盘后一份">
+        <p className="px-3.5 py-3 text-sm text-muted">正在读取配置状态…</p>
+      </Panel>
+    );
+  }
 
   if (!data) {
     return (
@@ -61,12 +79,18 @@ export function MailConfigCard({ initial }: { initial: MailStatusResponse | null
       </Panel>
     );
   }
+  // 「发送状态」只认确定性来源：/settings 实例用 loader 下发的值（SSR/hydration 同一个），
+  // 抽屉实例挂载后才从 query 取。绝不依赖 useQuery 在 hydration 期间的 refetch ——
+  // 那段刚从磁盘读出来的动态值差一拍就会 #418（2026-11-08 实测踩到）。
+  const deliveryLine = clientOnly
+    ? (mountedNow != null && data?.allowed ? data.lastDelivery : null)
+    : (initial?.allowed ? initial.lastDelivery : null);
   // 不用 key 强制重挂载：保存后 invalidate 会更新 status，重挂载会把「已保存」提示
   // 和刚清空的表单状态一起冲掉。表单本来就由用户输入主导，不需要服务端回显覆盖。
-  return <MailForm status={data} />;
+  return <MailForm status={data} deliveryLine={deliveryLine} />;
 }
 
-function MailForm({ status }: { status: CardStatus }) {
+function MailForm({ status, deliveryLine }: { status: CardStatus; deliveryLine: string | null }) {
   const qc = useQueryClient();
   const [user, setUser] = useState(status.user);
   const [pass, setPass] = useState("");
@@ -151,6 +175,12 @@ function MailForm({ status }: { status: CardStatus }) {
           {status.pushConfigured
             ? "当前走微信推送（已配好，不需要邮箱、不需要授权码），你什么都不用填。"
             : "当前没有生效通道：可在铃铛抽屉「通知设置」填 PushPlus token，或展开下面填邮箱。"}
+        </p>
+
+        <p className={deliveryLine?.includes("失败") ? "text-[11px] text-warn" : "text-[11px] text-muted"}>
+          {deliveryLine
+            ? `发送状态：${deliveryLine}`
+            : "还没发过正式日报：每个交易日收盘封印后自动发第一封，发完这里会显示时间和通道。"}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">

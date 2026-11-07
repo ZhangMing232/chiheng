@@ -28,7 +28,10 @@ export const getMailStatus = createServerFn({ method: "GET" }).handler(async () 
   // 只回「微信通道在不在」，token 本身绝不回传浏览器。
   const { readPushToken } = await import("./push.ts");
   const pushConfigured = Boolean(await readPushToken());
-  return { allowed: true as const, pushConfigured, ...statusOf(await readRaw()) };
+  // 上次收盘日报发没发出去。时间在服务端格式化成字符串，前端不解析 ISO（#418）。
+  const { readDigestStatus, describeDelivery } = await import("./digest-status.ts");
+  const lastDelivery = describeDelivery(await readDigestStatus());
+  return { allowed: true as const, pushConfigured, lastDelivery, ...statusOf(await readRaw()) };
 });
 
 /** 保存配置。pass 留空沿用旧授权码；disable=true 清空授权码与收件人（停用）。 */

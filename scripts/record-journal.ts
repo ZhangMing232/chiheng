@@ -1104,18 +1104,30 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     try {
       await access(digestStamp);
     } catch {
+      const date = phase.date;
       const { sendDailyDigest } = await import("../src/lib/market/daily-digest.ts");
+      const { writeDigestStatus } = await import("../src/lib/market/digest-status.ts");
+      // 状态写盘是纯可观测性：它自己失败也不能影响发送或记账。
+      const noteDelivery = async (status: "sent" | "failed", channels: ("mail" | "wechat")[], reason?: string) => {
+        try {
+          await writeDigestStatus({ at: new Date().toISOString(), date, status, channels, reason });
+        } catch (e) {
+          console.error(`${time} 日报状态写盘失败（不影响发送）:`, e);
+        }
+      };
       const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
-      const result = await sendDailyDigest({ date: phase.date, days: ownerBook?.days ?? [] });
+      const result = await sendDailyDigest({ date, days: ownerBook?.days ?? [] });
       if (result.sent) {
         await mkdir(join(process.cwd(), "data"), { recursive: true });
         await writeFile(digestStamp, String(Date.now()));
-        console.log(`${time} 每日复盘日报已发（${phase.date}）通道：${result.channels.join("+")}`);
+        console.log(`${time} 每日复盘日报已发（${date}）通道：${result.channels.join("+")}`);
+        await noteDelivery("sent", result.channels);
       } else if (result.status === "failed") {
         // 配了却发不出去要显眼——每分钟一条直到发出去或人来看
         console.error(`${time} 每日复盘日报发送失败（不影响记账，下分钟重试）: ${result.reason ?? ""}`);
+        await noteDelivery("failed", [], result.reason);
       }
-      // status === "none" 是没配通道的常态，静默，不刷日志
+      // status === "none" 是没配通道的常态：静默，也不写状态（保持「还没发过」）
     }
   } catch (error) {
     console.error(`${time} 每日复盘日报失败（不影响记账）:`, error);

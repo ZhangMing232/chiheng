@@ -100,17 +100,19 @@ function InboxPage() {
         note={`${rows.length} 条${unread > 0 ? ` · ${unread} 条未读` : ""}${rows.length >= ALERT_INBOX_LIMIT ? ` · 已满 ${ALERT_INBOX_LIMIT} 条，最旧的被砍` : ""}`}
       >
         <div className="flex items-center gap-2 border-b border-line px-3.5 py-2">
-          <button
-            type="button"
-            onClick={() => {
-              markRead(rows[0]?.id ?? "");
-              setMark(rows[0]?.id ?? "");
-            }}
-            className="shrink-0 whitespace-nowrap rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg disabled:opacity-40"
-            disabled={rows.length === 0}
-          >
-            全部标为已读
-          </button>
+          {/* 空箱时直接不渲染：摆一个灰按钮在空态里，看着像还有东西没清掉 */}
+          {rows.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                markRead(rows[0]?.id ?? "");
+                setMark(rows[0]?.id ?? "");
+              }}
+              className="shrink-0 whitespace-nowrap rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg"
+            >
+              全部标为已读
+            </button>
+          ) : null}
           <span className="min-w-0 flex-1 text-[11px] leading-snug text-muted">
             只在服务运行时更新：电脑关机、服务没开就不会有新提醒；行情拉不到的那天会收到「没跑成」说明，不会收到猜的告警。
           </span>
