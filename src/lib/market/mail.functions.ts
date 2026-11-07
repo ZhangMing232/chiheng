@@ -25,7 +25,10 @@ export const getMailStatus = createServerFn({ method: "GET" }).handler(async () 
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { isOwner } = await requirePrincipal();
   if (!isOwner) return { allowed: false as const };
-  return { allowed: true as const, ...statusOf(await readRaw()) };
+  // 只回「微信通道在不在」，token 本身绝不回传浏览器。
+  const { readPushToken } = await import("./push.ts");
+  const pushConfigured = Boolean(await readPushToken());
+  return { allowed: true as const, pushConfigured, ...statusOf(await readRaw()) };
 });
 
 /** 保存配置。pass 留空沿用旧授权码；disable=true 清空授权码与收件人（停用）。 */
@@ -61,12 +64,18 @@ export const saveMailConfig = createServerFn({ method: "POST" })
     return statusOf(await readRaw());
   });
 
-/** 手动发一封测试邮件，验证 SMTP 真通——不用等下个交易日收盘。 */
+/** 手动发一份测试日报，验证当前生效的通道真通——不用等下个交易日收盘。 */
 export const sendTestMail = createServerFn({ method: "POST" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { isOwner } = await requirePrincipal();
-  if (!isOwner) throw new Error("只有主人账号能发测试邮件");
-  const { sendDailyMail } = await import("./daily-mail.ts");
+  if (!isOwner) throw new Error("只有主人账号能发测试日报");
+  const { sendDailyDigest } = await import("./daily-digest.ts");
   const date = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
-  return sendDailyMail({ date, days: [] });
+  const result = await sendDailyDigest({ date, days: [] });
+  return {
+    sent: result.sent,
+    channels: result.channels,
+    status: result.status,
+    reason: result.reason ?? (result.reasons.length > 0 ? result.reasons.join("；") : undefined),
+  };
 });

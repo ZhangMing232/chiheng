@@ -838,7 +838,7 @@ function PushConfig() {
  * **默认停在「未读」tab（2026-11-07）**：以前默认「全部」，已读完的历史一直摊在
  * 抽屉里，看着像没清掉。现在点铃铛先看要处理的，历史点「全部」或空态里的按钮还能查，
  * 一条都没删。
- * PushConfig（微信推送）和 MailConfigCard（每日复盘邮件）都在抽屉底部「通知设置」：
+ * PushConfig（微信推送）和 MailConfigCard（每日复盘日报）都在抽屉底部「通知设置」：
  * 低频配置不占顶栏，而且用户本来就在通知这儿找配置。
  */
 function AlertBell() {
@@ -862,6 +862,14 @@ function AlertBell() {
     queryFn: () => getMailStatus(),
     enabled: open,
   });
+  const mailChannelLabel =
+    !mailQuery.data || !mailQuery.data.allowed
+      ? "读取中"
+      : mailQuery.data.pushConfigured
+        ? "微信已就绪"
+        : mailQuery.data.configured
+          ? "邮件已配置"
+          : "未配置通道";
 
   // 系统提醒（/inbox 的 alerts）：打开抽屉才拉，60s 轮询。
   const inboxQuery = useQuery({
@@ -1104,7 +1112,7 @@ function AlertBell() {
               {/* 邮件配置和微信推送放一起：用户本来就在通知抽屉里找配置，不用再跳 /settings */}
               <details className="mt-2 border-t border-line/60 pt-2">
                 <summary className="cursor-pointer text-[11px] text-muted hover:text-fg">
-                  每日复盘邮件 · {mailQuery.data?.allowed && mailQuery.data.configured ? "已配置" : "未配置"}
+                  每日复盘日报 · {mailChannelLabel}
                 </summary>
                 <div className="mt-2">
                   <MailConfigCard initial={null} />

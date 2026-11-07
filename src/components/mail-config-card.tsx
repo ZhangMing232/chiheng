@@ -1,13 +1,15 @@
 /**
  * 这个文件是干什么的：
- * /settings 页的「每日复盘邮件」配置卡片。以前要手改 data/mail-config.json，
- * 现在在这张卡里填就行——普通用户只需要填发件邮箱 / 授权码 / 收件人三项，
- * QQ 邮箱的 smtp.qq.com:465 已给默认值，高级项折叠在「服务器设置」里。
+ * 「每日复盘日报」的配置卡片，出现在 /settings 页顶部和铃铛抽屉「通知设置」里。
+ *
+ * 2026-11-07 改版：日报不再强绑定邮箱。用户没有 SMTP 授权码，但早就配好了
+ * PushPlus 微信推送 —— 默认走微信，不用填任何东西；邮箱变成**可选的第二通道**，
+ * 收在折叠里，不占首屏。
  *
  * 纪律：
- * - 授权码只进不出：输入框永远是空的（placeholder 只显示尾号），保存后立刻清空；
- *   服务端也只回尾四位，完整值不进浏览器、不进任何会话。
- * - 保存立即生效：record-journal 每分钟直读同一个文件，不用重启服务。
+ * - 授权码只进不出：输入框永远空（placeholder 只显示尾号），保存后立刻清空；
+ *   服务端只回尾四位，完整值不进浏览器、不进任何会话。
+ * - 保存立即生效：记账进程每分钟直读同一个文件，不用重启服务。
  * - 表单初值来自 loader/query，不在 render 里读系统时钟（#418 纪律）。
  */
 
@@ -24,14 +26,18 @@ const BTN_CLS =
 const PRIMARY_CLS =
   "shrink-0 rounded bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50";
 
+// 不 import daily-digest 的类型：那个文件只活服务端，前端组件连 type-only 边都别搭。
+const CHANNEL_CN: Record<string, string> = { wechat: "微信", mail: "邮件" };
+
 function splitTo(raw: string): string[] {
   return raw.split(/[,，;；\s]+/).map((s) => s.trim()).filter(Boolean);
 }
 
 type MailStatusResponse = Awaited<ReturnType<typeof getMailStatus>>;
+type CardStatus = MailConfigStatus & { pushConfigured: boolean };
 
 export function MailConfigCard({ initial }: { initial: MailStatusResponse | null }) {
-  // initialData 来自 route loader：SSR 首屏就有表单，不会先闪一句「读不出来」；
+  // initialData 来自 route loader：SSR 首屏就有内容，不会先闪一句「读不出来」；
   // 保存后 invalidate 会重新拉，不会被这个初值盖回去。
   const { data, isError } = useQuery({
     queryKey: ["mail-status"],
@@ -41,7 +47,7 @@ export function MailConfigCard({ initial }: { initial: MailStatusResponse | null
 
   if (!data) {
     return (
-      <Panel title="每日复盘邮件" note="每个交易日收盘后一封">
+      <Panel title="每日复盘日报" note="每个交易日收盘后一份">
         <p className="px-3.5 py-3 text-sm text-muted">
           {isError ? "配置状态读不出来——多半是服务没在跑。" : "正在读取配置状态…"}
         </p>
@@ -50,8 +56,8 @@ export function MailConfigCard({ initial }: { initial: MailStatusResponse | null
   }
   if (!data.allowed) {
     return (
-      <Panel title="每日复盘邮件" note="仅主人可配">
-        <p className="px-3.5 py-3 text-sm text-muted">这项配置只有主人账号能改和发测试邮件。</p>
+      <Panel title="每日复盘日报" note="仅主人可配">
+        <p className="px-3.5 py-3 text-sm text-muted">这项配置只有主人账号能改和发测试日报。</p>
       </Panel>
     );
   }
@@ -60,7 +66,7 @@ export function MailConfigCard({ initial }: { initial: MailStatusResponse | null
   return <MailForm status={data} />;
 }
 
-function MailForm({ status }: { status: MailConfigStatus }) {
+function MailForm({ status }: { status: CardStatus }) {
   const qc = useQueryClient();
   const [user, setUser] = useState(status.user);
   const [pass, setPass] = useState("");
@@ -71,6 +77,12 @@ function MailForm({ status }: { status: MailConfigStatus }) {
   const [from, setFrom] = useState(status.from);
   const [busy, setBusy] = useState<"save" | "test" | "disable" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const channels: string[] = [];
+  if (status.pushConfigured) channels.push("微信推送");
+  if (status.configured) channels.push("邮件");
+  const channelLabel = channels.length > 0 ? channels.join(" + ") : "未配置通道";
+  const anyChannel = status.pushConfigured || status.configured;
 
   const input = () => ({
     host: host.trim() || "smtp.qq.com",
@@ -90,7 +102,7 @@ function MailForm({ status }: { status: MailConfigStatus }) {
       const res = await saveMailConfig({ data: input() });
       setPass("");
       await qc.invalidateQueries({ queryKey: ["mail-status"] });
-      setMessage(res.configured ? `已保存 · 授权码尾号 ${res.tail ?? ""}`.trim() : "已停用每日邮件");
+      setMessage(res.configured ? `邮箱已保存 · 授权码尾号 ${res.tail ?? ""}`.trim() : "邮箱配置已清空");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -105,9 +117,9 @@ function MailForm({ status }: { status: MailConfigStatus }) {
       await saveMailConfig({ data: { ...input(), disable: true } });
       setPass("");
       await qc.invalidateQueries({ queryKey: ["mail-status"] });
-      setMessage("已停用：授权码和收件人已清空，收盘不再发信");
+      setMessage("邮箱通道已清除（微信推送不受影响）");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "停用失败");
+      setMessage(err instanceof Error ? err.message : "清除失败");
     } finally {
       setBusy(null);
     }
@@ -118,7 +130,12 @@ function MailForm({ status }: { status: MailConfigStatus }) {
     setMessage(null);
     try {
       const res = await sendTestMail();
-      setMessage(res.sent ? "测试邮件已发出，去收件箱看看" : `没发出去：${res.reason ?? "未知原因"}`);
+      if (res.sent) {
+        const names = res.channels.map((c) => CHANNEL_CN[c] ?? c).join("+");
+        setMessage(`测试日报已发出（${names}），去看看`);
+      } else {
+        setMessage(`没发出去：${res.reason ?? "未知原因"}`);
+      }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "测试发送失败");
     } finally {
@@ -127,73 +144,82 @@ function MailForm({ status }: { status: MailConfigStatus }) {
   };
 
   return (
-    <Panel
-      title="每日复盘邮件"
-      note={status.configured ? `已配置 · 授权码尾号 ${status.tail ?? ""}`.trim() : "未配置"}
-    >
+    <Panel title="每日复盘日报" note={channelLabel}>
       <div className="flex flex-col gap-3 px-3.5 py-3">
         <p className="text-[11px] leading-relaxed text-muted">
-          每个交易日收盘封印后自动发一封：今日诊断、挑战者战况、明日验证。保存后立即生效，不用重启。
-          授权码只存服务端，这个页面不会回显完整值。
+          每个交易日收盘封印后自动发一份：今日诊断、挑战者战况、明日验证。
+          {status.pushConfigured
+            ? "当前走微信推送（已配好，不需要邮箱、不需要授权码），你什么都不用填。"
+            : "当前没有生效通道：可在铃铛抽屉「通知设置」填 PushPlus token，或展开下面填邮箱。"}
         </p>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-muted">发件邮箱（QQ 邮箱）</span>
-            <input value={user} onChange={(e) => setUser(e.target.value)} placeholder="you@qq.com" className={INPUT_CLS} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-muted">SMTP 授权码（16 位，不是登录密码）</span>
-            <input
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              placeholder={status.tail ? `留空 = 不改（当前尾号 ${status.tail}）` : "粘贴授权码"}
-              autoComplete="new-password"
-              className={INPUT_CLS}
-            />
-          </label>
-        </div>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] text-muted">收件人（多个用逗号分隔）</span>
-          <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@qq.com" className={INPUT_CLS} />
-        </label>
-
-        <details className="text-[11px] text-muted">
-          <summary className="cursor-pointer select-none">服务器设置（QQ 邮箱一般不用改）</summary>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span>SMTP 服务器</span>
-              <input value={host} onChange={(e) => setHost(e.target.value)} className={INPUT_CLS} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span>端口（465 直连 / 587 STARTTLS）</span>
-              <input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" className={INPUT_CLS} />
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} />
-              <span>TLS 直连（465 勾选；587 不勾）</span>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span>from（留空默认用发件邮箱）</span>
-              <input value={from} onChange={(e) => setFrom(e.target.value)} className={INPUT_CLS} />
-            </label>
-          </div>
-        </details>
-
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => void save()} disabled={busy !== null} className={PRIMARY_CLS}>
-            {busy === "save" ? "保存中…" : "保存"}
-          </button>
-          <button type="button" onClick={() => void test()} disabled={busy !== null || !status.configured} className={BTN_CLS}>
-            {busy === "test" ? "发送中…" : "发测试邮件"}
-          </button>
-          <button type="button" onClick={() => void disable()} disabled={busy !== null || !status.configured} className={BTN_CLS}>
-            {busy === "disable" ? "停用中…" : "停用"}
+          <button type="button" onClick={() => void test()} disabled={busy !== null || !anyChannel} className={PRIMARY_CLS}>
+            {busy === "test" ? "发送中…" : "发测试日报"}
           </button>
           {message ? <span className="text-[11px] text-fg">{message}</span> : null}
         </div>
+
+        <details className="text-[11px] text-muted">
+          <summary className="cursor-pointer select-none">
+            {status.configured ? "可选：邮箱通道已配置（点开修改）" : "可选：改用 / 追加邮箱接收（需要 SMTP 授权码）"}
+          </summary>
+          <div className="mt-2 flex flex-col gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex flex-col gap-1">
+                <span>发件邮箱</span>
+                <input value={user} onChange={(e) => setUser(e.target.value)} placeholder="you@qq.com" className={INPUT_CLS} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span>SMTP 授权码（不是登录密码）</span>
+                <input
+                  type="password"
+                  value={pass}
+                  onChange={(e) => setPass(e.target.value)}
+                  placeholder={status.tail ? `留空 = 不改（当前尾号 ${status.tail}）` : "粘贴授权码"}
+                  autoComplete="new-password"
+                  className={INPUT_CLS}
+                />
+              </label>
+            </div>
+            <label className="flex flex-col gap-1">
+              <span>收件人（多个用逗号分隔）</span>
+              <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@qq.com" className={INPUT_CLS} />
+            </label>
+            <details className="text-[11px] text-muted">
+              <summary className="cursor-pointer select-none">服务器设置（QQ 邮箱一般不用改）</summary>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1">
+                  <span>SMTP 服务器</span>
+                  <input value={host} onChange={(e) => setHost(e.target.value)} className={INPUT_CLS} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span>端口（465 直连 / 587 STARTTLS）</span>
+                  <input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" className={INPUT_CLS} />
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} />
+                  <span>TLS 直连（465 勾选；587 不勾）</span>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span>from（留空默认用发件邮箱）</span>
+                  <input value={from} onChange={(e) => setFrom(e.target.value)} className={INPUT_CLS} />
+                </label>
+              </div>
+            </details>
+            <p className="leading-relaxed">
+              授权码只存服务端，页面不回显完整值。填了就微信 + 邮件都发，不填也照常收。
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => void save()} disabled={busy !== null} className={BTN_CLS}>
+                {busy === "save" ? "保存中…" : "保存邮箱配置"}
+              </button>
+              <button type="button" onClick={() => void disable()} disabled={busy !== null || !status.configured} className={BTN_CLS}>
+                {busy === "disable" ? "清除中…" : "清除邮箱配置"}
+              </button>
+            </div>
+          </div>
+        </details>
       </div>
     </Panel>
   );
