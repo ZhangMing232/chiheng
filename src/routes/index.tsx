@@ -84,6 +84,9 @@ export const Route = createFileRoute("/")({
     return {
       phase, indices, journal, universe: slimUniverse, recorder, trend, flow,
       breadth, sentiment, stamp,
+      // 行情新鲜度条的「延迟」依赖当前时刻：放进 loader 算一次、随 loader 数据序列化，
+      // SSR 与客户端 hydration 拿到的是同一个值，不会因服务端/客户端时刻差触发 #418。
+      serverNow: Date.now(),
       runningChallengers: challengers.list.filter((c) => c.status === "running"),
       challengerSamples: samples,
       overseas: overseas.quotes.slice(0, 6),
@@ -117,7 +120,7 @@ function yi(wan: number | null): string {
 function Dashboard() {
   const {
     phase, indices, journal, universe, recorder, trend, flow,
-    breadth, sentiment, stamp,
+    breadth, sentiment, stamp, serverNow,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
   } = Route.useLoaderData();
   const date = todayStr(phase);
@@ -135,7 +138,8 @@ function Dashboard() {
   const prevTape = flow && flow.tape.length
     ? flow.tape.reduce((total, row) => total + (row.prevAmount ?? 0), 0)
     : null;
-  const recorderDead = recorder.at == null || Date.now() - recorder.at > 3 * 60_000;
+  // 用 loader 下发的 serverNow，不在 render 里读系统时钟（否则 SSR/hydration 会 #418）。
+  const recorderDead = recorder.at == null || serverNow - recorder.at > 3 * 60_000;
 
   return (
     <Frame
@@ -152,7 +156,7 @@ function Dashboard() {
               label: universe.stale ? "行情延迟" : "行情正常",
               source: "腾讯行情 · 备份新浪",
               updatedAt: universe.asOf ? new Date(universe.asOf).toTimeString().slice(0, 8) : undefined,
-              latencySeconds: universe.asOf ? Math.round((Date.now() - universe.asOf) / 1000) : undefined,
+              latencySeconds: universe.asOf ? Math.round((serverNow - universe.asOf) / 1000) : undefined,
               message: universe.stale ? "当前数据仅供查看，别拿它当现价用" : undefined,
               canRetry: true,
             }

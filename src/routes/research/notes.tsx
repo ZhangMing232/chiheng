@@ -22,6 +22,7 @@ import { StateBlock } from "@/components/state-block";
 import { addNoteFn, deleteNoteFn, editNoteFn, getNotes } from "@/lib/market/notes.functions";
 import { NOTE_MAX, filterNotes, type Note } from "@/lib/market/notes";
 import { relTimeOf } from "@/lib/market/notes-view";
+import { useMountedNow } from "@/lib/ui/relative-time";
 
 export const Route = createFileRoute("/research/notes")({
   loader: () => getNotes().catch(() => [] as Note[]),
@@ -30,6 +31,8 @@ export const Route = createFileRoute("/research/notes")({
 
 function NotesPage() {
   const loaded = Route.useLoaderData();
+  // 相对时间挂载后才算：SSR 与 hydration 阶段 now 为 null，直接显示原始时间字符串。
+  const now = useMountedNow();
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [text, setText] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -102,7 +105,7 @@ function NotesPage() {
         // （「3 小时前」），比绝对时间更适合页头。
         list.length > 0 ? (
           <span className="text-[11px] tabular-nums">
-            最新 {relTimeOf(list[0]!.at)}
+            最新 {now == null ? list[0]!.at : relTimeOf(list[0]!.at, now)}
             {list[0]!.symbol ? ` · ${list[0]!.name ?? list[0]!.symbol}` : ""}
           </span>
         ) : (
@@ -189,7 +192,7 @@ function NotesPage() {
               {shown.map((note) => (
                 <tr key={note.id} className="border-b border-line/60 align-top">
                   <td className={tdClass("text-left whitespace-nowrap text-muted")} title={note.at}>
-                    {relTimeOf(note.at)}
+                    {now == null ? note.at : relTimeOf(note.at, now)}
                   </td>
                   <td className={tdClass("text-left whitespace-nowrap")}>
                     {note.symbol ? (

@@ -21,6 +21,7 @@ import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getAlerts } from "@/lib/market/alerts.functions";
 import { ALERT_INBOX_LIMIT } from "@/lib/market/alerts";
+import { useMountedNow } from "@/lib/ui/relative-time";
 import type { Alert } from "@/lib/market/alerts";
 
 export const Route = createFileRoute("/inbox")({
@@ -47,10 +48,11 @@ function markRead(id: string) {
   }
 }
 
-function relTime(iso: string): string {
+/** now 由调用方传（水合安全：不在函数里读系统时钟，否则 SSR/hydration 会对不上）。 */
+function relTime(iso: string, now: number): string {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return iso.slice(0, 10);
-  const mins = Math.round((Date.now() - t) / 60000);
+  const mins = Math.round((now - t) / 60000);
   if (mins < 1) return "刚刚";
   if (mins < 60) return `${mins} 分钟前`;
   const hours = Math.round(mins / 60);
@@ -65,6 +67,8 @@ const KIND_TAG: Record<Alert["kind"], { text: string; tone: "brand" | "warn" | "
 
 function InboxPage() {
   const rows = Route.useLoaderData();
+  // 相对时间挂载后才算：SSR 与 hydration 阶段 now 为 null，直接显示原始时间字符串。
+  const now = useMountedNow();
   const [mark, setMark] = useState(readMark);
   useEffect(() => {
     setMark(readMark());
@@ -143,7 +147,7 @@ function InboxPage() {
                     </td>
                     <td className={tdClass("text-left max-w-[40ch]")}>{r.detail}</td>
                     <td className={tdClass("whitespace-nowrap")} title={r.at}>
-                      {relTime(r.at)}
+                      {now == null ? r.at : relTime(r.at, now)}
                     </td>
                   </tr>
                 );

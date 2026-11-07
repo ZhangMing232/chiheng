@@ -13,6 +13,8 @@
  * 那是它的原话，这里照这个方向做。
  */
 
+import { useMountedNow } from "@/lib/ui/relative-time";
+
 export type StateKind = "loading" | "empty" | "error";
 
 const TONE: Record<StateKind, string> = {
@@ -109,16 +111,20 @@ export function Skeleton({ className = "" }: { className?: string }) {
 
 /** 数据过期标记：挂在某个分区标题行，说明这份数据多久没动了。 */
 export function StaleBadge({ at, staleMs = 10 * 60_000 }: { at: number | null; staleMs?: number }) {
+  // 当前时刻挂载后才取：SSR/hydration 阶段只显示确定性的「更新于 HH:mm」，
+  // 挂载后再判断要不要追加「已 N 分钟未动」，避免两处时刻差触发 #418。
+  const now = useMountedNow();
   if (at == null) {
     return <span className="text-[11px] text-warn">时间未知，数据可能过期</span>;
   }
-  const age = Date.now() - at;
+  const clock = new Date(at).toTimeString().slice(0, 5);
+  const age = now == null ? 0 : now - at;
   if (age < staleMs) {
-    return <span className="num text-[11px] text-muted">更新于 {new Date(at).toTimeString().slice(0, 5)}</span>;
+    return <span className="num text-[11px] text-muted">更新于 {clock}</span>;
   }
   return (
     <span className="num text-[11px] text-warn">
-      更新于 {new Date(at).toTimeString().slice(0, 5)}（已 {Math.round(age / 60_000)} 分钟未动，可能过期）
+      更新于 {clock}（已 {Math.round(age / 60_000)} 分钟未动，可能过期）
     </span>
   );
 }

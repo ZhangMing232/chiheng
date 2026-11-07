@@ -197,8 +197,9 @@ export function dayBarReady(now = Date.now()): boolean {
   return { ...base, phase: "closed", label: "已收盘", open: false };
 }
 
-/** 把毫秒时间戳收成上海时间的「时:分」。 */
-export function formatClock(ms: number): string {
+/** 把毫秒时间戳收成上海时间的「时:分」。传 null 时返回空串（数据还没到，不编时刻）。 */
+export function formatClock(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) return "";
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
     hour: "2-digit",

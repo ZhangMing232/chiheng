@@ -364,28 +364,34 @@ function useSysStatus() {
         getAILog().catch(() => null),
         getStrategyGates().catch(() => null),
       ]);
-      return { rec, uni, queue, log, gates };
+      // 当前时刻随查询结果一起序列化：SSR 与 hydration 拿到同一个值，
+      // 底部状态条那些秒级文本（「行情延迟 Ns」「上次记账 N 秒前」）才不会对不上
+      // 触发 #418；每 60s refetch 时这个时刻自然刷新。
+      return { rec, uni, queue, log, gates, serverNow: Date.now() };
     },
     refetchInterval: 60_000,
   });
+  const serverNow = data?.serverNow ?? 0;
   const rec = data?.rec ?? null;
   const uni = data?.uni ?? null;
   const at = rec?.at ?? null;
   const ok = rec?.ok ?? false;
   // snapshotAge 要的是「多久之前」（时长），不是时间戳——传 at 本身会算出
   // 「1970 年距今 49 万小时」这种鬼数（2026-11-06 实测踩到）。
-  const beat = at != null ? snapshotAge(Date.now() - at) : "还没跑";
-  const fresh = at != null && Date.now() - at < 5 * 60_000;
+  const beat = at != null ? snapshotAge(serverNow - at) : "还没跑";
+  const fresh = at != null && serverNow - at < 5 * 60_000;
   const online = ok && fresh;
   const dotClass = online ? "bg-down" : ok ? "bg-warn" : "bg-up";
   const stateText = online ? "运行中" : ok ? "心跳超时" : "离线";
   const asOf = uni?.asOf ?? null;
-  const delaySec = asOf != null ? Math.max(0, Math.round((Date.now() - asOf) / 1000)) : null;
+  const delaySec = asOf != null ? Math.max(0, Math.round((serverNow - asOf) / 1000)) : null;
   const entries = data?.queue?.entries ?? [];
   const pending = entries.filter((e) => e.status === "pending" || e.status === "tested").length;
   const allEntries = data?.log?.allowed ? data.log.entries : [];
-  const today = new Date().toISOString().slice(0, 10);
-  const todayRounds = allEntries.filter((e) => (e.at ?? "").slice(0, 10) === today).length;
+  // 查询还没回来时没有可用时刻，就别编一个 1970 的日期去数——today 为 null，
+  // 今日轮数按「拿不到」处理（此时 allEntries 本来也是空的）。
+  const today = data ? new Date(serverNow).toISOString().slice(0, 10) : null;
+  const todayRounds = today == null ? 0 : allEntries.filter((e) => (e.at ?? "").slice(0, 10) === today).length;
   const gateValues = Object.values(data?.gates?.gates ?? {});
   const gatesOff = gateValues.filter((g) => g.state === "disabled").length;
   const gatesParole = gateValues.filter((g) => g.state === "paroled").length;

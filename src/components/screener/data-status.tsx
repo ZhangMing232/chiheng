@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { snapshotAge } from "@/lib/market/format";
 import { accountNotice, noticeOf, sourceLabel, type Notice } from "@/lib/market/data-status";
+import { useMountedNow } from "@/lib/ui/relative-time";
 import type { Universe } from "@/lib/market/types";
 
 const TONE_CLASS = {
@@ -136,20 +137,24 @@ function StatusPill({
 /** 行情状态：平时显示「腾讯 · 3 分钟前」，降级/过期/残缺时多一个可点的徽标。 */
 export function DataStatusBadge({
   universe,
-  now,
   onRefresh,
   refreshing,
 }: {
   universe: Universe | null | undefined;
-  now: number;
   onRefresh: () => void;
   refreshing?: boolean;
 }) {
+  // hook 必须无条件调用，放在所有 early return 之前——否则 universe 从有值变空时
+  // hook 数量变化会直接崩（"Rendered fewer hooks than expected"）。
+  // 当前时刻只在挂载后取（SSR/hydration 阶段为 null），用数据自带的时间戳当参考渲染成
+  // "刚刚/新鲜"这一确定值——首屏两边一致，不会触发 #418。挂载后再刷新成真实相对时间。
+  const mountedNow = useMountedNow();
   if (!universe || universe.quotes.length === 0) {
     return <span className="text-muted">行情还没拉下来，正在重试…</span>;
   }
-  const notice = noticeOf(universe, now);
-  const age = `${sourceLabel(universe.source)} · ${snapshotAge(now - universe.asOf)}`;
+  const ref = mountedNow ?? universe.asOf ?? 0;
+  const notice = noticeOf(universe, ref);
+  const age = `${sourceLabel(universe.source)} · ${snapshotAge(ref - universe.asOf)}`;
 
   if (!notice) {
     return (

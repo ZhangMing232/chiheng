@@ -559,7 +559,6 @@ function Positions() {
     () => groups.map((group) => ({ ...group, open: sortByUrgency(group.open), closed: sortByUrgency(group.closed) })),
     [groups],
   );
-  const now = Date.now();
 
   // ── 页头装饰用：未平仓笔数（从本页已有的 rows 算，不额外拉接口）──
   const openCount = rows.filter((row) => row.exit == null).length;
@@ -1058,7 +1057,7 @@ function Positions() {
           <span className="text-fg">持仓</span>
           <span className="tabular-nums">{date}</span>
           <AccountStatus personal={journal.personal} why={journal.why} />
-          <DataStatusBadge universe={universe} now={now} onRefresh={() => window.location.reload()} />
+          <DataStatusBadge universe={universe} onRefresh={() => window.location.reload()} />
         </div>
       }
     >

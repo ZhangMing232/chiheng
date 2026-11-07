@@ -33,13 +33,14 @@ export const Route = createFileRoute("/ai/config")({
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] })),
       getAIUsage().catch((): UsagePayload => ({ allowed: false, entries: [], stats: null })),
     ]);
-    return { ai, usage };
+    // 「近 7 天」窗口的基准时刻随 loader 数据序列化，SSR 与 hydration 用同一个值。
+    return { ai, usage, serverNow: Date.now() };
   },
   component: AIConfigPage,
 });
 
 function AIConfigPage() {
-  const { ai, usage } = Route.useLoaderData();
+  const { ai, usage, serverNow } = Route.useLoaderData();
   const router = useRouter();
   const [modal, setModal] = useState<null | "new" | (typeof ai.profiles)[number]>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -75,7 +76,7 @@ function AIConfigPage() {
   };
 
   // 近 7 天按模型聚合：成功率 / 平均耗时（调用过才有数）
-  const sevenIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const sevenIso = new Date(serverNow - 7 * 86_400_000).toISOString();
   const recent = usage.entries.filter((e) => e.at >= sevenIso);
   const byModel = new Map<string, { calls: number; ok: number; ms: number }>();
   for (const e of recent) {

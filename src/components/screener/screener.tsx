@@ -34,9 +34,11 @@ import type { IndexQuote, SessionInfo, Universe } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
 import type { EarlyRules } from "@/lib/market/rules";
 
-function RecordLine({ at, ok, now }: { at: number | null; ok: boolean; now: number }) {
+function RecordLine({ at, ok, now }: { at: number | null; ok: boolean; now: number | null }) {
   if (at == null) return <span>还没有记账</span>;
-  const stale = now - at > 3 * 60_000;
+  // now 为 null（SSR/hydration 阶段）时按"未过期"处理——挂载后才会拿到真实时刻再判断，
+  // 这样首屏两边渲染一致，不会触发 #418。
+  const stale = now != null && now - at > 3 * 60_000;
   const clock = formatClock(at);
   if (!ok) return <span className="text-up">记账失败 {clock}</span>;
   if (stale) return <span className="text-up">记账中断 {clock}</span>;
@@ -104,7 +106,10 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   // 看起来像「今天没开仓」——所以提升成 state 一起更新。
   const [personal, setPersonal] = useState(initial.personal);
   const [journalWhy, setJournalWhy] = useState(initial.journalWhy);
-  const [now, setNow] = useState(() => Date.now());
+  // 当前时刻只用于「X 分钟前」这类相对时间展示。不能在 useState 初始化里调 Date.now()
+  // （SSR 与 hydration 会各取一个时刻 → #418）。先置 null，挂载后再填真实值，
+  // 并每 30s 刷新一次。
+  const [now, setNow] = useState<number | null>(null);
   const [relay, setRelay] = useState<Listed[]>([]);
   const rules = initial.rules;
 
@@ -137,6 +142,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   }, [initial.universe, refresh]);
 
   useEffect(() => {
+    setNow(Date.now());
     const timer = window.setInterval(() => {
       setPhase(sessionPhase());
       setNow(Date.now());
@@ -232,9 +238,9 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
           <span className="text-fg">{phase.label}</span>
-          <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? Date.now())}</span>
+          <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? null)}</span>
           <AccountStatus personal={personal} why={journalWhy} />
-          <DataStatusBadge universe={universe} now={now} onRefresh={() => void refresh(true)} />
+          <DataStatusBadge universe={universe} onRefresh={() => void refresh(true)} />
           <RecordLine at={recorder.at} ok={recorder.ok} now={now} />
         </div>
       }

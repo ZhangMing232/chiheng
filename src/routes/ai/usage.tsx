@@ -24,7 +24,9 @@ import type { AIUsageEntry } from "@/lib/market/ai-usage";
 export const Route = createFileRoute("/ai/usage")({
   loader: async () => {
     const usage = await getAIUsage().catch((): UsagePayload => ({ allowed: false, entries: [], stats: null }));
-    return { usage };
+    // 日期窗口的基准时刻随 loader 序列化：SSR 与 hydration 用同一个值，
+    // 不在 render 里读系统时钟（否则跨日边界会 #418）。
+    return { usage, serverNow: Date.now() };
   },
   component: AIUsagePage,
 });
@@ -38,9 +40,9 @@ function fmtCost(n: number): string {
   return `¥${n >= 1 ? n.toFixed(2) : n.toFixed(4)}`;
 }
 
-/** 上海时区的日期串（账都按上海日 aggregable）。 */
-function shanghaiDate(offsetDays = 0): string {
-  return new Date(Date.now() + 8 * 3_600_000 + offsetDays * 86_400_000).toISOString().slice(0, 10);
+/** 上海时区的日期串（账都按上海日聚合）。now 由 loader 下发，不在 render 里读系统时钟。 */
+function shanghaiDate(offsetDays: number, now: number): string {
+  return new Date(now + 8 * 3_600_000 + offsetDays * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** 一个时间窗的汇总：调用/成功/输入/输出/费用/耗时。 */
@@ -55,7 +57,7 @@ function windowSum(entries: AIUsageEntry[], fromIso: string, toIso: string) {
 }
 
 function AIUsagePage() {
-  const { usage } = Route.useLoaderData();
+  const { usage, serverNow } = Route.useLoaderData();
   const [range, setRange] = useState<7 | 30>(7);
   const [modelFilter, setModelFilter] = useState("all");
   const [layerFilter, setLayerFilter] = useState("all");
@@ -67,9 +69,9 @@ function AIUsagePage() {
   const layers = useMemo(() => [...new Set(entries.map((e) => e.layer))], [entries]);
 
   // 当前窗 vs 上一窗（真实差值）
-  const curFrom = shanghaiDate(-(range - 1));
-  const cur = useMemo(() => windowSum(entries, `${curFrom}T00:00:00`, `${shanghaiDate(1)}T00:00:00`), [entries, curFrom]);
-  const prev = useMemo(() => windowSum(entries, `${shanghaiDate(-(range * 2 - 1))}T00:00:00`, `${curFrom}T00:00:00`), [entries, curFrom, range]);
+  const curFrom = shanghaiDate(-(range - 1), serverNow);
+  const cur = useMemo(() => windowSum(entries, `${curFrom}T00:00:00`, `${shanghaiDate(1, serverNow)}T00:00:00`), [entries, curFrom, serverNow]);
+  const prev = useMemo(() => windowSum(entries, `${shanghaiDate(-(range * 2 - 1), serverNow)}T00:00:00`, `${curFrom}T00:00:00`), [entries, curFrom, range, serverNow]);
   const delta = (a: number, b: number): string | null =>
     b > 0 ? `${a >= b ? "+" : ""}${Math.round(((a - b) / b) * 100)}% 较上${range}天` : a > 0 ? `新增（上${range}天为 0）` : null;
   const avgMs = (w: { calls: number; ms: number }): number | null => (w.calls > 0 ? Math.round(w.ms / w.calls) : null);
@@ -77,9 +79,9 @@ function AIUsagePage() {
   // 按天堆叠（输入/输出），窗口随 range
   const days = useMemo(() => {
     const list: string[] = [];
-    for (let i = range - 1; i >= 0; i--) list.push(shanghaiDate(-i));
+    for (let i = range - 1; i >= 0; i--) list.push(shanghaiDate(-i, serverNow));
     return list;
-  }, [range]);
+  }, [range, serverNow]);
   const byDay = useMemo(() => {
     const map = new Map<string, { p: number; c: number }>();
     for (const e of entries) {

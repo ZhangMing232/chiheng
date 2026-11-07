@@ -52,8 +52,9 @@ export const Route = createFileRoute("/butler")({
     const trades = journal.days.flatMap((d) => d.trades);
     const open = trades.filter((t) => t.exit == null).length;
     // 账本按上海日记账（day.date），今天的成交按日期对；近 7 天柱 = 逐日数笔数
+    const serverNow = Date.now();
     const shanghai = (offsetDays: number): string => {
-      const dt = new Date(Date.now() + 8 * 3600_000 + offsetDays * 86_400_000);
+      const dt = new Date(serverNow + 8 * 3600_000 + offsetDays * 86_400_000);
       return dt.toISOString().slice(0, 10);
     };
     const today = journal.days.find((day) => day.date === shanghai(0))?.trades.length ?? 0;
@@ -69,6 +70,9 @@ export const Route = createFileRoute("/butler")({
       indices,
       recorder,
       history,
+      // 页脚「上次记账 X 分钟前」依赖当前时刻：随 loader 数据序列化，SSR 与
+      // hydration 拿到同一个值，不会因时刻差触发 #418。
+      serverNow,
       runningChallengers: chal.list.filter((c) => c.status === "running").length,
       judgedChallengers: chal.list.filter((c) => c.status !== "running").length,
     };
@@ -251,7 +255,7 @@ function ButlerPage() {
               ))}
             </div>
             <p className="mt-2 text-[11px] text-muted tabular-nums">
-              上次记账 {d.recorder.at ? `${Math.round((Date.now() - d.recorder.at) / 60_000)} 分钟前` : "还没跑"} · 行情{" "}
+              上次记账 {d.recorder.at ? `${Math.round((d.serverNow - d.recorder.at) / 60_000)} 分钟前` : "还没跑"} · 行情{" "}
               {d.indices.find((i) => i.time)?.time ?? "还没拉到"}
             </p>
           </section>

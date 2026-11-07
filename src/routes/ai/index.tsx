@@ -43,11 +43,12 @@ import type { AIUsageEntry } from "@/lib/market/ai-usage";
 import { AISectionTabs, Section, type AIStatusPayload } from "@/components/ai-panels";
 import { Eye, Lightbulb, ShieldCheck, Gauge, UserCheck, Play, CheckCircle2, CircleDashed } from "lucide-react";
 
-/** 上海时区当天 0 点的 ISO 串（账本/AI 账都按上海日）。 */
-function shanghaiDayStartIso(offsetDays = 0): string {
+/** 上海时区当天 0 点的 ISO 串（账本/AI 账都按上海日）。now 由调用方传（loader 下发），
+ *  不在 render 里读系统时钟——否则跨日边界 SSR/hydration 会对不上，触发 #418。 */
+function shanghaiDayStartIso(offsetDays: number, now: number): string {
   const DAY = 86_400_000;
   const OFF = 8 * 3_600_000;
-  return new Date(Math.floor((Date.now() + OFF) / DAY) * DAY - OFF + offsetDays * DAY).toISOString();
+  return new Date(Math.floor((now + OFF) / DAY) * DAY - OFF + offsetDays * DAY).toISOString();
 }
 
 const DAY = 86_400_000;
@@ -75,6 +76,9 @@ export const Route = createFileRoute("/ai/")({
       chal: chalRes.list,
       recorder,
       indexCount: indices.length,
+      // 健康分里的「自动记账多久前」依赖当前时刻：放进 loader 算一次、随 loader 数据序列化，
+      // SSR 与 hydration 拿到同一个值，不会因时刻差触发 #418。
+      serverNow: Date.now(),
     };
   },
   component: AIConsolePage,
@@ -82,6 +86,7 @@ export const Route = createFileRoute("/ai/")({
 
 function AIConsolePage() {
   const d = Route.useLoaderData();
+  const { serverNow } = d;
   const router = useRouter();
   const [evolveMsg, setEvolveMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<"evolve" | "diagnose" | null>(null);
@@ -152,8 +157,8 @@ function AIConsolePage() {
   };
 
   // ── 真实计数 ──────────────────────────────────────────────────────────
-  const todayIso = shanghaiDayStartIso();
-  const sevenIso = shanghaiDayStartIso(-6);
+  const todayIso = shanghaiDayStartIso(0, serverNow);
+  const sevenIso = shanghaiDayStartIso(-6, serverNow);
   const todayProposed = d.log.filter((e) => e.at >= todayIso).reduce((a, e) => a + e.proposed.length, 0);
   const totalProposed = d.log.reduce((a, e) => a + e.proposed.length, 0);
   const totalRejected = d.log.reduce((a, e) => a + e.rejected.length, 0);
@@ -164,7 +169,7 @@ function AIConsolePage() {
   const recent = d.usage.entries.filter((e) => e.at >= sevenIso);
   const recentOk = recent.filter((e) => e.ok).length;
   const successRate = recent.length > 0 ? Math.round((recentOk / recent.length) * 100) : null;
-  const recorderFresh = d.recorder.at != null && Date.now() - d.recorder.at < 5 * 60_000;
+  const recorderFresh = d.recorder.at != null && serverNow - d.recorder.at < 5 * 60_000;
 
   // 健康分：四个真实检查项各 25 分，构成写在 title 里
   const checks = [
@@ -177,7 +182,7 @@ function AIConsolePage() {
           ? "已配置（近 7 天无调用）"
           : `近 7 天成功率 ${successRate}%（${recent.length} 次）`,
     },
-    { label: "自动记账", ok: recorderFresh, detail: d.recorder.at ? `${Math.round((Date.now() - d.recorder.at) / 60_000)} 分钟前` : "还没跑" },
+    { label: "自动记账", ok: recorderFresh, detail: d.recorder.at ? `${Math.round((serverNow - d.recorder.at) / 60_000)} 分钟前` : "还没跑" },
     { label: "行情通道", ok: d.indexCount > 0, detail: d.indexCount > 0 ? `拿得到 ${d.indexCount} 个指数` : "行情还没拉到" },
     { label: "判决机制", ok: d.chal.length > 0, detail: d.chal.length > 0 ? `挑战者档案 ${d.chal.length} 个` : "还没有挑战者档案" },
   ];

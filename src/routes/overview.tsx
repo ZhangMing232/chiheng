@@ -34,13 +34,15 @@ export const Route = createFileRoute("/overview")({
       getFlow().catch(() => null),
       getNews().catch(() => null),
     ]);
-    return { indices, breadth, flow, news };
+    // 新鲜度条的「延迟/是否过期」依赖当前时刻：放进 loader 算一次、随 loader 数据序列化，
+    // SSR 与客户端 hydration 拿到同一个值，不会因时刻差触发 #418。
+    return { indices, breadth, flow, news, serverNow: Date.now() };
   },
   component: OverviewPage,
 });
 
 function OverviewPage() {
-  const { indices, breadth, flow, news } = Route.useLoaderData();
+  const { indices, breadth, flow, news, serverNow } = Route.useLoaderData();
 
   return (
     <Frame wide
@@ -48,11 +50,11 @@ function OverviewPage() {
       freshness={
         flow
           ? {
-              state: flow.asOf && Date.now() - flow.asOf > 120_000 ? "delayed" : "healthy",
-              label: flow.asOf && Date.now() - flow.asOf > 120_000 ? "涨跌数据延迟" : "涨跌数据正常",
+              state: flow.asOf && serverNow - flow.asOf > 120_000 ? "delayed" : "healthy",
+              label: flow.asOf && serverNow - flow.asOf > 120_000 ? "涨跌数据延迟" : "涨跌数据正常",
               source: "腾讯全市场快照",
               updatedAt: flow.asOf ? new Date(flow.asOf).toTimeString().slice(0, 8) : undefined,
-              latencySeconds: flow.asOf ? Math.round((Date.now() - flow.asOf) / 1000) : undefined,
+              latencySeconds: flow.asOf ? Math.round((serverNow - flow.asOf) / 1000) : undefined,
               canRetry: true,
             }
           : { state: "unavailable", label: "涨跌统计暂未拉到", message: "行情源还没返回全市场快照", canRetry: true }
