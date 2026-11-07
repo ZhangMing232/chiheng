@@ -336,24 +336,57 @@ export const getBreadth = createServerFn({ method: "GET" }).handler(async () => 
   return { up, down, flat, limitUp, limitDown, total: universe.quotes.length, asOf: universe.asOf, source: universe.source };
 });
 
-/** 大管家问答。POST { q } → { ok, answer } 或 { ok:false, error }。 */
+/** 大管家问答。POST { q, history } → { ok, answer } 或 { ok:false, error }。
+ *  history 是这轮之前的对话（仅作 AI 上下文，不重复落盘）；本轮问答成功后按用户存档。 */
 export const askButler = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
-    const q =
-      typeof data === "object" && data !== null && "q" in data && typeof (data as { q?: unknown }).q === "string"
-        ? (data as { q: string }).q.trim()
-        : "";
+    const d = typeof data === "object" && data !== null ? data : {};
+    const q = typeof (d as { q?: unknown }).q === "string" ? (d as { q: string }).q.trim() : "";
     if (!q) throw new Error("问题不能为空");
-    return { q };
+    const raw = Array.isArray((d as { history?: unknown }).history) ? (d as { history: unknown[] }).history : [];
+    const history = raw
+      .filter((x): x is { role: "user" | "butler"; text: string } => {
+        if (typeof x !== "object" || x === null) return false;
+        const r = (x as { role?: unknown }).role;
+        const t = (x as { text?: unknown }).text;
+        return (r === "user" || r === "butler") && typeof t === "string";
+      })
+      .slice(-32) // 守住上下文窗口：最多带 16 轮（32 条）历史
+      .map((x) => ({ role: x.role, text: x.text.slice(0, 4000) }));
+    return { q, history };
   })
   .handler(async ({ data }) => {
     const { askButler } = await import("@/lib/market/butler");
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const { appendMessages } = await import("@/lib/market/conversation-store");
     try {
-      return { ok: true as const, answer: await askButler(data.q) };
+      const userId = await requireUserId();
+      const answer = await askButler(data.q, { history: data.history });
+      // 落盘：本轮用户提问 + 大管家回答。失败不影响本轮回答，但要照实说。
+      await appendMessages(userId, [
+        { role: "user", text: data.q },
+        { role: "butler", text: answer },
+      ]).catch(() => {});
+      return { ok: true as const, answer };
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
     }
   });
+
+/** 读本人（按用户隔离）的大管家历史对话。没有 = 空数组，不报错。 */
+export const getButlerHistory = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { loadHistory } = await import("@/lib/market/conversation-store");
+  return loadHistory(await requireUserId());
+});
+
+/** 清空本人的大管家对话。 */
+export const clearButlerHistory = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireUserId } = await import("@/lib/auth/verify.server");
+  const { clearHistory } = await import("@/lib/market/conversation-store");
+  await clearHistory(await requireUserId());
+  return { ok: true as const };
+});
 
 /** 自媒体文案生成。POST { kind, platform } → { ok, text }。kind 见 studio.ts 的 StudioKind。 */
 export const generateStudioCaption = createServerFn({ method: "POST" })

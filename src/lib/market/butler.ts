@@ -16,6 +16,7 @@ import { readQueue } from "./factor-queue.ts";
 import { readAgentDiagnosis } from "./agent-loop.ts";
 import { readWatchlist } from "./watchlist.ts";
 import { callDSH } from "./chiheng-dsh-client.ts";
+import type { ChatTurn } from "./conversation-store.ts";
 
 /** 大管家的系统提示：中文、简洁、只基于给定状态、不编数、不给投资建议。 */
 const BUTLER_SYSTEM = [
@@ -112,9 +113,23 @@ export async function buildButlerContext(): Promise<string> {
   return lines.join("\n") || "（暂无项目状态数据）";
 }
 
-/** 回答用户一个问题。先读状态当上下文，再走 DSH。失败抛错（上层接住）。 */
-export async function askButler(question: string): Promise<string> {
+/** 把历史对话压成一段文字，作为上下文喂给 DSH（DSH 只收单轮 system+user，没有多轮字段）。 */
+function renderHistory(history: ChatTurn[]): string {
+  if (history.length === 0) return "";
+  const lines = history.map((m) => `${m.role === "user" ? "用户" : "大管家"}：${m.text}`);
+  return `【对话历史（较早的在前，仅作上下文，不必重复回答）】\n${lines.join("\n")}\n`;
+}
+
+/**
+ * 回答用户一个问题。先读项目状态当上下文，再把之前的对话压成历史上下文，
+ * 最后走 DSH。失败抛错（上层接住）。history 只用于本次回答，落盘由调用方负责。
+ */
+export async function askButler(question: string, opts: { history?: ChatTurn[] } = {}): Promise<string> {
   const ctx = await buildButlerContext();
-  const prompt = `【项目状态】\n${ctx}\n\n【用户问题】\n${question}`;
+  const history = opts.history ?? [];
+  const historyBlock = renderHistory(history);
+  const prompt =
+    `【项目状态】\n${ctx}\n\n${historyBlock}\n【用户问题】\n${question}` +
+    (history.length ? "\n\n（注意：上面【对话历史】是你们之前的交流，回答时接着上下文来，不要当成新提问。）" : "");
   return callDSH(prompt, { system: BUTLER_SYSTEM });
 }

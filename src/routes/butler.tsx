@@ -15,7 +15,7 @@ import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { GlowPanel, MiniBars } from "@/components/ai-kit";
-import { askButler, getChallengers, getIndices, getRecorder, getServerJournal, getStrategyGates } from "@/lib/market/quotes.functions";
+import { askButler, clearButlerHistory, getButlerHistory, getChallengers, getIndices, getRecorder, getServerJournal, getStrategyGates } from "@/lib/market/quotes.functions";
 import { ACTIVE_STYLES, STYLES } from "@/lib/market/strategies";
 import { Bot, Send, ChartLine, Wallet, FlaskConical, Database } from "lucide-react";
 import type { IndexQuote } from "@/lib/market/types";
@@ -41,12 +41,13 @@ const SUGGESTIONS = [
 
 export const Route = createFileRoute("/butler")({
   loader: async () => {
-    const [journal, gates, indices, recorder, chal] = await Promise.all([
+    const [journal, gates, indices, recorder, chal, history] = await Promise.all([
       getServerJournal().catch(() => ({ days: [], personal: false, why: null })),
       getStrategyGates().catch(() => ({ gates: {} as Record<string, { state: string; reason: string; since: string }> })),
       getIndices().catch(() => [] as IndexQuote[]),
       getRecorder().catch(() => ({ at: null as number | null, ok: true })),
       getChallengers().catch(() => ({ list: [] as { id: string; status: string; name?: string }[], champions: {} })),
+      getButlerHistory().catch(() => [] as { role: "user" | "butler"; text: string; at: string }[]),
     ]);
     const trades = journal.days.flatMap((d) => d.trades);
     const open = trades.filter((t) => t.exit == null).length;
@@ -67,6 +68,7 @@ export const Route = createFileRoute("/butler")({
       gates: gates.gates,
       indices,
       recorder,
+      history,
       runningChallengers: chal.list.filter((c) => c.status === "running").length,
       judgedChallengers: chal.list.filter((c) => c.status !== "running").length,
     };
@@ -76,7 +78,10 @@ export const Route = createFileRoute("/butler")({
 
 function ButlerPage() {
   const d = Route.useLoaderData();
-  const [messages, setMessages] = useState<Msg[]>([{ role: "butler", text: WELCOME }]);
+  // 历史存在服务端、按用户隔离；刷新后从这里恢复，不会丢。没有历史才显示开场白。
+  const [messages, setMessages] = useState<Msg[]>(() =>
+    d.history.length ? d.history.map((m) => ({ role: m.role, text: m.text })) : [{ role: "butler", text: WELCOME }],
+  );
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,11 +90,13 @@ function ButlerPage() {
   async function send(q?: string) {
     const text = (q ?? input).trim();
     if (!text || busy) return;
+    // 把这一轮之前的所有对话（去掉开场白）作为上下文喂给 AI，让它接得上上一轮。
+    const prior = messages.filter((m) => m.text !== WELCOME).map((m) => ({ role: m.role, text: m.text }));
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
     setBusy(true);
     try {
-      const res = await askButler({ data: { q: text } });
+      const res = await askButler({ data: { q: text, history: prior } });
       setMessages((m) => [...m, { role: "butler", text: res.ok ? res.answer : `（出错：${res.error}）` }]);
     } catch (e) {
       setMessages((m) => [...m, { role: "butler", text: `（调用失败：${e instanceof Error ? e.message : String(e)}）` }]);
@@ -97,6 +104,16 @@ function ButlerPage() {
       setBusy(false);
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
     }
+  }
+
+  async function clearAll() {
+    if (busy) return;
+    try {
+      await clearButlerHistory();
+    } catch {
+      /* 清不掉也不阻塞界面 */
+    }
+    setMessages([{ role: "butler", text: WELCOME }]);
   }
 
   const styleRows = STYLES.map((s) => {
@@ -118,6 +135,14 @@ function ButlerPage() {
           <p className="text-xs text-muted">你的量化投资 AI 助手：连接数据、策略与市场，先读状态再回答。</p>
         </div>
         <span className="text-xs text-muted">专注于量化投资的 AI Copilot</span>
+        <button
+          type="button"
+          onClick={() => void clearAll()}
+          disabled={busy}
+          className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-muted transition hover:border-ai-line hover:text-ai disabled:opacity-40"
+        >
+          清空对话
+        </button>
       </div>
 
       <div className="mt-3 grid items-start gap-3 xl:grid-cols-[1fr_300px]">
@@ -217,9 +242,9 @@ function ButlerPage() {
             <h2 className="flex items-center gap-1.5 text-sm font-medium text-fg">
               <Database size={14} className="text-ai" /> 当前上下文
             </h2>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">每次回答前自动读一遍，答完即弃、不写任何数据：</p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">每次回答前读一遍项目状态，并把你之前的提问作为上下文；对话按用户存档，刷新不丢：</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {["指数行情", "涨跌分布", "账本持仓", "策略闸门", "挑战者池", "因子队列"].map((c) => (
+              {["指数行情", "涨跌分布", "账本持仓", "策略闸门", "挑战者池", "因子队列", "对话记忆"].map((c) => (
                 <span key={c} className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">
                   {c}
                 </span>
