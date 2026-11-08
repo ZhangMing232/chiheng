@@ -1,12 +1,12 @@
 /**
  * 这个文件是干什么的：
- * 因子页的两块研究性诊断——缩量天数归因（翻号到底是「一整段环境变了」还是零散的）
+ * 因子页的两块研究性诊断——缩量天数归因（翻脸到底是「一整段环境变了」还是零散的）
  * 和资金流探路（持有期压测）。
  *
  * 你需要知道的：
  * 1. 这两块的数据**不进 6 关判决**，它们是「为什么没过关」的解释，不是过关证明。
  *    页面必须说清这一点，否则读者会以为这是又一组信号。
- * 2. 翻号段表里那列「同期全池」是这段全市场等权涨跌——它是用来检验「普涨导致
+ * 2. 翻脸段表里那列「同期全池」是这段全市场等权涨跌——它是用来检验「普涨导致
  *    缩量失效」这个猜想的。实测涨跌都有，猜想不成立，所以结论行要如实写「推翻」，
  *    不能因为猜错了就不写。
  * 3. 资金流只有 120 个交易日缓存，G3 两段各 60 天偏短——t=2.24 只能当方向，
@@ -40,7 +40,7 @@ export function ShrinkFlipPanel({ diag, bull }: { diag: ShrinkFlipDiag; bull: Sh
           className="bg-surface"
         />
         <Stat
-          label="失效（翻号）段数"
+          label="失效（翻脸）段数"
           value={String(diag.segments.length)}
           hint={`共 ${diag.segments.reduce((s, x) => s + x.days, 0)} 个交易日，零散分布`}
           className="bg-surface"
@@ -51,12 +51,12 @@ export function ShrinkFlipPanel({ diag, bull }: { diag: ShrinkFlipDiag; bull: Sh
         按 5 日滚动平均精确到交易日：缩量信号失效是<strong className="font-normal text-fg">零散的 {diag.segments.length} 段</strong>，
         不是「某段时间整体不行」。最长一段 {longest ? `${longest.from} ~ ${longest.to}（${longest.days} 天）` : "—"}
         {longest ? `，同期全池 ${signedPct(longest.poolRet * 100)}` : ""}——
-        是跌的，不是普涨。翻号段里全池有涨有跌，<strong className="font-normal text-fg">「普涨导致缩量失效」这个猜想被推翻了</strong>。
+        是跌的，不是普涨。翻脸段里全池有涨有跌，<strong className="font-normal text-fg">「普涨导致缩量失效」这个猜想被推翻了</strong>。
       </p>
 
       <Table
         className="data-table"
-        caption="缩量信号翻号的交易日段，以及每段同期全市场等权涨跌"
+        caption="缩量信号翻脸的交易日段，以及每段同期全市场等权涨跌"
       >
         <thead>
           <tr className="border-b border-line">

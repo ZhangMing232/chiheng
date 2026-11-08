@@ -6,8 +6,8 @@ import { RETIRED_IDS } from "./retired-factors.ts";
  *
  * 为什么要有这个文件：
  * 以前因子检验（scripts/backtest.ts 的 BT_FACTOR 分支）里，8 个因子是一个
- * 硬编码的 `{ name, get }` 数组，跑完只输出「最高档-最低档」的 spread 和 t 值，
- * G1 单调性、G3 两段同号、G4 换样本、G5 Bonferroni、G6 可交易性全都靠人工
+ * 硬编码的 `{ name, get }` 数组，跑完只输出「最高档-最低档」的 spread 和信噪比，
+ * G1 单调性、G3 两段同向、G4 换样本、G5 Bonferroni、G6 可交易性全都靠人工
  * 分几次跑、再肉眼比对、手填进 baseline。这样既容易漏判，也容易「改阈值直到
  * 过关」而不自知。
  *
@@ -18,7 +18,7 @@ import { RETIRED_IDS } from "./retired-factors.ts";
  *      纯函数没有 fetch、没有环境变量、没有副作用，所以能直接单测。
  *
  * 纪律（和 README/baseline 一致，别改）：
- *   超额 ≠ 收益；|t| < 2 等于没测出来；两段翻号 = 不能用；禁调参过关。
+ *   超额 ≠ 收益；|t| < 2 等于没测出来；两段翻脸 = 不能用；禁调参过关。
  */
 
 /** metrics() 的返回类型。因子 getter 只从这里面取值，不碰原始 K 线。 */
@@ -137,7 +137,7 @@ export type Factor = {
  */
 export const FACTORS: Factor[] = [
   { id: "chg", name: "当日涨幅", category: "反转", direction: -1, family: "涨幅", rationale: "A 股日内反转：当天涨多了，次日倾向回落。", get: (m) => m.chg },
-  { id: "d5", name: "5日涨幅", category: "反转", direction: -1, family: "涨幅", rationale: "短期反转：5 日涨多的倾向回落（已知两段翻号，不可用）。", get: (m) => m.d5 },
+  { id: "d5", name: "5日涨幅", category: "反转", direction: -1, family: "涨幅", rationale: "短期反转：5 日涨多的倾向回落（已知两段翻脸，不可用）。", get: (m) => m.d5 },
   { id: "d10", name: "10日涨幅", category: "动量", direction: 1, family: "涨幅", rationale: "10 日动量：刚进动量区间，强者可能延续。", get: (m) => m.d10 },
   { id: "d20", name: "20日涨幅", category: "动量", direction: 1, family: "涨幅", rationale: "中期动量：20 日向上的趋势可能延续。", get: (m) => m.d20 },
   { id: "d60", name: "60日涨幅", category: "反转", direction: -1, family: "涨幅", rationale: "中期反转：跌得多的后面弹得快（唯一站得住的老信号）。", get: (m) => m.d60 },
@@ -249,7 +249,7 @@ export const FACTORS: Factor[] = [
 
   // ===== 两融因子 =====
   { id: "margin_ratio", name: "融资占比", category: "量能", direction: 1, family: "杠杆",
-    rationale: "融资余额占流通市值比高=杠杆资金看好，短期有动量。⚠️ 预登记局限：高杠杆票跌起来也狠，两段翻号风险高。",
+    rationale: "融资余额占流通市值比高=杠杆资金看好，短期有动量。⚠️ 预登记局限：高杠杆票跌起来也狠，两段翻脸风险高。",
     get: (m) => m.marginRatio },
   { id: "margin_buy", name: "融资净买", category: "量能", direction: 1, family: "杠杆",
     rationale: "融资净买入=加杠杆做多，是真金白银的看多信号。预注册方向+1。",
@@ -283,7 +283,7 @@ export const FACTORS: Factor[] = [
     rationale:
       "当日快讯利好→买盘涌入（A股散户跟消息买卖的特征非常显著）。预注册方向+1。" +
       "⚠️ 预登记局限：快讯情绪一天一变，横截面区分度集中在小票（龙头利好早就定价了）；" +
-      "且利好当天股价往往已反应，次日可能反转。预期回测里两段翻号风险高（G3 可能挂）。" +
+      "且利好当天股价往往已反应，次日可能反转。预期回测里两段翻脸风险高（G3 可能挂）。" +
       "🔴 2026-11-05 实查：**历史接不了**——新浪 7×24 的 feed 只保留约 6 天（实测翻到第 100 页" +
       "就是 2026-10-30，再往后返回同样的数据），东财快讯的 sortEnd 游标翻不了历史；" +
       "tushare news 接口这个 token 无权限。要接得买新闻历史库。",
@@ -337,7 +337,7 @@ export type FactorRun = {
   bucketMeans: number[];
   /** 最高档 - 最低档的平均超额。 */
   meanSpread: number;
-  /** spread 的 t 值。 */
+  /** spread 的信噪比。 */
   t: number;
   /** 有效交易日数（当天能分档的天数）。 */
   nDays: number;
@@ -345,7 +345,7 @@ export type FactorRun = {
   topBlockedRatio: number;
   /**
    * 日度 spread 序列的偏度/峰度（非超额，正态=3），DSR/PSR 用：
-   * 负偏厚尾会让同样的 t 值更不可信。样本不足或 spread 无波动时为 null。
+   * 负偏厚尾会让同样的信噪比更不可信。样本不足或 spread 无波动时为 null。
    * 学 Vibe-Trading 的 multipletesting.py——显著性校正要看收益分布形状，不能只看 t。
    */
   spreadSkew: number | null;
@@ -505,7 +505,7 @@ export function gateT(t: number): Gate {
 }
 
 /**
- * G3 段一致性：前后两段 spread 同号，且各自 |t| ≥ 0.7。
+ * G3 段一致性：前后两段 spread 同向，且各自 |t| ≥ 0.7。
  * 半段省一半样本 t 自然折旧（全段 2 到半段约 1.4，0.7 是放得够宽但还能挡住纯噪音）。
  */
 export const HALF_T_MIN = 0.7;
@@ -515,22 +515,22 @@ export function gateHalves(first: FactorRun, second: FactorRun): Gate {
   const pass = sameSign && bothStrong;
   return {
     pass,
-    detail: `前 ${(first.meanSpread * 100).toFixed(2)}%(${first.t.toFixed(2)}) / 后 ${(second.meanSpread * 100).toFixed(2)}%(${second.t.toFixed(2)})${sameSign ? "" : "（翻号）"}`,
+    detail: `前 ${(first.meanSpread * 100).toFixed(2)}%(${first.t.toFixed(2)}) / 后 ${(second.meanSpread * 100).toFixed(2)}%(${second.t.toFixed(2)})${sameSign ? "" : "（翻脸）"}`,
   };
 }
 
 /**
- * G4 换样本：换一批互不重叠的股票，spread 仍同号且 |t| ≥ 1.5。
+ * G4 换样本：换一批互不重叠的股票，spread 仍同向且 |t| ≥ 1.5。
  * 全段要求 2 是合理的（因子经得起横截面检验），但换样本降到 1.5——
  * 不同股票池里的强因子本来就比全段难打出同样的 t（股票池变小自然样本量变小）。
- * 翻号才是真死刑：换批股票 spread 反了 = 结论只在第一批票上成立。
+ * 翻脸才是真死刑：换批股票 spread 反了 = 结论只在第一批票上成立。
  */
 export function gateResample(base: FactorRun, offset: FactorRun): Gate {
   const sameSign = Math.sign(base.meanSpread) === Math.sign(offset.meanSpread) && base.meanSpread !== 0;
   const pass = sameSign && Math.abs(offset.t) >= 1.5;
   return {
     pass,
-    detail: `原 ${(base.meanSpread * 100).toFixed(2)}% / 换样本 ${(offset.meanSpread * 100).toFixed(2)}%(${offset.t.toFixed(2)})${sameSign ? "" : "（翻号）"}`,
+    detail: `原 ${(base.meanSpread * 100).toFixed(2)}% / 换样本 ${(offset.meanSpread * 100).toFixed(2)}%(${offset.t.toFixed(2)})${sameSign ? "" : "（翻脸）"}`,
   };
 }
 
@@ -655,7 +655,7 @@ function spreadOf(sorted: DailyRow[], buckets: number): number | null {
  * 缩量天数归因（研究性诊断，不进 6 关）：
  * 回答「shrinkDays 是不是 d60 的马甲」。如果是，它俩横截面高度相关，
  * 且把 d60 分档中性化之后，shrinkDays 的独立超额会缩到接近 0。
- * 同时按时间切成几段，看顶-底 spread 的翻号发生在哪一段——是不是和
+ * 同时按时间切成几段，看顶-底 spread 的翻脸发生在哪一段——是不是和
  * 60 日反转同一波「环境变了」。
  *
  * daily 是 analyzeFactors 的输入（每交易日 × 每只票的因子值 + 未来超额）。
@@ -746,7 +746,7 @@ export function diagnoseShrinkDays(
  *
  * 每天把票按 shrinkDays 分档取顶档（缩量最多），再按是否止跌劈两半，输出两半
  * 各自的平均超额。关键看「止跌 - 不止跌」的溢价是不是稳定为正——尤其在最长
- * 的翻号段（缩量整体失效时）里，止跌组是不是还扛得住。
+ * 的翻脸段（缩量整体失效时）里，止跌组是不是还扛得住。
  */
 export function diagnoseShrinkBull(daily: DailyRow[][], fShrink: number, fChg: number, buckets = 5) {
   const byDay: { idx: number; topBull: number | null; topBear: number | null; topAll: number | null; bullN: number; bearN: number }[] = [];

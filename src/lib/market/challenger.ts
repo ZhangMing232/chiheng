@@ -197,7 +197,7 @@ export async function appendChampionLog(entry: { at: number; style: string; from
 
 /**
  * Welch 双样本 t：均值差的标准误用两组各自的方差（不要求等方差）。
- * 返回 mean(a) − mean(b) 的 t 值；任一组少于 2 笔返回 null。
+ * 返回 mean(a) − mean(b) 的信噪比；任一组少于 2 笔返回 null。
  */
 export function welchT(a: number[], b: number[]): number | null {
   const na = a.length;

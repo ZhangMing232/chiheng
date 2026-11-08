@@ -55,7 +55,7 @@ export function sortByAnn(rows: readonly EarningsPoint[]): EarningsPoint[] {
   return [...rows].sort((a, b) => a.ann.localeCompare(b.ann));
 }
 
-/** 连续 n 期同号（正/负）？数据不够返回 false。 */
+/** 连续 n 期同向（正/负）？数据不够返回 false。 */
 function sameSignRun(values: readonly (number | null)[], n: number, positive: boolean): boolean {
   const usable = values.filter((v): v is number => v != null && Number.isFinite(v));
   if (usable.length < n) return false;

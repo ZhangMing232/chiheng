@@ -223,7 +223,7 @@ test("二代钉：量比超过 5（天量出货）不进名单", () => {
 test("二代判决后：低估值留在现役，放量突破已下线", async () => {
   const { ACTIVE_STYLES } = await import("@/lib/market/strategies");
   assert.ok(ACTIVE_STYLES.includes("value"), "value 必须在 ACTIVE_STYLES 里");
-  assert.ok(!ACTIVE_STYLES.includes("breakout"), "放量突破 2026-11-05 下线：全池新窗口聚类 t 0.43，补闸后 -0.52，没过白皮书 §4 的 |t|≥2");
+  assert.ok(!ACTIVE_STYLES.includes("breakout"), "放量突破 2026-11-05 下线：全池新窗口信噪比 0.43，补闸后 -0.52，没过白皮书 §4 的 |t|≥2");
   assert.ok(!ACTIVE_STYLES.includes("rebound"), "中期反转按一代判决书淘汰，不许回现役");
 });
 

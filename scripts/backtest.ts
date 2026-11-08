@@ -51,6 +51,10 @@ const peMap: Record<string, Map<string, PeRow>> = {};
 // 总市值快照（今日，单位亿），value 变体的 100 亿门槛用，也供 BT_CAP 全局闸。
 // 这是今天的市值不是历史市值，属已知近似（见文件头注释），不能当精确结论。
 let capMap: Record<string, number> = {};
+// 个股自身 PE 历史分位（pct：0=自身历史最便宜，100=最贵；streak：连续低位天数）。
+// 由 buildPePctMap() 在 loadPeHistory 之后预计算，策略函数按 m.date 查，避免每笔重复扫全序列。
+// 这是把「PE≤18 绝对值」改写成「相对自身历史便宜 + 持续低位」的核心结构——直接修复价值策略的 value-trap 失败。
+let pePctMap: Record<string, Map<string, { pct: number; streak: number }>> = {};
 
 async function loadPeHistory(): Promise<void> {
   const dir = `${CACHE}/../pe-history`;
@@ -81,6 +85,29 @@ async function loadPeHistory(): Promise<void> {
   }
   if (n > 0) console.log(`历史 PE/PB 缓存 ${n} 只（value 变体用）\n`);
 }
+
+/**
+ * 预计算个股自身 PE 历史分位（无前视）。
+ *
+ * value 失败根因：用「PE≤18 绝对阈值」= value trap（绝对便宜 ≠ 相对便宜，低 PE 常是低质量或下行周期）。
+ * 这里改成「个股自身 PE 在过往 windowDays 交易日的分位」：pct≤cheapThresh = 相对自身历史便宜；
+ * streak = 连续处于低位天数，用来要求「持续性」而非单日跳便宜。
+ *
+ * 计算逻辑在 src/lib/market/pe-percentile.ts（纯函数），守门测试钉死「无前视」：
+ * 砍掉未来数据重算，之前每一天的分位必须逐点相同。
+ */
+function buildPePctMap(windowDays = 250, cheapThresh = 25): void {
+  let built = 0;
+  for (const code of Object.keys(peMap)) {
+    const series = peMap[code];
+    const entries: PeSeriesEntry[] = [];
+    for (const [date, row] of series) entries.push({ date, pe: row.peTTM });
+    const m = computePePercentiles(entries, { windowDays, cheapThresh, minHistory: 60 });
+    if (m.size) pePctMap[code] = m;
+    built += 1;
+  }
+  console.log(`个股 PE 历史分位预计算完成（${built} 只）\n`);
+}
 import { holdOf } from "@/lib/market/strategies";
 import type { BacktestRun, BacktestStyleStat } from "@/lib/market/backtest-runs";
 import { RUNS_PATH } from "@/lib/market/backtest-runs";
@@ -108,6 +135,10 @@ import { dsr as dsrOf, perPeriodSharpe, std as trialStd } from "@/lib/market/rob
 import { pitValue, recordsOf } from "@/lib/market/fundamentals";
 import type { FundamentalFile } from "@/lib/market/fundamentals";
 import { specBacktestSignal, loadGenomeSpec, type SpecBacktestRow } from "@/lib/market/spec-backtest";
+import { clusterTOf, halvesSameSignOf, judgeGenomeVerdict } from "@/lib/market/genome-verdict";
+import { shouldAvoid } from "@/lib/market/lhb-avoid";
+import { loadAvoidIndex } from "@/lib/market/lhb-avoid-index.server";
+import { computePePercentiles, type PeSeriesEntry } from "@/lib/market/pe-percentile";
 
 /** 财报基本面落盘文件（scripts/fetch-fundamentals.py / .ts 生成）。读不到就当没有——
  * 基本面因子全部取 null 自动退出分档，不影响量价因子检验。 */
@@ -128,6 +159,17 @@ function ymd(date: string): string {
 
 /** 回测多长。250 个交易日约等于一年。 */
 const LOOKBACK = 250;
+/**
+ * 单次从腾讯接口抓多少根日线。默认 800（≈3.2 年），之前是 LOOKBACK+80=330。
+ * 拉长是为了在更长历史（多轮 regime）上重跑同一套策略，看是否真过双闸。
+ * BT_KLINE_DAYS 可临时调小（如 330）做对照、或回归旧口径。
+ */
+const KLINE_FETCH_DAYS = Number(process.env.BT_KLINE_DAYS ?? 800);
+/**
+ * 交易 / 因子 / 重采样窗口。默认回退 LOOKBACK；BT_WINDOW 可临时拉长（如 750）
+ * 在更长历史上重跑同一套策略，且只纳 ≥ 该长度的票，保证对照是同窗口。
+ */
+const WINDOW = Number(process.env.BT_WINDOW ?? LOOKBACK);
 /** 抽多少只股票。全市场五千多只全拉太慢，抽样已经能看出方向。 */
 const SAMPLE = Number(process.env.BT_SAMPLE ?? 300);
 /** 每套策略每天最多买几只，和线上一致。 */
@@ -199,7 +241,7 @@ const KLINE_HEADERS = { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com
 /**
  * 追加一条诊断记录（factor-diag.jsonl）。
  *
- * 为什么是 append 不是覆盖写一个 json：三种诊断（缩量翻号 / 止跌溢价 / 资金流探路）
+ * 为什么是 append 不是覆盖写一个 json：三种诊断（缩量翻脸 / 止跌溢价 / 资金流探路）
  * 形状差别很大，塞一个文件里得靠 kind 分桶；而且 book-file.ts 以前被「写一半的文件
  * 把整份数据废掉」坑过——append 天然幂等，跑崩了最多少一条，不会毁掉已有的。
  */
@@ -214,8 +256,8 @@ type Row = { date: string; o: number; c: number; h: number; l: number; v: number
 async function fetchKline(id: string, noFq = false): Promise<Row[]> {
   // 指数没有复权数据，带 qfq 会返回 501，只能取原始 day
   const url = noFq
-    ? `https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=${id},day,,,${LOOKBACK + 80}`
-    : `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${id},day,,,${LOOKBACK + 80},qfq`;
+    ? `https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=${id},day,,,${KLINE_FETCH_DAYS}`
+    : `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${id},day,,,${KLINE_FETCH_DAYS},qfq`;
   const res = await fetch(url, { headers: KLINE_HEADERS, signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`status ${res.status}`);
   const body = (await res.json()) as { data?: Record<string, { qfqday?: string[][]; day?: string[][] }> };
@@ -267,7 +309,11 @@ async function loadKlines(ids: string[], freshThrough = ""): Promise<Map<string,
       }
       const lastBar = rows && rows.length > 0 ? rows[rows.length - 1].date : "";
       const stale = rows != null && freshThrough !== "" && lastBar < freshThrough;
-      if (!rows || stale) {
+      // 缓存条数不够（之前只抓了 LOOKBACK+80 根）也要补长，否则拉到 800 根的票混着
+      // 331 根的票，跨股窗口/排名不可比（延用 10-24「同窗口」前提）。
+      const tooShort = rows != null && rows.length < KLINE_FETCH_DAYS;
+      const reason = !rows ? "缺失" : stale ? "超龄" : tooShort ? "太短" : "";
+      if (!rows || stale || tooShort) {
         let fresh: Row[] | null = null;
         for (let attempt = 0; attempt < 3 && !fresh; attempt += 1) {
           try {
@@ -281,16 +327,17 @@ async function loadKlines(ids: string[], freshThrough = ""): Promise<Map<string,
             await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
           }
         }
-        if (fresh) {
-          if (stale) refreshed += 1;
+        // 只在新抓的比缓存长时才覆盖，避免新上市股（历史不足 800 根）陷入无限重抓
+        if (fresh && fresh.length >= (rows?.length ?? 0)) {
+          refreshed += 1;
           rows = fresh;
           await writeFile(`${CACHE}/${id}.json`, JSON.stringify(fresh));
-        } else if (stale) {
+        } else if (stale && !fresh) {
           keptStale += 1;
         }
       }
-      if (done < 3) process.stderr.write(`  [诊断] ${id} -> ${rows ? rows.length + " 根" : "空"}${stale ? "（超龄重抓）" : ""}\n`);
-      if (rows && rows.length > LOOKBACK) out.set(id, rows);
+      if (done < 3) process.stderr.write(`  [诊断] ${id} -> ${rows ? rows.length + " 根" : "空"}${reason ? `（${reason}重抓）` : ""}\n`);
+      if (rows && rows.length > WINDOW) out.set(id, rows);
       done += 1;
       if (done % 50 === 0) process.stderr.write(`  已取 ${done}/${ids.length} 只\n`);
     }
@@ -381,6 +428,10 @@ function metrics(
 ) {
   const at = (k: number) => (i - k >= 0 ? rows[i - k].c : null);
   const c = rows[i].c;
+  // 事件数据的时间口径：默认查 t 日（盘后公布、t+1 开盘前可得，见 EXT_LAG 注释）；
+  // BT_EXT_LAG=1 时严格滞后一根 K 线，只查更早那根 bar 的日期。
+  // 用 K 线自身的日期查 ext（ext 按日历日索引），停牌跳日也自然对得上。
+  const extDate = EXT_LAG ? (rows[i - 1]?.date ?? rows[i].date) : rows[i].date;
   const pct = (base: number | null) => (base && base > 0 ? ((c - base) / base) * 100 : null);
   const prev = i - 1 >= 0 ? rows[i - 1].c : c;
   const chg = prev > 0 ? ((c - prev) / prev) * 100 : 0;
@@ -447,6 +498,8 @@ function metrics(
 
   return {
     c,
+    /** 信号日日期（YYYY-MM-DD）。策略函数要用它去查 pePctMap（个股自身 PE 历史分位），避免把绝对阈值当相对分位。无前视：策略只拿得到 t 日这天的分位。 */
+    date: rows[i].date,
     /**
      * 买卖价基准 = 信号日收盘 `c`（对「次日下单」而言它就是「昨收」）。
      *
@@ -523,7 +576,10 @@ function metrics(
     sectorFlow: null,
     newsTone: null,
     annCount: null,
-    ...injectExt(ext, rows[i].date, id, amountWan),
+    // 事件数据的时间口径：默认查 t 日（盘后公布、t+1 开盘前可得，见 EXT_LAG 注释）；
+    // BT_EXT_LAG=1 时严格滞后一根 K 线，只查更早那根 bar 的日期。
+    // 用 K 线自身的日期查 ext（ext 按日历日索引），停牌跳日也自然对得上。
+    ...injectExt(ext, extDate, id, amountWan),
     // 历史 PE/PB（baostock 真实逐日序列）。null 不是 0：null 是「那天没这个数」，
     // 策略函数应该把 null 当「无法确认便宜」处理，不能当「便宜」通过。
     // pe-history 按纯 6 位代码命名（pe-600000.json），kline 的 id 带 sh/sz 前缀，
@@ -629,6 +685,77 @@ function corrOf(x: number[], y: number[]): number | null {
 }
 
 type Signal = { buy: number; stop: number; sell: number; score: number; atClose?: boolean; /** 成交方向：stop=追涨（现价>=buy），limit=等回踩（现价<=buy）。缺省 limit。 */ fill?: "stop" | "limit" };
+
+/**
+ * 事件数据的时间口径开关（#148）。
+ *
+ * 两融余额、龙虎榜都是**盘后才公布**的：t 日 15:00 收盘那一刻拿不到，
+ * 但 t+1 开盘前拿得到。回测是「t 日收盘出信号、t+1 成交」，所以用 t 日事件
+ * 数据是合法的（信号生成时点＝t 日盘后数据齐了之后），**但必须写明，不能默认藏着**。
+ *
+ * BT_EXT_LAG=1 则严格滞后一根 K 线：t 日只准看 t-1 的事件，多留一天缓冲，
+ * 绝对无争议。两种口径都跑，结论若只在其中一种成立，就是靠前视撑着，不算数。
+ * 默认 0（保持历史因子判决口径不变，历史 1390 行可比）。
+ */
+const EXT_LAG = process.env.BT_EXT_LAG === "1";
+
+/**
+ * #148 事件驱动策略：**选股条件完全由事件字段触发，不看任何价格形态**。
+ * 不用 d5/d20/volRatio/chg/均线那套形态条件，只认两融异动与龙虎榜净买卖。
+ * 执行骨架统一（昨收限价买、−8% 止损、+10% 止盈），所以各策略之间比的
+ * 是「哪个事件有选股能力」，不是执行参数调得巧。
+ *
+ * 字段缺失一律 return null —— 「拿不到 ≠ 没有」，不能拿 0 顶替。
+ * 只在 BT_EVENT=1 注册（和 BT_GEN2/BT_VALUE 一样的实验开关约定），
+ * 默认不注册，免得污染日常基线和页面读的 runs.jsonl。
+ */
+type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy";
+
+function eventStrategy(kind: EventKind) {
+  return (m: ReturnType<typeof metrics>): Signal | null => {
+    // 这两条不是形态条件，只是排除不可交易的票（仙股、没成交额）
+    if (m.c < 4 || m.amountWan == null || m.amountWan < 3000) return null;
+    const amountYuan = m.amountWan * 1e4;
+    // 融资净买入占当日成交额比（横截面可比，避免大盘股金额天然大）
+    const marginRatioFlow = m.marginBuy == null ? null : m.marginBuy / m.amountWan;
+    // 融券余额 / 当日成交额
+    const shortRatio = m.shortBalance == null ? null : m.shortBalance / amountYuan;
+    let score: number | null = null;
+    switch (kind) {
+      case "marginSurge": // 融资大幅净买入 → 看多情绪
+        if (marginRatioFlow == null || marginRatioFlow < 0.03) return null;
+        score = marginRatioFlow;
+        break;
+      case "marginExit": // 融资大幅净偿还 → 反向假设
+        if (marginRatioFlow == null || marginRatioFlow > -0.03) return null;
+        score = -marginRatioFlow;
+        break;
+      case "shortHigh": // 融券余额相对成交额高 → 轧空假设
+        if (shortRatio == null || shortRatio < 0.5) return null;
+        score = shortRatio;
+        break;
+      case "lhbSell": // 龙虎榜净卖（游资净买的镜像，正向假设）
+        if (m.hotNetBuy == null || m.hotNetBuy > -3000) return null;
+        score = -m.hotNetBuy;
+        break;
+      case "lhbBuy": // 龙虎榜净买（已知反向信号，作负对照）
+        if (m.hotNetBuy == null || m.hotNetBuy < 3000) return null;
+        score = m.hotNetBuy;
+        break;
+    }
+    if (score == null) return null;
+    const buy = m.prev;
+    return { buy, stop: buy * 0.92, sell: buy * 1.1, score };
+  };
+}
+
+const EVENT_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: number }> = {
+  "evt-margin-surge": { label: "事件·融资净买异动", fn: eventStrategy("marginSurge"), hold: 10 },
+  "evt-margin-exit": { label: "事件·融资净偿还", fn: eventStrategy("marginExit"), hold: 10 },
+  "evt-short-high": { label: "事件·融券余额高", fn: eventStrategy("shortHigh"), hold: 10 },
+  "evt-lhb-sell": { label: "事件·龙虎榜净卖", fn: eventStrategy("lhbSell"), hold: 10 },
+  "evt-lhb-buy": { label: "事件·龙虎榜净买(负对照)", fn: eventStrategy("lhbBuy"), hold: 10 },
+};
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
 function trend(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
@@ -837,8 +964,8 @@ function springBuy(m: ReturnType<typeof metrics>): Signal | null {
  *
  * 这是因子检验里唯一站得住的信号，不是拍脑袋想的：60 日涨幅分五档后，
  * 未来 10 天的超额是 +0.63% / +0.30% / +0.22% / -0.16% / -0.38%（t=-2.81），
- * 而且前半段 t=-3.80、后半段 t=-1.68，两段同号、档位都单调。
- * 同期 5 日涨幅在两段里直接翻号（-2.35 / +1.11），那种就不能用。
+ * 而且前半段 t=-3.80、后半段 t=-1.68，两段同向、档位都单调。
+ * 同期 5 日涨幅在两段里直接翻脸（-2.35 / +1.11），那种就不能用。
  *
  * 注意它说的是「跌得多所以后面反弹得快」，不是「跌得多所以便宜」——别当成价值投资。
  * 也正因为买的是连续下跌的票，退市风险、ST 风险会比别的策略高，
@@ -950,6 +1077,48 @@ function valueBacktest(m: ReturnType<typeof metrics>, stopPct?: number): Signal 
 }
 
 /**
+ * 相对估值分位·持续（relValPersist）—— 价值论题的「重建版」，直接吸取 value 的失败教训。
+ *
+ * value 失败根因：用「PE≤18 绝对阈值」= value trap（绝对便宜 ≠ 相对便宜，低 PE 常是低质量 / 下行周期）。
+ * 这里改用「个股自身 PE 在过往 250 交易日的分位（pePct）」：pct≤25 = 相对自身历史便宜；
+ * 并要求连续 ≥5 天低位（streak，持续性），排除单日跳便宜的假信号。这是「分位化 + 持续性」，
+ * 正是把绝对阈值的坑换成相对分位。详见 buildPePctMap / pePctMap。
+ *
+ * 其余教训一并用上：
+ *   - 质量 / 流动性闸（isST / cap / floatCap / amountWan / c）沿用 value，这些不是 value 的失败点；
+ *   - 不裸赌「便宜就涨」：要求近 60 日没崩盘式下跌（d60≥−25）、近 20 日没加速下跌（d20≥−10），
+ *     即「相对便宜 + 走势未恶化」双条件，规避 value trap 的「便宜继续便宜」；
+ *   - 龙虎榜过热由 runPass 全局过滤器（BT_AVOID_LHB=1）剔除（上榜=游资炒作过热代理，已验证反向）。
+ *
+ * 评分用 −pePct：越便宜分位越低、分越高 → 引擎 top-N 取最相对便宜的。
+ * 持仓 20 个交易日（区别于失败策略的 8~10 天短 horizon，测更长持有是否出 edge）。
+ * 无前视：pePct 只用 ≤ 信号日的自身历史 PE。
+ */
+function relValPersist(m: ReturnType<typeof metrics>, stopPct?: number, id?: string): Signal | null {
+  const code = (id ?? "").replace(/[^0-9]/g, "");
+  const pp = code ? pePctMap[code]?.get(m.date) : undefined;
+  if (!pp || !isFinite(pp.pct)) return null;
+  if (pp.pct > 25) return null; // 不在「相对自身历史便宜」区间
+  if (pp.streak < 5) return null; // 持续性：必须持续低位 ≥5 天，排除单日跳便宜
+  if (m.isST === true) return null;
+  if (m.pe == null || m.pb == null || m.pe <= 0 || m.pb <= 0) return null;
+  if (m.cap == null || m.cap < 100) return null; // 100 亿市值门槛（同 value，已知近似）
+  if (m.floatCap != null && m.floatCap < 40) return null;
+  if (m.amountWan < 3000) return null;
+  if (m.c < 4) return null;
+  if (m.d60 != null && m.d60 < -25) return null; // 不在崩盘式下跌
+  if (m.d20 != null && m.d20 < -10) return null; // 近期没加速下跌
+  const c = m.c;
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const buy = r2(c);
+  const give = stopPct ?? 8;
+  const stop = r2(buy * (1 - give / 100));
+  const sell = r2(buy * (1 + 12 / 100));
+  if (!(stop < buy && buy < sell)) return null;
+  return { buy, stop, sell, score: -Math.round(pp.pct) };
+}
+
+/**
  * 策略函数签名：
  *   m       = 该股在信号日（t 日）的指标行（metrics() 的产物）
  *   stopPct = 全局止损覆盖（回测扫描用）
@@ -1022,6 +1191,19 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
   ...(process.env.BT_VALUE === "1"
     ? { value: { label: "低估值·回测变体", fn: valueBacktest, hold: holdOf("value") } }
     : {}),
+  // 「低估 + 不上榜」选股：在 value 变体之上叠加龙虎榜净买回避（BT_AVOID_LHB=1 的全局候选过滤器）。
+  // 这是把用户实盘纪律（估值+股息兜底）和已验证的反向信号（上榜=游资炒作过热代理）合到一起——
+  // 选便宜的、且近期没被爆炒过的票。本身复用 valueBacktest，回避由 runPass 的全局过滤器做。
+  // 跑法：BT_VALUE_AVOID=1 BT_AVOID_LHB=1 BT_NO_LOG=1（默认关，免污染基线/页面账本）。
+  ...(process.env.BT_VALUE_AVOID === "1"
+    ? { valueAvoid: { label: "低估+回避上榜", fn: valueBacktest, hold: holdOf("value") } }
+    : {}),
+  // 相对估值分位·持续（relValPersist）：价值论题的重建版，把「PE≤18 绝对阈值」换成
+  // 「个股自身 PE 历史分位 + 持续低位」，修复 value-trap 失败。默认不注册（免污染基线/页面账本）。
+  // 跑法：BT_NEWSTRAT=1 BT_AVOID_LHB=1 BT_NO_LOG=1（LHB 回避默认一并开，吸取「上榜=过热反向」教训）。
+  ...(process.env.BT_NEWSTRAT === "1"
+    ? { relValPersist: { label: "相对估值分位·持续", fn: relValPersist, hold: 20 } }
+    : {}),
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
   // 天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写死 10。
   rebound: { label: "中期反转", fn: rebound, hold: holdOf("rebound") },
@@ -1042,6 +1224,9 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
   ...Object.fromEntries(
     genomeSpecs.map((g) => [`genome_${g.id}`, { label: g.label, fn: genomeFns[`genome_${g.id}`], hold: g.hold }]),
   ),
+  // #148 事件驱动实验（BT_EVENT=1 才注册）。默认不注册，不污染日常基线/页面账本。
+  // 跑法：BT_EVENT=1 BT_NO_LOG=1 BT_SAMPLE=2646（大样本）+ BT_HALF/BT_OFFSET（样本外/多批次）。
+  ...(process.env.BT_EVENT === "1" ? EVENT_STRATEGIES : {}),
 };
 
 type Trade = {
@@ -1089,6 +1274,14 @@ async function main() {
   console.log(`  合计一来一回成本 ${(roundTrip * 100).toFixed(3)}%（BT_CAPITAL 改本金）`);
   console.log(`  样本：全市场列表等距抽样 ${SAMPLE} 只（BT_SAMPLE 可改），BT_OFFSET 换互不重叠的一批`);
   console.log(`  数据：日线来自腾讯 K 线接口落盘缓存（${CACHE}），qfq 前复权；市值过滤用今天的快照非历史`);
+  if (process.env.BT_EVENT === "1") {
+    console.log(
+      `  事件数据口径：两融/龙虎榜为盘后公布，t 日 15:00 拿不到、t+1 开盘前拿得到 → ` +
+        (EXT_LAG
+          ? "BT_EXT_LAG=1 严格滞后一根 K 线（t 日只查更早那根 bar 的事件，绝对无争议）"
+          : "当前查 t 日事件（合法但依赖盘后数据，务必与 BT_EXT_LAG=1 对照跑一遍）"),
+    );
+  }
   console.log("  局限：抽样 300 只的结论外推到全市场要谨慎；回测=限价单口径，与线上现价口径有差\n");
 
   const uniRes = await fetch("https://qt.gtimg.cn/q=sh000001", { headers: KLINE_HEADERS });
@@ -1327,7 +1520,7 @@ async function main() {
   // 基准按策略窗口起止切片。以前是「抓最近 250 根算指数收益」——窗口随跑动日期滑，
   // 和策略窗口（冻在缓存里）不同期：10-12 那轮 -5.1%、10-24 这轮 -9.6% 是这么来的，
   // 不是行情变了（10-24 基线问题③，用户已拍板修）。现在脊就是指数，同一起止。
-  const startIdx = Math.max(0, dates.length - LOOKBACK);
+  const startIdx = Math.max(0, dates.length - WINDOW);
   const endDate = dates[dates.length - 1] ?? "";
   const startDate = dates[startIdx] ?? "";
   const benchStart = bench[startIdx]?.c ?? null;
@@ -1379,6 +1572,17 @@ async function main() {
   // 环境总闸：沪深 300 在 20 日均线下方时，认为逆风，当天不开新仓
   const useFilter = process.env.BT_FILTER === "1";
 
+  // 龙虎榜净买回避过滤器（游资/营业部驱动的反向信号）：实盘闸门默认关，本回测需显式开 BT_AVOID_LHB=1。
+  // 多头候选若近期（窗口 BT_AVOID_WIN **自然日**，默认 80 ≈ 55 交易日）出现在净买名单上，直接剔除。
+  // 窗口调参见 scripts/backtest-avoid-window.ts；阈值 3000 万是扫过的最优值（scripts/backtest-avoid-threshold.ts）。
+  // 席位拆解表明该反向 edge 由游资/营业部驱动，机构净买单独不反向。
+  const useAvoid = process.env.BT_AVOID_LHB === "1";
+  const AVOID_WINDOW = Number(process.env.BT_AVOID_WIN ?? 80); // 自然日；80 ≈ 55 交易日（拖累饱和点）。调参见 scripts/backtest-avoid-window.ts
+  if (useAvoid) {
+    await loadAvoidIndex();
+    console.log(`龙虎榜回避过滤器已加载（席位口径 ${process.env.LHB_SEATS ?? "noninst"}，窗口 ${AVOID_WINDOW} 天）：近期净买名单上的票，多头候选直接剔除\n`);
+  }
+
   // 流通市值缓存，给放量突破的换手率闸用。缺了要**大声说**，不能静默跳过那道闸——
   // 静默跳过的话，回测又会变回那个比线上宽松的版本，而报告里看不出来。
   // BT_TURNOVER=0 可以强制关掉这道闸，专门用来做 A/B 对照（改动前后差多少）。
@@ -1389,6 +1593,7 @@ async function main() {
     floatCapMap = {};
   }
   await loadPeHistory();
+  buildPePctMap(); // 个股自身 PE 历史分位（relValPersist 用，无前视）
   const useTurnoverGate = Object.keys(floatCapMap).length > 0 && process.env.BT_TURNOVER !== "0";
   if (useTurnoverGate) {
     console.log(`流通市值缓存 ${Object.keys(floatCapMap).length} 条，放量突破的换手率闸已启用（≥2%）\n`);
@@ -1460,6 +1665,13 @@ async function main() {
       for (const [key, def] of Object.entries(STRATEGIES)) {
         const sig = def.fn(m, stopPct, id);
         if (sig) picks[key].push({ id, sig });
+      }
+    }
+
+    // 龙虎榜回避：近期净买（游资/营业部驱动的反向信号）的票，多头候选直接剔除（留着只拖后腿）
+    if (useAvoid) {
+      for (const key of Object.keys(picks)) {
+        picks[key] = picks[key].filter((p) => !shouldAvoid(p.id, dates[t], AVOID_WINDOW));
       }
     }
 
@@ -1597,7 +1809,7 @@ async function main() {
    */
   function report(results: Record<string, Trade[]>, title: string, collect = false) {
   console.log(title);
-  console.log("策略            笔数   胜率   平均收益   同期全池    超额    t值   跑赢   平均持有  连亏天数  回撤");
+  console.log("策略            笔数   胜率   平均收益   同期全池    超额    信噪比   跑赢   平均持有  连亏天数  回撤");
   console.log("-".repeat(110));
   for (const [key, def] of Object.entries(STRATEGIES)) {
     const trades = results[key];
@@ -1611,7 +1823,7 @@ async function main() {
     // 同期全池等权：这些票本来就在动，减掉它才是选股挑出来的那部分
     const benchAvg = trades.reduce((s, t) => s + t.bench, 0) / trades.length;
     const alpha = avg - benchAvg;
-    // 单笔超额波动很大，光看均值会自己骗自己。算个 t 值：
+    // 单笔超额波动很大，光看均值会自己骗自己。算个信噪比：
     // |t| 不到 2 就说明这点超额和 0 分不开，等于没测出来。
     const spread =
       trades.length > 1
@@ -1665,6 +1877,23 @@ async function main() {
         String(worst).padStart(9) +
         `${(drawdown * 100).toFixed(1)}%`.padStart(10),
     );
+    // 两道关判定（白皮书 §4）：聚类 |t|≥2 且 前后同向，两道都过才算站住。
+    // 教训：spring 在 n=60 逐笔 t=+2.08 看着能部署，n=300 直接 -0.61（小样本假阳性）。
+    // 这里用信噪比（同一天平仓的票共享 beta，逐笔 t 虚高 5~7 倍）+ 前后同向，
+    // 别再拿单笔 t 自己骗自己。任何新候选一律按这关判。
+    const cg = clusterTOf(trades);
+    const hs = halvesSameSignOf(trades);
+    const v = judgeGenomeVerdict({
+      ran: true,
+      trades: trades.length,
+      excessPp: cg ? cg.excess * 100 : null,
+      clusteredT: cg ? cg.clusterT : null,
+      halvesSameSign: hs,
+    });
+    const tStr = cg && cg.clusterT != null ? (cg.clusterT >= 0 ? "+" : "") + cg.clusterT.toFixed(2) : "算不出";
+    const hsStr = hs == null ? "?" : hs ? "同向✓" : "翻脸✗";
+    const verdict = v.status === "promoted" ? "过关 ✓" : v.status === "rejected" ? "没过 ✗" : "样本不足";
+    console.log(`  两道关: 信噪比=${tStr} | 前后半段${hsStr} | 判定=${verdict}`);
   }
   console.log("-".repeat(110));
   }
@@ -1770,7 +1999,7 @@ async function main() {
    * 某个量价指标高的票，未来几天是不是真的走得更好？
    * 每天收盘把全部股票按因子从低到高排成五档，次日开盘等权买入、持有 N 天按收盘卖，
    * 收益减掉同期全池，剩下的才是这个因子挑出来的东西。
-   * t 值按「每天一个最高档减最低档」算，这样不会被某几天的暴涨暴跌带偏。
+   * 信噪比按「每天一个最高档减最低档」算，这样不会被某几天的暴涨暴跌带偏。
    */
   if (process.env.BT_FACTOR === "1") {
     const N = Number(process.env.BT_N ?? 3);
@@ -1842,7 +2071,7 @@ async function main() {
      * 为什么独立（2026-11-05）：以前因子检验直接用策略回测那份样本（跟着 BT_SAMPLE 走），
      * 于是同一天里「因子层的判决」和「策略层的判决」可能跑在不同样本上——每天的
      * auto-verdict 用 BT_SAMPLE=300（因子层），strategy-verdict 用 2400（策略层）。
-     * 两层口径不一致，因子的 t 值还被小样本噪声压着：
+     * 两层口径不一致，因子的信噪比还被小样本噪声压着：
      * **300 只样本下「25 个因子无一全过 6 关」是噪声造成的假象**（见 data/backtest/2026-11-05/ 基线说明）。
      *
      * 1200 这个数不是随便挑的：G4「换样本」要求换一批**不同的**票，
@@ -1860,7 +2089,7 @@ async function main() {
     }
     const factorIds = ids.filter((_, i) => (i + offsetVal) % fStep === 0).slice(0, FACTOR_SAMPLE);
     const fp = await factorPrep(factorIds, capFloor);
-    const fStart = Math.max(0, fp.dates.length - LOOKBACK);
+    const fStart = Math.max(0, fp.dates.length - WINDOW);
     console.log(`因子检验样本池：${factorIds.length} 只（BT_FACTOR_SAMPLE=${FACTOR_SAMPLE}，step=${fStep}）\n`);
 
     const mid = Math.floor((fStart + fp.dates.length - 2) / 2);
@@ -1872,7 +2101,7 @@ async function main() {
     // G4 换样本：错开一位的**另一批**票（step≥2 保证与主样本不重叠），跑同一套检验
     const resampleIds = ids.filter((_, i) => (i + offsetVal + 1) % fStep === 0).slice(0, FACTOR_SAMPLE);
     const rp = await factorPrep(resampleIds, capFloor);
-    const rStart = Math.max(0, rp.dates.length - LOOKBACK);
+    const rStart = Math.max(0, rp.dates.length - WINDOW);
     const resample = analyzeFactors(buildDaily(rp.klines, rp.idxOf, rp.dates, rp.benchOver, rStart, rp.dates.length - N), factorCount, buckets);
 
     const measuredFlags = full.map((r) => r.nDays > 0);
@@ -1897,7 +2126,7 @@ async function main() {
     const totalDays = full.reduce((s, r) => Math.max(s, r.nDays), 0);
     /**
      * DSR（学 Vibe-Trading 的 deflated sharpe）：把「试了 nTested 个因子、运气最好
-     * 的那个该有多显著」当基准线，回答「这个 t 值是不是搜出来的」。
+     * 的那个该有多显著」当基准线，回答「这个信噪比是不是搜出来的」。
      * 每个因子的 per-period 夏普由 t/√nDays 还原（robustness.perPeriodSharpe），
      * 全体因子的夏普散布 = trial_sharpe_std。只记进账本展示，不改 6 关判决。
      */
@@ -1974,7 +2203,7 @@ async function main() {
           resampleSpread: resample[f].meanSpread,
           resampleT: resample[f].t,
           /**
-           * 前后两段各自的 spread / t。以前算完就丢了，导致 G3（两段同号）在页面
+           * 前后两段各自的 spread / t。以前算完就丢了，导致 G3（两段同向）在页面
            * 上只能显示 ✓/✗，说不出「前 +0.13% / 后 -0.72%」这种原话。
            * 旧批次没有这两个字段——页面遇到就显示「这关没记」，不能编。
            */
@@ -2065,15 +2294,15 @@ async function main() {
         );
         console.log("  判读：中性化后 |t| 仍在 2 以上 → shrinkDays 有独立于 d60 的信息，不是马甲。");
 
-        // 精确到交易日：5 日滚动平均滤掉单日噪声，定位翻号（spread>0）的日期段
+        // 精确到交易日：5 日滚动平均滤掉单日噪声，定位翻脸（spread>0）的日期段
         const series = diag.spreadSeries;
         const win = 5;
         const smooth = series.map((x, k) => {
           const slice = series.slice(Math.max(0, k - win + 1), k + 1);
           return { date: dates[startIdx + x.idx], spread: slice.reduce((s, y) => s + y.spread, 0) / slice.length };
         });
-        console.log("\n精确到交易日（5 日滚动平均后的顶-底 spread，只列正的=翻号段；同期全池=这段全市场等权涨跌）：");
-        // 翻号段也要落盘——它们在终端闪一下就没了，而「13 段零散、不是一整段」
+        console.log("\n精确到交易日（5 日滚动平均后的顶-底 spread，只列正的=翻脸段；同期全池=这段全市场等权涨跌）：");
+        // 翻脸段也要落盘——它们在终端闪一下就没了，而「13 段零散、不是一整段」
         // 正是这次归因最要紧的证据，必须留在页面上。
         const segs: { from: string; to: string; days: number; rollingSpread: number; poolRet: number }[] = [];
         let runStart: number | null = null;
@@ -2147,14 +2376,14 @@ async function main() {
         console.log(`  不止跌组平均超额       ${(mean(bear) >= 0 ? "+" : "") + (mean(bear) * 100).toFixed(2)}%（${bear.length} 天）`);
         console.log(`  止跌溢价（止跌−不止跌）${(mean(premium) >= 0 ? "+" : "") + (mean(premium) * 100).toFixed(2)}%，t=${tOf(premium).toFixed(2)}`);
 
-        // 翻号段（缩量整体失效的时段）里，止跌组是否还扛得住
+        // 翻脸段（缩量整体失效的时段）里，止跌组是否还扛得住
         const diagDays = diagnoseShrinkDays(fullDaily, fShrink, fD60, buckets);
         const win = 5;
         const smooth = diagDays.spreadSeries.map((x, k) => {
           const s = diagDays.spreadSeries.slice(Math.max(0, k - win + 1), k + 1);
           return { date: dates[startIdx + x.idx], spread: s.reduce((a, y) => a + y.spread, 0) / s.length };
         });
-        console.log("\n翻号段（5 日滚动 spread>0）里，止跌 vs 不止跌：");
+        console.log("\n翻脸段（5 日滚动 spread>0）里，止跌 vs 不止跌：");
         const flipSegments: { from: string; to: string; days: number; bull: number | null; bear: number | null }[] = [];
         let rs: number | null = null;
         let rows = 0;
@@ -2188,8 +2417,8 @@ async function main() {
             rs = null;
           }
         }
-        if (rows === 0) console.log("  （没有翻号段）");
-        console.log("  判读：止跌溢价 t≥2 且翻号段里止跌组仍显著为正 → 止跌条件能把失效滤掉。");
+        if (rows === 0) console.log("  （没有翻脸段）");
+        console.log("  判读：止跌溢价 t≥2 且翻脸段里止跌组仍显著为正 → 止跌条件能把失效滤掉。");
 
         await appendDiag({
           kind: "shrinkBull",
@@ -2219,7 +2448,7 @@ async function main() {
       const passed = queueVerdicts.filter((v) => v.passed).length;
       console.log(`待验队列已更新：${queueVerdicts.length} 个跑了，${passed} 个过 6 关（连续 2 次不过自动淘汰）`);
     }
-    console.log("判据：|t|<2=没测出；两段翻号=不能用；Bonferroni 后不显著=降级；顶档被挡过半=不可交易。");
+    console.log("判据：|t|<2=没测出；两段翻脸=不能用；Bonferroni 后不显著=降级；顶档被挡过半=不可交易。");
     return;
   }
 

@@ -12,9 +12,9 @@
  * 2. **衰减用比值，不用绝对值**。拿「当前 t」和「这个因子自己过关时的 t」比，
  *    而不是和一个全局阈值比。同一个因子在趋势市和震荡市里绝对值差很多，
  *    但相对自己的基线变弱才是真的在衰减。
- * 3. **翻号比衰减更严重，单独处理成 CRITICAL**。t 值符号和基线相反，
+ * 3. **翻脸比衰减更严重，单独处理成 CRITICAL**。信噪比符号和基线相反，
  *    说明这个因子现在是**反向信号**——继续按原方向用会亏钱，这不是"变弱"是"变反"。
- *    赤轨已经吃过这个亏（5 日涨幅两段翻号、威科夫 Spring 高位语义相反）。
+ *    赤轨已经吃过这个亏（5 日涨幅两段翻脸、威科夫 Spring 高位语义相反）。
  * 4. **降级要连续多次，恢复只要一次**。连续 3 次警告才降级，
  *    但 1 次健康就回升——宁可多留一个暂时回撤的好因子，也不错杀一个。
  *    这条是从 Vibe-Trading 的 `strategy_store/decay.py` 学来的，不是我拍的。
@@ -84,8 +84,8 @@ export function strengthRatio(current: number | null, base: number | null): numb
 }
 
 /**
- * 方向是否反了。t 值符号和基线相反 = 这个因子现在给出的是反向信号。
- * 有一边是 0 时不判翻号——0 是"没测出来"，不是"反了"。
+ * 方向是否反了。信噪比符号和基线相反 = 这个因子现在给出的是反向信号。
+ * 有一边是 0 时不判翻脸——0 是"没测出来"，不是"反了"。
  */
 export function isFlipped(current: number | null, base: number | null): boolean {
   if (current == null || base == null) return false;
@@ -100,7 +100,7 @@ export function isFlipped(current: number | null, base: number | null): boolean 
  * 没有证据的时候不判死，这条和赤轨其他地方"null 是不知道，不是 0"是同一个规矩。
  */
 export function evaluateDecay(reading: DecayReading, baseline: DecayBaseline): DecaySignal {
-  // 翻号优先：这是"变反"不是"变弱"，比任何衰减都紧急
+  // 翻脸优先：这是"变反"不是"变弱"，比任何衰减都紧急
   if (isFlipped(reading.t, baseline.t)) return "critical";
   // G1 单调性破了：6 关第一关都不成立，说明分档形状已经散了
   if (reading.monotonic === false) return "critical";

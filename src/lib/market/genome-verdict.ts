@@ -10,8 +10,8 @@
  *
  * 你需要知道的（纪律）：
  * 1. **判决门槛就是白皮书 §4 那条**：`design/STRATEGY-GEN2.md` §4 写死了「对应回测 |t| ≥ 2，
- *    或实盘挑战者转正」才准进选股条件。这里照抄：聚类 |t| ≥ 2 **且**前后半段方向稳定，
- *    两道都过才算站住。**聚类 t 不是逐笔 t**——同一天平仓的票共享当天 beta，
+ *    或实盘挑战者转正」才准进选股条件。这里照抄：聚类 |t| ≥ 2 **且**前后同向，
+ *    两道都过才算站住。**信噪比不是逐笔 t**——同一天平仓的票共享当天 beta，
  *    逐笔 t 能虚高 5~7 倍（10-28 已量到）。
  * 2. **样本不够不是判决**。只有 20 笔、或者回测没跑成，都只是「还没结论」，
  *    状态留在 "testing"，不许按「没结论 = 死了」处理。
@@ -28,7 +28,7 @@ export type VerdictTrade = { ret?: number; bench?: number; exitDate?: string };
  *
  * 为什么必须聚类：同一天平仓的票共享当天市场 beta，不是独立观测。逐笔 t 会把
  * 126 个交易日的 350 笔当成 350 个独立样本，t 能虚高（11-05 实测：基因组候选
- * 逐笔 t +1.27，聚类 t +0.72）。
+ * 逐笔 t +1.27，信噪比 +0.72）。
  *
  * **口径和 scripts/cluster-t.py 完全一致**（同样的 G/(G-1) 小样本修正、同样的 N² 分母），
  * 已用 11-05 的真实 dump 交叉校验：中期反转 JS −0.98 / python −0.98；
@@ -85,8 +85,8 @@ export function clusterTOf(
 }
 
 /**
- * 前后半段方向是否同号（按平仓日排序切一半，比两段的超额均值）。
- * null = 算不出来（样本太短）——**null 不等于「方向不稳」**，判决时区别对待。
+ * 前后半段方向是否同向（按平仓日排序切一半，比两段的超额均值）。
+ * null = 算不出来（样本太短）——**null 不等于「前后不同向」**，判决时区别对待。
  */
 export function halvesSameSignOf(trades: VerdictTrade[]): boolean | null {
   const usable = trades
@@ -102,7 +102,7 @@ export function halvesSameSignOf(trades: VerdictTrade[]): boolean | null {
   return Math.sign(h1) === Math.sign(h2);
 }
 
-/** 从逐笔明细造出判决输入（跑成了、有多少笔、超额多少、聚类 t 多少、方向稳不稳）。 */
+/** 从逐笔明细造出判决输入（跑成了、有多少笔、超额多少、信噪比多少、前后同不同向）。 */
 export function verdictFromTrades(trades: VerdictTrade[]): GenomeVerdictInput {
   const s = clusterTOf(trades);
   return {
@@ -128,7 +128,7 @@ export type GenomeVerdictInput = {
   excessPp: number | null;
   /** 聚类稳健 t（按 exitDate 聚类）。 */
   clusteredT: number | null;
-  /** 前后半段是否同号。null = 还没算（不算方向不稳）。 */
+  /** 前后半段是否同向。null = 还没算（不算前后不同向）。 */
   halvesSameSign: boolean | null;
   /** 附注（原样落盘，给人看）。 */
   note?: string;
@@ -143,7 +143,7 @@ export type GenomeVerdictOutcome = {
 };
 
 /**
- * 判决：聚类 |t| ≥ 2 且前后半段方向稳定 → 站住（promoted）；
+ * 判决：聚类 |t| ≥ 2 且前后同向 → 站住（promoted）；
  * 差一道 → 判死（rejected）；样本不够 / 没跑成 → 还没结论（testing）。
  */
 export function judgeGenomeVerdict(v: GenomeVerdictInput): GenomeVerdictOutcome {
@@ -158,27 +158,37 @@ export function judgeGenomeVerdict(v: GenomeVerdictInput): GenomeVerdictOutcome 
     };
   }
   if (v.clusteredT == null || !Number.isFinite(v.clusteredT)) {
-    return { status: "testing", failedGates: [], reason: "聚类 t 算不出来（笔数或平仓日不够），不是判决" };
+    return { status: "testing", failedGates: [], reason: "信噪比算不出来（笔数或平仓日不够），不是判决" };
   }
   const t = v.clusteredT;
   if (Math.abs(t) < GENOME_T_GATE) {
     return {
       status: "rejected",
-      failedGates: ["聚类t"],
-      reason: `聚类 t=${t.toFixed(2)} 未过 |t|≥${GENOME_T_GATE}（超额 ${fmtPp(v.excessPp)}）`,
+      failedGates: ["信噪比"],
+      reason: `信噪比=${t.toFixed(2)} 未过 |t|≥${GENOME_T_GATE}（超额 ${fmtPp(v.excessPp)}）`,
     };
   }
   if (v.halvesSameSign === false) {
     return {
       status: "rejected",
-      failedGates: ["方向稳定"],
-      reason: `前后半段翻号（聚类 t=${t.toFixed(2)} 虽过线，但方向不稳）`,
+      failedGates: ["前后同向"],
+      reason: `前后半段翻脸（信噪比=${t.toFixed(2)} 虽过线，但前后不同向）`,
+    };
+  }
+  // null = 算不出来（样本太短 / 平仓日不够），**不是「前后同向」**。
+  // 2026-11-08 全量体检：这里原先直接落到 promoted，理由还写「过线且前后同向」——
+  // 两道关缺一道却算过关，是明确撒谎。白皮书要求两道都过，算不出来就是还没结论。
+  if (v.halvesSameSign == null) {
+    return {
+      status: "testing",
+      failedGates: [],
+      reason: `信噪比=${t.toFixed(2)} 过线，但前后半段同向算不出来，不是判决——继续攒样本`,
     };
   }
   return {
     status: "promoted",
     failedGates: [],
-    reason: `聚类 t=${t.toFixed(2)} 过线且方向稳定（超额 ${fmtPp(v.excessPp)}，${v.trades} 笔）`,
+    reason: `信噪比=${t.toFixed(2)} 过线且前后同向（超额 ${fmtPp(v.excessPp)}，${v.trades} 笔）`,
   };
 }
 

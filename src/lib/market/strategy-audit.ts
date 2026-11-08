@@ -7,7 +7,7 @@
  * 你需要知道的：
  * 1. **审计不重演回测**。它只读那次运行落下来的数字（env + 每套策略的指标和
  *    日度序列），做组合层面的检查：两套策略是不是同一个押注重复收费（共线性）、
- *    回测窗口里有多少票其实没数据（覆盖率）、样本够不够支撑 t 值（样本）、
+ *    回测窗口里有多少票其实没数据（覆盖率）、样本够不够支撑信噪比（样本）、
  *    连亏和回撤有没有超出这套打法的承受能力（回撤）。
  * 2. **前视不在这里查**。前视防线在信号级——每个检测函数只读 rows[0..i] 是
  *    铁律，由单测钉住（如 wyckoff-spring 的截断重算一致性测试）、财报按披露日
@@ -136,7 +136,7 @@ export function coverageFinding(env: BacktestEnv): AuditFinding {
       area: "覆盖率",
       level: "info",
       title: "回测窗口偏短",
-      detail: `区间只有 ${days} 个交易日，不足半年。t 值按年化的直觉不成立，别把短期行情当策略能力。`,
+      detail: `区间只有 ${days} 个交易日，不足半年。信噪比按年化的直觉不成立，别把短期行情当策略能力。`,
     };
   }
   return {
@@ -148,8 +148,8 @@ export function coverageFinding(env: BacktestEnv): AuditFinding {
 }
 
 /**
- * 样本量：|t| ≥ 2 但笔数太少，t 值照样不稳（渐近统计在小样本下就是脆）。
- * 经验线 100 笔：低于它，t 值只当参考，不当证据。
+ * 样本量：|t| ≥ 2 但笔数太少，信噪比照样不稳（渐近统计在小样本下就是脆）。
+ * 经验线 100 笔：低于它，信噪比只当参考，不当证据。
  */
 export function sampleSizeFindings(styles: Pick<BacktestStyleStat, "label" | "trades" | "tStat">[], minTrades = 100): AuditFinding[] {
   const findings: AuditFinding[] = [];
@@ -161,12 +161,12 @@ export function sampleSizeFindings(styles: Pick<BacktestStyleStat, "label" | "tr
       level: signif ? "info" : "warn",
       title: `${style.label} 样本 ${style.trades} 笔`,
       detail: signif
-        ? `低于 ${minTrades} 笔的经验线。t=${style.tStat.toFixed(2)} 看着过了线，但小样本的 t 值对分布假设敏感，只当参考。`
+        ? `低于 ${minTrades} 笔的经验线。t=${style.tStat.toFixed(2)} 看着过了线，但小样本的信噪比对分布假设敏感，只当参考。`
         : `${style.trades} 笔撑不起统计结论——这套目前是「没测出来」，不是「不行」，也不是「行」。`,
     });
   }
   if (findings.length === 0) {
-    findings.push({ area: "样本", level: "ok", title: "样本量充足", detail: `每套策略都 ≥ ${minTrades} 笔，t 值有统计意义。` });
+    findings.push({ area: "样本", level: "ok", title: "样本量充足", detail: `每套策略都 ≥ ${minTrades} 笔，信噪比有统计意义。` });
   }
   return findings.sort((a, b) => order[a.level] - order[b.level]);
 }

@@ -49,7 +49,7 @@ export type FactorRunRow = {
   resampleSpread: number;
   resampleT: number;
   /**
-   * 前后两段各自的 [前 spread, 后 spread]。G3（两段同号）的判据原话要用。
+   * 前后两段各自的 [前 spread, 后 spread]。G3（两段同向）的判据原话要用。
    * **旧批次没有这两个字段**（2026-10-07 之前跑的）——页面遇到必须显示「没记」，
    * 不能编一个数字出来。
    */
@@ -92,7 +92,7 @@ export type FactorRunRow = {
 
 export type GateKey = "g1" | "g2" | "g3" | "g4" | "g5" | "g6";
 
-/** 缩量天数归因：翻号是零散的几段，不是一整段。 */
+/** 缩量天数归因：翻脸是零散的几段，不是一整段。 */
 export type ShrinkFlipDiag = {
   kind: "shrinkFlip";
   at: string;

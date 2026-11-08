@@ -39,7 +39,7 @@ const SNAP: LedgerSnapshot = {
   verdictAttribLines: [],
 };
 
-test("summarizeRunRow：t 值、过关数、DSR 口径都对", () => {
+test("summarizeRunRow：信噪比、过关数、DSR 口径都对", () => {
   const base = {
     at: "t", factor: "f", name: "名", direction: 1 as const, n: 3, buckets: 5, offset: 0,
     universe: 300, nDays: 247, meanSpread: 0.004, t: 2.5, topBlockedRatio: 0.2,

@@ -11,8 +11,8 @@
  * 这一页露三件事：
  * 1. **候选清单**：AI 提的每套 spec（选股/排序/定价/持有/止损/目标）+ 状态
  *    （proposed 待判 / testing 判了样本不够 / promoted 站住 / rejected 判死）。
- * 2. **判决数字**：聚类 t、超额、笔数、前后半段是否同号。门槛=白皮书 §4
- *    （聚类 |t|≥2 **且**前后半段同号）。逐笔 t 不作数——同一天平仓的票共享当天
+ * 2. **判决数字**：信噪比、超额、笔数、前后半段是否同向。门槛=白皮书 §4
+ *    （聚类 |t|≥2 **且**前后同向）。逐笔 t 不作数——同一天平仓的票共享当天
  *    beta，逐笔 t 能虚高 5~7 倍（10-28 实测）。
  * 3. **它用了哪些因子**：因子→策略融合的溯源（seededFactors）。没这条线，
  *    「因子挖掘完融合」在界面上看不见。
@@ -67,7 +67,7 @@ function GenomePage() {
       <div className="flex flex-col gap-4">
         <Panel
           title="策略基因组"
-          note="AI 提的每套策略都在这儿过一遍回测。判据写死在服务端：聚类 |t|≥2 且前后半段同号。"
+          note="AI 提的每套策略都在这儿过一遍回测。判据写死在服务端：聚类 |t|≥2 且前后同向。"
           bodyClassName="px-3.5 py-3"
         >
           <div className="grid gap-3 sm:grid-cols-4">
@@ -188,7 +188,7 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
           </div>
           <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] sm:grid-cols-4">
             <div>
-              <span className="text-muted">聚类 t </span>
+              <span className="text-muted">信噪比 </span>
               <span className={`tabular-nums ${v.clusteredT != null && Math.abs(v.clusteredT) >= 2 ? "text-up" : "text-muted"}`}>
                 {v.clusteredT == null ? "算不出来" : v.clusteredT.toFixed(2)}
               </span>
@@ -203,7 +203,7 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
             </div>
             <div>
               <span className="text-muted">前后半段 </span>
-              <span>{v.halvesSameSign == null ? "没算" : v.halvesSameSign ? "同号" : "翻号"}</span>
+              <span>{v.halvesSameSign == null ? "没算" : v.halvesSameSign ? "同向" : "翻脸"}</span>
             </div>
           </div>
           <p className="mt-1.5 text-[11px] text-muted">{v.reason}</p>
@@ -220,7 +220,7 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
       {c.status === "promoted" ? (
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-up">
           <ShieldCheck size={12} />
-          过了白皮书 §4 的双闸（|t|≥2 且前后半段同号）——但**还没进实盘**，要单独拍板。
+          过了白皮书 §4 的两道关（|t|≥2 且前后同向）——但**还没进实盘**，要单独拍板。
         </div>
       ) : null}
 

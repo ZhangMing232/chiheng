@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 守住策略闸门的判决逻辑：t 值算法、停用/假释/恢复/冷却翻倍的每一条转换。
+ * 守住策略闸门的判决逻辑：信噪比算法、停用/假释/恢复/冷却翻倍的每一条转换。
  *
  * 你需要知道的：
  * 这些标准是预先登记的（strategy-gate.ts 的 STRATEGY_GATE），测试锁死的就是
@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evaluateGate, tStat, clusterTStat, tradingDaysBetween, STRATEGY_GATE, type GateRecord } from "@/lib/market/strategy-gate";
 
-/** 构造一组均值为 mean、标准差约 sd 的收益，长度 n。用于把 t 值打到目标区间。 */
+/** 构造一组均值为 mean、标准差约 sd 的收益，长度 n。用于把信噪比打到目标区间。 */
 function makeRets(n: number, mean: number, sd: number): number[] {
   // 正负交替的骨架 + 微调，保证样本标准差接近 sd、均值接近 mean
   const base = Array.from({ length: n }, (_, i) => (i % 2 === 0 ? mean + sd : mean - sd));
@@ -120,10 +120,32 @@ test("evaluateGate：传了 dates 但天数不足 minDays → 不判决（交给
   assert.equal(decision.action, "none", "天数不足 minDays 不应判决");
 });
 
-test("evaluateGate：传了 dates 且天数够、聚类 t ≤ −2 → 停用", () => {
-  // 构造 20 笔分属 20 天、每天一笔、均值明显为负 → 聚类 t 也会 ≤ −2
-  const rets = Array.from({ length: 20 }, () => -0.04);
+test("evaluateGate：传了 dates 且天数够、信噪比 ≤ −2 → 停用", () => {
+  // 20 笔分属 20 天、每天一笔，均值明显为负且有真实波动。
+  // ⚠️ 不能像以前那样用 Array(20).fill(-0.04) 全同值：那是退化样本，
+  // 方差被浮点残差撑成 ~1e-17，会算出 t≈1e16 的假通过（11-08 修，见 clusterTStat）。
+  const rets = Array.from({ length: 20 }, (_, i) => -0.04 + (i % 2 === 0 ? 0.004 : -0.004));
   const dates = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
   const decision = evaluateGate({ rets, dates, record: null, today: "2026-11-01" });
   assert.equal(decision.action, "disable");
+});
+
+test("🔴 clusterTStat：退化样本必须返回 null，不许算出巨大 t（闸门真开仓开关）", () => {
+  // 2026-11-08 全量体检：老实现只判 se>0，浮点残差让方差≈1e-17，实测算出
+  // t = 11529215046068474 的假通过。现在统一转发 genome-verdict 的 clusterTOf。
+  const rets = Array.from({ length: 20 }, (_, i) => 0.01 + (i % 2 === 0 ? 1e-18 : -1e-18));
+  const dates = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  assert.equal(clusterTStat(rets, dates), null, "退化样本应判不判决，不是巨额 t");
+  const allSame = clusterTStat(Array(20).fill(-0.04), dates);
+  assert.equal(allSame, null, "完全同值也应返回 null");
+});
+
+test("clusterTStat 与 genome-verdict 的 clusterTOf 数值一致（口径不许再分裂）", async () => {
+  const { clusterTOf } = await import("@/lib/market/genome-verdict");
+  const rets = Array.from({ length: 20 }, (_, i) => -0.04 + (i % 2 === 0 ? 0.004 : -0.004));
+  const dates = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  const cg = clusterTOf(rets.map((r, i) => ({ ret: r, bench: 0, exitDate: dates[i] })));
+  const mine = clusterTStat(rets, dates);
+  assert.ok(cg && cg.clusterT != null && mine != null, "两边都该算出 t");
+  assert.ok(Math.abs(mine - cg.clusterT) < 1e-9, `数值必须一致：${mine} vs ${cg.clusterT}`);
 });

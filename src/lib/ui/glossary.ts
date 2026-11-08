@@ -65,7 +65,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   gateResample: {
     what: "换样本关（第四关）：换一批互不重叠的股票重测，信号还在才算数。",
-    so: "它防的是「在几只票上碰巧灵」——换一批就翻号的规律不能用。",
+    so: "它防的是「在几只票上碰巧灵」——换一批就翻脸的规律不能用。",
   },
   excess: {
     what: "超额：策略收益减去同期全市场平均（不是减指数）。",

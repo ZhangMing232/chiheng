@@ -156,7 +156,7 @@ function TestControls({ defaults }: { defaults: { n: number; buckets: number } }
  * 显示的全是真数据：
  * - 「过了 6 关的因子」取自本批 rows 里 allPass 的那些（跟上面的六关卡片同源）
  * - 「长成了哪些策略」取自候选自带的 seededFactors 溯源（strategy-genome.ts 记的）
- * - 「那套策略判得怎么样」取自候选的 verdict（全池回测的聚类 t）
+ * - 「那套策略判得怎么样」取自候选的 verdict（全池回测的信噪比）
  * 没有数据就说没有，不拿 0 顶替。
  */
 function FactorToStrategy({
@@ -225,7 +225,7 @@ function FactorToStrategy({
                             <span key={s.id} className="mr-2">
                               → {s.name}
                               <span className={s.status === "promoted" ? "text-up" : "text-muted"}>
-                                （{s.verdict?.clusteredT != null ? `聚类 t ${s.verdict.clusteredT.toFixed(2)}` : "待判"}）
+                                （{s.verdict?.clusteredT != null ? `信噪比 ${s.verdict.clusteredT.toFixed(2)}` : "待判"}）
                               </span>
                             </span>
                           ))
@@ -419,7 +419,7 @@ function FactorsIndexPage() {
       {/* 1 结论 */}
       <Section
         title="现在能下结论吗"
-        hint="数字全部从 data/backtest/ 的产物算出，重跑回测会自动更新。结论只针对「单因子」这一层，不含组合。"
+        hint="这里的数字都来自本地回测产物，收盘后自动更新。结论只针对「单因子」这一层，不含组合。"
       >
         {runs.batch ? (
           <div className="px-3.5 py-4">
@@ -446,7 +446,7 @@ function FactorsIndexPage() {
               {/* 2026-11-05 修：以前写死「没有一个站得住的单因子」，门槛放宽后
                   页面明明显示 20 个全过 6 关，这句话自己打自己嘴巴。改成跟着数字走。 */}
               {summary.passed > 0
-                ? "过了 6 关也只是「这批数据、这套判据下和噪声分得开」，不等于能赚钱——上线前还要过策略层的聚类 t 和方向稳定双闸。"
+                ? "过了 6 关也只是「这批数据、这套判据下和噪声分得开」，不等于能赚钱——上线前还要过策略层的信噪比和前后同向两道关。"
                 : "0 个过关不等于挖得不用心——是这套数据、这套判据下确实没有一个站得住的单因子。"}
               {summary.strongest
                 ? ` |t| 最大的是「${summary.strongest.name}」（${summary.strongest.t.toFixed(2)}），` +
@@ -500,14 +500,14 @@ function FactorsIndexPage() {
             <StateBlock
               kind="empty"
               title="因子判决还没跑出数据"
-              hint={`本机没有 data/backtest/factor-runs.jsonl。${RERUN_HINT}。data/ 不在 git 里，换机器要重跑。`}
+              hint={RERUN_HINT}
             />
           </div>
         )}
       </Section>
 
       <p className="px-1 text-[11px] leading-relaxed text-warn">
-        超额 ≠ 收益；|t| &lt; 2 等于没测出来；两段翻号 = 不能用；禁调参过关。
+        超额 ≠ 收益；|t| &lt; 2 等于没测出来；两段翻脸 = 不能用；禁调参过关。
       </p>
 
       {/* 因子与策略的 AI 闭环（2026-10-13 从 /ai 页搬来）：待验队列、决策者记分牌、挑战者提名 */}

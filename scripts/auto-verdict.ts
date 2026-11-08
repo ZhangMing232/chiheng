@@ -67,7 +67,7 @@ function runBacktestOnce(): Promise<number> {
 
 /**
  * 策略/基因组判决：跑 scripts/strategy-verdict.ts。
- * 它自己会起一轮全池回测（BT_SAMPLE=2646 + BT_GENOME=1 + BT_DUMP），算出聚类 t，
+ * 它自己会起一轮全池回测（BT_SAMPLE=2646 + BT_GENOME=1 + BT_DUMP），算出信噪比，
  * 写 data/strategy-verdicts.json（策略闸读它）和 data/strategy-genome.json
  * （基因组候选的 promoted/rejected 落盘，近亲封禁靠这个学「什么死过」）。
  */
@@ -154,8 +154,8 @@ if (passed.length > 0 || tombstoned.length > 0) {
   console.log(`[auto-verdict] 无过关/淘汰，不打扰`);
 }
 
-// 基因组候选的状态变化（策略判决写的）。promoted = 站住了（聚类 |t|≥2 且方向稳定）；
-// rejected = 判死（t 没到线，或前后半段翻号，或回测判不了）。
+// 基因组候选的状态变化（策略判决写的）。promoted = 站住了（聚类 |t|≥2 且前后同向）；
+// rejected = 判死（t 没到线，或前后半段翻脸，或回测判不了）。
 const genomeAfter = (await readGenome()).list;
 const genomeChanged = genomeAfter.filter((c) => genomeBefore.get(c.id) !== c.status);
 const genomePromoted = genomeChanged.filter((c) => c.status === "promoted");

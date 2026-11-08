@@ -2,7 +2,7 @@
  * 「现役策略」条只列在跑的——2026-11-05 用户点名的规矩，钉住别被改回去。
  *
  * 真实例子：2026-11-05 的 strategy-gates.json 里 breakout 是 disabled
- * （全池回测聚类 t=-2.35，无 alpha），但 ACTIVE_STYLES 仍写着它，
+ * （全池回测信噪比=-2.35，无 alpha），但 ACTIVE_STYLES 仍写着它，
  * 页面就把一张「已停用」黄卡摆在选股页开头。这块该只剩 value。
  */
 
@@ -15,7 +15,7 @@ const ACTIVE = ["breakout", "value"] as const;
 const stopped: GateLike = {
   state: "disabled",
   since: "2026-10-29",
-  reason: "全池回测聚类 t=-2.35，策略无 alpha",
+  reason: "全池回测信噪比=-2.35，策略无 alpha",
 };
 const paroled: GateLike = {
   state: "paroled",

@@ -77,7 +77,7 @@ test("按超额排序：负的沉底", () => {
   assert.deepEqual(styleRows(r, "alpha").map((s) => s.key), ["b", "c", "a"]);
 });
 
-test("按 t 值排序：|t| < 2 的沉底，没测出来的超额不排前面", () => {
+test("按信噪比排序：|t| < 2 的沉底，没测出来的超额不排前面", () => {
   const r = run({
     styles: [
       style({ key: "big", alpha: 0.01, tStat: 0.5 }), // 超额最大但没测出来

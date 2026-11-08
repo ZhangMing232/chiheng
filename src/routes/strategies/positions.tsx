@@ -990,7 +990,7 @@ function Positions() {
                 <th className={thClass("sticky left-0 bg-surface px-2.5 py-1.5 text-left font-normal")}>策略 / 变体</th>
                 <th className={thClass()}>样本</th>
                 <th className={thClass()}>超额</th>
-                <th className={thClass()}>t 值</th>
+                <th className={thClass()}>信噪比</th>
                 <th className={thClass()}>判定</th>
               </tr>
             </thead>
@@ -1008,7 +1008,7 @@ function Positions() {
                     <td data-l="超额" className={tdClass(row.alpha == null ? "" : pctClass(row.alpha))}>
                       {row.alpha == null ? "—" : signedPct(row.alpha)}
                     </td>
-                    <td data-l="t 值" className={tdClass("tabular-nums")}>{row.t == null ? "—" : row.t.toFixed(2)}</td>
+                    <td data-l="信噪比" className={tdClass("tabular-nums")}>{row.t == null ? "—" : row.t.toFixed(2)}</td>
                     <td data-l="判定" className={tdClass()}>
                       <Tag tone={verdict.tone}>{verdict.label}</Tag>
                     </td>

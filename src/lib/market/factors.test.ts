@@ -1,7 +1,7 @@
 /**
  * 这个文件是干什么的：
  * 钉住因子注册表和 6 关判决的行为。这些是纯函数，不碰网络、不碰环境变量，
- * 所以能直接单测——6 关判据本身对不对（单调性、Bonferroni 阈值、两段同号），
+ * 所以能直接单测——6 关判据本身对不对（单调性、Bonferroni 阈值、两段同向），
  * 是「让策略真的赚到钱」这条链路上最容易被人为调松的一环，必须钉死。
  */
 import test from "node:test";
@@ -189,15 +189,15 @@ test("G2：|t| 不到 1.5 就是没测出来（2026-11-05 从 2 放宽到 1.5）
   assert.equal(gateT(-1.4).pass, false);
 });
 
-test("G3 两段：同号且各自 |t|≥1 才过", () => {
-  assert.equal(gateHalves(run(0.01, 2), run(0.008, 1.5)).pass, true, "两段同号都强 → 过");
-  assert.equal(gateHalves(run(0.01, 2), run(-0.008, 1.5)).pass, false, "翻号 → 不过");
+test("G3 两段：同向且各自 |t|≥1 才过", () => {
+  assert.equal(gateHalves(run(0.01, 2), run(0.008, 1.5)).pass, true, "两段同向都强 → 过");
+  assert.equal(gateHalves(run(0.01, 2), run(-0.008, 1.5)).pass, false, "翻脸 → 不过");
   assert.equal(gateHalves(run(0.01, 2), run(0.008, 0.5)).pass, false, "后半段太弱 → 不过");
 });
 
-test("G4 换样本：换一批票仍同号且 |t|≥2 才过", () => {
+test("G4 换样本：换一批票仍同向且 |t|≥2 才过", () => {
   assert.equal(gateResample(run(0.01, 3), run(0.009, 2.5)).pass, true);
-  assert.equal(gateResample(run(0.01, 3), run(-0.009, 2.5)).pass, false, "换样本翻号 → 不过");
+  assert.equal(gateResample(run(0.01, 3), run(-0.009, 2.5)).pass, false, "换样本翻脸 → 不过");
 });
 
 test("G5 Bonferroni：因子越多，临界越高（多重比较会自我收紧）", () => {

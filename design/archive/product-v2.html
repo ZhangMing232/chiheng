@@ -277,7 +277,7 @@ pre .c{color:var(--muted)} pre .k{color:var(--accent)} pre .s{color:var(--ok)}
     <div class="gates">
       <span class="gate">G1 单调</span>
       <span class="gate">G2 |t|≥2</span>
-      <span class="gate">G3 两段同号</span>
+      <span class="gate">G3 两段同向</span>
       <span class="gate">G4 换样本</span>
       <span class="gate">G5 Bonferroni</span>
       <span class="gate">G6 可交易</span>
@@ -290,7 +290,7 @@ pre .c{color:var(--muted)} pre .k{color:var(--accent)} pre .s{color:var(--ok)}
   <div class="card">
     <h2>我的因子</h2>
     <table>
-      <thead><tr><th>名称</th><th>表达式</th><th class="r">t 值</th><th>状态</th><th class="r">创建于</th></tr></thead>
+      <thead><tr><th>名称</th><th>表达式</th><th class="r">信噪比</th><th>状态</th><th class="r">创建于</th></tr></thead>
       <tbody>
         <tr><td>波动压缩比</td><td class="mono muted">std20 / amp20</td><td class="r mono">2.31</td><td><span class="tag ok">过关</span></td><td class="r mono muted">10-05</td></tr>
         <tr><td>缩量反转</td><td class="mono muted">d60 * volShrink</td><td class="r mono">1.72</td><td><span class="tag warn">监测中</span></td><td class="r mono muted">10-07</td></tr>
@@ -517,7 +517,7 @@ curl -H <span class="s">"Authorization: Bearer ck_live_xxx"</span> \
       <h2>AI 自动因子</h2>
       <div style="font-size:12px">
         <div class="sl"><label>每晚上限</label><input type="range" min="1" max="10" value="3" oninput="sv(this,'af','个')"><span class="v" id="af">3个</span></div>
-        <div class="sl"><label>最低 t 值</label><input type="range" min="15" max="35" value="20" oninput="sv(this,'mt','')"><span class="v" id="mt">2.0</span></div>
+        <div class="sl"><label>最低信噪比</label><input type="range" min="15" max="35" value="20" oninput="sv(this,'mt','')"><span class="v" id="mt">2.0</span></div>
         <div class="sl"><label>自动淘汰</label><input type="range" min="1" max="5" value="2" oninput="sv(this,'at','次')"><span class="v" id="at">2次</span></div>
       </div>
       <div class="muted" style="margin-top:9px;font-size:11px">

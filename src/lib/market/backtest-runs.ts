@@ -42,7 +42,7 @@ export type BacktestStyleStat = {
   benchAvg: number;
   /** 超额 = avgRet − benchAvg */
   alpha: number;
-  /** 超额的 t 值。|t| < 2 等于没测出来 */
+  /** 超额的信噪比。|t| < 2 等于没测出来 */
   tStat: number;
   /** 跑赢基准的笔数占比 0-1 */
   beatRate: number;

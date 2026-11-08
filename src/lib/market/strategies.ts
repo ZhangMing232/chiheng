@@ -11,6 +11,12 @@ import { HOLD_SESSIONS, limitPct, limitTag, planExit, screen, type Scored } from
 import type { EarlyRules } from "./rules.ts";
 import type { Quote } from "./types.ts";
 import { compileSpecExpr, type SpecQuote } from "./factor-expr.ts";
+import { shouldAvoid } from "./lhb-avoid.ts";
+
+/** 龙虎榜回避过滤器用的「今天」。只在 LIVE_AVOID_LHB=1 时生效（实盘路径）。 */
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 /** 各套策略的内部编号。页面上的中文名在 STYLES 里。 */
 export type StyleId = "early" | "trend" | "breakout" | "value" | "relay" | "rebound";
@@ -215,7 +221,7 @@ function valueOrder(quote: Quote): Order | null {
  *   后半段 2026-03~2026-09   1159 笔  胜率 44%  超额 −0.10%  t=−0.34
  *   换一批不重叠的股票       2399 笔  胜率 50%  超额 +0.53%  t=3.06
  *
- * **前后两段翻号。** 后半段的 −0.10%、t=−0.34 是「和 0 区分不开」，不是「亏了」
+ * **前后两段翻脸。** 后半段的 −0.10%、t=−0.34 是「和 0 区分不开」，不是「亏了」
  * ——后半段**没有效应**。换股票仍然成立，所以**是时段的问题不是票的问题**。
  *
  * 这一点特别值得记：限价单口径（买价挂昨收 +3%、高开超 3% 不追）跑出来是
@@ -223,7 +229,7 @@ function valueOrder(quote: Quote): Order | null {
  * 所以不是「策略细节没调好」，是环境变了。
  *
  * 所以别再叫它「唯一测出阿尔法的一套」——它没通过项目自己定的段一致性检验。
- * 也不要为了让两段同号去调参数：那是过拟合的入口，而且会毁掉一个还没被证伪的信号。
+ * 也不要为了让两段同向去调参数：那是过拟合的入口，而且会毁掉一个还没被证伪的信号。
  * 正确做法是等实盘样本，第一批结算在 2026-10-22，实验台会自己给结论。
  *
  * 三个刻意的选择，改之前先看懂：
@@ -307,10 +313,10 @@ export function cycleStyle<T>(order: readonly T[], current: T, dir: -1 | 1): T |
  * 单月运气。这是当前最大的证据缺口，别把「唯一在跑」当成「已验证」。
  *
  * **放量突破 2026-11-05 下线**，二代全池新窗口判决没站住：
- *   - 白皮书声明口径 bk4 + −8% 止损：614 笔 +0.15pp，聚类 t=+0.43；
- *   - 补上线上漏写的换手率 ≥2% 闸（gen2）：580 笔 **−0.18pp，聚类 t=−0.52**，
+ *   - 白皮书声明口径 bk4 + −8% 止损：614 笔 +0.15pp，信噪比=+0.43；
+ *   - 补上线上漏写的换手率 ≥2% 闸（gen2）：580 笔 **−0.18pp，信噪比=−0.52**，
  *     尾段 −0.55pp。白皮书 §4 自定 |t|≥2 → 触发「回滚条件并记墓碑」。
- *   - 一代口径（−2% 止损）聚类 t=−2.00，显著负，回滚参数没有意义。
+ *   - 一代口径（−2% 止损）信噪比=−2.00，显著负，回滚参数没有意义。
  *   - 策略闸 10-29 已把它 disabled，实盘早就不建仓；这步只是让代码清单和现实一致。
  *   - 完整判决 data/backtest/2026-11-05/REPORT-GEN2-VERDICT.md，
  *     墓碑见 design/DECISIONS.md。
@@ -394,11 +400,13 @@ export function watchList(
   allow: (quote: Quote) => boolean,
   /** 名单深度。挑战者深扫（DECISIONS #4 方案 D）要 top-20；默认仍是冠军的 top-10。 */
   depth: number = MAX_POSITIONS,
+  /** 回避过滤器用的日期（龙虎榜事件窗口判定的「今天」）。不传则用系统当天。 */
+  today?: string,
 ): Listed[] {
   const rows: Listed[] = [];
   for (const quote of quotes) {
     if (!allow(quote)) continue;
-    const order = quoteOrder(style, quote, rules);
+    const order = quoteOrder(style, quote, rules, today);
     if (!order) continue;
     rows.push({
       quote,
@@ -708,8 +716,25 @@ export function bookRisk(trades: { style?: string; exit: number | null; entry: n
  * 给一只行情算出这一套的计划价。
  * 次日补涨不走这里。对不上趋势、突破、低估值时，按启动前期算。
  */
-export function quoteOrder(style: StyleId, quote: Quote, rules: EarlyRules): Order | null {
+export function quoteOrder(style: StyleId, quote: Quote, rules: EarlyRules, today?: string): Order | null {
   if (style === "relay") return null;
+  // 龙虎榜净买回避过滤器（游资/营业部驱动的反向信号）：实盘可用、需显式开启（LIVE_AVOID_LHB=1）。
+  // 席位拆解表明该反向 edge 由游资/营业部（拉萨天团、章盟主等）驱动，机构净买单独不反向。
+  // 龙虎榜爆买后 10~55 个交易日该票平均跑输（信号实测：N=20 跑输 3.1%，N=55 见底 7.0%），是可靠的「反向指标」。
+  // 任何多头策略遇到这类票直接剔除，等于把已知会拖后腿的票挡在门外。默认关，绝不悄悄改实盘行为。
+  //
+  // 窗口默认值 80（自然日）：拖挂在 55 个交易日附近饱和，80 自然日 ≈ 55 交易日，正好吃满。
+  // 窗口调参（scripts/backtest-avoid-window.ts + 全量回测扫 W）：趋势回踩超额随 W 单调改善到
+  // 80~120 见顶（+0.31% vs 无过滤 −0.05%），W=20 明显偏小（+0.10%）。注意这是自然日不是交易日。
+  // 三个独立抽样批次的增益方向一致为正（+0.36%/+0.19%/+0.08%），被挡票每批都跑输留票；
+// 但全区间聚类 t=1.72 仍不过双闸、独立批次仅 3 个、且只有趋势回踩受益，故闸门默认仍为关。
+// 早前记的「换抽样批次有一档反向」是误读，已由 scripts/diag-offset1.ts 纠正。
+  if (
+    process.env.LIVE_AVOID_LHB === "1" &&
+    shouldAvoid(quote.id, today ?? todayStr(), Number(process.env.LIVE_AVOID_WIN ?? 80))
+  ) {
+    return null;
+  }
   if (style === "trend") return trendOrder(quote);
   if (style === "breakout") return breakoutOrder(quote);
   if (style === "value") return valueOrder(quote);

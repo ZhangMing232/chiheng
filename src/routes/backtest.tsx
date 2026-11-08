@@ -43,7 +43,7 @@ export const Route = createFileRoute("/backtest")({
   component: BacktestPage,
 });
 
-const SORT_LABEL: Record<SortKey, string> = { alpha: "超额", tStat: "t 值", trades: "笔数", winRate: "胜率" };
+const SORT_LABEL: Record<SortKey, string> = { alpha: "超额", tStat: "信噪比", trades: "笔数", winRate: "胜率" };
 
 /** 审计发现的级别标签：和持仓页组合体检同一套色（warn/brand/muted）。 */
 function AuditLevelTag({ level }: { level: AuditFinding["level"] }) {
@@ -198,7 +198,7 @@ function BacktestPage() {
               按{SORT_LABEL[key]}排
             </button>
           ))}
-          <span className="text-[11px] text-muted">按 t 值排时，|t| &lt; 2 的会沉底——那个超额和 0 分不开。</span>
+          <span className="text-[11px] text-muted">按信噪比排时，|t| &lt; 2 的会沉底——那个超额和 0 分不开。</span>
         </div>
 
         <table className="data-table w-full">
@@ -211,7 +211,7 @@ function BacktestPage() {
               <th className={thClass()}>平均收益</th>
               <th className={thClass()}>同期全池</th>
               <th className={thClass()}>超额</th>
-              <th className={thClass()}>t 值</th>
+              <th className={thClass()}>信噪比</th>
               <th className={thClass()}>跑赢</th>
               <th className={thClass()}>平均持有</th>
               <th className={thClass()}>最长连亏</th>

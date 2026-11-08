@@ -259,7 +259,7 @@ export function bootstrapSharpeCI(
 // ─── 因子层 DSR 辅助 ────────────────────────────────────────────
 
 /**
- * per-period（每期）夏普和 t 值的换算：t = SR·√T，所以 SR = t/√T。
+ * per-period（每期）夏普和信噪比的换算：t = SR·√T，所以 SR = t/√T。
  * 赤轨因子检验的 t 来自「每天一个顶-底 spread」序列，√nDays 还原成日频夏普，
  * 才能喂给 psr/dsr（它们要的是 per-period 口径，年化会夸大样本量）。
  * nObs ≤ 0 返回 0（没观测就没有夏普，不是无穷大）。

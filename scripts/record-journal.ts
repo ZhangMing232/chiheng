@@ -47,6 +47,7 @@ import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
 import { ACTIVE_STYLES, DEEP_SCAN_TOP, deepScanChallengerBuy, holdOf, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
+import { loadAvoidIndex } from "../src/lib/market/lhb-avoid-index.server.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase, dayBarReady } from "../src/lib/market/session.ts";
 import { intradayFill } from "../src/lib/market/intraday-fill.ts";
@@ -133,6 +134,35 @@ async function appendNav(userId: string, point: NavPoint) {
     .slice(-500);
   await mkdir(join(process.cwd(), "data"), { recursive: true });
   await writeFile(navPath, JSON.stringify(all));
+}
+
+/**
+ * 微信推送（best-effort，但必须**等它真的发完**）。
+ *
+ * 2026-11-08 全量体检：这里原先 10 处写成 `void sendPushPlus(...)`，而 record-journal
+ * 是每分钟新起的短命进程——fire-and-forget 的 HTTP 请求大概率在进程退出前没发出去，
+ * 推送静默丢失；`push.ts` 头部注释记的「推没推出去是事实，不许猜」正是这个坑。
+ * 更糟的是两处去重 stamp 在发送前/无条件写，失败也标成已推，当天再不重试。
+ *
+ * 所以：一律 await、返回是否真发出、绝不因为推送异常把记账带崩。
+ */
+const pendingPushes: Promise<boolean>[] = [];
+function pushBestEffort(title: string, content: string): Promise<boolean> {
+  const p = sendPushPlus(title, content)
+    .then((sent) => {
+      if (!sent) console.error(`${time} 推送未发出（未配置或接口失败）：${title}`);
+      return sent;
+    })
+    .catch((e) => {
+      console.error(`${time} 推送异常（不影响记账）：${title}`, e);
+      return false;
+    });
+  pendingPushes.push(p);
+  return p;
+}
+/** 进程退出前把所有已排队的推送等完，避免短命进程截断请求。 */
+async function flushPushes(): Promise<void> {
+  await Promise.allSettled(pendingPushes);
 }
 
 function notify(body: string) {
@@ -284,7 +314,7 @@ if (phase.date) {
           await appendChampionLog({ at: Date.now(), style, from, to: "champion", reason });
           console.log(`champion-rollback ${style}: ${reason}`);
           notify(`${name} ${reason}`);
-          void sendPushPlus("赤轨参数回滚", `${name}\n${reason}\n时间：${time}`);
+          await pushBestEffort("赤轨参数回滚", `${name}\n${reason}\n时间：${time}`);
         }
       } else if (decision.action === "parole") {
         gateDisabled.delete(style);
@@ -298,9 +328,9 @@ if (phase.date) {
         decision.action === "disable" ? "已自动停用" : decision.action === "parole" ? "假释观察（每天限 1 只）" : "恢复满仓";
       console.log(`strategy-gate ${style} ${decision.action}: ${decision.reason}`);
       notify(`${name} ${label}：${decision.reason}`);
-      void sendPushPlus("赤轨策略闸门", `${name} ${label}\n${decision.reason}\n时间：${time}`);
+      await pushBestEffort("赤轨策略闸门", `${name} ${label}\n${decision.reason}\n时间：${time}`);
     }
-    // ── 回测判决：全池回测的聚类 t ≤ −2 也判「这套失效」──
+    // ── 回测判决：全池回测的信噪比 ≤ −2 也判「这套失效」──
     // 线上样本太少（13 天、最近 20 笔落在 2 天）测不出慢亏，回测 250 天才有统计功效。
     // live 闸门看「真钱近期」，回测判决看「策略本身有没有 alpha」，两者任一判负都停。
     const backtestVerdicts = await readBacktestVerdicts();
@@ -309,7 +339,7 @@ if (phase.date) {
       const v = backtestVerdicts[style];
       if (!v || typeof v.clusterT !== "number") continue;
       if (v.clusterT > STRATEGY_GATE.disableT) continue;
-      const reason = `全池回测聚类 t=${v.clusterT.toFixed(2)} ≤ ${STRATEGY_GATE.disableT}（${v.n} 笔 / ${v.days} 天），策略无 alpha`;
+      const reason = `全池回测信噪比=${v.clusterT.toFixed(2)} ≤ ${STRATEGY_GATE.disableT}（${v.n} 笔 / ${v.days} 天），策略无 alpha`;
       strategyGates[style] = { state: "disabled", since: phase.date, cooldownDays: STRATEGY_GATE.cooldownDays, strikes: 1, reason };
       gatesChanged = true;
       gateDisabled.add(style);
@@ -324,12 +354,12 @@ if (phase.date) {
         await appendChampionLog({ at: Date.now(), style, from, to: "champion", reason: rollbackReason });
         console.log(`champion-rollback ${style}: ${rollbackReason}`);
         notify(`${name} ${rollbackReason}`);
-        void sendPushPlus("赤轨参数回滚", `${name}\n${rollbackReason}\n时间：${time}`);
+        await pushBestEffort("赤轨参数回滚", `${name}\n${rollbackReason}\n时间：${time}`);
       }
       const name = STYLES.find((item) => item.id === style)?.name ?? style;
       console.log(`strategy-gate ${style} disable(回测): ${reason}`);
       notify(`${name} 已自动停用（回测判决）：${reason}`);
-      void sendPushPlus("赤轨策略闸门", `${name} 已自动停用（回测判决）\n${reason}\n时间：${time}`);
+      await pushBestEffort("赤轨策略闸门", `${name} 已自动停用（回测判决）\n${reason}\n时间：${time}`);
     }
     if (gatesChanged) await writeStrategyGates(strategyGates);
 
@@ -413,7 +443,7 @@ if (phase.date) {
       }
       console.log(`challenger ${chal.id} ${decision.action}: ${decision.reason}${deepNote}`);
       notify(`${label}：${decision.reason}${deepNote}${robustNote}`);
-      void sendPushPlus("赤轨挑战者", `${label}\n${decision.reason}${deepNote}${robustNote}\n时间：${time}`);
+      await pushBestEffort("赤轨挑战者", `${label}\n${decision.reason}${deepNote}${robustNote}\n时间：${time}`);
     }
     if (chalChanged) {
       await writeChallengers(chalFile);
@@ -444,11 +474,13 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
       // 没推过，正常
     }
     if (notified !== phase.date) {
-      await writeFile(stampPath, JSON.stringify({ date: phase.date }));
-      void sendPushPlus(
+      // 只在真发出去时写 stamp：失败/没配通道都保持「未推」，下分钟重试。
+      // 原先是先写 stamp 再 `void` 推送 —— 发失败也标成已推，当天永久丢失这条提醒。
+      const sent = await pushBestEffort(
         "赤轨行情源降级",
         [`腾讯行情接口不可用，已切换新浪财经源。`, `新浪缺近 5/20/60 日涨幅和量比：现役两套里放量突破今天不出新票（不是选不出票）；低估值不依赖这些字段照常；持仓结算不受影响。`, `时间：${time}`].join("\n"),
       );
+      if (sent) await writeFile(stampPath, JSON.stringify({ date: phase.date }));
     }
   }
   const indices = await loadIndices();
@@ -458,6 +490,12 @@ if (phase.date && isTradingDay(phase.date) && phase.matching) {
     relay = await loadRelay(phase.tailHalf, phase.date);
   } catch {
     relay = [];
+  }
+  // 龙虎榜净买（游资/营业部驱动）回避过滤器（实盘可用，需显式开启）：建索引一次，之后零 IO。
+  // 索引为空时 shouldAvoid 安全默认返回 false，不会静默全删。
+  if (process.env.LIVE_AVOID_LHB === "1") {
+    await loadAvoidIndex();
+    console.log(`[avoid] 龙虎榜净买（游资/营业部驱动）回避索引已加载（席位口径 ${process.env.LHB_SEATS ?? "noninst"}，窗口 ${Number(process.env.LIVE_AVOID_WIN ?? 80)} 天）`);
   }
 }
 
@@ -528,7 +566,7 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
       const list =
         style === "relay"
           ? relay.filter((row) => matchPrefs(row.quote, prefs))
-          : watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs));
+          : watchList(universe.quotes, style, rules, (quote) => matchPrefs(quote, prefs), undefined, phase.date);
       // 假释中的策略限 1 只/天：它是带罪观察，不是无罪释放。
       const allBuys = takeBuys(list, held, style, todayTrades);
       const buys = gateParoled.has(style) ? allBuys.slice(0, 1) : allBuys;
@@ -621,7 +659,7 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
         const chalList =
           chal.style === "relay"
             ? relay.filter((row) => matchPrefs(row.quote, prefs))
-            : watchList(universe.quotes, chal.style, rules, (quote) => matchPrefs(quote, prefs));
+            : watchList(universe.quotes, chal.style, rules, (quote) => matchPrefs(quote, prefs), undefined, phase.date);
         let row = takeChallengerBuy(chalList, held, ownToday);
         let deepScan = false;
         if (!row) {
@@ -642,7 +680,7 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
           // 深扫只对「名单饱和」这一种饿法生效。涨停挡说明行情封板，不扫；
           // relay 的名单机制不同（14:30 冻结），也不扫。
           if (nHit > 0 && skip.held === nHit && chal.style !== "relay") {
-            const deepList = watchList(universe.quotes, chal.style, rules, (quote) => matchPrefs(quote, prefs), DEEP_SCAN_TOP);
+            const deepList = watchList(universe.quotes, chal.style, rules, (quote) => matchPrefs(quote, prefs), DEEP_SCAN_TOP, phase.date);
             const deepRow = deepScanChallengerBuy(deepList, held);
             if (deepRow) {
               row = deepRow;
@@ -752,7 +790,7 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
       notifyNames("到卖出价", targets);
       // PushPlus 微信推送：和 Mac 通知同一份名单（stops/targets 只在新预警出现时才有内容）。
       if (stops.length > 0 || targets.length > 0) {
-        void sendPushPlus(
+        await pushBestEffort(
           "赤轨预警",
           [
             ...(stops.length > 0 ? [`到止损价：${stops.join("、")}`] : []),
@@ -857,7 +895,7 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
     changed = true;
     if (speak) {
       notifyNames("到期该卖", due);
-      if (due.length > 0) void sendPushPlus("赤轨预警", [`到期该卖：${due.join("、")}`, `时间：${time}`].join("\n"));
+      if (due.length > 0) await pushBestEffort("赤轨预警", [`到期该卖：${due.join("、")}`, `时间：${time}`].join("\n"));
     }
     if (stuck.length > 0) {
       console.log(`${time} 有 ${stuck.length} 笔结算不出来，会一直挂着：${stuck.slice(0, 5).join("；")}`);
@@ -909,7 +947,7 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
       const styleText = [...byStyle.entries()]
         .map(([style, n]) => `${STYLES.find((item) => item.id === style)?.name ?? style} ${n}`)
         .join("、");
-      void sendPushPlus(
+      const sent = await pushBestEffort(
         "赤轨日终",
         [
           `今日买入 ${bought.length} 笔${bought.length > 0 ? `（${styleText}）` : ""}，卖出 ${soldToday.length} 笔${soldToday.length > 0 ? `（${wins} 赚 ${soldToday.length - wins} 亏）` : ""}。`,
@@ -920,7 +958,8 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
           .filter((line): line is string => line != null)
           .join("\n"),
       );
-      await writeFile(stampPath, JSON.stringify({ date: phase.date }));
+      // 真发出去才写 stamp；没配通道或发送失败都保持「未推」，下分钟重试（和日报口径一致）。
+      if (sent) await writeFile(stampPath, JSON.stringify({ date: phase.date }));
     }
   }
 
@@ -1002,7 +1041,7 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
           // 断电动作：关开关（下次不再进这个分支）+ 推送叫人来看（静默断电等于没断）。
           const { writeAIPrefs } = await import("../src/lib/market/ai-prefs.ts");
           await writeAIPrefs({ autoEvolve: false });
-          void sendPushPlus(
+          await pushBestEffort(
             "赤轨进化熔断",
             [`自动进化连续 ${BREAKER_RULE.maxConsecutiveErrors} 轮两层都失败，已自动断电。`, next.trippedReason, `去 /ai 页重新打开「自动进化」恢复。时间：${time}`].join("\n"),
           );
@@ -1147,3 +1186,7 @@ for (const userId of ids) {
   }
   if (any || (phase.sealed && !backed)) await backup(userId, backupDate);
 }
+
+// 短命进程的最后一道保险：等所有已排队的推送真正发完再退出。
+// pushBestEffort 已在各处 await，这里是兜底（例如将来有人又加了一处没 await 的调用）。
+await flushPushes();

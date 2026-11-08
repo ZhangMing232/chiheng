@@ -1,7 +1,7 @@
 /**
  * 这个文件是干什么的：
  * 钉住策略审计（strategy-audit.ts）的各条规则：相关系数对齐口径、共线阈值、
- * 覆盖率缺口、小样本 t 值、连亏/回撤阈值、撮合口径核验。
+ * 覆盖率缺口、小样本信噪比、连亏/回撤阈值、撮合口径核验。
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -107,7 +107,7 @@ test("覆盖率：抽样没全拿到出 warn；窗口短出 info；完整且够�
   assert.equal(coverageFinding(ENV).level, "ok");
 });
 
-test("样本：|t| ≥ 2 但笔数少是 info（t 值只当参考）；|t| < 2 且少是 warn", () => {
+test("样本：|t| ≥ 2 但笔数少是 info（信噪比只当参考）；|t| < 2 且少是 warn", () => {
   const findings = sampleSizeFindings([
     style({ key: "thin", trades: 60, tStat: 2.3 }),
     style({ key: "none", trades: 40, tStat: 0.5 }),

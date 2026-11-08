@@ -60,9 +60,17 @@ export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** 读不到 data/backtest/ 产物时的统一重跑指引（data/ 在 .gitignore 里，换机器必现）。 */
-export const RERUN_HINT =
-  "在项目根目录跑：BT_FACTOR=1 BT_N=10 node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts";
+/**
+ * 读不到因子判决产物时，给用户看的统一提示（人话，不摆工程细节）。
+ *
+ * 2026-11-08 全量体检：这里原先直接塞了一整条 `BT_FACTOR=1 node ... scripts/backtest.ts`
+ * 命令行，还被 4 个空态/提示渲染出来——和「让用户去开配置文件夹、去拿邮箱授权码」
+ * 是同一个毛病：把内部实现当产品。命令挪到 RERUN_COMMAND，主视图只用 RERUN_HINT。
+ */
+export const RERUN_HINT = "本机还没生成因子判决数据，等下一次收盘自动重跑即可。换机器后需要重新生成一次。";
+/** 给开发者的手动重跑命令：只在「给开发者」折叠里用，主视图不许渲染。 */
+export const RERUN_COMMAND =
+  "BT_FACTOR=1 BT_N=10 node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts";
 
 /**
  * 批次搜索参数校验（实现在 src/lib/search-params.ts，此处转发保持旧导入路径可用）。

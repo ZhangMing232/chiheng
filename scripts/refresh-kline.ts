@@ -18,7 +18,13 @@ import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 const DATA = process.env.CHIHENG_DATA_DIR ?? "data";
 const KLINE = `${DATA}/backtest/kline`;
 const LOOKBACK = 250;
-const WORKERS = 8;
+/** 抓取长度，默认 800（≈3.2 年）。BT_KLINE_DAYS 可调小做对照。 */
+const KLINE_FETCH_DAYS = Number(process.env.BT_KLINE_DAYS ?? 800);
+// 腾讯 K 线接口并发稍高就限流（实测 4 并发抽 200 只只有 39% 命中），预刷必须压并发 + 加间隔。
+const WORKERS = Number(process.env.BT_WARM_WORKERS ?? 2);
+const REQ_DELAY = Number(process.env.BT_WARM_DELAY ?? 250);
+const RETRIES = 5;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type Row = { date: string; o: number; c: number; h: number; l: number; v: number };
 
@@ -29,7 +35,7 @@ const KLINE_HEADERS = {
 
 /** 腾讯前复权日线（和 backtest.ts 的 fetchKline 同源同口径）。 */
 async function fetchKline(id: string): Promise<Row[]> {
-  const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${id},day,,,${LOOKBACK + 80},qfq`;
+  const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${id},day,,,${KLINE_FETCH_DAYS},qfq`;
   const res = await fetch(url, { headers: KLINE_HEADERS, signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`status ${res.status}`);
   const body = (await res.json()) as { data?: Record<string, { qfqday?: string[][]; day?: string[][] }> };
@@ -48,11 +54,17 @@ async function fetchKline(id: string): Promise<Row[]> {
   return out;
 }
 
-/** 用沪深 300 指数当「最新交易日」尺子。收盘 10 分钟后日线已落定。 */
+/** 用沪深 300 指数当「最新交易日」尺子。收盘 10 分钟后日线已落定。
+ *  指数走 qfq 接口会 501（指数无复权），失败就退回今天——worker 本来就会按
+ *  tooShort / 日期再补抓，全量预刷场景下拿不到锚点照样把所有票刷到 800 根。 */
 async function latestTradingDay(): Promise<string> {
-  const rows = await fetchKline("sh000300");
-  const last = rows[rows.length - 1];
-  return last?.date ?? new Date().toISOString().slice(0, 10);
+  try {
+    const rows = await fetchKline("sh000300");
+    const last = rows[rows.length - 1];
+    return last?.date ?? new Date().toISOString().slice(0, 10);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
 }
 
 async function main() {
@@ -88,25 +100,27 @@ async function main() {
     for (;;) {
       const id = queue.shift();
       if (!id) return;
-      let lastBar = "";
+      let rawLen = 0;
       try {
         const raw = JSON.parse(await readFile(`${KLINE}/${id}.json`, "utf8"));
-        if (Array.isArray(raw) && raw.length > 0) lastBar = raw[raw.length - 1]?.date ?? "";
+        if (Array.isArray(raw)) rawLen = raw.length;
       } catch {
-        lastBar = "";
+        rawLen = 0;
       }
-      if (lastBar >= anchor) {
+      // 已经抓到目标长度就跳过（幂等预刷：跑多次只补没到 800 根的）
+      if (rawLen >= KLINE_FETCH_DAYS) {
         upToDate += 1;
         continue;
       }
       let fresh: Row[] | null = null;
-      for (let attempt = 0; attempt < 3 && !fresh; attempt += 1) {
+      for (let attempt = 0; attempt < RETRIES && !fresh; attempt += 1) {
         try {
           const got = await fetchKline(id);
           if (got.length > 0) fresh = got;
         } catch {
-          await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+          await sleep(600 * (attempt + 1));
         }
+        await sleep(REQ_DELAY); // 每轮请求之间留间隔，避免触发限流
       }
       if (fresh) {
         await writeFile(`${KLINE}/${id}.json`, JSON.stringify(fresh));

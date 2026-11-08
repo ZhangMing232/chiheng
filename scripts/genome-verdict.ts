@@ -11,7 +11,7 @@
  * 用法：
  *   node --experimental-strip-types --import ./scripts/alias.mjs scripts/genome-verdict.ts <dump.json>
  *
- * 判决门槛 = 白皮书 §4：聚类 |t| ≥ 2 **且**前后半段方向稳定。
+ * 判决门槛 = 白皮书 §4：聚类 |t| ≥ 2 **且**前后同向。
  * 样本不够 / 回测没跑成 → 只说「还没结论」，状态留在 testing，不当死了处理。
  */
 
@@ -52,8 +52,8 @@ for (const key of keys) {
   console.log(
     `基因组判决 ${specId}：${outcome.status}｜${outcome.reason}` +
       `（笔数 ${input.trades}，超额 ${input.excessPp == null ? "?" : input.excessPp.toFixed(2) + "pp"}，` +
-      `聚类 t ${input.clusteredT == null ? "算不出来" : input.clusteredT.toFixed(2)}，` +
-      `前后半段同号 ${input.halvesSameSign === null ? "?" : input.halvesSameSign ? "是" : "否"}）`,
+      `信噪比 ${input.clusteredT == null ? "算不出来" : input.clusteredT.toFixed(2)}，` +
+      `前后同向 ${input.halvesSameSign === null ? "?" : input.halvesSameSign ? "是" : "否"}）`,
   );
 }
 

@@ -2,7 +2,7 @@
  * 基因组判决回写的测试。
  *
  * 钉住两件事：
- * 1. **判决门槛就是白皮书 §4**：聚类 |t| ≥ 2 **且**前后半段方向稳定，两道都过才算站住。
+ * 1. **判决门槛就是白皮书 §4**：聚类 |t| ≥ 2 **且**前后同向，两道都过才算站住。
  * 2. **样本不够 / 没跑成 ≠ 死了**。这两者只是「还没结论」，状态留在 testing。
  *    （把「还没结论」当「死了」处理，等于把还没验的策略提前埋掉。）
  */
@@ -38,7 +38,7 @@ function cand(over: Partial<GenomeCandidate> = {}): GenomeCandidate {
   } as GenomeCandidate;
 }
 
-/** 造 n 笔同号超额、分布在 n 个平仓日上的逐笔。超额带一点自然波动——真实样本不会完全相同。 */
+/** 造 n 笔同向超额、分布在 n 个平仓日上的逐笔。超额带一点自然波动——真实样本不会完全相同。 */
 function trades(n: number, excessPp: number): VerdictTrade[] {
   return Array.from({ length: n }, (_, i) => ({
     ret: (excessPp + Math.sin(i * 1.7) * 0.4) / 100,
@@ -67,17 +67,17 @@ test("笔数不够 → 只说还没结论，不判死（不许把没验当死了
   assert.match(r.reason, /样本不足/);
 });
 
-test("聚类 t 没到 |t|≥2 → 判死，败在「聚类t」", () => {
+test("信噪比没到 |t|≥2 → 判死，败在「信噪比」", () => {
   const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: 0.58, clusteredT: 0.72, halvesSameSign: true });
   assert.equal(r.status, "rejected");
-  assert.deepEqual(r.failedGates, ["聚类t"]);
-  assert.match(r.reason, /聚类 t=0\.72/);
+  assert.deepEqual(r.failedGates, ["信噪比"]);
+  assert.match(r.reason, /信噪比=0\.72/);
 });
 
-test("聚类 t 够了但前后半段翻号 → 判死，败在「方向稳定」", () => {
+test("信噪比够了但前后半段翻脸 → 判死，败在「前后同向」", () => {
   const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: 0.58, clusteredT: 2.5, halvesSameSign: false });
   assert.equal(r.status, "rejected");
-  assert.deepEqual(r.failedGates, ["方向稳定"]);
+  assert.deepEqual(r.failedGates, ["前后同向"]);
 });
 
 test("两道都过 → 站住（promoted）", () => {
@@ -87,7 +87,15 @@ test("两道都过 → 站住（promoted）", () => {
   assert.match(r.reason, /过线/);
 });
 
-test("负的聚类 t 也按绝对值判（-2.5 是过线，不是判死）", () => {
+test("🔴 前后同向算不出来(null) 不算过关——两道关缺一道就是还没结论", () => {
+  // 2026-11-08 全量体检：原先 null 直接落到 promoted，理由还写「过线且前后同向」。
+  // 判决不许说没验证过的话。
+  const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: 0.58, clusteredT: 3.2, halvesSameSign: null });
+  assert.equal(r.status, "testing", "算不出前后同向不能判 promoted");
+  assert.ok(!/同向/.test(r.reason) || /算不出来/.test(r.reason), "理由不许声称已同向");
+});
+
+test("负的信噪比也按绝对值判（-2.5 是过线，不是判死）", () => {
   const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: -0.6, clusteredT: -2.5, halvesSameSign: true });
   assert.equal(r.status, "promoted");
 });
@@ -98,7 +106,7 @@ test("applyGenomeVerdict：写回状态 + 记下判决数字，别动别的候�
   const list = [cand({ id: "g1" }), cand({ id: "g2", name: "候选二" })];
   const out = applyGenomeVerdict(list, "g1", { ran: true, trades: 350, excessPp: 0.58, clusteredT: 0.72, halvesSameSign: true }, "2026-11-05T10:00:00Z");
   assert.equal(out[0].status, "rejected");
-  assert.deepEqual(out[0].failedGates, ["聚类t"]);
+  assert.deepEqual(out[0].failedGates, ["信噪比"]);
   assert.equal(out[0].verdict?.clusteredT, 0.72);
   assert.equal(out[0].verdict?.trades, 350);
   assert.match(out[0].note ?? "", /判决 2026-11-05/);
@@ -113,7 +121,7 @@ test("applyGenomeVerdict：找不到这个 id 就原样返回（不静默吞掉�
   assert.equal(out[0].status, "proposed");
 });
 
-// ── 聚类 t 算法 ─────────────────────────────────────────────────
+// ── 信噪比算法 ─────────────────────────────────────────────────
 
 test("clusterTOf：样本太少（不足 2 笔）给 null，不给一个假数字", () => {
   assert.equal(clusterTOf([]), null);
@@ -166,7 +174,7 @@ test("clusterTOf：真实的、有方差的样本给出正常量级的 t（不�
   assert.ok(Math.abs(s.clusterT) < 100, `t 不该离谱（实得 ${s.clusterT}）`);
 });
 
-test("halvesSameSignOf：前后半段反号 → false；同号 → true", () => {
+test("halvesSameSignOf：前后半段反向 → false；同向 → true", () => {
   const up = trades(20, 1);
   assert.equal(halvesSameSignOf(up), true);
   const mixed: VerdictTrade[] = [

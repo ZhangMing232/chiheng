@@ -24,10 +24,11 @@ const fsApi = () => import("node:fs/promises");
 /** POSIX 风格拼路径。不用 node:path——顶层 import 它同样会在客户端崩（见文件头）。 */
 const posixJoin = (...parts: string[]): string => parts.join("/");
 import { isTradingDay } from "./session.ts";
+import { clusterTOf } from "./genome-verdict.ts";
 
 /** 预先登记的判决标准。改这里等于改规则本身，要带着理由改。 */
 export const STRATEGY_GATE = {
-  /** 判决窗口：最近 N 笔已平仓（按平仓日顺序）。攒不够 N 笔不判决——小样本的 t 值是噪音。 */
+  /** 判决窗口：最近 N 笔已平仓（按平仓日顺序）。攒不够 N 笔不判决——小样本的信噪比是噪音。 */
   window: 20,
   /**
    * 最少需要多少个**不同交易日**才用聚类稳健 t 判决。
@@ -98,31 +99,23 @@ export function tStat(rets: number[]): number | null {
 }
 
 /**
- * 聚类稳健 t：点估计仍是逐笔等权均值（和等额下注一致），但方差按平仓日聚类。
- * 同一天的交易共享市场 beta，不是独立观测；raw t 会把「20 笔落在 2 天」当成
- * 20 个独立样本，算出一个假的 t。这个才是诚实口径。
+ * 聚类稳健 t：**转发到唯一实现 `genome-verdict.ts` 的 `clusterTOf`**，本文件不再自己算。
  *
- * SE = sqrt( Σ_day ( Σ_{i∈day} (y_i − mean) )² ) / N
+ * 为什么必须转发（2026-11-08 全量体检发现的真 bug）：这里原先自己实现了一遍，
+ * 缺两样东西——① `g/(g-1)` 小样本修正；② 退化样本判 null。第②条尤其致命：
+ * 所有笔超额几乎相同时，浮点累加留下 ~1e-17 的残余方差，老的 `se > 0` 判不住，
+ * 实测会算出 **t ≈ 1.15e16 的假通过**（clusterTOf 正确返回 null）。
+ * 闸门是「停用/假释/恢复」的真开仓开关，假 t 会直接改实盘行为。
+ * 记忆里那条「信噪比一律走 clusterTOf」说的就是这个，这里以前漏了。
+ *
+ * 签名保持 (rets, dates) 兼容现有调用与测试；内部转成 {ret, bench, exitDate} 喂给
+ * clusterTOf（bench=0 → 超额就是净收益本身，口径与原来逐笔均值一致）。
  */
 export function clusterTStat(rets: number[], dates: string[]): number | null {
   const n = rets.length;
   if (n < 8 || dates.length !== n) return null;
-  const mean = rets.reduce((s, v) => s + v, 0) / n;
-  const byDay = new Map<string, number[]>();
-  for (let i = 0; i < n; i += 1) {
-    const k = dates[i];
-    const list = byDay.get(k);
-    if (list) list.push(rets[i]);
-    else byDay.set(k, [rets[i]]);
-  }
-  let score = 0;
-  for (const list of byDay.values()) {
-    const s = list.reduce((a, e) => a + (e - mean), 0);
-    score += s * s;
-  }
-  const se = Math.sqrt(score) / n;
-  if (!(se > 0)) return null;
-  return mean / se;
+  const cg = clusterTOf(rets.map((r, i) => ({ ret: r, bench: 0, exitDate: dates[i] })));
+  return cg ? cg.clusterT : null;
 }
 
 /** 全池回测判决：每套策略的聚类稳健 t 等。由 scripts/strategy-verdict.ts 每日刷新。 */
@@ -171,7 +164,7 @@ function gateT(tail: number[], dates?: string[]): number | null {
   if (tail.length < STRATEGY_GATE.window) return null;
   if (dates && dates.length === tail.length) {
     const distinctDays = new Set(dates).size;
-    // 天数不够：20 笔可能只落在 2 天，聚类 t 没有意义，不判决（交给回测判决）
+    // 天数不够：20 笔可能只落在 2 天，信噪比没有意义，不判决（交给回测判决）
     if (distinctDays < STRATEGY_GATE.minDays) return null;
     return clusterTStat(tail, dates);
   }

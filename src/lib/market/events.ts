@@ -166,7 +166,7 @@ export function groupByCompany(rows: readonly ForecastRow[]): {
 //
 // ⚠️ **`CHANGE_RATE` 不显示**：实测那条 DIRECTION=「增持」，CHANGE_NUM=+34（万股），
 // 但 CHANGE_RATE=-5.9361、CHANGE_FREE_RATIO=+0.05——**三个字段两个方向**，口径对不上
-// （不是简单反号）。这种字段摆上页面就是误导，所以只认 DIRECTION + CHANGE_NUM
+// （不是简单反向）。这种字段摆上页面就是误导，所以只认 DIRECTION + CHANGE_NUM
 // + HOLD_RATIO（变动后持股）+ TRADE_AVERAGE_PRICE + MARKET（方式）。
 
 export type HolderTrade = {

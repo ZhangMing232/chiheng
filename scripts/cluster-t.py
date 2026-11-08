@@ -8,7 +8,7 @@
   e_i = (ret_i - bench_i) * 100      单位 pp，bench 是同持有期抽样池等权
   点估计 = 逐笔等权 mean(e)         与线上等额下注一致
   逐笔 t  = mean / (sd(e)/sqrt(N))
-  聚类 t  = mean / sqrt(V)，
+  信噪比  = mean / sqrt(V)，
             V = G/(G-1) * (N-1)/(N-K) * Σ_g (Σ_{i∈g} (e_i - mean))² / N²
             G = exitDate 天数，K = 1（只有常数项）
 
@@ -79,7 +79,7 @@ def main():
     keys = [args.strategy] if args.strategy else list(trades)
     label = f"（exitDate >= {args.cut}）" if args.cut else "（全窗口）"
     print(f"{args.dump} {label}")
-    print(f"{'策略':<12} {'笔数':>6} {'天数':>5} {'超额pp':>9} {'胜率':>6} {'逐笔t':>8} {'聚类t':>8}  判定")
+    print(f"{'策略':<12} {'笔数':>6} {'天数':>5} {'超额pp':>9} {'胜率':>6} {'逐笔t':>8} {'信噪比':>8}  判定")
     for k in keys:
         if k not in trades:
             print(f"  {k}: dump 里没有这个策略")

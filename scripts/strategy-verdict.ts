@@ -1,10 +1,10 @@
 /**
  * 每日刷新全池回测判决（data/strategy-verdicts.json）。
  *
- * 为什么需要它：策略闸门（strategy-gate）线上只靠「最近 20 笔已平仓」的 t 值判决，
+ * 为什么需要它：策略闸门（strategy-gate）线上只靠「最近 20 笔已平仓」的信噪比判决，
  * 而线上一天最多 10 笔、13 天最多 2 个交易日的样本根本测不出慢亏（raw t 把 2 天
  * 当 20 个独立观测）。全池回测 250 天、几百笔的聚类稳健 t 才有统计功效。
- * 本脚本每天收盘后跑一轮全池回测，算出每套策略的聚类 t，落盘供闸门读。
+ * 本脚本每天收盘后跑一轮全池回测，算出每套策略的信噪比，落盘供闸门读。
  *
  * 用法：
  *   node --experimental-strip-types --import ./scripts/alias.mjs scripts/strategy-verdict.ts
@@ -73,11 +73,11 @@ async function main() {
     // clusterT 为 null = 退化样本（簇只有 1 天 / 所有笔超额完全相同），方差算不出来。
     // **不静默丢掉**——大声说出来，让人知道这条策略这轮没有可用判决。
     if (!s) {
-      console.error(`  ⚠️ ${key}：聚类 t 算不出来（退化样本），本轮不记判决`);
+      console.error(`  ⚠️ ${key}：信噪比算不出来（退化样本），本轮不记判决`);
       continue;
     }
     if (s.clusterT == null) {
-      console.error(`  ⚠️ ${key}：聚类 t 算不出来（${s.days} 个平仓日 / 超额无方差），本轮不记判决`);
+      console.error(`  ⚠️ ${key}：信噪比算不出来（${s.days} 个平仓日 / 超额无方差），本轮不记判决`);
       continue;
     }
     strategies[key] = { clusterT: s.clusterT, excess: s.excess, n: s.n, days: s.days };
@@ -103,7 +103,7 @@ async function main() {
  * 基因组文件就只进不出——AI 提一批 spec 永远停在 proposed，没人判、没人知道哪套死了，
  * 近亲封禁也学不到「什么死过」。轨道变成只进不出的队列。
  *
- * 判决门槛 = 白皮书 §4：聚类 |t| ≥ 2 **且**前后半段方向稳定。
+ * 判决门槛 = 白皮书 §4：聚类 |t| ≥ 2 **且**前后同向。
  * 样本不够 / 回测没跑成 → 只说「还没结论」，状态留在 testing，不当死了处理。
  */
 async function writeGenomeVerdicts(trades: Record<string, Trade[]>): Promise<void> {

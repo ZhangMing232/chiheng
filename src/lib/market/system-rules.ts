@@ -109,7 +109,7 @@ export function systemRules(rule: ChallengerRule = CHALLENGER_RULE): RuleGroup[]
           id: "d1-thresholds",
           label: "三档阈值（当前值 / 过关基线）",
           value: `健康 ≥ ${DECAY_RULE.tRatio.healthy} · 预警 ≥ ${DECAY_RULE.tRatio.warning} · 衰减 ≥ ${DECAY_RULE.tRatio.decayed}`,
-          note: "t 值、spread、换样本 t 三把尺子同一套档位。过关只是入场券，之后每轮拿基线当尺子量。",
+          note: "信噪比、spread、换样本 t 三把尺子同一套档位。过关只是入场券，之后每轮拿基线当尺子量。",
         },
         {
           id: "d2-monitoring",
@@ -140,7 +140,7 @@ export function systemRules(rule: ChallengerRule = CHALLENGER_RULE): RuleGroup[]
           id: "c1-window",
           label: "判决样本",
           value: `${rule.minTrades} 笔起判 · 上限 ${rule.maxTrades} 笔`,
-          note: "攒不够起判笔数不判决（小样本 t 值是噪音）；跑满上限还分不出胜负 → 停跑不占样本。数值来自 data/challenger-rule.json（缺省回代码默认）。",
+          note: "攒不够起判笔数不判决（小样本信噪比是噪音）；跑满上限还分不出胜负 → 停跑不占样本。数值来自 data/challenger-rule.json（缺省回代码默认）。",
         },
         {
           id: "c2-verdicts",

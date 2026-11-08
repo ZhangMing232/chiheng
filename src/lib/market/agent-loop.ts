@@ -182,7 +182,7 @@ export async function gatherVtEvidence(): Promise<string[]> {
   return out;
 }
 
-/** 一条因子判决 → 一行摘要（t 值、过几关、DSR 运气线）。 */
+/** 一条因子判决 → 一行摘要（信噪比、过几关、DSR 运气线）。 */
 export function summarizeRunRow(r: FactorRunRow): string {
   const gates = Object.values(r.gates).filter(Boolean).length;
   const dsr = r.dsr ? `，DSR ${(r.dsr.value * 100).toFixed(0)}%${r.dsr.survives ? "（过运气线）" : `（运气线 ${(r.dsr.expectedMax * 100).toFixed(0)}% 未过）`}` : "";

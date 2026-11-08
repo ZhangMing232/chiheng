@@ -1,7 +1,7 @@
 /**
  * 这个文件是干什么的：
  * 「因子」区的「缩量归因」子页（/factors/attrib）。缩量天数是 |t| 最大、
- * 最有希望的一个因子，但 G3 两段翻号没过关——这一块解释「为什么没过关」。
+ * 最有希望的一个因子，但 G3 两段翻脸没过关——这一块解释「为什么没过关」。
  *
  * 你需要知道的：
  * - 2026-10-21 由因子整页拆出（原来是本地状态的页内 tab）。
@@ -39,7 +39,7 @@ function FactorAttribPage() {
       <FactorSectionTabs />
       <Section
         title="缩量天数归因"
-        hint="缩量天数是 |t| 最大、最有希望的一个，但 G3 两段翻号没过关。这一块是「为什么没过关」的解释，它本身不是过关证明。"
+        hint="缩量天数是 |t| 最大、最有希望的一个，但 G3 两段翻脸没过关。这一块是「为什么没过关」的解释，它本身不是过关证明。"
       >
         {diag.shrinkFlip ? (
           <ShrinkFlipPanel diag={diag.shrinkFlip} bull={diag.shrinkBull} />

@@ -208,7 +208,7 @@ function runKlineRefresh() {
 
 /**
  * 收盘后刷新全池回测判决（data/strategy-verdicts.json）。15:15 跑（K 线刷新之后），
- * 供策略闸门读：线上 13 天样本测不出慢亏，回测 250 天聚类 t 才有统计功效。
+ * 供策略闸门读：线上 13 天样本测不出慢亏，回测 250 天信噪比才有统计功效。
  * 幂等：跑失败保留上一份判决文件。
  */
 function runStrategyVerdict() {
