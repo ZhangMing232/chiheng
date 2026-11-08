@@ -183,17 +183,20 @@ async function main() {
   }
   console.log("其余全部标记不稳，不得据此部署。小样本假阳性的典型形态 = 某个切片好看、换切片就翻。");
 
-  await writeFile(
-    OUT_DIR + "/report.json",
-    JSON.stringify({
+  const report = JSON.stringify({
       at: new Date().toISOString(),
       slices: SLICES.map((s) => ({ name: s.name, env: s.env })),
       labels: LABELS,
       bySlice,
       summary,
-    }, null, 2),
-  );
-  console.log("\n报告已落盘 " + OUT_DIR + "/report.json");
+    }, null, 2);
+  await writeFile(OUT_DIR + "/report.json", report);
+  // 同一天多轮实验会互相覆盖 report.json（2026-11-08 一晚连跑三轮，前两轮差点被吃掉），
+  // 另存一份带时刻的副本，只追加不覆盖。
+  const stamp = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(11, 19).replaceAll(":", "");
+  const copy = OUT_DIR + `/report-${stamp}.json`;
+  await writeFile(copy, report);
+  console.log("\n报告已落盘 " + OUT_DIR + "/report.json（副本 " + copy + "）");
 }
 
 main().catch((e) => {

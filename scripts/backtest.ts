@@ -1119,6 +1119,46 @@ function relValPersist(m: ReturnType<typeof metrics>, stopPct?: number, id?: str
 }
 
 /**
+ * 「便宜 + 聪明钱」组合（2026-11-08 预登记实验）：价值锚定 × 融资净买确认 × 上榜否决。
+ *
+ * 论题由三块已验证的证据拼成，不是调参：
+ *   1. 价值锚是唯一实盘正收益的家族，但绝对阈值版 value 是 value-trap、
+ *      相对分位版 relValPersist 单独也没过稳健判决——缺的可能是「有没有钱在买」；
+ *   2. 融资净买是 gen2 §3.3 实验线（事件研究 t=2.2 过 4/6），预登记路径明确写了
+ *      「作为价值或突破的确认条件（非独立策略）回归测试」——本组合就是那次回归；
+ *   3. 龙虎榜爆买反向（t=−3.4）当否决器，由 BT_AVOID_LHB=1 全局过滤器执行。
+ *
+ * 确认阈值直接用事件研究已验证的 0.03（融资净买/当日成交额），**不另挖阈值**；
+ * 两个锚定版本各出一条，持有期沿用各自基座（value 8 天 / relValPersist 20 天），
+ * 止损止盈全部复用基座原样——组合只加「确认」这一道，别的一个字不动。
+ * 拿不到融资数据（marginBuy=null）按「拿不到 ≠ 没有」不放行。
+ */
+function valueConfirm(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  const sig = valueBacktest(m, stopPct);
+  if (!sig) return null;
+  if (m.marginBuy == null || m.amountWan == null || m.amountWan <= 0) return null;
+  if (m.marginBuy / m.amountWan < 0.03) return null; // 没有融资确认 → 不买
+  return sig;
+}
+
+function relValConfirm(m: ReturnType<typeof metrics>, stopPct?: number, id?: string): Signal | null {
+  const sig = relValPersist(m, stopPct, id);
+  if (!sig) return null;
+  if (m.marginBuy == null || m.amountWan == null || m.amountWan <= 0) return null;
+  if (m.marginBuy / m.amountWan < 0.03) return null;
+  return sig;
+}
+
+/** 突破版确认回归（gen2 §3.3 预登记的「价值**或突破**」另一半）：bk4 锚 × 融资确认。 */
+function bkConfirm(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
+  const sig = breakout4(m, stopPct);
+  if (!sig) return null;
+  if (m.marginBuy == null || m.amountWan == null || m.amountWan <= 0) return null;
+  if (m.marginBuy / m.amountWan < 0.03) return null;
+  return sig;
+}
+
+/**
  * 策略函数签名：
  *   m       = 该股在信号日（t 日）的指标行（metrics() 的产物）
  *   stopPct = 全局止损覆盖（回测扫描用）
@@ -1203,6 +1243,16 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
   // 跑法：BT_NEWSTRAT=1 BT_AVOID_LHB=1 BT_NO_LOG=1（LHB 回避默认一并开，吸取「上榜=过热反向」教训）。
   ...(process.env.BT_NEWSTRAT === "1"
     ? { relValPersist: { label: "相对估值分位·持续", fn: relValPersist, hold: 20 } }
+    : {}),
+  // 「便宜 + 聪明钱」组合（2026-11-08 预登记，详见函数头注释）：价值锚 × 融资净买确认。
+  // 上榜否决由 BT_AVOID_LHB=1 全局过滤器执行——跑组合务必带上它，否则论题第三块缺席。
+  // 跑法：BT_COMBO=1 BT_AVOID_LHB=1 BT_NO_LOG=1。
+  ...(process.env.BT_COMBO === "1"
+    ? {
+        valueConfirm: { label: "价值×融资确认", fn: valueConfirm, hold: holdOf("value") },
+        relValConfirm: { label: "相对估值×融资确认", fn: relValConfirm, hold: 20 },
+        bkConfirm: { label: "突破×融资确认", fn: bkConfirm },
+      }
     : {}),
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
   // 天数查 strategies.ts 的 STYLE_HOLD（唯一定义处），不再在这里写死 10。
