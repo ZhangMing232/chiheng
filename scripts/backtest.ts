@@ -108,6 +108,104 @@ function buildPePctMap(windowDays = 250, cheapThresh = 25): void {
   }
   console.log(`个股 PE 历史分位预计算完成（${built} 只）\n`);
 }
+
+/**
+ * 低频家族慢因子预计算（2026-11-09）：动量 / 52 周高点距离 / 120 日波动。
+ * 一次扫全 K 线建表，策略函数按 (code, date) 查——和 pePctMap 同一模式，
+ * 避免选股循环里每股每日重扫长窗口。全部**只用 ≤ 当日**的数据（无前视）。
+ *
+ * 动量口径（经典 12-1 月式的短版，预登记不再动）：
+ *   mom120 = 近 5 日收盘 / 125 日前收盘 − 1（跳过最近 5 日，隔离短期反转污染）
+ *   mom60  = 近 5 日收盘 / 65 日前收盘 − 1（同款跳法）
+ *   near52w = 当日收盘 / 近 250 根最高价（含今日）
+ *   vol120 = 近 120 根日收益的总体标准差
+ */
+type SlowFac = { mom60: number; mom120: number; near52w: number; vol120: number };
+const slowFacMap = new Map<string, Map<string, SlowFac>>();
+
+function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
+  for (const [id, rows] of klines) {
+    const code = id.replace(/[^0-9]/g, "");
+    const byDate = new Map<string, SlowFac>();
+    for (let i = 65; i < rows.length; i++) {
+      const r = rows[i]!;
+      const past5 = rows[i - 5];
+      const mom60 = past5 ? past5.c / rows[i - 65]!.c - 1 : NaN;
+      const mom120 = i >= 125 && past5 ? past5.c / rows[i - 125]!.c - 1 : NaN;
+      let maxH = -Infinity;
+      for (let j = Math.max(0, i - 249); j <= i; j++) maxH = Math.max(maxH, rows[j]!.h);
+      let sum = 0, sum2 = 0, n = 0;
+      for (let j = Math.max(1, i - 119); j <= i; j++) {
+        const ret = rows[j]!.c / rows[j - 1]!.c - 1;
+        sum += ret; sum2 += ret * ret; n += 1;
+      }
+      const mean = n ? sum / n : 0;
+      const vol120 = n > 1 ? Math.sqrt(Math.max(0, sum2 / n - mean * mean)) : NaN;
+      byDate.set(r.date, { mom60, mom120, near52w: maxH > 0 ? r.c / maxH : NaN, vol120 });
+    }
+    if (byDate.size) slowFacMap.set(code, byDate);
+  }
+  console.log(`低频慢因子预计算完成（${slowFacMap.size} 只：动量/52周高点/波动）\n`);
+}
+
+/** 低频家族统一执行骨架（预登记，五个策略共用，参数只定一次不再调）：
+ *  昨收限价买 · 止损 −10%（40 天持有给点呼吸空间，比短持有 −8% 宽一档）·
+ *  止盈 +25%（让赢家跑）· 持有 40 个交易日（≈ 两个月，低频口径）。 */
+function slowSignal(m: ReturnType<typeof metrics>, score: number): Signal {
+  const buy = m.prev;
+  return { buy, stop: buy * 0.9, sell: buy * 1.25, score };
+}
+
+function slowGates(m: ReturnType<typeof metrics>): boolean {
+  return !(m.isST === true) && m.c >= 4 && m.amountWan >= 3000;
+}
+
+function slowFacOf(id: string | undefined, date: string): SlowFac | undefined {
+  return slowFacMap.get((id ?? "").replace(/[^0-9]/g, ""))?.get(date);
+}
+
+/** 120 日动量（跳 5 日）：买近期赢家，赌延续。经典动量因子，本项目从未测过。 */
+function mom120Buy(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  if (!slowGates(m)) return null;
+  const f = slowFacOf(id, m.date);
+  if (!f || !isFinite(f.mom120) || f.mom120 <= 0) return null;
+  return slowSignal(m, f.mom120 * 100);
+}
+
+/** 60 日动量（跳 5 日）：同上，短一档的形成期。 */
+function mom60Buy(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  if (!slowGates(m)) return null;
+  const f = slowFacOf(id, m.date);
+  if (!f || !isFinite(f.mom60) || f.mom60 <= 0) return null;
+  return slowSignal(m, f.mom60 * 100);
+}
+
+/** 52 周高点效应：贴着年内新高的票，动量最强。门闸 0.9（预登记），评分贴近程度。 */
+function near52wBuy(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  if (!slowGates(m)) return null;
+  const f = slowFacOf(id, m.date);
+  if (!f || !isFinite(f.near52w) || f.near52w < 0.9) return null;
+  return slowSignal(m, f.near52w * 100);
+}
+
+/** 低波动异象：低波股票风险调整后长期跑赢（经典异象）。评分反着给（波动越低分越高）。 */
+function lowVolBuy(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  if (!slowGates(m)) return null;
+  const f = slowFacOf(id, m.date);
+  if (!f || !isFinite(f.vol120) || f.vol120 <= 0) return null;
+  return slowSignal(m, -f.vol120 * 1000);
+}
+
+/** 动量 × 价值混合：便宜（自身 PE 分位 ≤50）+ 赢家（120 日动量为正）——
+ *  经典价值/动量双因子组合。价值做门闸，动量做排序。 */
+function momValueBuy(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  if (!slowGates(m)) return null;
+  const f = slowFacOf(id, m.date);
+  if (!f || !isFinite(f.mom120) || f.mom120 <= 0) return null;
+  const pp = pePctMap[(id ?? "").replace(/[^0-9]/g, "")]?.get(m.date);
+  if (!pp || !isFinite(pp.pct) || pp.pct > 50) return null;
+  return slowSignal(m, f.mom120 * 100);
+}
 import { holdOf } from "@/lib/market/strategies";
 import type { BacktestRun, BacktestStyleStat } from "@/lib/market/backtest-runs";
 import { RUNS_PATH } from "@/lib/market/backtest-runs";
@@ -1159,6 +1257,53 @@ function bkConfirm(m: ReturnType<typeof metrics>, stopPct?: number): Signal | nu
 }
 
 /**
+ * 过热否决器（2026-11-09 预登记，A/B 实验）：「买强稳定亏」的两侧当防御。
+ *   mom120 > 0  → 近 5 个月赢家（低频家族实测六切片全负，t=−3.5）
+ *   near52w ≥ 0.9 → 贴近年内新高（六切片全负，t=−4.4）
+ * 任一命中即判「过热」，候选剔除。阈值是这两条信号各自本身的门闸镜像（符号/0.9），
+ * 不是拟合出来的。加上 BT_AVOID_LHB=1 的上榜否决，三层防御同开。
+ * A/B：trendCool/bk4Cool 和裸版 trend/bk4 同一轮、同一切片对照——
+ * 防御层救没救回超额，一张矩阵里见分晓。
+ */
+function isOverheated(id: string | undefined, date: string): boolean {
+  const f = slowFacOf(id, date);
+  if (!f) return true; // 拿不到慢因子 = 没法确认没过热 → 不放行（拿不到≠没有）
+  return (isFinite(f.mom120) && f.mom120 > 0) || (isFinite(f.near52w) && f.near52w >= 0.9);
+}
+
+function trendCool(m: ReturnType<typeof metrics>, stopPct?: number, id?: string): Signal | null {
+  if (isOverheated(id, m.date)) return null;
+  return trend(m, stopPct);
+}
+
+function bk4Cool(m: ReturnType<typeof metrics>, stopPct?: number, id?: string): Signal | null {
+  if (isOverheated(id, m.date)) return null;
+  return breakout4(m, stopPct);
+}
+
+/**
+ * 校准修正版否决（2026-11-09 第二轮 A/B）：只否决**极值**过热（贴 52 周高点 ≥0.9），
+ * 不再一刀切否决所有正动量。依据：第一轮 A/B 实测一刀切版把两个基础家族都弄
+ * 更差了（留下的全是下跌反抽）——「买强亏」是**动量榜顶端**的现象（分位式），
+ * 不是「凡有涨幅」的现象。near52w ≥0.9 本身就是极值门闸，镜像否决校准是对的。
+ */
+function near52wVeto(id: string | undefined, date: string): boolean {
+  const f = slowFacOf(id, date);
+  if (!f) return true;
+  return isFinite(f.near52w) && f.near52w >= 0.9;
+}
+
+function trendNear(m: ReturnType<typeof metrics>, stopPct?: number, id?: string): Signal | null {
+  if (near52wVeto(id, m.date)) return null;
+  return trend(m, stopPct);
+}
+
+function bk4Near(m: ReturnType<typeof metrics>, stopPct?: number, id?: string): Signal | null {
+  if (near52wVeto(id, m.date)) return null;
+  return breakout4(m, stopPct);
+}
+
+/**
  * 策略函数签名：
  *   m       = 该股在信号日（t 日）的指标行（metrics() 的产物）
  *   stopPct = 全局止损覆盖（回测扫描用）
@@ -1252,6 +1397,35 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
         valueConfirm: { label: "价值×融资确认", fn: valueConfirm, hold: holdOf("value") },
         relValConfirm: { label: "相对估值×融资确认", fn: relValConfirm, hold: 20 },
         bkConfirm: { label: "突破×融资确认", fn: bkConfirm },
+      }
+    : {}),
+  // 低频家族（2026-11-09 预登记，详见 buildSlowFactorMaps 头注释）：经典慢信号
+  // 首次上判决台——动量/52 周高点/低波动/动量×价值，统一 40 个交易日持有、
+  // 止损 −10%、止盈 +25%。跑法：BT_LOWFREQ=1 BT_AVOID_LHB=1 BT_WINDOW=750 BT_NO_LOG=1。
+  ...(process.env.BT_LOWFREQ === "1"
+    ? {
+        mom120: { label: "动量120日", fn: mom120Buy, hold: 40 },
+        mom60: { label: "动量60日", fn: mom60Buy, hold: 40 },
+        near52w: { label: "52周高点", fn: near52wBuy, hold: 40 },
+        lowVol: { label: "低波动120日", fn: lowVolBuy, hold: 40 },
+        momValue: { label: "动量×价值", fn: momValueBuy, hold: 40 },
+      }
+    : {}),
+  // 过热否决 A/B（2026-11-09 预登记）：裸版 trend/bk4 永远注册（对照组），
+  // trendCool/bk4Cool 只在 BT_COOL=1 注册。跑法：
+  // BT_COOL=1 BT_AVOID_LHB=1 BT_WINDOW=750 BT_ONLY=trend,bk4,trendCool,bk4Cool。
+  ...(process.env.BT_COOL === "1"
+    ? {
+        trendCool: { label: "趋势回踩·过热否决", fn: trendCool },
+        bk4Cool: { label: "突破·过热否决", fn: bk4Cool },
+      }
+    : {}),
+  // 校准修正版（第二轮 A/B）：只否 52 周新高极值。跑法：
+  // BT_COOL2=1 BT_AVOID_LHB=1 BT_WINDOW=750 BT_ONLY=trend,bk4,trendNear,bk4Near。
+  ...(process.env.BT_COOL2 === "1"
+    ? {
+        trendNear: { label: "趋势回踩·新高否决", fn: trendNear },
+        bk4Near: { label: "突破·新高否决", fn: bk4Near },
       }
     : {}),
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
@@ -1644,6 +1818,7 @@ async function main() {
   }
   await loadPeHistory();
   buildPePctMap(); // 个股自身 PE 历史分位（relValPersist 用，无前视）
+  buildSlowFactorMaps(klines); // 低频慢因子（动量/52周高点/波动，BT_LOWFREQ 家族用）
   const useTurnoverGate = Object.keys(floatCapMap).length > 0 && process.env.BT_TURNOVER !== "0";
   if (useTurnoverGate) {
     console.log(`流通市值缓存 ${Object.keys(floatCapMap).length} 条，放量突破的换手率闸已启用（≥2%）\n`);
