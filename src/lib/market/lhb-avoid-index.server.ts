@@ -45,7 +45,12 @@ async function buildIndex(mode: "all" | "noninst" = SEATS): Promise<Map<string, 
       }
     }
     for (const [code, net] of Object.entries(agg)) {
-      if (net >= LHB_THRESH) {
+      // 宽口径（LHB_WIDE=1，2026-11-09 预登记实验）：上榜即否决（含净卖）。
+      // 依据：lhb-sell 事件研究六切片全负（净卖也是反向信号，上榜=过热不分方向）。
+      // 阈值沿用两侧事件研究已验证的 3000 万（|净买| ≥ 3000 万），不另挖。
+      const hit =
+        process.env.LHB_WIDE === "1" ? net >= LHB_THRESH || net <= -LHB_THRESH : net >= LHB_THRESH;
+      if (hit) {
         const arr = m.get(code) ?? [];
         arr.push(d.date);
         m.set(code, arr);
