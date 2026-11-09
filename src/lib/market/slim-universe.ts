@@ -36,6 +36,32 @@ export type Breadth = {
   flat: number;
   limitUp: number;
   limitDown: number;
+  /** 涨跌分布分桶（效果图直方图口径）：涨跌停单列，其余按涨跌幅九档。 */
+  buckets?: ChgBuckets;
+};
+
+/** 单只票归哪个桶（唯一口径）。tag 优先——涨跌停按板单列，不和涨幅档重复计。 */
+export function bucketKey(chg: number, tag: "涨停" | "跌停" | null): keyof ChgBuckets {
+  if (tag === "涨停") return "upLimit";
+  if (tag === "跌停") return "downLimit";
+  if (chg > 0.001) return chg > 7 ? "gt7" : chg >= 5 ? "p5_7" : chg >= 3 ? "p3_5" : "p0_3";
+  if (chg < -0.001) return chg < -7 ? "lt7" : chg <= -5 ? "n5_7" : chg <= -3 ? "n3_5" : "n0_3";
+  return "flat";
+}
+
+/** 涨跌分布的 11 个桶（效果图口径）：涨停/跌停按板拎出单列，中间九档按涨跌幅。 */
+export type ChgBuckets = {
+  upLimit: number;
+  gt7: number;
+  p5_7: number;
+  p3_5: number;
+  p0_3: number;
+  flat: number;
+  n0_3: number;
+  n3_5: number;
+  n5_7: number;
+  lt7: number;
+  downLimit: number;
 };
 
 export function marketBreadth(quotes: Quote[]): Breadth {
@@ -44,6 +70,7 @@ export function marketBreadth(quotes: Quote[]): Breadth {
   let flat = 0;
   let limitUp = 0;
   let limitDown = 0;
+  const buckets: ChgBuckets = { upLimit: 0, gt7: 0, p5_7: 0, p3_5: 0, p0_3: 0, flat: 0, n0_3: 0, n3_5: 0, n5_7: 0, lt7: 0, downLimit: 0 };
   for (const quote of quotes) {
     const chg = quote.chg;
     if (chg == null) continue;
@@ -53,6 +80,7 @@ export function marketBreadth(quotes: Quote[]): Breadth {
     const tag = limitTag(quote);
     if (tag === "涨停") limitUp += 1;
     else if (tag === "跌停") limitDown += 1;
+    buckets[bucketKey(chg, tag)] += 1;
   }
-  return { up, down, flat, limitUp, limitDown };
+  return { up, down, flat, limitUp, limitDown, buckets };
 }

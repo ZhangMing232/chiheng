@@ -21,7 +21,10 @@ import { Link } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, Prog, pctClass } from "@/components/terminal";
+import type { ReactNode } from "react";
 import { SentimentGauge } from "@/components/sentiment-gauge";
+import { Clock, Gauge, ShieldCheck } from "lucide-react";
+import { HeroStat } from "@/components/hero-stat";
 import { sessionPhase } from "@/lib/market/session";
 import { journalTradeIds, slimUniverse as slimUniverseByIds } from "@/lib/market/slim-universe";
 import { computeSentiment } from "@/lib/market/sentiment";
@@ -39,16 +42,18 @@ import {
   getNews,
   getRecorder,
   getServerJournal,
+  getStrategyGates,
   getTrend,
   getUniverse,
 } from "@/lib/market/quotes.functions";
+import { getAlerts } from "@/lib/market/alerts.functions";
 import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 
 /** 首页要的数据一次取齐。任何一块拉失败都降级成空，不让整页打不开。 */
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news] =
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, alerts, gatesData] =
       await Promise.all([
         getIndices().catch(() => [] as IndexQuote[]),
         getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
@@ -60,6 +65,8 @@ export const Route = createFileRoute("/")({
         getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
         getOverseasIndices().catch(() => ({ quotes: [] as IndexQuote[], gaps: [] as string[] })),
         getNews().catch(() => [] as NewsItem[]),
+        getAlerts().catch(() => [] as Awaited<ReturnType<typeof getAlerts>>),
+        getStrategyGates().catch(() => ({ gates: {} })),
       ]);
     // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
     const trend = indices[0]
@@ -92,6 +99,8 @@ export const Route = createFileRoute("/")({
       overseas: overseas.quotes.slice(0, 6),
       overseasGaps: overseas.gaps,
       news: news.slice(0, 6),
+      alerts,
+      gates: gatesData.gates,
     };
   },
   component: Dashboard,
@@ -122,6 +131,7 @@ function Dashboard() {
     phase, indices, journal, universe, recorder, trend, flow,
     breadth, sentiment, stamp, serverNow,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
+    alerts, gates,
   } = Route.useLoaderData();
   const date = todayStr(phase);
   const todayDay = journal.days.find((day) => day.date === date) ?? null;
@@ -140,6 +150,31 @@ function Dashboard() {
     : null;
   // 用 loader 下发的 serverNow，不在 render 里读系统时钟（否则 SSR/hydration 会 #418）。
   const recorderDead = recorder.at == null || serverNow - recorder.at > 3 * 60_000;
+
+  // ── KPI 头版 + 市场结论（2026-11-10 效果图重构）：全部真实计数，不编分 ──
+  const delaySec = universe?.asOf ? Math.max(0, Math.round((serverNow - universe.asOf) / 1000)) : null;
+  const gatesOff = (Object.values(gates) as { state?: string }[]).filter((g) => g.state === "disabled").length;
+  const recorderFresh = recorder.at != null && serverNow - recorder.at < 5 * 60_000;
+  const checks = [
+    { label: "自动记账", ok: recorderFresh },
+    { label: "行情", ok: delaySec != null && delaySec < 300 },
+    { label: "风控闸门", ok: gatesOff === 0 },
+    { label: "指数数据", ok: indices.length > 0 },
+  ];
+  const healthScore = Math.round((checks.filter((c) => c.ok).length / checks.length) * 100);
+  const hs300 = indices.find((i) => i.id === "sh000300") ?? indices[0];
+  const tapeChgPct = tapeAmount != null && prevTape ? (tapeAmount / prevTape - 1) * 100 : null;
+  const marketFacts = [
+    breadth
+      ? `上涨 ${breadth.up} 家 vs 下跌 ${breadth.down} 家，${breadth.up >= breadth.down ? "涨多跌少" : "跌多涨少"}（涨停 ${breadth.limitUp} · 跌停 ${breadth.limitDown}）`
+      : null,
+    tapeAmount != null
+      ? `两市成交 ${yi(tapeAmount)}${tapeChgPct != null ? `，较昨日 ${tapeChgPct >= 0 ? "+" : ""}${tapeChgPct.toFixed(1)}%` : ""}`
+      : null,
+    mainInflow != null ? `主力资金净${mainInflow >= 0 ? "流入" : "流出"} ${yi(Math.abs(mainInflow))}（超大单 + 大单）` : null,
+    hs300 ? `沪深300 ${hs300.pct > 0 ? "+" : ""}${hs300.pct.toFixed(2)}%，${indices.filter((i) => i.pct > 0).length}/${indices.length} 个主要指数上涨` : null,
+    sentiment?.score != null ? `情绪温度 ${sentiment.score}「${sentiment.band}」` : null,
+  ].filter((f): f is string => f != null);
 
   return (
     <Frame
@@ -163,8 +198,52 @@ function Dashboard() {
           : { state: "unavailable", label: "行情还没拉到", message: "点重试再拉一次", canRetry: true }
       }
     >
-      {/* ── Zone A 市场核心状态 ── */}
-      <h1 className="font-display text-xl font-medium tracking-wide">总览</h1>
+      {/* ── Zone A 市场核心状态（2026-11-10 按效果图重构：KPI 头版 + 市场结论 + 右栏）── */}
+      <div className="grid gap-2 sm:grid-cols-3">
+        <HeroStat
+          icon={<ShieldCheck size={18} />}
+          label="系统健康"
+          value={String(healthScore)}
+          suffix="/ 100"
+          tone={healthScore === 100 ? "ok" : "warn"}
+          sub={
+            healthScore === 100
+              ? "记账 · 行情 · 闸门 · 指数 四项都在"
+              : `缺：${checks.filter((c) => !c.ok).map((c) => c.label).join("、")}`
+          }
+        />
+        <HeroStat
+          icon={<Clock size={18} />}
+          label="行情延迟"
+          value={delaySec != null ? `${delaySec} 秒` : "—"}
+          tone={delaySec == null ? "muted" : delaySec < 120 ? "ok" : "warn"}
+          sub={universe?.asOf ? `更新于 ${new Date(universe.asOf).toTimeString().slice(0, 5)}` : "行情还没拉到"}
+        />
+        <HeroStat
+          icon={<Gauge size={18} />}
+          label="风控闸门"
+          value={gatesOff === 0 ? "正常" : `${gatesOff} 套停用`}
+          tone={gatesOff === 0 ? "ok" : "warn"}
+          sub={gatesOff === 0 ? "未触发熔断，策略按预登记规则记账" : "停用名单见策略页，冷却后复跑判决"}
+        />
+      </div>
+
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)]">
+            <SentimentGauge reading={sentiment} updatedAt={stamp} />
+            <Panel title="市场结论" note={stamp != null ? `更新于 ${new Date(stamp).toTimeString().slice(0, 5)}` : undefined}>
+              <ul className="flex flex-col gap-2 px-3.5 py-3 text-sm leading-relaxed">
+                {marketFacts.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-brand" aria-hidden />
+                    <span className="text-fg">{f}</span>
+                  </li>
+                ))}
+                {marketFacts.length === 0 ? <li className="text-muted">数据还没拉齐，拉齐了这里给事实清单。</li> : null}
+              </ul>
+            </Panel>
+          </div>
 
       <Panel title="指数" note={stamp != null ? `更新于 ${new Date(stamp).toTimeString().slice(0, 5)}` : undefined}>
         <div className="flex overflow-x-auto scroll-slim">
@@ -181,7 +260,7 @@ function Dashboard() {
         </div>
       </Panel>
 
-      <div className="grid gap-2 lg:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)]">
+      <div className="grid gap-2 lg:grid-cols-2">
         <Panel title="今日关键数字" note={breadth ? `全市场 ${breadth.up + breadth.down + breadth.flat} 只` : undefined}>
           <div className="flex flex-col gap-2.5 p-3">
             <KeyNum
@@ -207,8 +286,6 @@ function Dashboard() {
             />
           </div>
         </Panel>
-
-        <SentimentGauge reading={sentiment} updatedAt={stamp} />
 
         <Panel title="大盘分时" note={indices[0] ? `${indices[0].name} ${indices[0].price.toFixed(2)}` : "指数暂时拉不下来"}>
           {trend && trend.points.length > 1 ? (
@@ -237,6 +314,55 @@ function Dashboard() {
             <div className="flex h-[150px] items-center justify-center text-sm text-muted">分时数据暂时拉不下来</div>
           )}
         </Panel>
+      </div>
+        </div>
+
+        {/* 右栏：效果图签名件——未读提醒 + 今日信号 */}
+        <aside className="flex min-w-0 flex-col gap-2">
+          <Panel title="今日信号" note={<Link to="/strategies/positions" className="text-accent hover:underline">全部持仓 →</Link>}>
+            <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto scroll-slim p-2">
+              {sellsToday.map((trade) => (
+                <SignalRow key={`s-${trade.id}`} name={trade.name} side="卖出" price={trade.exit} pnl={(trade.exit! / trade.entry - 1) * 100} />
+              ))}
+              {buysToday.map((trade) => {
+                const quote = priceOf(trade.id);
+                return (
+                  <SignalRow
+                    key={`b-${trade.id}`}
+                    name={trade.name}
+                    side="买入"
+                    price={trade.entry}
+                    hint={quote?.chg != null ? `现价 ${quote.price.toFixed(2)}（${quote.chg > 0 ? "+" : ""}${quote.chg.toFixed(2)}%）` : undefined}
+                  />
+                );
+              })}
+              {buysToday.length === 0 && sellsToday.length === 0 ? (
+                <div className="px-2 py-6 text-center text-sm text-muted">
+                  {date ? "今天还没有信号" : "非交易日"}
+                </div>
+              ) : null}
+            </div>
+          </Panel>
+
+          <Panel title="未读提醒" note={<Link to="/inbox" className="text-accent hover:underline">打开收件箱 →</Link>}>
+            <div className="flex flex-col gap-0.5 p-2">
+              {alerts.slice(0, 5).map((a) => (
+                <div key={a.id} className="flex items-baseline gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-2">
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 self-center rounded-full"
+                    style={{ background: a.kind === "failed" ? "var(--color-warn)" : "var(--color-brand)" }}
+                    aria-label={a.kind === "failed" ? "没跑成" : "预警应验"}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{a.title}</span>
+                  <span className="num shrink-0 text-xs text-muted">{a.at.slice(5, 16).replace("T", " ")}</span>
+                </div>
+              ))}
+              {alerts.length === 0 ? (
+                <div className="px-2 py-6 text-center text-sm text-muted">收件箱是空的</div>
+              ) : null}
+            </div>
+          </Panel>
+        </aside>
       </div>
 
       {/* ── Zone B 资金与结构 ── */}
@@ -374,33 +500,8 @@ function Dashboard() {
         </Panel>
       </div>
 
-      {/* ── Zone D 轻量延伸 ── */}
-      <div className="grid gap-2 lg:grid-cols-2">
-        <Panel title="今日信号" note={<Link to="/strategies/positions" className="text-accent hover:underline">全部持仓 →</Link>}>
-          <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto scroll-slim p-2">
-            {sellsToday.map((trade) => (
-              <SignalRow key={`s-${trade.id}`} name={trade.name} side="卖出" price={trade.exit} pnl={(trade.exit! / trade.entry - 1) * 100} />
-            ))}
-            {buysToday.map((trade) => {
-              const quote = priceOf(trade.id);
-              return (
-                <SignalRow
-                  key={`b-${trade.id}`}
-                  name={trade.name}
-                  side="买入"
-                  price={trade.entry}
-                  hint={quote?.chg != null ? `现价 ${quote.price.toFixed(2)}（${quote.chg > 0 ? "+" : ""}${quote.chg.toFixed(2)}%）` : undefined}
-                />
-              );
-            })}
-            {buysToday.length === 0 && sellsToday.length === 0 ? (
-              <div className="px-2 py-6 text-center text-sm text-muted">
-                {date ? "今天还没有信号" : "非交易日"}
-              </div>
-            ) : null}
-          </div>
-        </Panel>
-
+      {/* ── Zone D 轻量延伸（今日信号已上右栏，这里只留快讯）── */}
+      <div className="grid gap-2">
         <Panel title="热点快讯" note={<Link to="/news" className="text-accent hover:underline">全部资讯 →</Link>}>
           <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto scroll-slim p-2">
             {news.map((item) => (

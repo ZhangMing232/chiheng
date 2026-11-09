@@ -318,12 +318,15 @@ export const getUniverse = createServerFn({ method: "GET" })
 /** 全市场涨跌分布（总览页用）。只回计数，不把几千只票塞给客户端（避免 SSR HTML 膨胀）。 */
 export const getBreadth = createServerFn({ method: "GET" }).handler(async () => {
   const { limitTag } = await import("@/lib/market/model");
+  const { bucketKey } = await import("@/lib/market/slim-universe");
   const universe = await loadUniverse(false);
   let up = 0;
   let down = 0;
   let flat = 0;
   let limitUp = 0;
   let limitDown = 0;
+  // 分桶（效果图直方图）走共享口径 bucketKey；家数计数保持原有 chg>0 口径不动。
+  const buckets = { upLimit: 0, gt7: 0, p5_7: 0, p3_5: 0, p0_3: 0, flat: 0, n0_3: 0, n3_5: 0, n5_7: 0, lt7: 0, downLimit: 0 };
   for (const q of universe.quotes) {
     const chg = q.chg ?? 0;
     if (chg > 0) up += 1;
@@ -332,8 +335,9 @@ export const getBreadth = createServerFn({ method: "GET" }).handler(async () => 
     const tag = limitTag(q);
     if (tag === "涨停") limitUp += 1;
     else if (tag === "跌停") limitDown += 1;
+    buckets[bucketKey(chg, tag)] += 1;
   }
-  return { up, down, flat, limitUp, limitDown, total: universe.quotes.length, asOf: universe.asOf, source: universe.source };
+  return { up, down, flat, limitUp, limitDown, buckets, total: universe.quotes.length, asOf: universe.asOf, source: universe.source };
 });
 
 /** 大管家问答。POST { q, history } → { ok, answer } 或 { ok:false, error }。

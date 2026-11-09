@@ -251,7 +251,7 @@ function SideNav() {
           className="h-[26px] w-[26px] shrink-0 rounded-[8px]"
           aria-hidden
           style={{
-            background: "radial-gradient(circle at 32% 30%, #ff6a5e, var(--color-brand) 60%, #a82f33)",
+            background: "radial-gradient(circle at 32% 30%, #ff6a5e, #e64b33 60%, #a82f33)",
             boxShadow: "inset 0 0 0 1px rgba(229,72,77,.4)",
           }}
         />
@@ -682,8 +682,8 @@ function applyTheme(mode: string) {
   const root = document.documentElement;
   if (mode === "light" || mode === "dark") root.dataset.theme = mode;
   else delete root.dataset.theme;
-  const dark = mode === "dark" || (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0c0d10" : "#f5f6f8");
+  const dark = mode === "dark"; // 默认主题已固定浅色，不再跟系统（2026-11-10 换肤）
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0c0d10" : "#f6f8fa");
 }
 
 /**
