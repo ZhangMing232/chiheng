@@ -25,7 +25,10 @@ import { buildIndustryIndex, parseBoardMembers, parseIndustryBoards } from "../s
 import { rateLimitOf } from "../src/lib/market/fetch-policy.ts";
 
 const here = new URL("..", import.meta.url).pathname;
-const OUT = join(here, "data", "backtest", "industry.json");
+const OUT = join(here, "data", "backtest", process.env.BOARD_OUT ?? "industry.json");
+// 板块口径可切：m:90+t:2 行业（默认）、m:90+t:3 概念题材（2026-11-09 加，
+// 用户问「东方概念」——行业表里没有概念层，题材热度榜要用它）。
+const BOARD_FS = process.env.BOARD_FS ?? "m:90+t:2";
 const UA = "Mozilla/5.0";
 const GAP_MS = rateLimitOf("eastmoney").minGapMs;
 const limitArg = process.argv.indexOf("--limit");
@@ -58,8 +61,7 @@ async function boardList() {
   const problems = [];
   for (let page = 1; page <= 10; page += 1) {
     const body = await get(
-      "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3".replace("pn=1", `pn=${page}`) +
-        "&fs=m:90+t:2&fields=f12,f13,f14,f3,f20,f104,f105",
+      `https://push2.eastmoney.com/api/qt/clist/get?pn=${page}&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3&fs=${BOARD_FS}&fields=f12,f13,f14,f3,f20,f104,f105`,
     );
     const { boards, gaps } = parseIndustryBoards(body);
     problems.push(...gaps.map((g) => g.reason));

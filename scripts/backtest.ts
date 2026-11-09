@@ -120,13 +120,18 @@ function buildPePctMap(windowDays = 250, cheapThresh = 25): void {
  *   near52w = 当日收盘 / 近 250 根最高价（含今日）
  *   vol120 = 近 120 根日收益的总体标准差
  */
-type SlowFac = { mom60: number; mom120: number; near52w: number; vol120: number; hi20: number; highAge: number; loRatio: number };
+type SlowFac = { mom60: number; mom120: number; near52w: number; vol120: number; hi20: number; highAge: number; loRatio: number; limitStreak: number };
 const slowFacMap = new Map<string, Map<string, SlowFac>>();
 
 function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
   for (const [id, rows] of klines) {
     const code = id.replace(/[^0-9]/g, "");
     const byDate = new Map<string, SlowFac>();
+    // 连板天数口径（2026-11-09）：按板限贴板判定（创业/科创 20%、北交 30%、
+    // 其余 10%），ST 的 5% 板限这里拿不到 isST，按 10% 算会把 ST 的 5-9.9% 误计
+    // 成涨停——已知近似，事件函数入口有 m.isST 精确闸兜底。
+    const boardLim = id.startsWith("sh688") || id.startsWith("sz300") ? 20 : id.startsWith("bj") ? 30 : 10;
+    let streak = 0;
     for (let i = 65; i < rows.length; i++) {
       const r = rows[i]!;
       const past5 = rows[i - 5];
@@ -147,6 +152,8 @@ function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
       }
       const mean = n ? sum / n : 0;
       const vol120 = n > 1 ? Math.sqrt(Math.max(0, sum2 / n - mean * mean)) : NaN;
+      const chgPct = i > 0 ? (r.c / rows[i - 1]!.c - 1) * 100 : 0;
+      streak = chgPct >= boardLim - 0.15 ? streak + 1 : 0;
       byDate.set(r.date, {
         mom60, mom120,
         near52w: maxH > 0 ? r.c / maxH : NaN,
@@ -154,6 +161,7 @@ function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
         hi20: maxH20 > 0 ? r.c / maxH20 : NaN,
         highAge: hiAge,
         loRatio: loL > 0 ? r.c / loL : NaN,
+        limitStreak: streak,
       });
     }
     if (byDate.size) slowFacMap.set(code, byDate);
@@ -820,7 +828,7 @@ const EXT_LAG = process.env.BT_EXT_LAG === "1";
  * 只在 BT_EVENT=1 注册（和 BT_GEN2/BT_VALUE 一样的实验开关约定），
  * 默认不注册，免得污染日常基线和页面读的 runs.jsonl。
  */
-type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy" | "limitUp" | "limitUp10";
+type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy" | "limitUp" | "limitUp10" | "streak1" | "streak2" | "streak3";
 
 function eventStrategy(kind: EventKind) {
   return (m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null => {
@@ -864,6 +872,19 @@ function eventStrategy(kind: EventKind) {
         if (!isLimitUp) return null;
         score = m.chg ?? 0;
         break;
+      // 连板阶梯（2026-11-09 用户问「热点连板」）：涨停拆成首板/2连板/3+连板，
+      // 龙头连板和散户追首板不是一回事，混着平均会把两头都埋掉。
+      case "streak1":
+      case "streak2":
+      case "streak3": {
+        if (!isLimitUp) return null;
+        const f = slowFacOf(id, m.date);
+        const s = f?.limitStreak ?? 0;
+        const want = kind === "streak1" ? 1 : kind === "streak2" ? 2 : 3;
+        if (kind === "streak2" ? s !== 2 : kind === "streak3" ? s < 3 : s !== 1) return null;
+        score = s;
+        break;
+      }
     }
     if (score == null) return null;
     const buy = m.prev;
@@ -879,6 +900,9 @@ const EVENT_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: nu
   "evt-lhb-buy": { label: "事件·龙虎榜净买(负对照)", fn: eventStrategy("lhbBuy"), hold: 10 },
   "evt-limitUp": { label: "事件·涨停次日(持2)", fn: eventStrategy("limitUp"), hold: 2 },
   "evt-limitUp10": { label: "事件·涨停次日(持10)", fn: eventStrategy("limitUp10"), hold: 10 },
+  "evt-streak1": { label: "事件·首板次日", fn: eventStrategy("streak1"), hold: 2 },
+  "evt-streak2": { label: "事件·二连板次日", fn: eventStrategy("streak2"), hold: 2 },
+  "evt-streak3": { label: "事件·三连板次日(妖股)", fn: eventStrategy("streak3"), hold: 2 },
 };
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
