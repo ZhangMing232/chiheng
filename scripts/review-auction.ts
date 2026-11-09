@@ -121,7 +121,7 @@ async function main() {
       const { sendPushPlus } = await import("../src/lib/market/push.ts");
       const fmt = (r: (typeof reviewed)[number], mark: string) => {
         const gap = r.auctionGap != null ? `${r.auctionGap > 0 ? "+" : ""}${r.auctionGap}%` : "--";
-        return `${mark} ${r.code} ${r.name} | ${r.strategy} | 挂${r.buyPrice} | 竞价${r.auctionPrice} ${gap} | ${r.verdictReason}`;
+        return `${mark} ${r.code} ${r.name} | ${r.strategy} | 挂${r.buyPrice} | 竞价${r.auctionPrice} ${gap}${r.stop != null ? ` | 止损${r.stop} 目标${r.target ?? "—"}` : ""} | ${r.verdictReason}`;
       };
       const lines = [
         ...ok.slice(0, 10).map((r) => fmt(r, "🟢")),

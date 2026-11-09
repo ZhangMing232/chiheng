@@ -1,28 +1,26 @@
 /**
- * 生成每日候选信号清单。
- * 收盘后跑（约 15:30），复用回测的策略函数扫全市场当日 K 线，
- * 输出所有触发信号的股票到 data/signals/candidates.json。
+ * 生成每日候选信号清单（15:30 收盘后由 home-server 跑）。
  *
- * 用法：
- *   node --experimental-strip-types --import ./scripts/alias.mjs scripts/generate-signals.ts
+ * 2026-11-10 重写。原来这里是「精简复制」的三套策略函数（放量突破 / 突破·早期版 /
+ * 启动前期）——全是研究判死、实盘亏钱的家族（累计 −235% / −31.5%），而唯一在
+ * 赚钱的低估值反而不在推送管道里：**每天推给用户的「可跟信号」是亏钱家族的票**。
+ * 现在改走正式选股代码 `watchList`（strategies.ts，和选股页同一条实现），
+ * 只扫现役家族（ACTIVE_STYLES），候选自带止损/目标——用户要的「什么价位买什么」
+ * 就是这份东西，不再让推送和赚钱的名单各走各的。
  *
- * 输出格式（每一条候选信号）：
- *   { date, id, code, name, strategy, buyPrice, score, reason }
- *
- * 注意：buyPrice 是收盘后计算的挂单价——明天竞价后还要审核。
+ * 输出 data/signals/candidates.json：
+ *   { date, count, signals: [{ id, code, name, strategy, buyPrice, score, reason, stop?, target? }] }
+ *   stop/target 是新增字段，老消费者（review-auction / 信号页）兼容。
  */
-
-import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { watchList, ACTIVE_STYLES, STYLES } from "@/lib/market/strategies";
+import { DEFAULT_RULES } from "@/lib/market/rules";
+import { DEFAULT_PREFS, matchPrefs } from "@/lib/market/prefs";
+import type { Quote } from "@/lib/market/types";
 
 const DATA = process.env.CHIHENG_DATA_DIR ?? "data";
-const KLINE = `${DATA}/backtest/kline`;
 
-type Row = { date: string; o: number; c: number; h: number; l: number; v: number };
-
-// 从回测文件里直接 import 成本太大（会跑整个 main），这里精简一份 metrics
-// 和策略函数出来。用最小依赖集：只要 K 线数据和东财快照代码。
-
-interface Signal {
+type Signal = {
   id: string;
   code: string;
   name: string;
@@ -30,135 +28,49 @@ interface Signal {
   buyPrice: number;
   score: number;
   reason: string;
-}
+  stop?: number;
+  target?: number;
+};
 
-// 先把候选信号写到临时文件
 async function main() {
-  console.log("信号生成：收盘后扫全市场...\n");
+  console.log(`信号生成：现役家族（${ACTIVE_STYLES.join("、")}）正式选股代码扫描…\n`);
+  const raw = JSON.parse(await readFile(`${DATA}/universe-cache.json`, "utf8")) as {
+    at: number;
+    payload: { quotes: Quote[] };
+  };
+  const quotes = raw.payload.quotes;
+  console.log(`股票池：${quotes.length} 只（行情快照 ${new Date(raw.at).toLocaleTimeString("zh-CN", { hour12: false })}）`);
 
-  // 1. 拿全市场股票列表
-  const ids: string[] = [];
-  const names: Record<string, string> = {};
-  for (let page = 1; page <= 30 && ids.length < 5000; page += 1) {
-    const url = `https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=${page}&num=100&sort=symbol&asc=1&node=hs_a`;
-    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(15000) });
-    if (!res.ok) break;
-    const list = (await res.json()) as { symbol?: string; name?: string }[];
-    if (list.length === 0) break;
-    for (const row of list) {
-      const s = row.symbol ?? "";
-      if (/^(sh|sz)\d{6}$/.test(s)) {
-        ids.push(s);
-        if (row.name) names[s] = row.name;
-      }
-    }
-  }
-  console.log(`股票池：${ids.length} 只`);
-
-  // 2. 加载最新 K 线（data/backtest/kline/ 目录下最新的 JSON）
-  const files = (await readdir(KLINE)).filter(f => f.endsWith(".json")).sort();
-  const klineMap = new Map<string, Row[]>();
-  for (const id of ids.slice(0, 3000)) {
-    try {
-      const raw = JSON.parse(await readFile(`${KLINE}/${id}.json`, "utf8"));
-      if (!Array.isArray(raw)) continue;
-      klineMap.set(id, raw as Row[]);
-    } catch { /* 没有 K 线缓存的票跳过 */ }
-  }
-  console.log(`K 线命中：${klineMap.size} 只`);
-
-  // 3. 策略扫描（简化版 metrics + 策略函数）
+  const today = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
   const signals: Signal[] = [];
-  const today = new Date().toISOString().slice(0, 10);
-
-  for (const [id, rows] of klineMap) {
-    const i = rows.length - 1;
-    if (i < 60) continue;
-    const r = rows[i];
-    const r1 = rows[i - 1];
-    if (!r || !r1) continue;
-
-    // 简化版 metrics：只算策略需要的几个字段
-    const o = r.o, c = r.c, h = r.h, l = r.l;
-    const prev = r1.c;
-    const chg = prev > 0 ? (c / prev - 1) * 100 : null;
-    if (chg == null || c <= 0) continue;
-
-    /**
-     * 挂单价基准 = 信号日收盘 `c`（对「明日下单」而言它就是「昨收」）。
-     *
-     * 2026-10-28 修：以前用 `prev`（= r1.c = 信号日**前一天**的收盘）当基准，
-     * 于是显示价和线上记账用的价不是同一个——
-     * 线上 `breakoutOrder` 的 `prevClose(quote)` 是 `现价/(1+涨跌幅)`，
-     * 明早跑的时候取到的是信号日当天收盘。放量突破 20 日涨幅上限 10%，
-     * 信号日往往已经大涨，两者能差出 3~5 个点。挂单价是给用户看的计划，
-     * 必须和账本实际要挂的是同一个数。
-     */
-    const orderBase = c;
-
-    // 算几个常用指标
-    const win5 = rows.slice(Math.max(0, i - 4), i + 1).map(x => x.c);
-    const win20 = rows.slice(Math.max(0, i - 19), i + 1).map(x => x.c);
-    const win60 = rows.slice(Math.max(0, i - 59), i + 1).map(x => x.c);
-    const d5 = win5[0] > 0 ? (c / win5[0] - 1) * 100 : null;
-    const d20 = win20[0] > 0 ? (c / win20[0] - 1) * 100 : null;
-    const d60 = win60[0] > 0 ? (c / win60[0] - 1) * 100 : null;
-    const amountWan = (r.v * c) / 1e4 || 0;
-
-    // 量比：最近5日均量
-    const vols = rows.slice(Math.max(0, i - 9), i).map(x => x.v);
-    const avgVol = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) / vols.length : 0;
-    const volRatio = avgVol > 0 ? r.v / avgVol : null;
-
-    if (d5 == null || d20 == null || d60 == null || volRatio == null) continue;
-
-    // 放量突破
-    if (volRatio >= 1.8 && d20 >= 0 && d20 <= 20 && d5 >= 0 && d5 <= 8 && chg >= 0 && chg <= 7 && c >= 4 && amountWan >= 8000) {
-      const buy = orderBase * 1.02;
-      signals.push({ id, code: id.slice(2), name: names[id] ?? "", strategy: "放量突破", buyPrice: +buy.toFixed(2), score: +volRatio.toFixed(1), reason: `量比${volRatio.toFixed(1)}，20日涨${d20.toFixed(0)}%` });
+  for (const style of ACTIVE_STYLES) {
+    const rows = watchList(quotes, style, DEFAULT_RULES, (q) => matchPrefs(q, DEFAULT_PREFS));
+    const label = STYLES.find((s) => s.id === style)?.name ?? style;
+    for (const r of rows) {
+      signals.push({
+        id: r.quote.id,
+        code: r.quote.code ?? r.quote.id.slice(2),
+        name: r.quote.name ?? "",
+        strategy: label,
+        buyPrice: +r.buy.toFixed(2),
+        score: +r.score.toFixed(1),
+        reason: (r.reasons ?? []).join("，").slice(0, 60),
+        stop: r.stop != null ? +r.stop.toFixed(2) : undefined,
+        target: r.sell != null ? +r.sell.toFixed(2) : undefined,
+      });
     }
-    // 突破早期版
-    if (volRatio >= 1.5 && d20 >= -3 && d20 <= 12 && d5 >= 0 && d5 <= 5 && chg >= 1 && chg <= 4 && c >= 4 && amountWan >= 5000) {
-      const buy = orderBase * 1.02;
-      const already = signals.find(s => s.id === id && s.strategy === "放量突破");
-      if (!already) signals.push({ id, code: id.slice(2), name: names[id] ?? "", strategy: "突破·早期版", buyPrice: +buy.toFixed(2), score: +volRatio.toFixed(1), reason: `量比${volRatio.toFixed(1)}，20日涨${d20.toFixed(0)}%，今涨${chg.toFixed(1)}%` });
-    }
-    // 启动前期
-    if (volRatio >= 1.2 && volRatio <= 2.8 && chg >= 1 && chg <= 4.5 && d5 >= 0 && d5 <= 8 && d20 >= -3 && d20 <= 12 && d60 >= -10 && d60 <= 25 && c >= 4 && amountWan >= 5000) {
-      const buy = orderBase * 1.0275;
-      signals.push({ id, code: id.slice(2), name: names[id] ?? "", strategy: "启动前期", buyPrice: +buy.toFixed(2), score: +volRatio.toFixed(1), reason: `20日涨${d20.toFixed(0)}%，今涨${chg.toFixed(1)}%` });
-    }
+    console.log(`${label}：${rows.length} 条候选`);
   }
 
-  console.log(`信号总数：${signals.length}`);
-  for (const s of signals.slice(0, 10)) {
-    console.log(`  ${s.strategy} | ${s.code} ${s.name} | 挂${s.buyPrice} | ${s.reason}`);
-  }
-  if (signals.length > 10) console.log(`  ... 还有 ${signals.length - 10} 条`);
-
-  // 4. 落盘
   await mkdir(`${DATA}/signals`, { recursive: true });
-  await writeFile(`${DATA}/signals/candidates.json`, JSON.stringify({ date: today, signals }, null, 2));
-  console.log(`\n候选信号已保存到 ${DATA}/signals/candidates.json`);
-
-  // ── PushPlus 推送：收盘后告诉主人今天出了多少条 ─────────────────
-  if (signals.length > 0) {
-    try {
-      const { sendPushPlus } = await import("./alias.mjs").then(() => import("../src/lib/market/push.ts"));
-      const fromCount = new Map<string, number>();
-      for (const s of signals) fromCount.set(s.strategy, (fromCount.get(s.strategy) ?? 0) + 1);
-      const lines = [...fromCount.entries()].map(([k, v]) => `${k}：${v} 条`);
-      const sent = await sendPushPlus("赤轨信号·今日收盘", [
-        `信号日：${today}`,
-        `共 ${signals.length} 条候选`,
-        ...lines,
-        "明早 9:26 竞价审核后看可执行清单",
-      ].join("\n"), "txt");
-      console.log(sent ? "PushPlus 推送已发送" : "PushPlus 没推出去（看上一行的原因），候选已落盘不影响页面");
-    } catch (e) {
-      console.log(`PushPlus 推送失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
+  await writeFile(
+    `${DATA}/signals/candidates.json`,
+    JSON.stringify({ date: today, count: signals.length, signals }, null, 2),
+  );
+  console.log(`\n候选信号 ${signals.length} 条 → ${DATA}/signals/candidates.json`);
+  for (const s of signals.slice(0, 15)) {
+    console.log(`  ${s.code} ${s.name} | ${s.strategy} | 挂${s.buyPrice} | 止损${s.stop ?? "—"} 目标${s.target ?? "—"}`);
   }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+await main();
