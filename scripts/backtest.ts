@@ -40,6 +40,7 @@
  */
 
 import { mkdir, readFile, writeFile, appendFile, readdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { exitFill } from "@/lib/market/journal-book";
 import { boardLimit } from "@/lib/market/model";
 
@@ -120,7 +121,7 @@ function buildPePctMap(windowDays = 250, cheapThresh = 25): void {
  *   near52w = 当日收盘 / 近 250 根最高价（含今日）
  *   vol120 = 近 120 根日收益的总体标准差
  */
-type SlowFac = { mom60: number; mom120: number; near52w: number; vol120: number; hi20: number; highAge: number; loRatio: number; limitStreak: number };
+type SlowFac = { mom60: number; mom120: number; near52w: number; vol120: number; hi20: number; highAge: number; loRatio: number; limitStreak: number; themeHot: number };
 const slowFacMap = new Map<string, Map<string, SlowFac>>();
 
 function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
@@ -162,11 +163,69 @@ function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
         highAge: hiAge,
         loRatio: loL > 0 ? r.c / loL : NaN,
         limitStreak: streak,
+        themeHot: 0,
       });
     }
     if (byDate.size) slowFacMap.set(code, byDate);
   }
   console.log(`低频慢因子预计算完成（${slowFacMap.size} 只：动量/52周高点/波动/20日高/高点年代/距底）\n`);
+}
+
+/**
+ * 题材热度预计算（2026-11-09 深夜，用户要「短线热点策略」）：
+ * 概念板块当日涨停家数 → 每只票记「所属最热板块的当日电压」（themeHot）。
+ * 剔标签板（融资融券/昨日涨停这类统计标签）与巨型板（>800 成员），
+ * 成员 10~800 的真题材板才计。lookup 用法同 slowFacMap。
+ */
+const themeHeatMap = new Map<string, Map<string, number>>();
+
+function buildThemeHeatMap(klines: Map<string, Row[]>): void {
+  let raw: { boards: { code: string; name: string; members: string[] }[] } | null = null;
+  try {
+    raw = JSON.parse(readFileSync("data/backtest/concepts.json", "utf8"));
+  } catch {
+    console.log("概念板数据缺失（data/backtest/concepts.json），题材热度为空");
+    return;
+  }
+  const TAG = /(热股|高换手|高振幅|多板|涨停|跌停|首亏|预增|预亏|重仓|减仓|增仓|融资|股通|QFII|亏损|题材股|破净|高价|低价|百元|次新|AH|同股)/;
+  const boards = raw.boards.filter((b) => b.members.length >= 10 && b.members.length <= 800 && !TAG.test(b.name));
+  // 稀疏表（2026-11-10 修 OOM）：只存「板当日涨停 ≥3」的日子——事件唯一的阈值；
+  // 每票涨停日只扫一遍（成员共享时不再重复扫 k 线）。
+  const memberOf = new Map<string, string[]>();
+  for (const b of boards) {
+    for (const id of b.members) {
+      const arr = memberOf.get(id) ?? [];
+      arr.push(b.code);
+      memberOf.set(id, arr);
+    }
+  }
+  const stockLimits = new Map<string, string[]>();
+  for (const [id, rows] of klines) {
+    if (!memberOf.has(id)) continue;
+    const lim = id.startsWith("sh688") || id.startsWith("sz300") ? 20 : id.startsWith("bj") ? 30 : 10;
+    const dates: string[] = [];
+    for (let i = 1; i < rows.length; i++) {
+      const chg = (rows[i]!.c / rows[i - 1]!.c - 1) * 100;
+      if (chg >= lim - 0.15) dates.push(rows[i]!.date);
+    }
+    if (dates.length) stockLimits.set(id, dates);
+  }
+  for (const b of boards) {
+    const daily = new Map<string, number>();
+    for (const id of b.members) for (const d of stockLimits.get(id) ?? []) daily.set(d, (daily.get(d) ?? 0) + 1);
+    for (const id of b.members) {
+      const code = id.replace(/[^0-9]/g, "");
+      let m = themeHeatMap.get(code);
+      if (!m) { m = new Map(); themeHeatMap.set(code, m); }
+      for (const [date, n] of daily) if (n >= 3 && n > (m.get(date) ?? 0)) m.set(date, n);
+    }
+  }
+  console.log(`题材热度预计算完成（${boards.length} 个概念板，${themeHeatMap.size} 只票带 ≥3 涨停热度日）`);
+}
+
+/** 只存 ≥3 的稀疏表：查不到就是没烧（0）。 */
+function themeHotOf(id: string | undefined, date: string): number {
+  return themeHeatMap.get((id ?? "").replace(/[^0-9]/g, ""))?.get(date) ?? 0;
 }
 
 /** 低频家族统一执行骨架（预登记，五个策略共用，参数只定一次不再调）：
@@ -828,7 +887,7 @@ const EXT_LAG = process.env.BT_EXT_LAG === "1";
  * 只在 BT_EVENT=1 注册（和 BT_GEN2/BT_VALUE 一样的实验开关约定），
  * 默认不注册，免得污染日常基线和页面读的 runs.jsonl。
  */
-type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy" | "limitUp" | "limitUp10" | "streak1" | "streak2" | "streak3";
+type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy" | "limitUp" | "limitUp10" | "streak1" | "streak2" | "streak3" | "themeLaggard" | "themeLeaderDip";
 
 function eventStrategy(kind: EventKind) {
   return (m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null => {
@@ -885,6 +944,25 @@ function eventStrategy(kind: EventKind) {
         score = s;
         break;
       }
+      // ── 短线热点策略（2026-11-09 深夜，用户核心诉求：浪里上车，不是追涨停）──
+      // 题材已烧（所属概念板当日 ≥3 只涨停）为前提，两个上车姿势都不碰「追已涨停」：
+      // themeLaggard  买板块里还没动的成员（近 20 日涨幅 <5%），赌浪拍到它头上；
+      // themeLeaderDip 买板块内近 20 日强者（≥10%）的当日收阴回踩，赌强者第二腿。
+      case "themeLaggard":
+      case "themeLeaderDip": {
+        const hot = themeHotOf(id, m.date);
+        if (hot < 3) return null; // 题材没烧
+        if (isLimitUp) return null; // 已涨停的不追
+        if (kind === "themeLaggard") {
+          if (m.d20 == null || m.d20 >= 5) return null; // 还没动
+          score = hot;
+        } else {
+          if (m.d20 == null || m.d20 < 10) return null; // 板内强者
+          if (m.chg == null || m.chg > 0) return null; // 今天回踩收阴
+          score = m.d20;
+        }
+        break;
+      }
     }
     if (score == null) return null;
     const buy = m.prev;
@@ -903,6 +981,8 @@ const EVENT_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: nu
   "evt-streak1": { label: "事件·首板次日", fn: eventStrategy("streak1"), hold: 2 },
   "evt-streak2": { label: "事件·二连板次日", fn: eventStrategy("streak2"), hold: 2 },
   "evt-streak3": { label: "事件·三连板次日(妖股)", fn: eventStrategy("streak3"), hold: 2 },
+  "evt-themeLaggard": { label: "热点·题材补涨", fn: eventStrategy("themeLaggard"), hold: 5 },
+  "evt-themeLeaderDip": { label: "热点·龙头回踩", fn: eventStrategy("themeLeaderDip"), hold: 5 },
 };
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
@@ -1950,6 +2030,7 @@ async function main() {
   await loadPeHistory();
   buildPePctMap(); // 个股自身 PE 历史分位（relValPersist 用，无前视）
   buildSlowFactorMaps(klines); // 低频慢因子（动量/52周高点/波动，BT_LOWFREQ 家族用）
+  buildThemeHeatMap(klines); // 题材热度（概念板当日涨停数，热点事件族用）
   const useTurnoverGate = Object.keys(floatCapMap).length > 0 && process.env.BT_TURNOVER !== "0";
   if (useTurnoverGate) {
     console.log(`流通市值缓存 ${Object.keys(floatCapMap).length} 条，放量突破的换手率闸已启用（≥2%）\n`);
