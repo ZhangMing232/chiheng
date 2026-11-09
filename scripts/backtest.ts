@@ -820,12 +820,15 @@ const EXT_LAG = process.env.BT_EXT_LAG === "1";
  * 只在 BT_EVENT=1 注册（和 BT_GEN2/BT_VALUE 一样的实验开关约定），
  * 默认不注册，免得污染日常基线和页面读的 runs.jsonl。
  */
-type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy";
+type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy" | "limitUp" | "limitUp10";
 
 function eventStrategy(kind: EventKind) {
-  return (m: ReturnType<typeof metrics>): Signal | null => {
+  return (m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null => {
     // 这两条不是形态条件，只是排除不可交易的票（仙股、没成交额）
     if (m.c < 4 || m.amountWan == null || m.amountWan < 3000) return null;
+    // 涨停判定按板：创业/科创 20%、北交 30%、ST 5%、其余 10%；贴板 0.15 容差含一字。
+    const boardLim = id && (id.startsWith("sh688") || id.startsWith("sz300")) ? 20 : id && id.startsWith("bj") ? 30 : 10;
+    const isLimitUp = m.chg != null && m.chg >= (m.isST ? 5 : boardLim) - 0.15;
     const amountYuan = m.amountWan * 1e4;
     // 融资净买入占当日成交额比（横截面可比，避免大盘股金额天然大）
     const marginRatioFlow = m.marginBuy == null ? null : m.marginBuy / m.amountWan;
@@ -853,6 +856,14 @@ function eventStrategy(kind: EventKind) {
         if (m.hotNetBuy == null || m.hotNetBuy < 3000) return null;
         score = m.hotNetBuy;
         break;
+      // 打板的核心赌注（2026-11-09 预登记）：涨停次日还有没有溢价（连板跟随）。
+      // 打板本体（盘中挂板买）日线测不了；这里测的是它的前提——涨停封板的票，
+      // 后面几天是继续强还是回吐。两种持有口径：2 天（打板短翻）/ 10 天（与其余事件同口径）。
+      case "limitUp":
+      case "limitUp10":
+        if (!isLimitUp) return null;
+        score = m.chg ?? 0;
+        break;
     }
     if (score == null) return null;
     const buy = m.prev;
@@ -866,6 +877,8 @@ const EVENT_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: nu
   "evt-short-high": { label: "事件·融券余额高", fn: eventStrategy("shortHigh"), hold: 10 },
   "evt-lhb-sell": { label: "事件·龙虎榜净卖", fn: eventStrategy("lhbSell"), hold: 10 },
   "evt-lhb-buy": { label: "事件·龙虎榜净买(负对照)", fn: eventStrategy("lhbBuy"), hold: 10 },
+  "evt-limitUp": { label: "事件·涨停次日(持2)", fn: eventStrategy("limitUp"), hold: 2 },
+  "evt-limitUp10": { label: "事件·涨停次日(持10)", fn: eventStrategy("limitUp10"), hold: 10 },
 };
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
