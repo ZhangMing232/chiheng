@@ -120,7 +120,7 @@ function buildPePctMap(windowDays = 250, cheapThresh = 25): void {
  *   near52w = 当日收盘 / 近 250 根最高价（含今日）
  *   vol120 = 近 120 根日收益的总体标准差
  */
-type SlowFac = { mom60: number; mom120: number; near52w: number; vol120: number };
+type SlowFac = { mom60: number; mom120: number; near52w: number; vol120: number; hi20: number; highAge: number; loRatio: number };
 const slowFacMap = new Map<string, Map<string, SlowFac>>();
 
 function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
@@ -132,8 +132,14 @@ function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
       const past5 = rows[i - 5];
       const mom60 = past5 ? past5.c / rows[i - 65]!.c - 1 : NaN;
       const mom120 = i >= 125 && past5 ? past5.c / rows[i - 125]!.c - 1 : NaN;
-      let maxH = -Infinity;
-      for (let j = Math.max(0, i - 249); j <= i; j++) maxH = Math.max(maxH, rows[j]!.h);
+      let maxH = -Infinity, hiAge = 0, loL = Infinity;
+      for (let j = Math.max(0, i - 249); j <= i; j++) {
+        const h = rows[j]!.h;
+        if (h > maxH) { maxH = h; hiAge = i - j; }
+        loL = Math.min(loL, rows[j]!.l);
+      }
+      let maxH20 = -Infinity;
+      for (let j = Math.max(0, i - 19); j <= i; j++) maxH20 = Math.max(maxH20, rows[j]!.h);
       let sum = 0, sum2 = 0, n = 0;
       for (let j = Math.max(1, i - 119); j <= i; j++) {
         const ret = rows[j]!.c / rows[j - 1]!.c - 1;
@@ -141,11 +147,18 @@ function buildSlowFactorMaps(klines: Map<string, Row[]>): void {
       }
       const mean = n ? sum / n : 0;
       const vol120 = n > 1 ? Math.sqrt(Math.max(0, sum2 / n - mean * mean)) : NaN;
-      byDate.set(r.date, { mom60, mom120, near52w: maxH > 0 ? r.c / maxH : NaN, vol120 });
+      byDate.set(r.date, {
+        mom60, mom120,
+        near52w: maxH > 0 ? r.c / maxH : NaN,
+        vol120,
+        hi20: maxH20 > 0 ? r.c / maxH20 : NaN,
+        highAge: hiAge,
+        loRatio: loL > 0 ? r.c / loL : NaN,
+      });
     }
     if (byDate.size) slowFacMap.set(code, byDate);
   }
-  console.log(`低频慢因子预计算完成（${slowFacMap.size} 只：动量/52周高点/波动）\n`);
+  console.log(`低频慢因子预计算完成（${slowFacMap.size} 只：动量/52周高点/波动/20日高/高点年代/距底）\n`);
 }
 
 /** 低频家族统一执行骨架（预登记，五个策略共用，参数只定一次不再调）：
@@ -1304,6 +1317,52 @@ function bk4Near(m: ReturnType<typeof metrics>, stopPct?: number, id?: string): 
 }
 
 /**
+ * 「绝望底仓」（2026-11-09 预登记，来自圣阳/九阳 2026 两只 60 日 +170~190% 大牛的案例逆向）：
+ *
+ * 案例事实（data/study-despair-base-20261109.json 附件口径）：
+ *   - 两只启动时**距 250 日高点 −28%/−29%**、上一个大高点在 8~10 个月前、
+ *     起涨前 60 天横盘微跌（漂移 −15%/−8%）、距底 +17%/+55%、启动市值 59~68 亿；
+ *   - **启动日都是无量阴跌日**（−2.6%/−3.1%，量比 1.0x）——点火不可预测，
+ *     可捕捉的只有「点火前的状态」，所以逻辑是「在状态里等」的低频篮子：
+ *     买进处于该状态的票，持有够久（120 个交易日）让少数几只火箭付清棺材钱。
+ *
+ * 状态（宽口径，可检验版）：深跌（near52w ≤ 0.75）+ 旧高点（highAge ≥ 120）+
+ *   横盘（d60 ∈ [−25, 10]）+ 离底（loRatio ≥ 1.03）+ 中盘（30~300 亿，今日快照，
+ *   已知近似）+ 交易性闸（非 ST / ≥4 元 / 成交额 ≥3000 万）。
+ * 两个变体：
+ *   despairBase —— 纯状态入篮（等点火）；
+ *   despairPop  —— 状态 + 首次站上 20 日高（今天收在 20 日高点上，第一缕活气才进）。
+ * 执行骨架：昨收限价 · 止损 −10% · 止盈 +25% · 持有 120 个交易日（低频）。
+ * 判决用宽口径；两只案例的收紧包络只用于观察名单，不当回测口径（防过拟合）。
+ */
+function despairState(m: ReturnType<typeof metrics>, id?: string): SlowFac | null {
+  if (!slowGates(m)) return null;
+  if (m.cap == null || m.cap < 30 || m.cap > 300) return null;
+  const f = slowFacOf(id, m.date);
+  if (!f) return null;
+  if (!isFinite(f.near52w) || f.near52w > 0.75) return null; // 深跌
+  if (f.highAge < 120) return null; // 旧高点，不是刚见顶
+  if (m.d60 == null || m.d60 < -25 || m.d60 > 10) return null; // 横盘微跌
+  if (!isFinite(f.loRatio) || f.loRatio < 1.03) return null; // 已离底
+  return f;
+}
+
+function despairBase(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  const f = despairState(m, id);
+  if (!f) return null;
+  const buy = m.prev;
+  return { buy, stop: buy * 0.9, sell: buy * 1.25, score: (1 - f.near52w) * 100 };
+}
+
+function despairPop(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  const f = despairState(m, id);
+  if (!f) return null;
+  if (!isFinite(f.hi20) || f.hi20 < 1.0) return null; // 首次站上 20 日高才进
+  const buy = m.prev;
+  return { buy, stop: buy * 0.9, sell: buy * 1.25, score: (1 - f.near52w) * 100 };
+}
+
+/**
  * 策略函数签名：
  *   m       = 该股在信号日（t 日）的指标行（metrics() 的产物）
  *   stopPct = 全局止损覆盖（回测扫描用）
@@ -1426,6 +1485,14 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
     ? {
         trendNear: { label: "趋势回踩·新高否决", fn: trendNear },
         bk4Near: { label: "突破·新高否决", fn: bk4Near },
+      }
+    : {}),
+  // 绝望底仓（2026-11-09 预登记，圣阳/九阳案例逆向）：深跌横盘中盘低位篮子，
+  // 120 个交易日低频持有等点火。跑法：BT_DESPAIR=1 BT_WINDOW=750 BT_NO_LOG=1。
+  ...(process.env.BT_DESPAIR === "1"
+    ? {
+        despairBase: { label: "绝望底仓·纯状态", fn: despairBase, hold: 120 },
+        despairPop: { label: "绝望底仓·20日高点火", fn: despairPop, hold: 120 },
       }
     : {}),
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
