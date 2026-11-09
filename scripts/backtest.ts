@@ -887,7 +887,7 @@ const EXT_LAG = process.env.BT_EXT_LAG === "1";
  * 只在 BT_EVENT=1 注册（和 BT_GEN2/BT_VALUE 一样的实验开关约定），
  * 默认不注册，免得污染日常基线和页面读的 runs.jsonl。
  */
-type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy" | "limitUp" | "limitUp10" | "streak1" | "streak2" | "streak3" | "themeLaggard" | "themeLeaderDip";
+type EventKind = "marginSurge" | "marginExit" | "shortHigh" | "lhbSell" | "lhbBuy" | "limitUp" | "limitUp10" | "streak1" | "streak2" | "streak3";
 
 function eventStrategy(kind: EventKind) {
   return (m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null => {
@@ -944,25 +944,6 @@ function eventStrategy(kind: EventKind) {
         score = s;
         break;
       }
-      // ── 短线热点策略（2026-11-09 深夜，用户核心诉求：浪里上车，不是追涨停）──
-      // 题材已烧（所属概念板当日 ≥3 只涨停）为前提，两个上车姿势都不碰「追已涨停」：
-      // themeLaggard  买板块里还没动的成员（近 20 日涨幅 <5%），赌浪拍到它头上；
-      // themeLeaderDip 买板块内近 20 日强者（≥10%）的当日收阴回踩，赌强者第二腿。
-      case "themeLaggard":
-      case "themeLeaderDip": {
-        const hot = themeHotOf(id, m.date);
-        if (hot < 3) return null; // 题材没烧
-        if (isLimitUp) return null; // 已涨停的不追
-        if (kind === "themeLaggard") {
-          if (m.d20 == null || m.d20 >= 5) return null; // 还没动
-          score = hot;
-        } else {
-          if (m.d20 == null || m.d20 < 10) return null; // 板内强者
-          if (m.chg == null || m.chg > 0) return null; // 今天回踩收阴
-          score = m.d20;
-        }
-        break;
-      }
     }
     if (score == null) return null;
     const buy = m.prev;
@@ -981,8 +962,40 @@ const EVENT_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: nu
   "evt-streak1": { label: "事件·首板次日", fn: eventStrategy("streak1"), hold: 2 },
   "evt-streak2": { label: "事件·二连板次日", fn: eventStrategy("streak2"), hold: 2 },
   "evt-streak3": { label: "事件·三连板次日(妖股)", fn: eventStrategy("streak3"), hold: 2 },
-  "evt-themeLaggard": { label: "热点·题材补涨", fn: eventStrategy("themeLaggard"), hold: 5 },
-  "evt-themeLeaderDip": { label: "热点·龙头回踩", fn: eventStrategy("themeLeaderDip"), hold: 5 },
+};
+
+// ── 短线热点家族（2026-11-09 深夜，用户核心诉求「浪里上车」）────────────────
+// **不在 eventStrategy 里**：事件族有纯度纪律（只看事件字段、不看价格形态，
+// eval-event.test.mjs 钉着）——题材策略是「事件 + 形态」的混合体，自立门庭。
+// 题材已烧（所属概念板当日 ≥3 只涨停）为前提，两个上车姿势都不碰「追已涨停」：
+//   themeLaggard   买板块里还没动的成员（近 20 日 <5%），赌浪拍到它头上；
+//   themeLeaderDip 买板块内近 20 日强者（≥10%）的当日收阴回踩，赌强者第二腿。
+// 执行骨架同事件族（昨收限价 · −8% / +10% · 持 5 天）。判决：两死一平
+// （补涨 +0.06% 噪声、回踩 −0.70%/t=−4.5 死），战报 report-220335。
+function themeLaggard(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  if (m.c < 4 || m.amountWan == null || m.amountWan < 3000) return null;
+  if (themeHotOf(id, m.date) < 3) return null; // 题材没烧
+  const lim = id && (id.startsWith("sh688") || id.startsWith("sz300")) ? 20 : id && id.startsWith("bj") ? 30 : 10;
+  if (m.chg != null && m.chg >= (m.isST ? 5 : lim) - 0.15) return null; // 已涨停的不追
+  if (m.d20 == null || m.d20 >= 5) return null; // 还没动
+  const buy = m.prev;
+  return { buy, stop: buy * 0.92, sell: buy * 1.1, score: themeHotOf(id, m.date) };
+}
+
+function themeLeaderDip(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  if (m.c < 4 || m.amountWan == null || m.amountWan < 3000) return null;
+  if (themeHotOf(id, m.date) < 3) return null;
+  const lim = id && (id.startsWith("sh688") || id.startsWith("sz300")) ? 20 : id && id.startsWith("bj") ? 30 : 10;
+  if (m.chg != null && m.chg >= (m.isST ? 5 : lim) - 0.15) return null;
+  if (m.d20 == null || m.d20 < 10) return null; // 板内强者
+  if (m.chg == null || m.chg > 0) return null; // 今天回踩收阴
+  const buy = m.prev;
+  return { buy, stop: buy * 0.92, sell: buy * 1.1, score: m.d20 };
+}
+
+const THEME_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: number }> = {
+  "evt-themeLaggard": { label: "热点·题材补涨", fn: themeLaggard, hold: 5 },
+  "evt-themeLeaderDip": { label: "热点·龙头回踩", fn: themeLeaderDip, hold: 5 },
 };
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
@@ -1662,6 +1675,7 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
   // #148 事件驱动实验（BT_EVENT=1 才注册）。默认不注册，不污染日常基线/页面账本。
   // 跑法：BT_EVENT=1 BT_NO_LOG=1 BT_SAMPLE=2646（大样本）+ BT_HALF/BT_OFFSET（样本外/多批次）。
   ...(process.env.BT_EVENT === "1" ? EVENT_STRATEGIES : {}),
+  ...(process.env.BT_EVENT === "1" ? THEME_STRATEGIES : {}),
 };
 
 type Trade = {
