@@ -27,7 +27,7 @@ import { MAX_RUNNING_PER_STYLE, readChallengers, readChampions, writeChallengers
 // 常量的权威定义在 challenger.ts（客户端安全）；这里 re-export 保住老导入路径（测试与潜在调用方）。
 export { MAX_RUNNING_PER_STYLE };
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
-import { ACTIVE_STYLES, STYLES, STYLE_IDS, holdOf } from "./strategies.ts";
+import { ACTIVE_STYLES, RETIRED_STYLES, STYLES, STYLE_IDS, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
 import { readMarketDegraded } from "./providers/index.ts";
 
@@ -117,6 +117,13 @@ export function parseAIChallengerProposals(raw: string, existing: Challenger[]):
     if (typeof p?.id !== "string" || !ID_RE.test(p.id)) { fail("id 缺失或不合法（要小写字母开头的 slug）"); continue; }
     if (ids.has(p.id)) { fail(`id「${p.id}」已存在`); continue; }
     if (typeof p.style !== "string" || !(STYLE_IDS as string[]).includes(p.style)) { fail(`style「${String(p.style)}」不在词表`); continue; }
+    // 已淘汰家族不许提名（2026-11-09 用户拍板焊死）：变体判赢也无现役席位，
+    // 在死家族上提名只是烧纸面钱攒无用样本——rebound-hold10 就是白皮书立规当天
+    // （11-04）被 AI 提进来的，不焊死会复发。名单唯一出处 strategies.ts。
+    if ((RETIRED_STYLES as string[]).includes(p.style)) {
+      fail(`style「${p.style}」是已淘汰家族——判赢也无现役席位，不许提名`);
+      continue;
+    }
     if (typeof p.name !== "string" || p.name.trim().length < 2) { fail("name 缺失或太短"); continue; }
     if (typeof p.rationale !== "string" || p.rationale.trim().length < 10) { fail("rationale（调参理由）太短，少于 10 字"); continue; }
     const errors = knobErrors(p as ChallengerProposal);

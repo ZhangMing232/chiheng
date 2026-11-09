@@ -46,7 +46,7 @@ import { readPrefs } from "../src/lib/market/prefs-file.ts";
 import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
-import { ACTIVE_STYLES, DEEP_SCAN_TOP, deepScanChallengerBuy, holdOf, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
+import { ACTIVE_STYLES, DEEP_SCAN_TOP, deepScanChallengerBuy, holdOf, RETIRED_STYLES, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
 import { loadAvoidIndex } from "../src/lib/market/lhb-avoid-index.server.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase, dayBarReady } from "../src/lib/market/session.ts";
@@ -649,6 +649,11 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
     // 每天限 1 只。全局 hard 闸（连亏停手）仍然拦它；母策略被闸（无 alpha）的挑战者不孵。
     if (hard.ok) {
       for (const chal of runningChallengers) {
+        // 已淘汰家族的挑战者不买（2026-11-09 用户拍板，双保险）：status 已置
+        // inconclusive，这里再挡一道防手工改回 JSON 复活——母家族都判了淘汰，
+        // 变体判赢也没有现役席位（rebound 还被白皮书明文封禁）。名单唯一出处
+        // strategies.ts 的 RETIRED_STYLES，和 AI 提名闸同一份。
+        if ((RETIRED_STYLES as string[]).includes(chal.style)) continue;
         if (gateDisabled.has(chal.style)) continue;
         const ownToday = todayTrades.filter((t) => t.variant === chal.id).length;
         if (ownToday >= 1) {

@@ -69,29 +69,31 @@ test("参数越界、非整数、全缺，都拒且写明原因", () => {
   assert.match(rejected[3].reason, /越界/);
 });
 
-test("style 不在词表、id 撞名、理由太短，都拒", () => {
+test("style 不是现役、id 撞名、理由太短，都拒", () => {
   const raw = JSON.stringify([
     proposal({ id: "q_a", style: "magic" }),
     proposal({ id: "c_existing" }),
     proposal({ id: "q_c", rationale: "短" }),
+    proposal({ id: "q_d", style: "rebound" }), // 在词表但已淘汰家族，同样拒
   ]);
   const { accepted, rejected } = parseAIChallengerProposals(raw, [chal({})]);
   assert.equal(accepted.length, 0);
-  assert.equal(rejected.length, 3);
+  assert.equal(rejected.length, 4);
   assert.match(rejected[0].reason, /词表/);
   assert.match(rejected[1].reason, /已存在/);
   assert.match(rejected[2].reason, /太短/);
+  assert.match(rejected[3].reason, /现役|淘汰/);
 });
 
 test("和同策略在跑挑战者参数雷同被拒，别的策略可以同名参数", () => {
   const existing = [chal({ id: "c1", style: "breakout", holdDays: 8 })];
   const raw = JSON.stringify([
     proposal({ id: "q_a", style: "breakout", holdDays: 8 }), // 雷同
-    proposal({ id: "q_b", style: "rebound", holdDays: 8 }), // 别策略，OK
+    proposal({ id: "q_b", style: "value", holdDays: 8 }), // 别策略，OK
   ]);
   const { accepted, rejected } = parseAIChallengerProposals(raw, existing);
   assert.equal(accepted.length, 1);
-  assert.equal(accepted[0].style, "rebound");
+  assert.equal(accepted[0].style, "value");
   assert.equal(rejected.length, 1);
   assert.match(rejected[0].reason, /雷同/);
 });

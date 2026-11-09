@@ -328,6 +328,10 @@ export function cycleStyle<T>(order: readonly T[], current: T, dir: -1 | 1): T |
  */
 /** 2026-11-05 二代判决后的现役清单。下线与重开条件见上面那段，别在这里改口径。 */
 export const ACTIVE_STYLES: StyleId[] = ["value"];
+/** 已淘汰家族（2026-11-09 用户拍板 + gen2 判决）：不再建仓、只结算历史仓，
+ *  变体判赢也无现役席位（rebound 还被白皮书 §3.4 明文封禁「任何变体此路不通」）。
+ *  AI 不许给它们提名挑战者，记账进程不给它们的挑战者买新仓——两处闸共用这一个名单。 */
+export const RETIRED_STYLES: StyleId[] = ["rebound", "early", "trend", "relay"];
 /** 每一套每天最多新进这么多只。 */
 export const MAX_POSITIONS = 10;
 
