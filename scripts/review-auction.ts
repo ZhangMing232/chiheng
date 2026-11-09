@@ -113,20 +113,31 @@ async function main() {
 
   console.log(`审核完成：🟢 ${ok.length} 可执行 | 🟡 ${warn.length} 需观望 | ⚪ ${skip.length} 跳过\n`);
 
-  // ── PushPlus 推送：把绿色信号推一条到微信 ────────────────────────
-  if (ok.length > 0) {
+  // ── PushPlus 推送：绿色可执行 + 黄色观望都推（2026-11-09 补缺口：原来只推
+  //    绿色，唯一信号是「观望」的那天整条静默——用户「什么价位该买什么都没
+  //    通知」就是这个洞。观望不等于没有信号，只推一半等于没推）。─────────
+  if (ok.length + warn.length > 0) {
     try {
       const { sendPushPlus } = await import("../src/lib/market/push.ts");
-      const lines = ok.slice(0, 10).map((r) => {
+      const fmt = (r: (typeof reviewed)[number], mark: string) => {
         const gap = r.auctionGap != null ? `${r.auctionGap > 0 ? "+" : ""}${r.auctionGap}%` : "--";
-        return `${r.code} ${r.name} | ${r.strategy} | 挂${r.buyPrice} | 竞价${r.auctionPrice} ${gap}`;
-      });
-      const sent = await sendPushPlus("赤轨信号·今日可执行", [
-        `信号日：${new Date().toLocaleDateString("sv-SE")}`,
-        `🟢 可执行 ${ok.length} 条 | 🟡 观望 ${warn.length} 条`,
-        "──────────────────",
-        ...lines,
-      ].join("\n"), "txt");
+        return `${mark} ${r.code} ${r.name} | ${r.strategy} | 挂${r.buyPrice} | 竞价${r.auctionPrice} ${gap} | ${r.verdictReason}`;
+      };
+      const lines = [
+        ...ok.slice(0, 10).map((r) => fmt(r, "🟢")),
+        ...warn.slice(0, 10).map((r) => fmt(r, "🟡")),
+      ];
+      const sent = await sendPushPlus(
+        ok.length > 0 ? "赤轨信号·今日可执行" : "赤轨信号·今日观望",
+        [
+          `信号日：${new Date().toLocaleDateString("sv-SE")}`,
+          `🟢 可执行 ${ok.length} 条 | 🟡 观望 ${warn.length} 条 | ⏭ 跳过 ${skip.length} 条`,
+          "──────────────────",
+          ...lines,
+          ...(ok.length === 0 ? ["今日没有绿色可执行信号；🟡 仅供关注，不是买入指令。"] : []),
+        ].join("\n"),
+        "txt",
+      );
       console.log(sent ? "PushPlus 推送已发送" : "PushPlus 没推出去（看上一行的原因），审核结果已落盘不影响页面");
     } catch (e) {
       console.log(`PushPlus 推送失败: ${e instanceof Error ? e.message : String(e)}`);

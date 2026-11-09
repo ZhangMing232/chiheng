@@ -742,6 +742,15 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
           };
       days = existing ? days.map((day) => (day.date === phase.date ? next : day)) : [next, ...days].slice(0, 80);
       changed = true;
+      // 买入成交 → 微信推送（2026-11-09 用户反馈：卖出有提醒、买入一声不吭，
+      // 每次都不知道买了什么、买在什么价。一个记账周期的成交合成一条，别刷屏）。
+      const buyLines = additions.map((trade) => {
+        const style = STYLES.find((item) => item.id === trade.style)?.name ?? trade.style ?? "";
+        const plan = trade.stop != null && trade.target != null ? ` · 止损 ${trade.stop} / 目标 ${trade.target}` : "";
+        const hold = trade.hold != null ? ` · 持 ${trade.hold} 天` : "";
+        return `${style}${trade.variant ? "·挑战" : ""} ${trade.name} ${trade.code} @ ${trade.entry}${plan}${hold}`;
+      });
+      await pushBestEffort("赤轨买入提醒", [...buyLines, `记账时间：${time} · 交易日 ${phase.date}`].join("\n"));
       if (speak) {
         const shown = additions.slice(0, 3).map((trade) => {
           const style = STYLES.find((item) => item.id === trade.style)?.name ?? "";
