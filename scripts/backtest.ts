@@ -1435,6 +1435,17 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
   ...(process.env.BT_VALUE === "1"
     ? { value: { label: "低估值·回测变体", fn: valueBacktest, hold: holdOf("value") } }
     : {}),
+  // 持有期 A/B（2026-11-09 预登记，用户直觉驱动）：买入逻辑一字不动，只变持有期
+  // （8 / 20 / 40 个交易日）。质疑点：8 天是从短炒家族继承的口径，价值重估
+  // （15 倍买 → 22 倍卖）本来需要几周到几个月，8 天强制清仓等于半路下车。
+  // 三条同台对照判决，赢者当执行口径候选。跑法：
+  // BT_VALUE=1 BT_VAREXP=1 BT_NO_LOG=1 BT_ONLY=value,valueH20,valueH40。
+  ...(process.env.BT_VAREXP === "1"
+    ? {
+        valueH20: { label: "低估值·持20天", fn: valueBacktest, hold: 20 },
+        valueH40: { label: "低估值·持40天", fn: valueBacktest, hold: 40 },
+      }
+    : {}),
   // 「低估 + 不上榜」选股：在 value 变体之上叠加龙虎榜净买回避（BT_AVOID_LHB=1 的全局候选过滤器）。
   // 这是把用户实盘纪律（估值+股息兜底）和已验证的反向信号（上榜=游资炒作过热代理）合到一起——
   // 选便宜的、且近期没被爆炒过的票。本身复用 valueBacktest，回避由 runPass 的全局过滤器做。
