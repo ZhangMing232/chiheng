@@ -119,22 +119,26 @@ async function main() {
   if (ok.length + warn.length > 0) {
     try {
       const { sendPushPlus } = await import("../src/lib/market/push.ts");
+// 买入单格式（2026-11-09 用户要求「选出→告诉我让我买入」）：
+      // 执行行压成「买 价格 | 止损 | 目标」三要素，一眼可下单；纪律一行钉死。
       const fmt = (r: (typeof reviewed)[number], mark: string) => {
         const gap = r.auctionGap != null ? `${r.auctionGap > 0 ? "+" : ""}${r.auctionGap}%` : "--";
-        return `${mark} ${r.code} ${r.name} | ${r.strategy} | 挂${r.buyPrice} | 竞价${r.auctionPrice} ${gap}${r.stop != null ? ` | 止损${r.stop} 目标${r.target ?? "—"}` : ""} | ${r.verdictReason}`;
+        return `${mark} ${r.name} ${r.code} | 买 ${r.buyPrice} | 止损 ${r.stop ?? "—"} | 目标 ${r.target ?? "—"} | 竞价${r.auctionPrice} ${gap}`;
       };
       const lines = [
         ...ok.slice(0, 10).map((r) => fmt(r, "🟢")),
         ...warn.slice(0, 10).map((r) => fmt(r, "🟡")),
       ];
       const sent = await sendPushPlus(
-        ok.length > 0 ? "赤轨信号·今日可执行" : "赤轨信号·今日观望",
+        ok.length > 0 ? `明日买入单 · 🟢${ok.length} 可执行` : `今日观望 · 🟡${warn.length} 只`,
         [
-          `信号日：${new Date().toLocaleDateString("sv-SE")}`,
-          `🟢 可执行 ${ok.length} 条 | 🟡 观望 ${warn.length} 条 | ⏭ 跳过 ${skip.length} 条`,
+          `信号日：${new Date().toLocaleDateString("sv-SE")}（竞价已核对）`,
           "──────────────────",
           ...lines,
-          ...(ok.length === 0 ? ["今日没有绿色可执行信号；🟡 仅供关注，不是买入指令。"] : []),
+          "──────────────────",
+          "纪律：挂单价打到才买 · 买入当天不卖 · 拿满 8 个交易日",
+          "单笔不保证，30 笔一批算期望；连亏是这套打法的常态。",
+          ...(ok.length === 0 ? ["今日无可执行信号；🟡 观望不是买入指令。"] : []),
         ].join("\n"),
         "txt",
       );
