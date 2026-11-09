@@ -7,6 +7,8 @@
  * 现在改走正式选股代码 `watchList`（strategies.ts，和选股页同一条实现），
  * 只扫现役家族（ACTIVE_STYLES），候选自带止损/目标——用户要的「什么价位买什么」
  * 就是这份东西，不再让推送和赚钱的名单各走各的。
+ * 2026-11-09 晚加短线腿（热点·题材补涨，见下方 themeLaggardSignals）：原来只有
+ * 中长线家族，早盘推送永远没有短线（用户点名「每天早上也要看到短线的推送」）。
  *
  * 输出 data/signals/candidates.json：
  *   { date, count, signals: [{ id, code, name, strategy, buyPrice, score, reason, stop?, target? }] }
@@ -30,7 +32,95 @@ type Signal = {
   reason: string;
   stop?: number;
   target?: number;
+  /** 腿：short 短线（题材补涨，持 5 天）/ long 中长线（低估值等，持 8~40 天）。推送分两腿靠它。 */
+  leg?: "short" | "long";
 };
+
+// ── 短线腿：热点·题材补涨（2026-11-09 晚，用户「每天早上也要看到短线的推送」）────
+// 原来候选文件只装中长线家族，短线根本不在早盘管道里——早上推不到是必然。
+// 口径一字不改地复用回测登记版（scripts/backtest.ts 的 themeLaggard，判决见
+// design/DECISIONS.md、战报 report-220335）：题材已烧（所属真题材板当日 ≥3 只
+// 涨停）· 还没动（近 20 日 <5%）· 不追已涨停 · 昨收限价买 · −8% / +10% · 持 5 天。
+// 阈值全部沿用登记值（预登记纪律），只做两件产品化的事：每个题材最多 2 只防刷屏、
+// 总量 10。判决本身是「补涨 +0.06% 无优势」——这腿是浪里名单，小仓试错。
+type ConceptsFile = { boards: { code: string; name: string; members: string[] }[] };
+const TAG_BOARD = /(热股|高换手|高振幅|多板|涨停|跌停|首亏|预增|预亏|重仓|减仓|增仓|融资|股通|QFII|亏损|题材股|破净|高价|低价|百元|次新|AH|同股)/;
+
+async function themeLaggardSignals(quotes: Quote[]): Promise<Signal[]> {
+  let concepts: ConceptsFile;
+  try {
+    concepts = JSON.parse(await readFile(`${DATA}/backtest/concepts.json`, "utf8"));
+  } catch {
+    console.log("概念板数据缺失（data/backtest/concepts.json），短线腿今天没有名单");
+    return [];
+  }
+  const byId = new Map(quotes.map((q) => [q.id, q]));
+  const limitPct = (q: Quote) => (q.st ? 5 : q.board === "kcb" || q.board === "cyb" ? 20 : q.board === "bj" ? 30 : 10);
+  const limitUpNow = (q: Quote) => q.chg != null && q.chg >= limitPct(q) - 0.15;
+
+  // 真题材板：成员 10~800、剔统计标签板（口径同 theme-heat.ts / backtest buildThemeHeatMap）
+  const boards = concepts.boards.filter((b) => b.members.length >= 10 && b.members.length <= 800 && !TAG_BOARD.test(b.name));
+
+  // 板内当日涨停家数：按每只自己的涨跌停幅度算（lim−0.15），不用 9.7 近似
+  const boardHot = new Map<string, number>();
+  for (const b of boards) {
+    let n = 0;
+    for (const id of b.members) {
+      const q = byId.get(id);
+      if (q && limitUpNow(q)) n += 1;
+    }
+    boardHot.set(b.code, n);
+  }
+
+  // 每票归属最热的「已烧」板（≥3 只涨停，登记阈值）
+  const hottest = new Map<string, { theme: string; hot: number }>();
+  for (const b of boards) {
+    const hot = boardHot.get(b.code) ?? 0;
+    if (hot < 3) continue;
+    for (const id of b.members) {
+      const cur = hottest.get(id);
+      if (!cur || hot > cur.hot) hottest.set(id, { theme: b.name, hot });
+    }
+  }
+
+  const rows: { s: Signal; theme: string; amount: number }[] = [];
+  for (const [id, { theme, hot }] of hottest) {
+    const q = byId.get(id);
+    if (!q || q.st || q.chg == null) continue;
+    if (q.board === "hk" || q.board === "us") continue;
+    if (q.price < 4 || q.amount < 3000) continue;
+    if (limitUpNow(q)) continue; // 已涨停的不追——追板/连板是项目最强反向（t=−10.2）
+    if (q.d20 == null || q.d20 >= 5) continue; // 还没动
+    const buy = +(q.price / (1 + q.chg / 100)).toFixed(2); // 昨收限价
+    rows.push({
+      s: {
+        id,
+        code: q.code,
+        name: q.name,
+        strategy: "热点·题材补涨",
+        leg: "short",
+        buyPrice: buy,
+        score: hot,
+        reason: `${theme} 涨停 ${hot} 只，近20日 ${q.d20.toFixed(1)}% 未启动`,
+        stop: +(buy * 0.92).toFixed(2),
+        target: +(buy * 1.1).toFixed(2),
+      },
+      theme,
+      amount: q.amount,
+    });
+  }
+  rows.sort((a, b) => b.s.score - a.s.score || b.amount - a.amount);
+  const perTheme = new Map<string, number>();
+  const out: Signal[] = [];
+  for (const r of rows) {
+    const n = perTheme.get(r.theme) ?? 0;
+    if (n >= 2) continue;
+    perTheme.set(r.theme, n + 1);
+    out.push(r.s);
+    if (out.length >= 10) break;
+  }
+  return out;
+}
 
 async function main() {
   console.log(`信号生成：现役家族（${ACTIVE_STYLES.join("、")}）正式选股代码扫描…\n`);
@@ -61,6 +151,10 @@ async function main() {
     }
     console.log(`${label}：${rows.length} 条候选`);
   }
+
+  const shortRows = await themeLaggardSignals(quotes);
+  signals.push(...shortRows);
+  console.log(`热点·题材补涨（短线腿）：${shortRows.length} 条候选`);
 
   await mkdir(`${DATA}/signals`, { recursive: true });
   await writeFile(
