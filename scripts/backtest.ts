@@ -1376,6 +1376,21 @@ function despairPop(m: ReturnType<typeof metrics>, _stopPct?: number, id?: strin
 }
 
 /**
+ * 「有资金痕迹的吸筹期」（2026-11-09 预登记，用户问「怎么发现主力建仓/吸筹」）：
+ * 绝望底仓的状态 + 当日融资净买为正。逻辑：价格横着、杠杆资金却在净流入，
+ * 是公开数据里最接近「有人在收集筹码」的痕迹（历史主力净流入回测拿不到，
+ * 融资净买是每日可得的最接近代理）。对照绝望底仓纯状态（8 年窗口 +1.44%/t=2.19），
+ * 看资金确认能不能把信号变硬。执行骨架同 despairBase（持 120 天）。
+ */
+function despairMargin(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  const f = despairState(m, id);
+  if (!f) return null;
+  if (m.marginBuy == null || m.marginBuy <= 0) return null; // 拿不到融资数据 = 不确认（拿不到≠没有）
+  const buy = m.prev;
+  return { buy, stop: buy * 0.9, sell: buy * 1.25, score: (1 - f.near52w) * 100 };
+}
+
+/**
  * 策略函数签名：
  *   m       = 该股在信号日（t 日）的指标行（metrics() 的产物）
  *   stopPct = 全局止损覆盖（回测扫描用）
@@ -1517,6 +1532,7 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
     ? {
         despairBase: { label: "绝望底仓·纯状态", fn: despairBase, hold: 120 },
         despairPop: { label: "绝望底仓·20日高点火", fn: despairPop, hold: 120 },
+        despairMargin: { label: "绝望底仓·融资痕迹", fn: despairMargin, hold: 120 },
       }
     : {}),
   // 中期反转要拿满 10 个交易日，不是别的策略那 8 天——因子检验里 10 天的信号最强。
