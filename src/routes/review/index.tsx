@@ -17,6 +17,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { SectionTabs } from "@/components/section-tabs";
+import { HeroStat } from "@/components/hero-stat";
+import { Activity, Coins, LineChart, Wallet } from "lucide-react";
 import { CollapsibleSection } from "@/components/collapsible";
 import { StateBlock } from "@/components/state-block";
 import { Panel, Stat, pctClass } from "@/components/terminal";
@@ -87,7 +89,16 @@ function Review() {
       : openWithChg.reduce((sum, row) => sum + row.chg, 0) / openWithChg.length;
 
   const hs300 = indices.find((index) => index.name.includes("沪深300")) ?? null;
+  const shIdx = indices.find((index) => index.name.includes("上证")) ?? null;
   const marketLines = flow ? readMarket(flow.market) : [];
+  // 今日结论（效果图）：四张卡全部现算。历史对照（较昨日）没有存档口径，
+  // 不编——拿不到就是拿不到，副行写口径不写增量。
+  const netUp = known > 0 ? up - down : null;
+  const hs300Rel = hs300 && shIdx ? hs300.pct - shIdx.pct : null;
+  const mainTotal = flow ? flow.market.reduce((s, m) => s + m.main, 0) : null;
+  const myRel = avgOpenChg != null && hs300 ? avgOpenChg - hs300.pct : null;
+  const relWord = (v: number, goodWhenPositive = true) =>
+    (v > 0 ? (goodWhenPositive ? "跑赢 " : "跑输 ") : v < 0 ? (goodWhenPositive ? "跑输 " : "跑赢 ") : "") + Math.abs(v).toFixed(2) + "%";
 
   return (
     <Frame wide
@@ -134,6 +145,45 @@ function Review() {
           { to: "/review/events", label: "公司事件" },
         ]}
       />
+      {/* 今日结论（效果图招牌件）：四张卡，数字全现算 */}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <HeroStat
+          icon={<Activity size={18} />}
+          label="市场广度"
+          value={netUp != null ? `${netUp > 0 ? "+" : ""}${netUp}` : "—"}
+          valueTone={netUp == null ? undefined : netUp >= 0 ? "up" : "down"}
+          tone={netUp == null ? "muted" : netUp >= 0 ? "ok" : "warn"}
+          sub={known > 0 ? `涨 ${up} 跌 ${down} · 上涨占比 ${((up / known) * 100).toFixed(1)}%` : "快照暂不可用"}
+        />
+        <HeroStat
+          icon={<LineChart size={18} />}
+          label="沪深300 相对表现"
+          value={hs300Rel != null ? `${hs300Rel > 0 ? "+" : ""}${hs300Rel.toFixed(2)}%` : "—"}
+          valueTone={hs300Rel == null ? undefined : hs300Rel >= 0 ? "up" : "down"}
+          tone={hs300Rel == null ? "muted" : hs300Rel >= 0 ? "ok" : "warn"}
+          sub={hs300 && shIdx ? `沪深300 ${hs300.pct > 0 ? "+" : ""}${hs300.pct.toFixed(2)}% vs 上证 ${shIdx.pct > 0 ? "+" : ""}${shIdx.pct.toFixed(2)}%` : "对照指数暂缺"}
+        />
+        <HeroStat
+          icon={<Coins size={18} />}
+          label="两市资金"
+          value={mainTotal != null ? `${mainTotal > 0 ? "+" : ""}${(mainTotal / 1e4).toFixed(1)} 亿` : "—"}
+          valueTone={mainTotal == null ? undefined : mainTotal >= 0 ? "up" : "down"}
+          tone={mainTotal == null ? "muted" : mainTotal >= 0 ? "ok" : "warn"}
+          sub="主力净额（超大单 + 大单），口径见资金面板"
+        />
+        <HeroStat
+          icon={<Wallet size={18} />}
+          label="我的持仓相对表现"
+          value={myRel != null ? `${myRel > 0 ? "+" : ""}${myRel.toFixed(2)}%` : "—"}
+          valueTone={myRel == null ? undefined : myRel >= 0 ? "up" : "down"}
+          tone={myRel == null ? "muted" : myRel >= 0 ? "ok" : "warn"}
+          sub={
+            avgOpenChg != null && hs300
+              ? `未平仓均 ${avgOpenChg > 0 ? "+" : ""}${avgOpenChg.toFixed(2)}% · ${relWord(myRel!)}大盘`
+              : "未平仓或对照暂缺"
+          }
+        />
+      </div>
       <div className="flex flex-col gap-3">
         {/* 第一屏：今天市场偏多头还是偏空头。红涨绿跌，家数比点位更诚实（指数会被权重股绑架）。 */}
         <Panel

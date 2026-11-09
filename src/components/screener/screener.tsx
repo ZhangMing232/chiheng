@@ -28,6 +28,8 @@ import { matchPrefs, type Prefs } from "@/lib/market/prefs";
 import { getIndices, getRecorder, getRelay, getServerJournal, getStrategyGates, getUniverse, savePrefs } from "@/lib/market/quotes.functions";
 import { AccountStatus, DataStatusBadge } from "@/components/screener/data-status";
 import { Panel, Tape, Tag } from "@/components/terminal";
+import { HeroStat } from "@/components/hero-stat";
+import { Clock, Database, Gauge, Cpu } from "lucide-react";
 import { StateBlock } from "@/components/state-block";
 import { formatClock, sessionPhase } from "@/lib/market/session";
 import type { IndexQuote, SessionInfo, Universe } from "@/lib/market/types";
@@ -216,6 +218,8 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     return counts;
   }, [journal, phase.date]);
 
+  const gatesOff = Object.values(gates).filter((g) => g.state === "disabled").length;
+
   // 左侧策略列表和 Picks 内部（窄屏兜底页签）共用同一个切换逻辑：改本地状态并落盘。
   const pickStyle = (style: Prefs["style"]) => {
     const next = { ...prefs, style };
@@ -277,6 +281,37 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
           ariaLabel="策略"
           tabs={STRATEGY_TABS}
         />
+        {/* 状态卡行（效果图签名件）：结果快照 / 行情延迟 / 策略引擎 / 风控闸门，全真实 */}
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <HeroStat
+            icon={<Database size={18} />}
+            label="结果快照"
+            value={universe?.asOf ? new Date(universe.asOf).toTimeString().slice(0, 5) : "—"}
+            tone={universe ? (universe.stale ? "warn" : "ok") : "muted"}
+            sub={universe ? `上次生成 ${universe.stale ? "已过期，别当现价用" : "选股按这份快照"}` : "快照暂未拉到"}
+          />
+          <HeroStat
+            icon={<Clock size={18} />}
+            label="行情延迟"
+            value={universe?.asOf && now != null ? `${Math.max(0, Math.round((now - universe.asOf) / 60_000))} 分钟` : "—"}
+            tone={universe?.asOf && now != null && now - universe.asOf < 120_000 ? "ok" : "warn"}
+            sub="腾讯 LV1 · 非实时"
+          />
+          <HeroStat
+            icon={<Cpu size={18} />}
+            label="策略引擎"
+            value={recorder.at != null && now != null && now - recorder.at < 5 * 60_000 ? "正常" : recorder.at == null ? "还没记" : "停了"}
+            tone={recorder.at != null && now != null && now - recorder.at < 5 * 60_000 ? "ok" : "warn"}
+            sub={recorder.at ? `上次记账 ${new Date(recorder.at).toTimeString().slice(0, 5)} · 每分钟跑` : "还没记过账"}
+          />
+          <HeroStat
+            icon={<Gauge size={18} />}
+            label="风控闸门"
+            value={gatesOff === 0 ? "正常" : `${gatesOff} 套停用`}
+            tone={gatesOff === 0 ? "ok" : "warn"}
+            sub={gatesOff === 0 ? "全部策略按预登记规则交易" : "停用名单见左侧策略列表"}
+          />
+        </div>
         {/* 现役策略条（2026-11-05 换掉原「策略实验台」）。
             这块只回答一件事：今天哪几套真正在跑、各自挑了几只。
             被策略闸停用的、已下线的都不上来（用户 2026-11-05 点名，和 10-21

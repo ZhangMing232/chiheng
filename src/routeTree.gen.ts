@@ -18,7 +18,6 @@ import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DebateRouteImport } from './routes/debate'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as FlowRouteImport } from './routes/flow'
-import { Route as GuideRouteImport } from './routes/guide'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembershipRouteImport } from './routes/membership'
@@ -118,11 +117,6 @@ const EventsRoute = EventsRouteImport.update({
 const FlowRoute = FlowRouteImport.update({
   id: '/flow',
   path: '/flow',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GuideRoute = GuideRouteImport.update({
-  id: '/guide',
-  path: '/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -411,7 +405,6 @@ export interface FileRoutesByFullPath {
   '/debate': typeof DebateRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
-  '/guide': typeof GuideRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -477,7 +470,6 @@ export interface FileRoutesByTo {
   '/debate': typeof DebateRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
-  '/guide': typeof GuideRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -542,7 +534,6 @@ export interface FileRoutesById {
   '/debate': typeof DebateRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
-  '/guide': typeof GuideRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -611,7 +602,6 @@ export interface FileRouteTypes {
     | '/debate'
     | '/events'
     | '/flow'
-    | '/guide'
     | '/inbox'
     | '/login'
     | '/membership'
@@ -677,7 +667,6 @@ export interface FileRouteTypes {
     | '/debate'
     | '/events'
     | '/flow'
-    | '/guide'
     | '/inbox'
     | '/login'
     | '/membership'
@@ -741,7 +730,6 @@ export interface FileRouteTypes {
     | '/debate'
     | '/events'
     | '/flow'
-    | '/guide'
     | '/inbox'
     | '/login'
     | '/membership'
@@ -809,7 +797,6 @@ export interface RootRouteChildren {
   DebateRoute: typeof DebateRoute
   EventsRoute: typeof EventsRoute
   FlowRoute: typeof FlowRouteWithChildren
-  GuideRoute: typeof GuideRoute
   InboxRoute: typeof InboxRoute
   LoginRoute: typeof LoginRoute
   MembershipRoute: typeof MembershipRoute
@@ -901,13 +888,6 @@ declare module '@tanstack/react-router' {
       path: '/flow'
       fullPath: '/flow'
       preLoaderRoute: typeof FlowRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/guide': {
-      id: '/guide'
-      path: '/guide'
-      fullPath: '/guide'
-      preLoaderRoute: typeof GuideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -1421,7 +1401,6 @@ const rootRouteChildren: RootRouteChildren = {
   DebateRoute: DebateRoute,
   EventsRoute: EventsRoute,
   FlowRoute: FlowRouteWithChildren,
-  GuideRoute: GuideRoute,
   InboxRoute: InboxRoute,
   LoginRoute: LoginRoute,
   MembershipRoute: MembershipRoute,
