@@ -231,10 +231,24 @@ async function main() {
 
   // 4. 落盘
   await mkdir(`${DATA}/signals`, { recursive: true });
-  await writeFile(`${DATA}/signals/tracking.json`, JSON.stringify({
-    signalDate, trackedDate: summary.trackedDate, summary, signals: tracked,
-  }, null, 2));
+  const batch = { signalDate, trackedDate: summary.trackedDate, summary, signals: tracked };
+  await writeFile(`${DATA}/signals/tracking.json`, JSON.stringify(batch, null, 2));
   console.log(`\n跟踪结果已保存到 ${DATA}/signals/tracking.json`);
+
+  // 5. 追加历史台账（2026-11-10，对账层 P0-2）：tracking.json 只留最近一批，
+  //    周对账（reconcile-weekly.ts）要的是「判决 vs 实际」的时间序列——同 signalDate
+  //    补跑先去重再追加，别把一次信号写成两行。
+  const histPath = `${DATA}/signals/tracking-history.jsonl`;
+  let kept: string[] = [];
+  try {
+    kept = (await readFile(histPath, "utf8")).split("\n").filter(Boolean);
+    kept = kept.filter((l) => !l.startsWith(`{"signalDate":"${signalDate}"`));
+  } catch {
+    kept = [];
+  }
+  kept.push(JSON.stringify(batch));
+  await writeFile(histPath, kept.join("\n") + "\n");
+  console.log(`历史台账已追加（累计 ${kept.length} 批）→ ${histPath}`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
