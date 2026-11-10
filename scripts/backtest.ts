@@ -997,23 +997,37 @@ const THEME_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: nu
 // 持 8 天），判决走 eval-robust 六切片，不另设判决口径。
 // 跑法：BT_ML=1 BT_ONLY=mlTop BT_WINDOW=750 BT_NO_LOG=1。
 let mlScoreMap: Map<string, Map<string, number>> | null = null;
-function mlScoreOf(id: string, date: string): number | null {
-  if (!mlScoreMap) {
-    mlScoreMap = new Map();
-    try {
-      const raw = JSON.parse(readFileSync(`${DATA_DIR}/ml-scores.json`, "utf8")) as {
-        days: Record<string, [string, number][]>;
-      };
-      for (const [d, list] of Object.entries(raw.days)) {
-        const m = new Map<string, number>();
-        for (const [sid, s] of list) m.set(sid, s);
-        mlScoreMap.set(d, m);
-      }
-    } catch {
-      return null; // 分数文件没有 = 这家族没数据，不硬跑
+let mlBottomMap: Map<string, Set<string>> | null = null;
+function loadMlScores(): boolean {
+  if (mlScoreMap) return true;
+  mlScoreMap = new Map();
+  mlBottomMap = new Map();
+  try {
+    const raw = JSON.parse(readFileSync(`${DATA_DIR}/ml-scores.json`, "utf8")) as {
+      days: Record<string, [string, number][]>;
+      bottom?: Record<string, [string, number][]>;
+    };
+    for (const [d, list] of Object.entries(raw.days)) {
+      const m = new Map<string, number>();
+      for (const [sid, s] of list) m.set(sid, s);
+      mlScoreMap.set(d, m);
     }
+    for (const [d, list] of Object.entries(raw.bottom ?? {})) {
+      mlBottomMap.set(d, new Set(list.map(([sid]) => sid)));
+    }
+  } catch {
+    return false; // 分数文件没有 = 这家族没数据，不硬跑
   }
-  return mlScoreMap.get(date)?.get(id) ?? null;
+  return true;
+}
+function mlScoreOf(id: string, date: string): number | null {
+  if (!loadMlScores()) return null;
+  return mlScoreMap!.get(date)?.get(id) ?? null;
+}
+/** 当日模型最不看好的 bottom-50 里有没有这只票（排除器 A/B 用，DECISIONS 预登记）。 */
+function mlBottomHit(id: string, date: string): boolean {
+  if (!loadMlScores()) return false;
+  return mlBottomMap!.get(date)?.has(id) ?? false;
 }
 
 function mlTop(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
@@ -1022,6 +1036,16 @@ function mlTop(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): S
   const buy = m.prev;
   return { buy, stop: buy * 0.92, sell: buy * 1.1, score: s };
 }
+
+// ── ML 排除器 A/B（2026-11-10 预登记，DECISIONS 当日条目）──────────────────
+// P0-1 判 Top-10 稳定负超额但 rank IC +0.065：反着用它——低估值候选剔掉当日模型
+// 最不看好的 50 只，其余一字不动，和 value 原版同台对照。判读规则先写死在
+// DECISIONS（差 ≥+0.3pp/笔才算有效）。跑法：
+// BT_VALUE=1 BT_MLEXCL=1 BT_ONLY=value,valueMlExcl BT_WINDOW=750 BT_NO_LOG=1。
+const valueMlExcl: StrategyFn = (m, stopPct, id) => {
+  if (id && mlBottomHit(id, m.date)) return null;
+  return valueBacktest(m, stopPct, id);
+};
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
 function trend(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
@@ -1643,6 +1667,11 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
   // 跑法 BT_ML=1 BT_ONLY=mlTop BT_WINDOW=750 BT_NO_LOG=1。
   ...(process.env.BT_ML === "1"
     ? { mlTop: { label: "ML截面·Top10", fn: mlTop, hold: 8 } }
+    : {}),
+  // ML 排除器 A/B（2026-11-10 预登记，见 valueMlExcl 函数头注释）。默认不注册：
+  // 跑法 BT_VALUE=1 BT_MLEXCL=1 BT_ONLY=value,valueMlExcl。
+  ...(process.env.BT_MLEXCL === "1"
+    ? { valueMlExcl: { label: "低估值·剔ML最差50", fn: valueMlExcl, hold: holdOf("value") } }
     : {}),
   // 低频家族（2026-11-09 预登记，详见 buildSlowFactorMaps 头注释）：经典慢信号
   // 首次上判决台——动量/52 周高点/低波动/动量×价值，统一 40 个交易日持有、

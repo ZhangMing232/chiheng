@@ -164,6 +164,7 @@ def main():
     del panel
 
     days: dict = {}
+    bottom: dict = {}
     fold_ics = []
     for anchor in range(eval_start, len(dates), REFIT_EVERY):
         train_lo, train_hi = anchor - TRAIN_DAYS, anchor - EMBARGO
@@ -184,6 +185,10 @@ def main():
             scores = model.predict(X_all[mask])
             order = np.argsort(-scores)[:TOPK]
             days[day] = [[str(ids[mask][i]), round(float(scores[i]), 5)] for i in order]
+            # bottom-50（2026-11-10 补存）：ML 排除器 A/B（DECISIONS 预登记）要用
+            # 「模型最不看好的」名单——Top-50 存法不变，另开一张表。
+            rev = np.argsort(scores)[:TOPK]
+            bottom[day] = [[str(ids[mask][i]), round(float(scores[i]), 5)] for i in rev]
             # 折内 sanity：当日预测 vs 实现的 rank IC（有标签的行）
             lab = y_all[mask]
             ok = np.isfinite(lab)
@@ -208,6 +213,7 @@ def main():
         "meanRankIC": round(float(np.mean(fold_ics)), 4) if fold_ics else None,
         "daysScored": len(days),
         "days": days,
+        "bottom": bottom,
     }
     with open(OUT_PATH, "w") as fh:
         json.dump(out, fh, ensure_ascii=False)
