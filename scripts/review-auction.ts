@@ -15,6 +15,7 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { legOf, orderFieldsOf, type Leg } from "./lib/signal-legs.ts";
+import { boardLimitPct } from "@/lib/market/short-forms";
 
 const DATA = process.env.CHIHENG_DATA_DIR ?? "data";
 
@@ -84,8 +85,8 @@ async function main() {
 
   for (let ci = 0; ci < candidates.signals.length; ci++) {
     const s = candidates.signals[ci];
-    const secid = s.id.startsWith("sh") ? `1.${s.code}` : `0.${s.code}`;
     let auctionPrice: number | null = null;
+    let prevClose: number | null = null;
 
     try {
       // 用腾讯快照接口（东财被墙）拿开盘价作为竞价审核依据
@@ -96,6 +97,8 @@ async function main() {
       const fields = text.split("~");
       // 腾讯快照格式：0=name, 3=现价, 4=昨收, 5=开盘(竞价出清价)
       const openPrice = Number(fields[5]);
+      const pc = Number(fields[4]);
+      if (pc > 0) prevClose = pc;
       if (openPrice > 0) auctionPrice = openPrice;
     } catch (e) {
       console.log(`  ${s.code} ${s.name} 竞价数据拉取失败: ${e instanceof Error ? e.message : String(e)}`);
@@ -109,6 +112,15 @@ async function main() {
     if (auctionPrice == null) {
       verdict = "skip";
       verdictReason = "竞价数据缺失，无法审核";
+    } else if (
+      // 一字涨停拦截（2026-11-10 P1-3 撮合口径）：竞价开在涨停价附近＝封死，
+      // 挂单价买不到，不追（追板/连板是项目最强反向 t=−10.2）。
+      // 涨跌停幅度唯一出处是 short-forms.ts 的 boardLimitPct，容差同它的 TOUCH。
+      prevClose != null &&
+      auctionPrice >= prevClose * (1 + (boardLimitPct(s.id) - 0.15) / 100) * 0.998
+    ) {
+      verdict = "skip";
+      verdictReason = "竞价封死涨停（开盘即板），挂单价买不到——不追";
     } else {
       gap = ((auctionPrice - s.buyPrice) / s.buyPrice) * 100;
       if (gap > 3) {

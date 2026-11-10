@@ -44,7 +44,7 @@ const REFERENCE: Record<string, { ref: number | null; text: string; source: stri
 type Batch = {
   signalDate: string;
   trackedDate: string;
-  signals: { strategy: string; chgPct: number | null; name: string; code: string }[];
+  signals: { strategy: string; chgPct: number | null; chgNetPct?: number | null; name: string; code: string }[];
 };
 
 async function loadHistory(): Promise<Batch[]> {
@@ -132,7 +132,7 @@ async function main() {
   let driftAlert = false;
 
   // 1. 信号对账
-  lines.push("【信号对账】实测（累计台账） vs 判决参考");
+  lines.push("【信号对账】实测（累计台账，费后口径） vs 判决参考");
   if (batches.length === 0) {
     lines.push("历史台账还空着（今天刚建）——track-signals 明天起每天追加，下周见数。");
   } else {
@@ -140,10 +140,12 @@ async function main() {
     const fams = new Map<string, { all: number[]; recent: number[] }>();
     for (const b of batches) {
       for (const s of b.signals) {
-        if (s.chgPct == null) continue;
+        // 对账一律用费后口径（chgNetPct，P1-3）；老台账没有该字段的退回毛收益并标出
+        const net = s.chgNetPct ?? s.chgPct;
+        if (net == null) continue;
         const f = fams.get(s.strategy) ?? { all: [], recent: [] };
-        f.all.push(s.chgPct);
-        if (b.trackedDate >= weekAgo) f.recent.push(s.chgPct);
+        f.all.push(net);
+        if (b.trackedDate >= weekAgo) f.recent.push(net);
         fams.set(s.strategy, f);
       }
     }

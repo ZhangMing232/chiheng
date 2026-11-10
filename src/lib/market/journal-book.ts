@@ -7,14 +7,16 @@
  * 同一天既碰到止损又碰到止盈，先按止损算，不按更好看的卖出价。
  * 跌停封死的那天卖不掉，这天不算卖出，继续等下一天。
  * 无涨跌停的市场（美/港，limitPct 传 null）没有「封死」概念，这段检查整段跳过。
- * 手续费是写死的一来一回：佣金万 2.5 两边、印花税万 5（只在卖出里折进这一笔）、过户费万 0.1 两边。
- * 没有做「佣金不足 5 元按 5 元收」。这是模拟账，不会发给券商。
+ * 手续费从 fill-model 取（一来一回 = 佣金万 2.5 双边 + 印花税万 5 + 过户费万 0.1 双边
+ * + 滑点万 10 双边）。2026-11-10 P1-3 起和回测同一套口径——以前这里不含滑点，
+ * 同一笔交易两个净收益，实盘对账永远高估 0.2%/往返。
  */
 import { DEFAULT_RULES, type EarlyRules } from "./rules.ts";
 import { HOLD_SESSIONS } from "./model.ts";
+import { roundTripFee } from "./fill-model.ts";
 
-/** 卖出印花税万五，佣金万二点五双边，过户费万零点一双边。没有按股数计「不足 5 元收 5 元」。 */
-export const ROUND_TRIP_COST = 0.00025 * 2 + 0.0005 + 0.00001 * 2;
+/** 一来一回成本（手续费 + 滑点），单一出处 fill-model.ts（P1-3 口径对齐）。 */
+export const ROUND_TRIP_COST = roundTripFee();
 export { HOLD_SESSIONS };
 
 function normDay(value: string): string {

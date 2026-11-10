@@ -155,10 +155,11 @@ test("收集：挑战者进度 = 15 − min(挑战者, 冠军)，没样本说 nu
     assert.equal(lcap.chalClosed, 2);
     assert.equal(lcap.champClosed, 5);
     assert.equal(lcap.need, 13, "15 − min(2,5) = 13");
-    // netReturn 扣往返手续费（ROUND_TRIP_COST = 0.102%）：(3.898% + 15.898%) / 2 = 9.898%
-    assert.ok(Math.abs((lcap.chalMean ?? 0) - 0.09898) < 1e-6, "两笔扣费后均值 9.898%");
-    // 冠军五笔毛收益 5%/10%/−1%/2%/8%，各扣 0.102% 后均值 4.698%
-    assert.ok(Math.abs((lcap.champMean ?? 0) - 0.04698) < 1e-6, "冠军五笔扣费后均值 4.698%");
+    // netReturn 扣往返成本（ROUND_TRIP_COST = 0.302%＝手续费 0.102% + 滑点 0.2%，
+    // 2026-11-10 P1-3 起与回测同一口径）：(3.698% + 15.698%) / 2 = 9.698%
+    assert.ok(Math.abs((lcap.chalMean ?? 0) - 0.09698) < 1e-6, "两笔扣费后均值 9.698%");
+    // 冠军五笔毛收益 5%/10%/−1%/2%/8%，各扣 0.302% 后均值 4.498%
+    assert.ok(Math.abs((lcap.champMean ?? 0) - 0.04498) < 1e-6, "冠军五笔扣费后均值 4.498%");
     const revert = report.challengers.find((c) => c.id === "rebound-fast-revert");
     assert.ok(revert);
     assert.equal(revert.chalClosed, 0);

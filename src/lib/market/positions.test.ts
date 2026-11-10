@@ -12,6 +12,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { dayHeading, groupByDay, overallOf, rowReturn, SHARES_PER_LOT, type PositionRow } from "@/lib/market/positions";
+import { ROUND_TRIP_COST } from "@/lib/market/journal-book";
 
 function row(patch: Partial<PositionRow> & { id: string; day: string; entry: number }): PositionRow {
   const exit = patch.exit ?? null;
@@ -62,7 +63,7 @@ test("已实现和浮动分开，合计是两者相加", () => {
   const g = groups[0];
   assert.equal(g.closed.length, 1);
   assert.equal(g.open.length, 1);
-  const fee = 0.00025 * 2 + 0.0005 + 0.00001 * 2;
+  const fee = ROUND_TRIP_COST;
   assert.ok(Math.abs(g.realized! - (11 / 10 - 1 - fee)) < 1e-9);
   assert.ok(Math.abs(g.unrealized! - (19 / 20 - 1)) < 1e-9);
   assert.ok(Math.abs(g.total! - (g.realized! + g.unrealized!)) < 1e-12);
@@ -108,7 +109,7 @@ test("日期标题", () => {
 });
 
 test("收益率：卖出要扣费，持有按现价不算费", () => {
-  const fee = 0.00025 * 2 + 0.0005 + 0.00001 * 2;
+  const fee = ROUND_TRIP_COST;
   assert.ok(Math.abs(rowReturn(10, 11, null)! - (0.1 - fee)) < 1e-9);
   // 浮点：9/10-1 在二进制里是 -0.09999999999999998，不能用严格相等
   assert.ok(Math.abs(rowReturn(10, null, 9)! + 0.1) < 1e-9);

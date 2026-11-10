@@ -10,6 +10,7 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { readdirSync } from "node:fs";
+import { grossToNet } from "@/lib/market/fill-model";
 
 const DATA = process.env.CHIHENG_DATA_DIR ?? "data";
 const KLINE = `${DATA}/backtest/kline`;
@@ -28,6 +29,8 @@ interface TrackedSignal extends Candidate {
   /** nextClose 实际取的是哪一天的收盘 */
   measureDate: string | null;
   chgPct: number | null;
+  /** 扣一来一回费用+滑点后的净收益（%）。判决的超额是费后的，对账必须用这个口径。 */
+  chgNetPct: number | null;
   isWin: boolean | null;
   source: string; // "kline" | "tencent"
 }
@@ -159,12 +162,15 @@ async function main() {
     }
 
     const chgPct = ((nextClose - s.buyPrice) / s.buyPrice) * 100;
+    // 费后口径（2026-11-10 P1-3）：以前只有毛收益，和扣完费的回测判决对账永远高估。
+    const chgNetPct = grossToNet(chgPct / 100) * 100;
 
     tracked.push({
       ...s,
       prevClose, nextClose, nextOpen,
       basisDate, measureDate,
       chgPct: +chgPct.toFixed(2),
+      chgNetPct: +chgNetPct.toFixed(2),
       isWin: chgPct > 0,
       source,
     });

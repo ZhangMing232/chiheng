@@ -41,6 +41,16 @@
 
 import { mkdir, readFile, writeFile, appendFile, readdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
+import {
+  COMMISSION_RATE,
+  COMMISSION_MIN,
+  TRANSFER_FEE,
+  STAMP_TAX,
+  SLIPPAGE,
+  CAPITAL_PER_TRADE,
+  FEE_ONLY,
+  roundTripFee,
+} from "@/lib/market/fill-model";
 import { exitFill } from "@/lib/market/journal-book";
 import { boardLimit } from "@/lib/market/model";
 
@@ -352,41 +362,22 @@ const WINDOW = Number(process.env.BT_WINDOW ?? LOOKBACK);
 const SAMPLE = Number(process.env.BT_SAMPLE ?? 300);
 /** 每套策略每天最多买几只，和线上一致。 */
 const MAX_POSITIONS = 10;
-/** 一来一回的手续费，和线上一致（0.102%）。拆开写是为了让每一项都能被核对：
- *  佣金 万2.5 双边 + 过户费 万0.1 双边 + 印花税 万5 卖出单边 = 0.00102。
- *  以前这里只有一个数字，所以披露段敢写「未计印花税」——其实早就算进去了（2026-10-12 发现）。 */
-export const COMMISSION_RATE = 0.00025;
-export const COMMISSION_MIN = 5;
-export const TRANSFER_FEE = 0.00001;
-export const STAMP_TAX = 0.0005;
-const FEE = COMMISSION_RATE * 2 + TRANSFER_FEE * 2 + STAMP_TAX;
-
-/**
- * 滑点（单边）。默认万 10，买卖各一次 = 一来一回 0.2%——比上面全部手续费还多一倍。
- * 学 Vibe-Research 的 `ChinaAEngine`：它的 A 股默认就是这个数，且朝对交易者不利的方向
- * 取（买贵卖便宜）。BT_SLIPPAGE=0 关掉。
- *
- * **这个值是我估的，不是测出来的**：真实滑点看那天的流动性和单子大小，回测没有逐笔
- * 成交明细，给不出实证值。所以做成可调，并把它单独列在披露里，不混进手续费假装是硬事实。
- */
-export const SLIPPAGE = Number(process.env.BT_SLIPPAGE ?? 0.001);
-
-/** 每笔本金。默认对齐线上：`MAX_SINGLE_PCT = 0.1` × 100 万 = 10 万（sizing.ts:31）。 */
-export const CAPITAL_PER_TRADE = Number(process.env.BT_CAPITAL ?? 100_000);
-
-/**
- * 一来一回的总成本占买入金额的比例。runPass 用它。
- *
- * 佣金这一段单独算是有原因的：**单笔不满 ¥5 按 ¥5 收**，固定这笔钱除以本金才是它占
- * 收益的比例，本金越大摊得越薄，所以它不是一个常数费率。
- * 触发线是单笔 2 万——当前 10 万/笔的口径下压根不触发，看不出差别，
- * 但换成小本金或以后做小额配送就会咬人，留着。
- */
-export function roundTripFee(notional: number = CAPITAL_PER_TRADE): number {
-  if (!(notional > 0)) return FEE + SLIPPAGE * 2;
-  const commission = Math.max(notional * COMMISSION_RATE, COMMISSION_MIN) / notional;
-  return commission * 2 + TRANSFER_FEE * 2 + STAMP_TAX + SLIPPAGE * 2;
-}
+/** 成交与费用口径搬到 scripts/lib/fill-model.ts（2026-11-10，borrow-list P1-3 单一出处）：
+ *  实盘侧（track-signals / record-journal / review-auction）与回测从同一套数字取，
+ *  判决扣的费和实盘对账扣的费不再各算各的。数值一字未改，re-export 保持旧 API。
+ *  佣金 万2.5 双边（不满 ¥5 按 ¥5）+ 过户费 万0.1 双边 + 印花税 万5 卖出单边
+ *  = 0.00102；滑点单边默认万 10（BT_SLIPPAGE 可调，估值不是实测，披露里单列）。 */
+export {
+  COMMISSION_RATE,
+  COMMISSION_MIN,
+  TRANSFER_FEE,
+  STAMP_TAX,
+  SLIPPAGE,
+  CAPITAL_PER_TRADE,
+  roundTripFee,
+};
+/** 纯手续费（不含滑点）的一来一回合计——披露段和成本对照用，单一出处 fill-model。 */
+const FEE = FEE_ONLY;
 const CACHE = "data/backtest/kline";
 
 /**
@@ -997,6 +988,40 @@ const THEME_STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold: nu
   "evt-themeLaggard": { label: "热点·题材补涨", fn: themeLaggard, hold: 5 },
   "evt-themeLeaderDip": { label: "热点·龙头回踩", fn: themeLeaderDip, hold: 5 },
 };
+
+// ── ML 截面对照实验（2026-11-10 预登记，design/quantmind-borrow-list.md P0-1）────
+// 学界标准打法当对照组：价量特征 → GBDT → 每日截面打分取 Top-N，回答「手写规则
+// 之外有没有系统性 alpha」。分数由 scripts/ml-cross-section.py 滚动训练产出
+// （data/ml-scores.json，只存每日 top-50：runPass 每天最多买 MAX_POSITIONS=10，
+// 第 51 名永远轮不上，存了也白存）。执行骨架与各家族统一（昨收限价 · −8% / +10% ·
+// 持 8 天），判决走 eval-robust 六切片，不另设判决口径。
+// 跑法：BT_ML=1 BT_ONLY=mlTop BT_WINDOW=750 BT_NO_LOG=1。
+let mlScoreMap: Map<string, Map<string, number>> | null = null;
+function mlScoreOf(id: string, date: string): number | null {
+  if (!mlScoreMap) {
+    mlScoreMap = new Map();
+    try {
+      const raw = JSON.parse(readFileSync(`${DATA_DIR}/ml-scores.json`, "utf8")) as {
+        days: Record<string, [string, number][]>;
+      };
+      for (const [d, list] of Object.entries(raw.days)) {
+        const m = new Map<string, number>();
+        for (const [sid, s] of list) m.set(sid, s);
+        mlScoreMap.set(d, m);
+      }
+    } catch {
+      return null; // 分数文件没有 = 这家族没数据，不硬跑
+    }
+  }
+  return mlScoreMap.get(date)?.get(id) ?? null;
+}
+
+function mlTop(m: ReturnType<typeof metrics>, _stopPct?: number, id?: string): Signal | null {
+  const s = mlScoreOf(id ?? "", m.date);
+  if (s == null) return null;
+  const buy = m.prev;
+  return { buy, stop: buy * 0.92, sell: buy * 1.1, score: s };
+}
 
 /** 趋势回踩：20 日涨 10%~40%，60 日至少 5%，今天跌 0~4%，买在昨收。 */
 function trend(m: ReturnType<typeof metrics>, stopPct?: number): Signal | null {
@@ -1613,6 +1638,11 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
         relValConfirm: { label: "相对估值×融资确认", fn: relValConfirm, hold: 20 },
         bkConfirm: { label: "突破×融资确认", fn: bkConfirm },
       }
+    : {}),
+  // ML 截面对照实验（2026-11-10 预登记，见 mlTop 函数头注释）。默认不注册：
+  // 跑法 BT_ML=1 BT_ONLY=mlTop BT_WINDOW=750 BT_NO_LOG=1。
+  ...(process.env.BT_ML === "1"
+    ? { mlTop: { label: "ML截面·Top10", fn: mlTop, hold: 8 } }
     : {}),
   // 低频家族（2026-11-09 预登记，详见 buildSlowFactorMaps 头注释）：经典慢信号
   // 首次上判决台——动量/52 周高点/低波动/动量×价值，统一 40 个交易日持有、
