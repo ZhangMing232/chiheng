@@ -172,6 +172,20 @@ async function main() {
   lines.push("", "【状态漂移】近20日 vs 近250日");
   const drift = await marketDrift();
   lines.push(...drift.lines);
+  // 盘面温度计（borrow-list B2，真炸板率口径）——周报里给个情绪坐标
+  try {
+    const s = JSON.parse(await readFile(`${DATA}/signals/forms/summary.json`, "utf8")) as {
+      thermometer?: { date: string; score: number; limitUps: number; blastRate: number | null; maxStreak: number; prevLuRet: number | null };
+    };
+    const t = s.thermometer;
+    if (t) {
+      lines.push(
+        `盘面温度计（${t.date}）：${t.score}/100｜涨停 ${t.limitUps} · 炸板率 ${t.blastRate ?? "—"}% · 连板高度 ${t.maxStreak} · 昨涨停今 ${t.prevLuRet ?? "—"}%`,
+      );
+    }
+  } catch {
+    /* 台账没生成就不加这一行 */
+  }
 
   // 3. 判决文件健康度
   try {

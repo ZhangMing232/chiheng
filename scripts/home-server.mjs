@@ -368,6 +368,32 @@ function runShortFormsScan() {
   });
 }
 
+// ── 早盘自检（9:20，borrow-list B1）：9:26 买入单推送前把管道体检一遍推微信。
+// 「为什么不推」类问题的根治是透明不是猜——缺件点名，每天必响，静默只留给服务没开。
+// 跨重启去重看 data/signals/preflight.json 的 date，跟其它每日任务同一套规矩。
+let preflightRanDay = "";
+function runPreflight() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (preflightRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 9 || (hour === 9 && min < 20) || hour >= 12) return;
+  if (readSignalField("preflight.json", "date") === day) {
+    preflightRanDay = day;
+    return;
+  }
+  preflightRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/preflight.ts", "--push"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error(`早盘自检失败（exit ${code}），手动跑 preflight.ts --push 补`);
+  });
+}
+
 runKlineRefresh();
 runTdxDaily();
 runStrategyVerdict();
@@ -375,6 +401,7 @@ runSignalGen();
 runSignalReview();
 runSignalTrack();
 runShortFormsScan();
+runPreflight();
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
@@ -382,6 +409,7 @@ const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
+const preflightTimer = setInterval(runPreflight, 60_000);
 
 /**
  * 拉起真正的网页服务，并在它意外退出时再拉一次。
@@ -587,6 +615,7 @@ function shutdown() {
   clearInterval(signalReviewTimer);
   clearInterval(signalTrackTimer);
   clearInterval(shortFormsTimer);
+  clearInterval(preflightTimer);
   // 子进程会自己打印 "Stopping server gracefully" 并等 5 秒；
   // 到点还没走就强杀。它先退出的话我们跟着退出，不留残骸。
   const hard = setTimeout(() => {

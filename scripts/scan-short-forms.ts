@@ -78,6 +78,121 @@ async function loadTdxLatest(): Promise<{ date: string; bars: TdxBar[] } | null>
   }
 }
 
+// ── 盘面温度计（2026-11-10，borrow-list B2）────────────────────────────
+// 打板圈情绪指标，全部用真数——QuantMind 同名指标的炸板率是拿下跌家数拟合的假数
+// （quantdb_feed.py:733），我们从 K 线逐只认触板/封板。只当状态参考不当信号：
+// 追情绪已被判决死（连板阶梯 t=−10.2）。
+// 口径（预登记，不许事后调）：
+//   涨停＝收盘 ≥ 昨收×(1+板幅−0.15%)；炸板＝盘中触板（最高 ≥ 涨停价×0.998）没封住；
+//   炸板率＝炸板/(炸板+涨停)；连板高度＝当日涨停票的最大连续涨停天数；
+//   昨涨停今表现＝昨日涨停票今日涨幅均值。
+//   温度＝clamp(50 + 12·z涨停率 + 12·z昨涨停今表现 + 8·z连板高度 − 12·z炸板率, 0, 100)，
+//   z 取近 250 交易日序列的均值/标准差；涨停用率不用数（半刷新缓存覆盖不齐时，
+//   数的 z 基线来自全史日、拿小样本比全史=系统性偏冷，率是同一构念的无偏版）。
+//   覆盖度随 summary 如实写，不冒充全池。
+type Thermometer = {
+  date: string;
+  score: number;
+  limitUps: number;
+  blastRate: number | null;
+  maxStreak: number;
+  prevLuRet: number | null;
+  coverage: number;
+};
+
+function buildThermometer(lastDates: { id: string; rows: Row[] }[], targetDate: string | null): Thermometer | null {
+  if (!targetDate) return null;
+  const luByDate = new Map<string, number>();
+  const blastByDate = new Map<string, number>();
+  const streakByDate = new Map<string, number>();
+  const retByDate = new Map<string, number[]>();
+  const barsByDate = new Map<string, number>();
+  // 按日期全量统计，不看票的末根停在哪——缓存半新半旧时「末根==目标日」的闸会把
+  // 已刷新的票整个排除（2026-11-10 实测：1566 vs 真实 2504，涨停 5 vs 17，就是这个闸）。
+  for (const { id, rows } of lastDates) {
+    const lim = id.startsWith("sh688") || id.startsWith("sz30") ? 20 : id.startsWith("bj") ? 30 : 10;
+    const touch = (1 + lim / 100) * 0.998;
+    let streak = 0;
+    let prevLu = false;
+    for (let i = Math.max(1, rows.length - 251); i < rows.length; i++) {
+      const prev = rows[i - 1]!.c;
+      const cur = rows[i]!;
+      if (!(prev > 0)) continue;
+      const lu = cur.c >= prev * touch;
+      const d = cur.date;
+      barsByDate.set(d, (barsByDate.get(d) ?? 0) + 1);
+      if (lu) {
+        streak += 1;
+        luByDate.set(d, (luByDate.get(d) ?? 0) + 1);
+        streakByDate.set(d, Math.max(streakByDate.get(d) ?? 0, streak));
+      } else {
+        streak = 0;
+        if (cur.h >= prev * touch) blastByDate.set(d, (blastByDate.get(d) ?? 0) + 1);
+      }
+      if (prevLu) {
+        const arr = retByDate.get(d) ?? [];
+        arr.push((cur.c / prev - 1) * 100);
+        retByDate.set(d, arr);
+      }
+      prevLu = lu;
+    }
+  }
+  const dates = [...barsByDate.keys()].sort();
+  if (dates.length < 40) return null;
+  // 报哪一天：最新的、且覆盖 ≥30% 股票的那天——半刷新缓存里「最新」可能只有几只票，
+  // 那不是全池截面；宁可报前一天并把覆盖写清楚。
+  const minCov = lastDates.length * 0.3;
+  let report = targetDate;
+  for (let i = dates.length - 1; i >= 0; i--) {
+    if ((barsByDate.get(dates[i]!) ?? 0) >= minCov) {
+      report = dates[i]!;
+      break;
+    }
+  }
+  // 涨停用**率**不用数：半刷新缓存里当天覆盖只有几百只，数量的 z 基线来自全史日
+  // （2691 只），拿 1079 只的数去比全史的数=系统性偏冷。率是同一构念的无偏版。
+  const luS = dates.map((d) => ((luByDate.get(d) ?? 0) / (barsByDate.get(d) || 1)) * 100);
+  const blastS = dates.map((d) => {
+    const b = blastByDate.get(d) ?? 0;
+    const l = luByDate.get(d) ?? 0;
+    return b + l > 0 ? (b / (b + l)) * 100 : null;
+  });
+  const streakS = dates.map((d) => streakByDate.get(d) ?? 0);
+  const retS = dates.map((d) => {
+    const a = retByDate.get(d);
+    return a?.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+  });
+  const z = (series: (number | null)[], x: number | null): number => {
+    const xs = series.filter((v): v is number => v != null);
+    if (x == null || xs.length < 20) return 0;
+    const m = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((s, v) => s + (v - m) ** 2, 0) / xs.length);
+    return sd > 0 ? (x - m) / sd : 0;
+  };
+  const at = dates.indexOf(report);
+  const limitUps = luByDate.get(report) ?? 0;
+  const luRate = luS[at] ?? 0;
+  const blastRate = blastS[at];
+  const maxStreak = streakS[at] ?? 0;
+  const prevLuRet = retS[at];
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      50 + 12 * z(luS, luRate) + 12 * z(retS, prevLuRet) + 8 * z(streakS, maxStreak) - 12 * z(blastS, blastRate),
+    ),
+  );
+  return {
+    date: report,
+    score: +score.toFixed(1),
+    limitUps,
+    blastRate: blastRate == null ? null : +blastRate.toFixed(1),
+    maxStreak,
+    prevLuRet: prevLuRet == null ? null : +prevLuRet.toFixed(2),
+    coverage: barsByDate.get(report) ?? 0,
+  };
+}
+
 async function main() {
   const files = (await readdir(KLINE)).filter((f) => f.endsWith(".json"));
   const acc = new Map<ShortForm, Acc>(SHORT_FORMS.map((f) => [f, { samples: 0, fillable: 0, r1: [], r2: [] }]));
@@ -124,10 +239,13 @@ async function main() {
     // 不能塞进下面要 T+1/T+2 的循环——那个循环会跳过最后两根，名单会全空。
     for (const { id, rows } of lastDates) {
       if (rows.length < 2) continue;
-      const lastRow = rows[rows.length - 1];
-      if (lastRow.date !== targetDate) continue;
-      const forms = classifyForms(lastRow, rows[rows.length - 2].c, id);
-      for (const f of forms) latest.get(f)!.push({ id, code: id.slice(2), close: lastRow.c, forms });
+      // 找目标日那根 bar——「末根==目标日」的旧闸在半刷新缓存里会漏掉已刷新的票
+      // （2026-11-10 实测：1566/2504 只、涨停 5 vs 真实 17，温度计同一个坑）。
+      let ri = rows.length - 1;
+      while (ri >= 1 && rows[ri].date > targetDate) ri -= 1;
+      if (rows[ri].date !== targetDate) continue;
+      const forms = classifyForms(rows[ri], rows[ri - 1].c, id);
+      for (const f of forms) latest.get(f)!.push({ id, code: id.slice(2), close: rows[ri].c, forms });
     }
   }
 
@@ -178,6 +296,8 @@ async function main() {
     latestSource,
   };
 
+  const thermometer = buildThermometer(lastDates, targetDate);
+
   const caveats = [
     "事后描述统计，不是可成交价、不是策略收益：T 日收盘价在涨停日往往买不到。",
     "未扣手续费/滑点、未减同期基准、未跑六切片、未算聚类 t，不能当判决数字引用。",
@@ -192,7 +312,7 @@ async function main() {
   const generatedFor = new Date().toLocaleDateString("sv-SE");
   await writeFile(
     `${OUT}/summary.json`,
-    JSON.stringify({ generatedFor, generatedAt: new Date().toISOString(), windowDays: WINDOW, coverage, caveats, forms }, null, 2),
+    JSON.stringify({ generatedFor, generatedAt: new Date().toISOString(), windowDays: WINDOW, coverage, caveats, forms, thermometer }, null, 2),
   );
   type LatestRow = { id: string; code: string; close: number; forms: ShortForm[] };
   const latestForms: Record<string, LatestRow[]> = {};
@@ -218,6 +338,32 @@ async function main() {
   console.log(`\n已写 ${OUT}/summary.json 与 latest.json`);
   if (coverage.stale > coverage.usableFiles * 0.1) {
     console.log(`⚠️ ${coverage.stale} 只票的 K 线没到 ${targetDate}，当日名单不是全池——覆盖度已写进产出，不冒充。`);
+  }
+
+  // 盘面温度计推微信（borrow-list B2）：每天 15:35 一条状态参考，不是买入信号。
+  if (thermometer) {
+    const t = thermometer;
+    const formsToday = SHORT_FORMS.map((f) => `${f} ${latest.get(f)!.length}`).join(" · ");
+    try {
+      const { sendPushPlus } = await import("@/lib/market/push");
+      const sent = await sendPushPlus(
+        `盘面温度计 ${t.score.toFixed(0)}/100 · ${t.date}`,
+        [
+          `涨停 ${t.limitUps} 只 · 炸板率 ${t.blastRate == null ? "—" : t.blastRate + "%"} · 连板高度 ${t.maxStreak} · 昨涨停今表现 ${t.prevLuRet == null ? "—" : (t.prevLuRet >= 0 ? "+" : "") + t.prevLuRet + "%"}`,
+          `覆盖 ${t.coverage} 只（K 线到 ${t.date} 的；滞后票不含）`,
+          "──────────────────",
+          `今日形态：${formsToday}`,
+          "──────────────────",
+          "温度是状态参考不是信号——追情绪/追板已被判决死（板越高次日越亏）。",
+        ].join("\n"),
+        "txt",
+      );
+      console.log(sent ? "盘面温度计已推送微信" : "温度计推送未发出");
+    } catch (e) {
+      console.log(`温度计推送失败: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else {
+    console.log("温度计没算出来（数据天数不足 40），今天不推。");
   }
 }
 

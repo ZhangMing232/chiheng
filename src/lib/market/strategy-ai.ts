@@ -205,6 +205,7 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     `4. style 只能填以下 id 之一（填英文 id，不是中文名）：${STYLE_IDS.map((id) => `${id}（${styleName(id)}）`).join(" / ")}。`,
     "5. 提 1~2 个，宁缺毋滥。每个给：id（小写字母开头 slug）、style、name（中文名）、holdDays / stopPct / targetPct（至少填一个，只填要改的）、rationale（调参理由，一两句）。",
     "6. **冷启动不许空转**：某套策略在跑挑战者不到 2 个、且没有针对它的近期证据时，恰恰最该提案——给该冠军的参数提 1 个保守变体来攒样本。只做小幅偏移（止损 ±2%、目标 ±5%、持有 ±2 天这种量级），rationale 里写明是探索性变体、想验证什么。全部策略都没挑战者在跑时返回空数组，等于这一天白过，不允许。",
+    "7. **facts-only**（borrow-list B4）：rationale 只许引用本 prompt 里给出的数字（亏损归因/判决归因/市场证据/样本进度）；给不出出处的数字不许写，取不到就写「未获取」——不要拿记忆或旧值顶替。",
     "",
     "冠军当前参数（挑战者的基准，缺省字段就沿用这里）：",
     championLines || "- （没有）",

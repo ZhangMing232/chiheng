@@ -16,9 +16,12 @@
  *    然后**静默地**认为「没有账本」——这是最阴的失败模式，所以开头先 chdir。
  * 5. 硬闸只停**开仓**，持仓的止损止盈照常（record-journal.ts 就是这个行为）。
  *    自检说「硬闸拦下」时要连这句一起说，否则会被误读成「今天全停了」。
+ * 6. `--push`（2026-11-10，borrow-list B1）：把检查块推微信并写 data/signals/
+ *    preflight.json 标记（home-server 9:20 跨重启去重用）。默认模式仍然纯只读
+ *    不联网——联网和写文件只发生在这个显式开关下。
  */
 
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, open, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { get } from "node:http";
@@ -38,6 +41,35 @@ import { snapshotAge } from "../src/lib/market/format.ts";
 
 type Level = "ok" | "warn" | "block" | "note";
 type Check = { name: string; level: Level; value: string; fix?: string };
+
+/** 只读文件末尾 300 字节抓最后一个 date——2600 个 K 线全量 JSON.parse 太慢，行尾够用。 */
+async function lastDateOf(path: string): Promise<string | null> {
+  try {
+    const fh = await open(path, "r");
+    try {
+      const size = (await fh.stat()).size;
+      const buf = Buffer.alloc(Math.min(300, size));
+      await fh.read(buf, 0, buf.length, Math.max(0, size - buf.length));
+      const m = buf.toString("utf8").match(/"date":"(\d{4}-\d{2}-\d{2})"/g);
+      return m?.length ? m[m.length - 1]!.slice(8, 18) : null;
+    } finally {
+      await fh.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** 读落盘 json 的一个日期字段；文件不在/格式坏一律当「没有」。 */
+async function jsonDate(path: string, field: string): Promise<string | null> {
+  try {
+    const j = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    const v = j[field];
+    return typeof v === "string" ? v.slice(0, 10) : null;
+  } catch {
+    return null;
+  }
+}
 
 const MARK: Record<Level, string> = { ok: "✓", warn: "!", block: "✗", note: "·" };
 const LABEL: Record<Level, string> = { ok: "就绪", warn: "警告", block: "阻塞", note: "提示" };
@@ -319,6 +351,77 @@ async function checkAll(): Promise<{ checks: Check[]; trading: boolean; level: L
     fix: ld.installed === false ? "自己的终端里跑 npm run install:mac（launchctl 要 GUI 会话权限）" : undefined,
   });
 
+  // 11 推送管道（2026-11-10，borrow-list B1）：9:26 两腿买入单的上游件。
+  // 用户「为什么不推」的根治＝每天把管道摆出来看、缺件点名，不靠猜。
+  {
+    try {
+      const c = JSON.parse(await readFile(join("data", "signals", "candidates.json"), "utf8")) as {
+        date?: string;
+        signals?: unknown[];
+      };
+      const n = c.signals?.length ?? 0;
+      const ageDays = c.date ? (Date.now() - new Date(c.date).getTime()) / 86_400_000 : 999;
+      checks.push({
+        name: "候选文件",
+        level: n === 0 || ageDays > 5 ? "warn" : "ok",
+        value: n > 0 ? `${n} 条（${c.date}）` : "0 条（9:26 只会推「无候选」说明）",
+        fix: n === 0 || ageDays > 5 ? "15:30 信号生成没跟上：node --experimental-strip-types --import ./scripts/alias.mjs scripts/generate-signals.ts" : undefined,
+      });
+    } catch {
+      checks.push({
+        name: "候选文件",
+        level: "block",
+        value: "不存在（昨天 15:30 信号生成没跑成）",
+        fix: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/generate-signals.ts",
+      });
+    }
+
+    // K 线新鲜度：看末根日期的众数占比。自校准，不依赖交易日历（节假日错判比不判坏）。
+    const kdir = join("data", "backtest", "kline");
+    const files = existsSync(kdir) ? readdirSync(kdir).filter((f) => f.endsWith(".json")) : [];
+    if (files.length === 0) {
+      checks.push({ name: "K 线新鲜度", level: "block", value: "K 线目录空", fix: "node ... scripts/refresh-kline.ts" });
+    } else {
+      const counts = new Map<string, number>();
+      for (const f of files) {
+        const d = await lastDateOf(join(kdir, f));
+        if (d) counts.set(d, (counts.get(d) ?? 0) + 1);
+      }
+      const [dom, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? ["?", 0];
+      const ratio = n / files.length;
+      checks.push({
+        name: "K 线新鲜度",
+        level: ratio >= 0.8 ? "ok" : "warn",
+        value: `${n}/${files.length} 只的末根是 ${dom}（${(ratio * 100).toFixed(0)}%）`,
+        fix: ratio < 0.8 ? "全池刷新没刷动（限流？）：node --experimental-strip-types --import ./scripts/alias.mjs scripts/refresh-kline.ts" : undefined,
+      });
+    }
+
+    // 收盘任务落痕：热榜（15:10）/ 形态台账（15:35）/ 回测判决（15:15）/ 跟踪台账
+    const th = await jsonDate(join("data", "theme-heat.json"), "date");
+    const fm = await jsonDate(join("data", "signals", "forms", "summary.json"), "generatedFor");
+    let vd = "?";
+    let vdOk = false;
+    try {
+      const v = JSON.parse(await readFile(join("data", "strategy-verdicts.json"), "utf8")) as { at?: string };
+      const age = v.at ? (Date.now() - new Date(v.at).getTime()) / 86_400_000 : 999;
+      vd = `${age.toFixed(1)} 天前`;
+      vdOk = age <= 3;
+    } catch { /* 保持 vdOk=false */ }
+    let trN = 0;
+    try {
+      trN = (await readFile(join("data", "signals", "tracking-history.jsonl"), "utf8")).split("\n").filter(Boolean).length;
+    } catch { /* 0 批 */ }
+    const freshAge = (d: string | null) => d != null && (Date.now() - new Date(d).getTime()) / 86_400_000 <= 3;
+    const ok = freshAge(th) && freshAge(fm) && vdOk;
+    checks.push({
+      name: "收盘任务",
+      level: ok ? "ok" : "warn",
+      value: `热榜 ${th ?? "缺"} · 台账 ${fm ?? "缺"} · 判决 ${vd} · 跟踪 ${trN} 批`,
+      fix: ok ? undefined : "缺的那块＝对应 15:xx 任务没跑成，看 data/serve.log",
+    });
+  }
+
   const level: Level = checks.some((c) => c.level === "block")
     ? "block"
     : checks.some((c) => c.level === "warn")
@@ -353,10 +456,39 @@ async function main() {
   const args = process.argv.slice(2);
   const watch = args.includes("--watch");
   const jsonMode = args.includes("--json");
+  const pushMode = args.includes("--push");
   const interval = Number(args[args.indexOf("--interval") + 1] ?? 60) * 1000;
 
   const run = async () => {
     const { checks, trading, level } = await checkAll();
+    if (pushMode) {
+      // 推微信 + 写去重标记（home-server 9:20 每交易日跑一次）
+      try {
+        const { sendPushPlus } = await import("../src/lib/market/push.ts");
+        const mark = (l: Level) => (l === "ok" ? "✅" : l === "block" ? "❌" : l === "warn" ? "⚠️" : "·");
+        const blocks = checks.filter((c) => c.level === "block").length;
+        const warns = checks.filter((c) => c.level === "warn").length;
+        const title = blocks > 0 ? `⚠️ 早盘自检 · 阻塞 ${blocks} 件 ${shanghaiDate(Date.now())}` : warns > 0 ? `⚠️ 早盘自检 · 警告 ${warns} 件 ${shanghaiDate(Date.now())}` : `✅ 早盘自检 · 就绪 ${shanghaiDate(Date.now())}`;
+        const body = [
+          ...checks.map((c) => `${mark(c.level)} ${c.name}：${c.value}`),
+          "──────────────────",
+          blocks > 0
+            ? `还差 ${blocks} 件事（见 ❌ 行）；9:26 买入单照推，但上游缺件会缺席/变旧。`
+            : trading
+              ? "管道齐件，9:26 两腿买入单正常推送。"
+              : "今天休市，无买入单（结算照跑）。",
+        ];
+        const sent = await sendPushPlus(title, body.join("\n"), "txt");
+        console.log(sent ? "自检已推送微信" : "自检推送未发出");
+      } catch (e) {
+        console.log(`自检推送失败: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      await mkdir(join("data", "signals"), { recursive: true });
+      await writeFile(
+        join("data", "signals", "preflight.json"),
+        JSON.stringify({ date: shanghaiDate(Date.now()), at: new Date().toISOString(), level, checks }, null, 2),
+      );
+    }
     if (jsonMode) {
       console.log(JSON.stringify({ at: new Date().toISOString(), trading, level, checks }, null, 2));
       return level === "block" ? 1 : trading ? 0 : 2;
