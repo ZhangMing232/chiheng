@@ -323,16 +323,65 @@ function runSignalTrack() {
   });
 }
 
+// ── 通达信盘后包：15:12 补最近 3 个自然日的全市场 OHLC 截面。
+// 一个请求拿全市场，比逐只刷腾讯 K 线轻得多。当天包 404 是正常（收盘后数小时才发布），
+// --back 2 保证至少能补到 T-1；脚本对已落盘日期自带幂等，重跑不会重复写。
+// 形态台账读这些截面补最近日期，避免 kline 缓存「攒够 800 根就再也不更新」的滞后。
+let tdxDailyRanDay = "";
+function runTdxDaily() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (tdxDailyRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 12)) return;
+  tdxDailyRanDay = day;
+  const child = spawn("python3", ["scripts/fetch-tdx-package.py", "--back", "2"], { stdio: "inherit" });
+  child.on("exit", (code) => {
+    if (code) console.error("通达信盘后包没补成，形态台账会退回旧缓存（覆盖度会如实写进产出）");
+  });
+}
+
+// ── 短线形态台账：每天收盘后（15:35）跑，攒形态证据，不给买卖建议
+// 放在信号生成（15:30）之后：它读的是 K 线缓存，不与候选生成抢文件。
+// 跨重启去重看 summary.json 的 generatedFor，跟其它每日任务同一套规矩。
+let shortFormsRanDay = "";
+function runShortFormsScan() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (shortFormsRanDay === day) return;
+  if (!isMarketOpen(day)) return; // 休市没有新 K 线
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 35)) return;
+  if (readSignalField("forms/summary.json", "generatedFor") === day) {
+    shortFormsRanDay = day;
+    return;
+  }
+  shortFormsRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/scan-short-forms.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("形态台账扫描失败，明天收盘后补跑");
+  });
+}
+
 runKlineRefresh();
+runTdxDaily();
 runStrategyVerdict();
 runSignalGen();
 runSignalReview();
 runSignalTrack();
+runShortFormsScan();
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
+const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
+const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
 
 /**
  * 拉起真正的网页服务，并在它意外退出时再拉一次。
@@ -531,6 +580,13 @@ function shutdown() {
   stopping = true;
   clearInterval(timer);
   clearInterval(alertTimer);
+  clearInterval(klineRefreshTimer);
+  clearInterval(tdxDailyTimer);
+  clearInterval(strategyVerdictTimer);
+  clearInterval(signalGenTimer);
+  clearInterval(signalReviewTimer);
+  clearInterval(signalTrackTimer);
+  clearInterval(shortFormsTimer);
   // 子进程会自己打印 "Stopping server gracefully" 并等 5 秒；
   // 到点还没走就强杀。它先退出的话我们跟着退出，不留残骸。
   const hard = setTimeout(() => {

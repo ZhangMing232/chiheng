@@ -1437,6 +1437,68 @@ export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async
   }
 });
 
+// ── 短线形态台账（收盘后 15:35 由 scan-short-forms.ts 生成）────────────────
+
+export interface ShortFormStat {
+  samples: number;
+  fillable: number;
+  fillRate: number | null;
+  avgR1: number | null;
+  avgR2: number | null;
+  winR1: number | null;
+}
+export interface ShortFormsCoverage {
+  klineFiles: number;
+  usableFiles: number;
+  targetDate: string | null;
+  atDate: number;
+  stale: number;
+  tdxLatestDate: string | null;
+  tdxRows: number;
+  latestDate: string | null;
+  latestSource: string;
+}
+export interface ShortFormsData {
+  generatedFor: string;
+  date: string | null;
+  source: string;
+  coverage: ShortFormsCoverage | null;
+  caveats: string[];
+  forms: Record<string, ShortFormStat>;
+  latest: Record<string, { id: string; code: string; close: number; forms: string[] }[]>;
+  unavailable?: string;
+}
+
+/** 形态台账：只作观察，不给买卖建议。文件还没生成时明确写「未生成」，不拿空数组冒充。 */
+export const getShortForms = createServerFn({ method: "GET" }).handler(async (): Promise<ShortFormsData> => {
+  const empty: ShortFormsData = {
+    generatedFor: "", date: null, source: "", coverage: null, caveats: [], forms: {}, latest: {},
+    unavailable: "台账还没生成：每天 15:35 收盘后自动跑。",
+  };
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const [s, l] = await Promise.all([
+      readFile(dataPath("data", "signals", "forms", "summary.json"), "utf8"),
+      readFile(dataPath("data", "signals", "forms", "latest.json"), "utf8"),
+    ]);
+    const summary = JSON.parse(s) as { generatedFor?: string; coverage?: ShortFormsCoverage; caveats?: string[]; forms?: Record<string, ShortFormStat> };
+    const latest = JSON.parse(l) as { date?: string; source?: string; coverage?: ShortFormsCoverage; forms?: ShortFormsData["latest"] };
+    return {
+      generatedFor: summary.generatedFor ?? "",
+      date: latest.date ?? null,
+      source: latest.source ?? "",
+      coverage: { ...(summary.coverage ?? {}), ...(latest.coverage ?? {}) } as ShortFormsCoverage,
+      caveats: summary.caveats ?? [],
+      forms: summary.forms ?? {},
+      latest: latest.forms ?? {},
+    };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getShortForms 读文件失败:", e instanceof Error ? e.message : String(e));
+    return empty;
+  }
+});
+
 // ── 信号跟踪：次日涨跌统计 ────────────────────────────────────────────
 
 export interface SignalTrackSummary {

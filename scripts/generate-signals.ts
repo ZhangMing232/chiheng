@@ -19,6 +19,7 @@ import { watchList, ACTIVE_STYLES, STYLES } from "@/lib/market/strategies";
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import { DEFAULT_PREFS, matchPrefs } from "@/lib/market/prefs";
 import type { Quote } from "@/lib/market/types";
+import { LEG_HOLD_DAYS, type Leg } from "./lib/signal-legs.ts";
 
 const DATA = process.env.CHIHENG_DATA_DIR ?? "data";
 
@@ -32,8 +33,10 @@ type Signal = {
   reason: string;
   stop?: number;
   target?: number;
-  /** 腿：short 短线（题材补涨，持 5 天）/ long 中长线（低估值等，持 8~40 天）。推送分两腿靠它。 */
-  leg?: "short" | "long";
+  /** 腿：short 短线（题材补涨）/ long 中长线（低估值）。推送分两腿靠它。 */
+  leg?: Leg;
+  /** 什么时候走：第 N 个交易日收盘卖出（买入日算第 1 日）。口径见 scripts/lib/signal-legs.ts。 */
+  holdDays?: number;
 };
 
 // ── 短线腿：热点·题材补涨（2026-11-09 晚，用户「每天早上也要看到短线的推送」）────
@@ -99,6 +102,7 @@ async function themeLaggardSignals(quotes: Quote[]): Promise<Signal[]> {
         name: q.name,
         strategy: "热点·题材补涨",
         leg: "short",
+        holdDays: LEG_HOLD_DAYS.short,
         buyPrice: buy,
         score: hot,
         reason: `${theme} 涨停 ${hot} 只，近20日 ${q.d20.toFixed(1)}% 未启动`,
@@ -142,6 +146,8 @@ async function main() {
         code: r.quote.code ?? r.quote.id.slice(2),
         name: r.quote.name ?? "",
         strategy: label,
+        leg: "long",
+        holdDays: LEG_HOLD_DAYS.long,
         buyPrice: +r.buy.toFixed(2),
         score: +r.score.toFixed(1),
         reason: (r.reasons ?? []).join("，").slice(0, 60),

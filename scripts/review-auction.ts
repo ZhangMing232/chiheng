@@ -14,6 +14,7 @@
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { legOf, orderFieldsOf, type Leg } from "./lib/signal-legs.ts";
 
 const DATA = process.env.CHIHENG_DATA_DIR ?? "data";
 
@@ -29,7 +30,9 @@ interface Candidate {
   stop?: number;
   target?: number;
   /** 腿：short 短线（题材补涨）/ long 中长线。generate-signals 2026-11-10 起写入，旧文件按策略名回退。 */
-  leg?: "short" | "long";
+  leg?: Leg;
+  /** 第 N 个交易日收盘走（买入日算第 1 日）。旧候选文件没有，按腿回退。 */
+  holdDays?: number;
 }
 
 interface Reviewed extends Candidate {
@@ -143,8 +146,7 @@ async function main() {
 
   console.log(`审核完成：🟢 ${ok.length} 可执行 | 🟡 ${warn.length} 需观望 | ⚪ ${skip.length} 跳过\n`);
 
-  // 腿归属：新候选文件带 leg 字段；旧文件按策略名回退（热点·题材补涨 = 短线）
-  const legOf = (r: Reviewed): "short" | "long" => r.leg ?? (r.strategy.startsWith("热点") ? "short" : "long");
+  // 腿归属：新候选文件带 leg 字段；旧文件按策略名回退（规则在 scripts/lib/signal-legs.ts）
   const shortRows = reviewed.filter((r) => legOf(r) === "short");
   const longRows = reviewed.filter((r) => legOf(r) !== "short");
 
@@ -170,7 +172,7 @@ async function main() {
     // 执行行压成「买 价格 | 止损 | 目标」三要素，一眼可下单；纪律一行钉死。
     {
       const fmt = (r: (typeof reviewed)[number], mark: string) =>
-        `${mark} ${r.name} ${r.code} | 买 ${r.buyPrice} | 止损 ${r.stop ?? "—"} | 目标 ${r.target ?? "—"} | 竞价${r.auctionPrice} ${gapText(r)}`;
+        `${mark} ${r.name} ${r.code} | ${orderFieldsOf(r)} | 竞价${r.auctionPrice} ${gapText(r)}`;
       const lok = longRows.filter((r) => r.verdict === "ok");
       const lwarn = longRows.filter((r) => r.verdict === "warn");
       const lskip = longRows.filter((r) => r.verdict === "skip");
@@ -189,9 +191,9 @@ async function main() {
         ...(lines.length ? lines : ["今天没有到买点的中长线票——不买就是今天的操作。"]),
         ...(lskip.length ? [`⚪ ${lskip.length} 只竞价数据缺失没审成（不是没信号）`] : []),
         "──────────────────",
-        "纪律：挂单价打到才买 · 买入当天不卖 · 拿满 8 个交易日",
-        "单笔不保证，30 笔一批算期望；连亏是这套打法的常态。",
-        ...(lok.length === 0 && lwarn.length > 0 ? ["今日无可执行信号；🟡 观望不是买入指令。"] : []),
+        "怎么走：买入日算第 1 日，行末「走 第N日」那天收盘卖；止损/目标先到先走 · 买入当天不卖",
+        "挂单价打到才买。单笔不保证，30 笔一批算期望；连亏是这套打法的常态。",
+        ...(lok.length === 0 && lwarn.length > 0 ? ["今天没有到买点的票——🟡 就是不买，等明天。"] : []),
       ].join("\n"), "txt");
       console.log(sent ? "中长线腿推送已发送" : "中长线腿没推出去（看上一行的原因），审核结果已落盘不影响页面");
     }
@@ -199,7 +201,7 @@ async function main() {
     // 短线腿：题材补涨「短线买入单」。行格式同中长线三要素，多带一句题材理由。
     {
       const fmt = (r: (typeof reviewed)[number], mark: string) =>
-        `${mark} ${r.name} ${r.code}｜${r.reason.slice(0, 24)}｜买 ${r.buyPrice} | 止损 ${r.stop ?? "—"} | 目标 ${r.target ?? "—"} | 竞价${r.auctionPrice} ${gapText(r)}`;
+        `${mark} ${r.name} ${r.code}｜${r.reason.slice(0, 24)}｜${orderFieldsOf(r)} | 竞价${r.auctionPrice} ${gapText(r)}`;
       const sok = shortRows.filter((r) => r.verdict === "ok");
       const swarn = shortRows.filter((r) => r.verdict === "warn");
       const sskip = shortRows.filter((r) => r.verdict === "skip");
@@ -221,8 +223,8 @@ async function main() {
         ...(sskip.length ? [`⚪ ${sskip.length} 只竞价数据缺失没审成（不是没信号）`] : []),
         "──────────────────",
         "题材补涨＝昨日热题材里还没动的票，赌浪拍到头上。",
-        "纪律：挂单价打到才买 · 拿满 5 个交易日 · 勿碰已涨停/连板（板越高次日越亏）。",
-        "回测口径：补涨 +0.06% 无优势，小仓试错，30 笔一批算期望。",
+        "怎么走：行末「走 第N日」那天收盘卖；止损/目标先到先走 · 买入当天不卖 · 勿碰已涨停/连板（板越高次日越亏）。",
+        "挂单价打到才买。回测口径：补涨 +0.06% 无优势，小仓试错，30 笔一批算期望。",
       ].join("\n"), "txt");
       console.log(sent ? "短线腿推送已发送" : "短线腿没推出去（看上一行的原因），审核结果已落盘不影响页面");
     }
@@ -244,6 +246,44 @@ async function main() {
     skip: skip.length,
     signals: reviewed,
   }, null, 2));
+  // 竞价价落盘攒历史（2026-11-10）：以前 9:26 拉到的开盘价只用来判一次 verdict 就丢，
+  // 攒不出「竞价强弱」的时间序列。现在每天存一份；拉不到的留痕写缺失，不补 0。
+  // 非竞价窗口跑属预演，开盘价只是代用，必须在文件里说清，不许冒充当日真实竞价。
+  await mkdir(`${DATA}/signals/auction`, { recursive: true });
+  const auctionDay = new Date().toLocaleDateString("sv-SE");
+  const auctionFile = `${DATA}/signals/auction/${auctionDay}.json`;
+  await writeFile(
+    auctionFile,
+    JSON.stringify(
+      {
+        date: auctionDay,
+        generatedAt: new Date().toISOString(),
+        source: "腾讯快照开盘价（9:25 集合竞价出清价代用）",
+        inWindow,
+        note: inWindow
+          ? "竞价窗口内抓取，开盘价=当日竞价出清价"
+          : "非竞价窗口（预演/补跑）：开盘价代用，不是当日真实竞价数据",
+        candidates: reviewed.length,
+        priced: reviewed.filter((r) => r.auctionPrice != null).length,
+        missing: reviewed.filter((r) => r.auctionPrice == null).length,
+        rows: reviewed.map((r) => ({
+          id: r.id,
+          code: r.code,
+          name: r.name,
+          leg: legOf(r),
+          strategy: r.strategy,
+          buyPrice: r.buyPrice,
+          auctionPrice: r.auctionPrice,
+          auctionGap: r.auctionGap,
+          verdict: r.verdict,
+          status: r.auctionPrice == null ? "竞价价缺失（不是没有信号）" : "ok",
+        })),
+      },
+      null,
+      2,
+    ),
+  );
+  console.log(`竞价价已存档 → ${auctionFile}`);
   console.log(`\n审核结果已保存到 ${DATA}/signals/reviewed.json`);
 }
 
