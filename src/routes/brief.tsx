@@ -83,9 +83,25 @@ function BriefPage() {
           </div>
         </Panel>
 
-        {brief.themes.map((t) => (
+        {/* 12 个题材堆下来很长，先给一排锚点能跳；不占地方，只在上一屏以后有用 */}
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[11px]">
+          <span className="text-muted">跳到</span>
+          {brief.themes.map((t, i) => (
+            <a
+              key={t.name}
+              href={`#theme-${i}`}
+              className="rounded border border-line px-1.5 py-0.5 text-muted hover:border-brand hover:text-brand-text"
+            >
+              {t.name}
+              <span className="num ml-1 text-[10px]">{t.limitUp}</span>
+            </a>
+          ))}
+        </div>
+
+        {brief.themes.map((t, i) => (
           <Panel
             key={t.name}
+            id={`theme-${i}`}
             title={t.name}
             note={
               <span className="flex items-center gap-2">
