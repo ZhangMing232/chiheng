@@ -1421,6 +1421,35 @@ export const getSignalCandidates = createServerFn({ method: "GET" }).handler(asy
   }
 });
 
+export type ThemeHeatItem = {
+  name: string;
+  /** 概念板成员数 */
+  n: number;
+  /** 涨停家数 */
+  limitUp: number;
+  /** 平均涨幅 % */
+  avg: number;
+  up: number;
+  down: number;
+  /** 龙头（板内涨幅最高的非涨停股） */
+  leader: { name: string; chg: number } | null;
+};
+
+/** 题材热度榜（theme-heat.ts 每天 15:10 生成 data/theme-heat.json）。 */
+export const getThemeHeat = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const p = dataPath("data", "theme-heat.json");
+    const raw = await readFile(p, "utf8");
+    const parsed = JSON.parse(raw) as { date: string; hot: ThemeHeatItem[] };
+    return { date: parsed.date, hot: parsed.hot ?? [] };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getThemeHeat 读文件失败:", e instanceof Error ? e.message : String(e));
+    return { date: "", hot: [] as ThemeHeatItem[] };
+  }
+});
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {

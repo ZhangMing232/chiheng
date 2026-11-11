@@ -58,6 +58,7 @@ import { Route as ReviewBreadthRouteImport } from './routes/review/breadth'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewFlowRouteImport } from './routes/review/flow'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
+import { Route as ReviewThemeRouteImport } from './routes/review/theme'
 import { Route as StrategiesAutopsyRouteImport } from './routes/strategies/autopsy'
 import { Route as StrategiesGenomeRouteImport } from './routes/strategies/genome'
 import { Route as StrategiesManageRouteImport } from './routes/strategies/manage'
@@ -320,6 +321,11 @@ const ReviewSignalsRoute = ReviewSignalsRouteImport.update({
   path: '/signals',
   getParentRoute: () => ReviewRoute,
 } as any)
+const ReviewThemeRoute = ReviewThemeRouteImport.update({
+  id: '/theme',
+  path: '/theme',
+  getParentRoute: () => ReviewRoute,
+} as any)
 const StrategiesAutopsyRoute = StrategiesAutopsyRouteImport.update({
   id: '/autopsy',
   path: '/autopsy',
@@ -447,6 +453,7 @@ export interface FileRoutesByFullPath {
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
+  '/review/theme': typeof ReviewThemeRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
   '/strategies/genome': typeof StrategiesGenomeRoute
   '/strategies/manage': typeof StrategiesManageRoute
@@ -510,6 +517,7 @@ export interface FileRoutesByTo {
   '/review/breadth': typeof ReviewBreadthRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
+  '/review/theme': typeof ReviewThemeRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
   '/strategies/genome': typeof StrategiesGenomeRoute
   '/strategies/manage': typeof StrategiesManageRoute
@@ -578,6 +586,7 @@ export interface FileRoutesById {
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
+  '/review/theme': typeof ReviewThemeRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
   '/strategies/genome': typeof StrategiesGenomeRoute
   '/strategies/manage': typeof StrategiesManageRoute
@@ -647,6 +656,7 @@ export interface FileRouteTypes {
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
+    | '/review/theme'
     | '/strategies/autopsy'
     | '/strategies/genome'
     | '/strategies/manage'
@@ -710,6 +720,7 @@ export interface FileRouteTypes {
     | '/review/breadth'
     | '/review/events'
     | '/review/signals'
+    | '/review/theme'
     | '/strategies/autopsy'
     | '/strategies/genome'
     | '/strategies/manage'
@@ -777,6 +788,7 @@ export interface FileRouteTypes {
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
+    | '/review/theme'
     | '/strategies/autopsy'
     | '/strategies/genome'
     | '/strategies/manage'
@@ -1182,6 +1194,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewSignalsRouteImport
       parentRoute: typeof ReviewRoute
     }
+    '/review/theme': {
+      id: '/review/theme'
+      path: '/theme'
+      fullPath: '/review/theme'
+      preLoaderRoute: typeof ReviewThemeRouteImport
+      parentRoute: typeof ReviewRoute
+    }
     '/strategies/autopsy': {
       id: '/strategies/autopsy'
       path: '/autopsy'
@@ -1374,6 +1393,7 @@ interface ReviewRouteChildren {
   ReviewEventsRoute: typeof ReviewEventsRoute
   ReviewFlowRoute: typeof ReviewFlowRouteWithChildren
   ReviewSignalsRoute: typeof ReviewSignalsRoute
+  ReviewThemeRoute: typeof ReviewThemeRoute
   ReviewIndexRoute: typeof ReviewIndexRoute
 }
 
@@ -1382,6 +1402,7 @@ const ReviewRouteChildren: ReviewRouteChildren = {
   ReviewEventsRoute: ReviewEventsRoute,
   ReviewFlowRoute: ReviewFlowRouteWithChildren,
   ReviewSignalsRoute: ReviewSignalsRoute,
+  ReviewThemeRoute: ReviewThemeRoute,
   ReviewIndexRoute: ReviewIndexRoute,
 }
 

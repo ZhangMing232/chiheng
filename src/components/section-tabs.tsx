@@ -52,6 +52,7 @@ export const REVIEW_TABS: SectionTab[] = [
   { to: "/review/breadth", label: "涨跌分布" },
   { to: "/review/flow/", label: "资金流向" },
   { to: "/review/signals", label: "信号" },
+  { to: "/review/theme", label: "题材" },
   { to: "/review/events", label: "公司事件" },
 ];
 

@@ -30,7 +30,7 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PAGES = [
   "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）
   // 市场
-  "/review", "/review/breadth", "/review/signals", "/review/events", "/news", "/overseas",
+  "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events", "/news", "/overseas",
   // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）
   "/butler", "/studio", "/research", "/debate", "/research/debate", "/research/reports", "/research/notes",
   "/my-stocks", "/inbox", "/settings", "/admin", "/membership", "/login",
