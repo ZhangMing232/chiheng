@@ -20,7 +20,7 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router";
-import { getLimitUpReasons, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
+import { getLimitUpReasons, getLadder3Day, type LimitUpReasonsPayload, type LadderRow } from "@/lib/market/quotes.functions";
 import { Link } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
@@ -61,7 +61,7 @@ import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, gatesData, pools, themes, reviewed, reasonsData] =
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, gatesData, pools, themes, reviewed, reasonsData, ladder3] =
       await Promise.all([
         getIndices().catch(() => [] as IndexQuote[]),
         getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
@@ -81,6 +81,8 @@ export const Route = createFileRoute("/")({
         getSignalReviewed().catch(() => ({ date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] })),
         // 涨停原因（fetch-limit-up-reason.ts 收盘后采，转发韭研/开盘啦）
         getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
+        // 3 日梯队（算较前值）
+        getLadder3Day().catch(() => ({ dates: [] as string[], ladder: {} as Record<string, Record<string, LadderRow[]>>, promotion: {} })),
       ]);
     // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
     const trend = indices[0]
@@ -120,6 +122,7 @@ export const Route = createFileRoute("/")({
       news: news.slice(0, 6),
       reasons: reasonsData.reasons,
       sectors: reasonsData.sectors,
+      ladder3,
       gates: gatesData.gates,
     };
   },
@@ -142,7 +145,7 @@ function Dashboard() {
     phase, indices, journal, universe, recorder, trend, flow,
     breadth, sentiment, stamp, serverNow, pools, themes, reviewed,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
-    gates, reasons,
+    gates, reasons, ladder3,
   } = Route.useLoaderData();
   const date = todayStr(phase);
   const todayDay = journal.days.find((day) => day.date === date) ?? null;
@@ -216,6 +219,19 @@ function Dashboard() {
   const maxStreak = poolSnap?.summary?.ladder?.reduce((m, l) => Math.max(m, l.streak), 0) ?? 0;
   const limitDownCount = poolSnap?.limitDown.length ?? 0;
   const breakRateVal = poolSnap?.summary?.breakRate ?? null;
+  const brokenCount = poolSnap?.broken?.length ?? 0;
+  const sealRate = limitUpCount + brokenCount > 0 ? limitUpCount / (limitUpCount + brokenCount) : null;
+  const prev = (() => {
+    const ds = ladder3.dates;
+    if (ds.length < 2) return null;
+    const yLv = ladder3.ladder[ds[ds.length - 2]] ?? {};
+    return {
+      total: Object.values(yLv).reduce((n, arr) => n + arr.length, 0),
+      ladder: Object.entries(yLv).reduce((n, [k, arr]) => n + (Number(k) >= 2 ? arr.length : 0), 0),
+      top: Math.max(0, ...Object.keys(yLv).map(Number)),
+    };
+  })();
+  const delta = (cur: number, pv: number | null) => (pv == null ? null : cur - pv === 0 ? "持平" : cur - pv > 0 ? `+${cur - pv}` : `${cur - pv}`);
 
   return (
     <Frame
@@ -239,13 +255,14 @@ function Dashboard() {
           : { state: "unavailable", label: "行情还没拉到", message: "点重试再拉一次", canRetry: true }
       }
     >
-      {/* ── 关键指标条：复盘第一眼，对标连板网/弈盘顶部那一排 ── */}
-      <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-6">
-        <div className="bg-surface px-3 py-2"><KeyNum label="涨停" value={poolSnap ? limitUpCount : null} tone="text-up" /></div>
-        <div className="bg-surface px-3 py-2"><KeyNum label="连板" value={poolSnap ? ladderCount : null} tone="text-up" /></div>
-        <div className="bg-surface px-3 py-2"><KeyNum label="最高板" value={poolSnap ? `${maxStreak}板` : null} /></div>
+      {/* ── 关键指标条：复盘第一眼，对标连板网/弈盘顶部那一排（带较前值）── */}
+      <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-7">
+        <div className="bg-surface px-3 py-2"><KeyNum label="涨停" value={poolSnap ? limitUpCount : null} tone="text-up" hint={prev ? `较前值 ${delta(limitUpCount, prev.total)}` : undefined} /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="连板" value={poolSnap ? ladderCount : null} tone="text-up" hint={prev ? `较前值 ${delta(ladderCount, prev.ladder)}` : undefined} /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="最高板" value={poolSnap ? `${maxStreak}板` : null} hint={prev ? `较前值 ${delta(maxStreak, prev.top)}` : undefined} /></div>
         <div className="bg-surface px-3 py-2"><KeyNum label="跌停" value={poolSnap ? limitDownCount : null} tone="text-down" /></div>
         <div className="bg-surface px-3 py-2"><KeyNum label="炸板率" value={breakRateVal != null ? `${(breakRateVal * 100).toFixed(0)}%` : null} /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="封板率" value={sealRate != null ? `${(sealRate * 100).toFixed(1)}%` : null} tone="text-up" /></div>
         <div className="bg-surface px-3 py-2"><KeyNum label="情绪温度" value={sentiment?.score != null ? `${sentiment.score}°` : null} hint={sentiment?.band ?? undefined} /></div>
       </div>
 
