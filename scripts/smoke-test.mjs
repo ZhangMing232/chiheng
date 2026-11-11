@@ -31,6 +31,7 @@ const PAGES = [
   "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）
   "/decision", // 2026-11-11 新增今日决策页
   "/hotmoney", // 2026-11-11 新增游资追踪页
+  "/intel", // 2026-11-11 新增市场情报页
   // 市场
   "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events", "/news", "/overseas",
   // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）

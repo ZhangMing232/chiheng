@@ -107,7 +107,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/hotmoney" | "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/intel" | "/hotmoney" | "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "总览", items: [
     { to: "/decision", label: "今日决策", icon: Compass },
@@ -128,6 +128,7 @@ const SIDEBAR: {
   {
     label: "资讯",
     items: [
+      { to: "/intel", label: "市场情报", icon: Sparkles },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/inbox", label: "消息与提醒", icon: Bell },
       { to: "/studio", label: "自媒体图文", icon: Image },

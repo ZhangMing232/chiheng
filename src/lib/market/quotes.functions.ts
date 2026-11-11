@@ -1514,6 +1514,35 @@ export const getRegulatoryRadar = createServerFn({ method: "GET" }).handler(asyn
   }
 });
 
+export type IntelCard = {
+  title: string;
+  time: string;
+  importance: number;
+  theme: string;
+  summary: string;
+  reason: string;
+  benefits: string[];
+  stocks: string[];
+};
+export type IntelPayload = { date: string; cards: IntelCard[]; annGroups: { name: string; count: number }[]; annTotal: number };
+
+/** 市场情报（fetch-market-intel.ts 采集，转发弈盘 yipanai hotspot 公开接口）。 */
+export const getMarketIntel = createServerFn({ method: "GET" }).handler(async (): Promise<IntelPayload> => {
+  try {
+    const { readFile, readdir } = await import("node:fs/promises");
+    const dir = dataPath("data", "history", "market-intel");
+    const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith(".json")).sort();
+    if (files.length === 0) return { date: "", cards: [], annGroups: [], annTotal: 0 };
+    const raw = await readFile(`${dir}/${files[files.length - 1]}`, "utf8");
+    const parsed = JSON.parse(raw) as IntelPayload;
+    return { date: parsed.date ?? "", cards: parsed.cards ?? [], annGroups: parsed.annGroups ?? [], annTotal: parsed.annTotal ?? 0 };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getMarketIntel 读文件失败:", e instanceof Error ? e.message : String(e));
+    return { date: "", cards: [], annGroups: [], annTotal: 0 };
+  }
+});
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {

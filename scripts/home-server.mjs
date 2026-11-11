@@ -403,6 +403,26 @@ function runDecisionPush() {
   });
 }
 
+// ── 市场情报：收盘后 15:30 采（新闻解读→题材→个股传导，转发弈盘 hotspot 公开接口）──
+let marketIntelRanDay = "";
+function runMarketIntel() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (marketIntelRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 30)) return;
+  marketIntelRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/fetch-market-intel.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("市场情报没采成，手动跑 fetch-market-intel.ts 补");
+  });
+}
+
 // ── 龙虎榜/游资：收盘后 17:00 抓（东财龙虎榜 ~17:00 更新）——按天落盘 data/risk/hotmoney/。
 // 页面 getHotMoney 是现拉缓存的，这里是补历史归档（回测用）。去重看当日文件是否已落。
 let hotmoneyRanDay = "";
@@ -528,6 +548,7 @@ runMarketSnapshot();
 runLimitUpReason();
 runRegulatoryRadar();
 runHotmoneyFetch();
+runMarketIntel();
 runDecisionPush();
 runStrategyVerdict();
 runSignalGen();
@@ -541,6 +562,7 @@ const marketSnapshotTimer = setInterval(runMarketSnapshot, 60_000);
 const limitUpReasonTimer = setInterval(runLimitUpReason, 60_000);
 const regulatoryTimer = setInterval(runRegulatoryRadar, 60_000);
 const hotmoneyTimer = setInterval(runHotmoneyFetch, 60_000);
+const marketIntelTimer = setInterval(runMarketIntel, 60_000);
 const decisionPushTimer = setInterval(runDecisionPush, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
