@@ -22,6 +22,7 @@ import { Route as FlowRouteImport } from './routes/flow'
 import { Route as HotmoneyRouteImport } from './routes/hotmoney'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as IntelRouteImport } from './routes/intel'
+import { Route as LadderRouteImport } from './routes/ladder'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembershipRouteImport } from './routes/membership'
 import { Route as MyStocksRouteImport } from './routes/my-stocks'
@@ -143,6 +144,11 @@ const InboxRoute = InboxRouteImport.update({
 const IntelRoute = IntelRouteImport.update({
   id: '/intel',
   path: '/intel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LadderRoute = LadderRouteImport.update({
+  id: '/ladder',
+  path: '/ladder',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -445,6 +451,7 @@ export interface FileRoutesByFullPath {
   '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
+  '/ladder': typeof LadderRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
   '/my-stocks': typeof MyStocksRoute
@@ -516,6 +523,7 @@ export interface FileRoutesByTo {
   '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
+  '/ladder': typeof LadderRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
   '/my-stocks': typeof MyStocksRoute
@@ -586,6 +594,7 @@ export interface FileRoutesById {
   '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
+  '/ladder': typeof LadderRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
   '/my-stocks': typeof MyStocksRoute
@@ -660,6 +669,7 @@ export interface FileRouteTypes {
     | '/hotmoney'
     | '/inbox'
     | '/intel'
+    | '/ladder'
     | '/login'
     | '/membership'
     | '/my-stocks'
@@ -731,6 +741,7 @@ export interface FileRouteTypes {
     | '/hotmoney'
     | '/inbox'
     | '/intel'
+    | '/ladder'
     | '/login'
     | '/membership'
     | '/my-stocks'
@@ -800,6 +811,7 @@ export interface FileRouteTypes {
     | '/hotmoney'
     | '/inbox'
     | '/intel'
+    | '/ladder'
     | '/login'
     | '/membership'
     | '/my-stocks'
@@ -873,6 +885,7 @@ export interface RootRouteChildren {
   HotmoneyRoute: typeof HotmoneyRoute
   InboxRoute: typeof InboxRoute
   IntelRoute: typeof IntelRoute
+  LadderRoute: typeof LadderRoute
   LoginRoute: typeof LoginRoute
   MembershipRoute: typeof MembershipRoute
   MyStocksRoute: typeof MyStocksRoute
@@ -992,6 +1005,13 @@ declare module '@tanstack/react-router' {
       path: '/intel'
       fullPath: '/intel'
       preLoaderRoute: typeof IntelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ladder': {
+      id: '/ladder'
+      path: '/ladder'
+      fullPath: '/ladder'
+      preLoaderRoute: typeof LadderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -1527,6 +1547,7 @@ const rootRouteChildren: RootRouteChildren = {
   HotmoneyRoute: HotmoneyRoute,
   InboxRoute: InboxRoute,
   IntelRoute: IntelRoute,
+  LadderRoute: LadderRoute,
   LoginRoute: LoginRoute,
   MembershipRoute: MembershipRoute,
   MyStocksRoute: MyStocksRoute,

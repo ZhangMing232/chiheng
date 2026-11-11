@@ -34,6 +34,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  TrendingUp,
   Star,
   type LucideIcon,
 } from "lucide-react";
@@ -107,7 +108,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/rotation" | "/intel" | "/hotmoney" | "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/ladder" | "/rotation" | "/intel" | "/hotmoney" | "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "总览", items: [
     { to: "/decision", label: "今日决策", icon: Compass },
@@ -121,6 +122,7 @@ const SIDEBAR: {
       // 2026-11-11 再把 /overview 涨跌分布并进来做第五个子 tab——它和复盘都是市场视图，
       // 指数/资金/快讯全重复，只有直方图独有。侧栏「市场」组少一个入口。
       { to: "/review", label: "每日复盘", icon: History },
+      { to: "/ladder", label: "连板天梯", icon: TrendingUp },
       { to: "/rotation", label: "题材轮动", icon: RefreshCw },
       { to: "/hotmoney", label: "游资追踪", icon: LineChart },
       { to: "/overseas", label: "全球行情", icon: Globe },
