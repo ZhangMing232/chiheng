@@ -97,3 +97,24 @@
 - **窄屏表格必须给 `min-w-`，否则 `overflow-x-auto` 不生效。** `table w-full` 在 390px 下
   会被压扁而不是滚动：30 个交易日的热力图日期会连成一片、`/grid` 三列会把票名截成「日…」。
   修法是 `table className="w-full min-w-[760px]"`，让外层容器真的横向滚。
+
+### 2026-11-11 晚 又补三条（都是这轮真踩到的）
+
+- **路由树是生成物，`tsc` 之前必须让它重生。** 新增/挪动 `src/routes/` 下的文件后，
+  `src/routeTree.gen.ts` 不会自己变（插件只在 vite 起服务/构建时生成），于是
+  `createFileRoute("/新路径")` 直接类型报错。重生一条命令：
+  `(node scripts/with-app-env.mjs npx vite dev --port 5199 &) ; sleep 20 ; lsof -ti tcp:5199 | xargs kill`
+  ——起个临时 dev 让它生成完就杀，别靠手改那份 1650 行的文件。
+  **删路由同理**：文件删了但路由树还留着，会出现「幽灵路由」（smoke 能打 200，导航里却点不到）。
+- **扁平路由文件名里的点就是斜杠。** `review.flow.tsx` 是 `/review/flow`，不是 `/review.flow`。
+  `scripts/smoke-pages.test.mjs` 的路由推导原来直接拿文件名拼路径，遇到点号文件名会推错，
+  守门测试反而误报——现在统一 `.replace(/\./g, "/")`。
+- **临时验证端口别复用手边那个。** 会话早期起的 8788 进程会一直活着，`npm run build:mac`
+  又故意不强杀服务，于是「新构建 + 旧进程 = 打出来全是旧页面」，这一轮白排查了半小时：
+  侧栏明明改了，页面还是旧结构。**规矩：每次验证先 `lsof -ti tcp:<端口>` 杀掉重开**，
+  或者直接换个端口（8789）。
+- **手机端截图要用 CDP emulation，不能用 `--window-size=390`。**
+  `Chrome --headless --screenshot --window-size=390,1400` 截出来右边会少一截，
+  看着像横向溢出，其实 `scrollWidth` 正好 390——是截图画布和布局视口不一致。
+  正确姿势：CDP `Emulation.setDeviceMetricsOverride {width:390, mobile:true}` 再
+  `Page.captureScreenshot`。判「有没有溢出」以 `documentElement.scrollWidth` 为准，不看截图猜。

@@ -388,7 +388,19 @@ function runMarketSnapshot() {
 
 /** 快照之后的下游计算。失败只在日志里说，不阻塞别的定时任务。 */
 function runAfterSnapshot() {
-  const steps = ["scripts/cycle-history.ts", "scripts/brief-build.ts"];
+  // 顺序有讲究：
+  //   cycle-history / brief-build 是老链路（情绪周期、题材简报）
+  //   closes-index 把日线压成按日收盘价快照（/interval 区间统计读它）
+  //   rs-build 出趋势中军榜（/rs）
+  //   forecast 落档今天要盯的 3 只（/huiyan，自带「没封印就不落」的闸）
+  // 前一步失败只记日志、接着跑下一步——一块数据坏了不该拖死后面四块。
+  const steps = [
+    "scripts/cycle-history.ts",
+    "scripts/brief-build.ts",
+    "scripts/closes-index.ts",
+    "scripts/rs-build.ts",
+    "scripts/forecast.ts",
+  ];
   const next = (i) => {
     if (i >= steps.length) return;
     const c = spawn(process.execPath, ["--experimental-strip-types", "--import", "./scripts/alias.mjs", steps[i]], {
@@ -487,6 +499,41 @@ function runHotmoneyFetch() {
   child.on("exit", (code) => {
     if (code) console.error("龙虎榜归档没抓成，手动跑 fetch-hotmoney-history.ts 补");
   });
+}
+
+// ── 席位档案：收盘后 18:10 建（东财龙虎榜 17:00 才更新，比它再晚一小时）──
+// 2026-11-11 新页 /youzi/seats 的数据靠这一步。之前 seats-build.ts 写好了却没人调度，
+// 页面一直空着——脚本"存在"不等于"在跑"，这次把它挂进每日链路。
+// record-hotmoney 是幂等的（当天文件已存在就不覆盖），先跑它兜住 17:00 那次没抓成的日子，
+// 再跑 seats-build 聚合。去重看 data/history/seats/latest.json 的 sourceLast。
+let seatsRanDay = "";
+function runSeatsArchive() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (seatsRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  if (hour < 18) return;
+  // 注意不能用 readSignalField：它固定读 data/signals/，席位档案在 data/history/seats/。
+  let lastBuilt = null;
+  try {
+    lastBuilt = JSON.parse(readFileSync(join(ROOT, "data", "history", "seats", "latest.json"), "utf8")).sourceLast ?? null;
+  } catch {
+    lastBuilt = null; // 还没建过，正常
+  }
+  if (lastBuilt === day) { seatsRanDay = day; return; }
+  seatsRanDay = day;
+  const steps = ["scripts/record-hotmoney.ts", "scripts/seats-build.ts"];
+  const next = (i) => {
+    if (i >= steps.length) return;
+    const c = spawn(process.execPath, ["--experimental-strip-types", "--import", "./scripts/alias.mjs", steps[i]], {
+      stdio: "inherit",
+    });
+    c.on("exit", (code) => {
+      if (code) console.error(`${steps[i]} 没跑成（退出码 ${code}），席位档案保持上一份`);
+      next(i + 1);
+    });
+  };
+  next(0);
 }
 
 // ── 监管异动雷达：收盘后 15:15 算（快照 15:12 落盘之后）——从 K 线算 3 日偏离值，
@@ -592,6 +639,7 @@ runMarketSnapshot();
 runLimitUpReason();
 runRegulatoryRadar();
 runHotmoneyFetch();
+runSeatsArchive();
 runMarketIntel();
 runThemeRotation();
 runDecisionPush();

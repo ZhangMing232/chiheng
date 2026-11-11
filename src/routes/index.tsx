@@ -279,7 +279,7 @@ function Dashboard() {
         <Link to="/ladder" className="text-accent hover:underline">连板天梯 →</Link>
         <Link to="/grid" className="text-accent hover:underline">多股同屏 →</Link>
         <Link to="/cycle" className="text-accent hover:underline">情绪周期 →</Link>
-        <Link to="/brief" className="text-accent hover:underline">题材简报 →</Link>
+        <Link to="/themes/brief" className="text-accent hover:underline">题材简报 →</Link>
         <Link to="/decision" className="text-accent hover:underline">今日决策 →</Link>
       </div>
 

@@ -86,7 +86,7 @@ export function Picks({
   // 右键菜单三项：看个股开抽屉，资金流向跳资金区个股子页，复制代码进剪贴板。
   const menuFor = (pick: Pick): RowMenuItem[] => [
     { label: "看个股", onClick: () => onOpen(pick.quote.id) },
-    { label: "看资金流向", onClick: () => void navigate({ to: "/review/flow/stocks" }) },
+    { label: "看资金流向", onClick: () => void navigate({ to: "/flow/stocks" }) },
     { label: "复制代码", onClick: () => void navigator.clipboard?.writeText(pick.quote.code) },
   ];
   // 2026-10-25 两本账对齐：只认服务端账。读不到时不拿本机浏览器账顶替——

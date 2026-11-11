@@ -20,6 +20,8 @@
 import {
   Activity,
   Bell,
+  CalendarRange,
+  CheckCircle2,
   Compass,
   BrainCircuit,
   Coins,
@@ -146,11 +148,10 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     purpose: "收盘后把今天理一遍：盘面 · 资金 · 事件",
     hue: "blue",
   },
-  // 2026-10-23 资金流向并入复盘后，路由从 /flow/* 变成 /review/flow/*。
+  // 2026-11-11 资金流向又从复盘拆回平级（/review/flow/* → /flow/*）。
   // **配置表的键必须跟着路由走**：不改的话 decorFor 的前缀匹配会把这些页
-  // 全部判给 /review——标题显示「每日复盘」、专属件变成「今天节奏」，
-  // 而侧栏 aside 还写着「资金流向 · 个股」，两处对不上（实测踩到）。
-  "/review/flow": {
+  // 全部判给别的父级——标题、专属件、侧栏 aside 三处对不上（2026-10-23 实测踩过）。
+  "/flow": {
     title: "资金流向",
     icon: Coins,
     purpose: "钱往哪去：个股、板块、游资三条线",
@@ -200,32 +201,44 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     hue: "blue",
     ornament: "pulse-wave",
   },
-  "/rotation": {
-    title: "题材轮动",
+  // 2026-11-11 三页合一（市场情报 / 题材轮动 / 题材简报）。
+  // 配置表的键跟着路由走：/themes/intel 这类子页靠前缀匹配继承这一条。
+  "/themes": {
+    title: "题材",
     icon: RefreshCw,
-    purpose: "钱从哪个题材流到哪个题材",
-    hue: "blue",
-  },
-  "/hotmoney": {
-    title: "游资追踪",
-    icon: Flame,
-    purpose: "谁在买：营业部席位与龙虎榜动向",
-    hue: "blue",
-  },
-  "/intel": {
-    title: "市场情报",
-    icon: Newspaper,
-    purpose: "消息、公告、异动，按题材归堆",
-    hue: "blue",
-  },
-  "/brief": {
-    title: "题材简报",
-    icon: FileText,
-    purpose: "催化 → 题材 → 个股，每只票的分数能手工复算",
+    purpose: "消息从哪来 → 钱在往哪去 → 里面哪几只",
     hue: "blue",
     ornament: "evidence-chain",
   },
-
+  // 2026-11-11 两页合一（游资追踪 / 席位档案）。
+  "/youzi": {
+    title: "游资与席位",
+    icon: Flame,
+    purpose: "今天谁在买，跟这些席位买到底赚不赚",
+    hue: "blue",
+  },
+  // 2026-11-11 新增三页：前瞻回验 / 趋势中军 / 区间统计。
+  // 都不是「新功能组」，而是补进已有组里，所以色相跟着所在组走：
+  // 回验属盘前（brand）、趋势与区间属研究（blue）。
+  // L3 装饰件一律不给——这四页的信息本身就是表，硬凑一个装饰件只会抢眼。
+  "/huiyan": {
+    title: "前瞻回验",
+    icon: CheckCircle2,
+    purpose: "每天落档3只，次日自动结算，不许改口",
+    hue: "brand",
+  },
+  "/rs": {
+    title: "趋势中军",
+    icon: Gauge,
+    purpose: "四个周期涨幅的中位秩，取最强 200 只",
+    hue: "blue",
+  },
+  "/interval": {
+    title: "区间统计",
+    icon: CalendarRange,
+    purpose: "任意两天的区间里，谁涨谁跌、题材谁强谁弱",
+    hue: "blue",
+  },
   "/strategies/screener": {
     title: "策略",
     icon: ListFilter,

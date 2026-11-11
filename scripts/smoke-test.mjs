@@ -29,18 +29,17 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 // 路由都会直接红，不会再静默漂移。
 const PAGES = [
   "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）
-  "/decision", // 2026-11-11 新增今日决策页
-  "/hotmoney", // 2026-11-11 新增游资追踪页
-  "/intel", // 2026-11-11 新增市场情报页
-  "/rotation", // 2026-11-11 新增题材轮动页
-  "/ladder", // 2026-11-11 新增连板天梯页
-  "/grid", // 2026-11-11 新增多股同屏（位置不重排 + 涨停原因气泡）
-  "/cycle", // 2026-11-11 新增情绪周期（阶段带 / 板位热力图 / 转移矩阵）
-  "/brief", // 2026-11-11 新增题材前瞻简报（催化 / 密度 / 个股分数与论据）
-  // 市场
-  "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events", "/news", "/overseas",
-  // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）
-  "/butler", "/studio", "/research", "/debate", "/research/debate", "/research/reports", "/research/notes",
+  // 盘前 / 盯盘 / 研究（2026-11-11 新增的一批）
+  "/decision", "/huiyan", "/grid", "/ladder", "/cycle", "/rs", "/interval",
+  // 盘后：复盘 / 资金流向 / 游资与席位 / 题材
+  "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events",
+  "/flow", "/flow/north", "/flow/industries", "/flow/sectors", "/flow/stocks",
+  "/flow/hot", "/flow/close", "/flow/margin", "/flow/futures",
+  "/youzi", "/youzi/track", "/youzi/seats",
+  "/themes", "/themes/intel", "/themes/rotation", "/themes/brief",
+  "/news", "/overseas",
+  // 工作台 + 研究 + 我的（按侧栏顺序）
+  "/butler", "/studio", "/research", "/research/debate", "/research/reports", "/research/notes",
   "/my-stocks", "/inbox", "/settings", "/admin", "/membership", "/login",
   // 策略因子
   "/strategies/screener", "/strategies/positions",
@@ -49,22 +48,22 @@ const PAGES = [
   // 竞技场（策略竞技场 + 信号系统，10-28）
   "/strategies/signals", "/strategies/manage", "/strategies/autopsy", "/strategies/genome",
   "/strategies/tracking", "/arena/signals", "/arena/autopsy",
-  // 资金流向并入复盘后的真实子页（10-23，b183e00）
-  "/review/flow", "/review/flow/stocks", "/review/flow/sectors", "/review/flow/margin",
-  "/review/flow/north", "/review/flow/industries", "/review/flow/hot", "/review/flow/close", "/review/flow/futures",
   // 个股 + AI（pinned 在侧栏底部）
   "/symbol", "/ai", "/ai/config", "/ai/rules", "/ai/usage",
-  // 旧书签重定向不断链：/screener /positions（10-21 策略区合并）、/signals /calendar
-  // （复盘区合并）、/flow/stocks（10-23 资金流向合并）各留一个代表
-  "/screener", "/positions", "/signals", "/calendar", "/flow/stocks",
+  // 旧书签重定向不断链：每次信息架构合并留代表验不断链
+  // （/screener /positions 10-21 策略区、/signals /calendar 10-21 复盘区、
+  //   /review/flow/stocks 11-11 资金流向拆回平级、/debate 10-26 研究区、
+  //   /hotmoney /brief 11-11 游资与题材合并）
+  "/screener", "/positions", "/signals", "/calendar", "/review/flow/stocks", "/debate", "/hotmoney", "/brief",
 ];
+
 // 步骤 3 是「从首页点导航链接走 SPA 路由」——只能点侧栏里真实存在的入口
 // （含底部 pinned 的 /ai）。上一版里的 /flow 在 10-23 撤掉侧栏入口后必然点不到，
 // 是漂移的一部分。子页面（/strategies/positions、/review/signals、/review/flow/*
 // 这类）不在侧栏里，靠页面内 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
 // /studio、/research 2026-11-11 从侧栏收掉（只留直链），不该再放进这一组——
 // 放进来必然「导航里找不到链接」，白占一个 fail。
-const NAV_PAGES = ["/butler", "/grid", "/cycle", "/brief", "/strategies/screener", "/factors", "/my-stocks", "/backtest", "/ai"];
+const NAV_PAGES = ["/butler", "/grid", "/cycle", "/flow", "/youzi", "/themes", "/huiyan", "/rs", "/interval", "/strategies/screener", "/factors", "/my-stocks", "/backtest", "/ai"];
 
 /** 等 fn 返回非 undefined 值，超时抛错 */
 async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {

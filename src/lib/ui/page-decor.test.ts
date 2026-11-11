@@ -26,7 +26,7 @@ test("🔴 功能组色相必须一致：同一组的页面共用一个色相", 
   // 底纹的意义就是「一眼知道在哪一组」——组内色相不一致等于没有底纹。
   const groups: Record<string, string[]> = {
     工作台: ["/", "/butler", "/studio"],
-    市场: ["/overview", "/review", "/review/flow", "/news", "/overseas"],
+    市场: ["/overview", "/review", "/flow", "/news", "/overseas"],
     策略因子: ["/strategies/screener", "/factors", "/backtest"],
     研究: ["/research", "/debate", "/reports", "/notes"],
     我的: ["/my-stocks", "/inbox", "/settings", "/admin"],
@@ -44,10 +44,10 @@ test("decorFor：精确匹配", () => {
   assert.equal(d.hue, "violet");
 });
 
-test("decorFor：子页面继承父页面（/review/flow/stocks 归 /review/flow）", () => {
-  const d = decorFor("/review/flow/stocks");
+test("decorFor：子页面继承父页面（/flow/stocks 归 /flow）", () => {
+  const d = decorFor("/flow/stocks");
   assert.ok(d, "子页面应该能拿到父页面的装饰");
-  assert.equal(d.hue, PAGE_DECOR["/review/flow"]!.hue);
+  assert.equal(d.hue, PAGE_DECOR["/flow"]!.hue);
 });
 
 test("decorFor：前缀匹配取最长的（/strategies/screener 不被 /strategies 抢走）", () => {
@@ -66,11 +66,11 @@ test("🔴 根路径 '/' 不能参与前缀匹配（否则所有页面都变成�
   assert.equal(d?.hue, "blue");
 });
 
-test("🔴 并入复盘后资金流向页仍拿自己的配置（不能掉回归复区）", () => {
-  // 2026-10-23：/flow/* 并入成 /review/flow/* 后，配置表如果还写着 "/flow"，
-  // 前缀匹配会把 /review/flow/stocks 判给 /review——标题变成「每日复盘」、
-  // 专属件变成「今天节奏」，而侧栏 aside 还是「资金流向 · 个股」。
-  for (const path of ["/review/flow", "/review/flow/stocks", "/review/flow/hot"]) {
+test("🔴 拆回平级后资金流向页仍拿自己的配置（不能掉进别的父级）", () => {
+  // 2026-11-11：/review/flow/* 拆回 /flow/*。配置表如果还写着 "/review/flow"，
+  // 这些页就拿不到配置（或者更糟——被前缀匹配判给别的页），标题、专属件、
+  // 侧栏 aside 三处对不上。这里钉住「拆回来之后仍然认得自己」。
+  for (const path of ["/flow", "/flow/stocks", "/flow/hot"]) {
     const d = decorFor(path);
     assert.ok(d, `${path} 没有配置`);
     assert.equal(d!.title, "资金流向", `${path} 的标题掉了`);

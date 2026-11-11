@@ -17,9 +17,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   Bell,
+  CalendarRange,
+  CheckCircle2,
   Compass,
   Bot,
   ChevronDown,
+  Coins,
   FileSearch,
   FileText,
   FlaskConical,
@@ -39,6 +42,7 @@ import {
   Sparkles,
   TrendingUp,
   Star,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
@@ -88,10 +92,22 @@ function AccountChip() {
 
 
 /**
- * 左侧分组导航。2026-10-26 按《UI 升级方案》（design/ui-upgrade-2026-10.md）
- * 重组成七组信息架构：
+ * 左侧分组导航。最近一次大改是 2026-11-11：从「按功能类型分组」改成
+ * **按一天的节奏分组**（对标连板网 / 弈盘的导航组织方式）：
  *
- *   总览 / 市场 / 资讯 / 研究 / 组合 / 进化 / AI，外加设置。
+ *   盘前 / 盯盘 / 盘后 / 研究 / 资讯 / 进化 / AI，外加设置。
+ *
+ * 为什么改：上一版（10-26 的七组）是「总览 / 市场 / 资讯 / 研究 / 组合 / 进化 / AI」，
+ * 按「这是行情还是资讯」分类。用了半个月发现两个问题：市场组 7 项挤成一坨、
+ * 研究组只剩「自选」一项名不符实。按时间走之后，早上打开看盘前、盘中看盯盘、
+ * 收盘看盘后，每一组都是那个时段真会点的东西。
+ *
+ * 同日还做了三件结构合并（都留了重定向，书签不断链）：
+ *   - 资金流向从复盘里拆回平级 /flow（它自己有 8 个子页，挂在复盘下就是三层导航）
+ *   - 市场情报 + 题材轮动 + 题材简报 → /themes 三个 tab
+ *   - 游资追踪 + 席位档案 → /youzi 两个 tab
+ *
+ * 以下是 10-26 那一版留下的说明，仍然成立：
  *
  * 这轮动了什么（对照上一版 5 组）：
  *   - 新增「总览」组承载首页（当前指向 /，P0-4 首页落地后由新首页接管）
@@ -107,62 +123,68 @@ function AccountChip() {
  *
  * 保留的三条老原则：
  *   1. 最多两级（分组 + 页面）；第三级只许在页面里切，不占侧栏
- *   2. 顺序按每天使用先后：先看总览 → 市场 → 资讯 → 研究（含自选）→ 进化 → AI
+ *      ——11-11 的三次合并都是照这条走的：子页进 tab，不占侧栏
+ *   2. 顺序按每天使用先后：盘前 → 盯盘 → 盘后 → 研究 → 资讯 → 进化 → AI
  *   3. 旧路由全部留重定向文件，书签不断链
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/ladder" | "/rotation" | "/intel" | "/hotmoney" | "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings" | "/cycle" | "/grid" | "/brief"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/decision" | "/huiyan" | "/grid" | "/ladder" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
-  { label: "总览", items: [
-    { to: "/decision", label: "今日决策", icon: Compass },
-    { to: "/", label: "总览", icon: LayoutDashboard },
-  ] },
+  // 2026-11-11 大重排：从「按功能类型分组」改成「按一天的节奏分组」。
+  // 原因：原来「市场」组 7 项挤成一坨、「研究」组只剩「自选」一项名不符实，
+  // 而连板网和弈盘都是按 盘前→盯盘→盘后→研究 组织的。分组跟着人做事的时间走，
+  // 比跟着「这是行情还是资讯」走要顺手。
   {
-    label: "市场",
+    label: "盘前",
     items: [
-      // 2026-10-26 三合一：每日复盘 / 资金流向 / 信号 / 公司事件合成一个「每日复盘」页，
-      // 里面二级 tab 切换（SectionTabs），侧栏不再平铺四个入口。
-      // 2026-11-11 再把 /overview 涨跌分布并进来做第五个子 tab——它和复盘都是市场视图，
-      // 指数/资金/快讯全重复，只有直方图独有。侧栏「市场」组少一个入口。
-      { to: "/review", label: "每日复盘", icon: History },
-      { to: "/ladder", label: "连板天梯", icon: TrendingUp },
-      // 2026-11-11 新增：多股同屏（位置不重排的盯盘格）与情绪周期（阶段/热力图/转移）
+      { to: "/", label: "总览", icon: LayoutDashboard },
+      { to: "/decision", label: "今日决策", icon: Compass },
+      // 2026-11-11 新增：前瞻回验（每日落档 + 次日对照，赤轨的自证页）
+      { to: "/huiyan", label: "前瞻回验", icon: CheckCircle2 },
+    ],
+  },
+  {
+    label: "盯盘",
+    items: [
       { to: "/grid", label: "多股同屏", icon: Grid3x3 },
+      { to: "/ladder", label: "连板天梯", icon: TrendingUp },
+    ],
+  },
+  {
+    label: "盘后",
+    items: [
+      { to: "/review", label: "每日复盘", icon: History },
+      // 2026-11-11 从复盘里拆出来：它自己有 8 个子页，挂在复盘下面就是三层导航
+      { to: "/flow", label: "资金流向", icon: Coins },
+      // 2026-11-11 两页合一：今天谁在买 → 跟这些席位买赚不赚
+      { to: "/youzi", label: "游资与席位", icon: Users },
+      // 2026-11-11 三页合一：消息从哪来 → 钱在往哪去 → 里面哪几只
+      { to: "/themes", label: "题材", icon: FileText },
+    ],
+  },
+  {
+    label: "研究",
+    items: [
       { to: "/cycle", label: "情绪周期", icon: Activity },
-      { to: "/rotation", label: "题材轮动", icon: RefreshCw },
-      { to: "/hotmoney", label: "游资追踪", icon: LineChart },
-      { to: "/overseas", label: "全球行情", icon: Globe },
+      // 2026-11-11 新增：区间统计、RS 榜——都是「跨日视角」，和当天的盘面分开
+      { to: "/interval", label: "区间统计", icon: CalendarRange },
+      { to: "/rs", label: "趋势中军", icon: Gauge },
+      { to: "/my-stocks", label: "自选", icon: Star },
     ],
   },
   {
     label: "资讯",
     items: [
-      { to: "/intel", label: "市场情报", icon: Sparkles },
-      // 2026-11-11 新增：题材前瞻简报（催化 / 密度 / 个股分数与论据）
-      { to: "/brief", label: "题材简报", icon: FileText },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/inbox", label: "消息与提醒", icon: Bell },
-      // 2026-11-11 清理：自媒体图文（内容生成）从侧栏收掉——它是发内容的，不是交易决策，
-      // 直链 /studio 保留（不删路由），只是不在导航占位。
-    ],
-  },
-  {
-    label: "研究",
-    // 2026-10-27 组合 + 研究 合成一个侧栏分组：两个分组各只有一项（研究页 / 自选），
-    // 平铺成两个分组纯属占行；自选（持仓观察）作为研究工作流的一环归到研究下。
-    // 旧地址 /debate /reports /notes 保留重定向，/strategies/positions 路由保留直链可达。
-    items: [
-      // 2026-11-11 清理：个股研判（/research 七阶段 SOP）从侧栏收掉——它说半天没结论、
-      // 还老缺数据，用户明确说不好用。直链保留，只是不占导航。自选（/my-stocks）留下。
-      { to: "/my-stocks", label: "自选", icon: Star },
+      { to: "/overseas", label: "全球行情", icon: Globe },
     ],
   },
   {
     label: "进化",
-    // 2026-11-11 清理标注：这一组是研究层——策略看板里只有「低估值」是现役，
-    // 因子实验室的 40 因子 + 92 坟墓从不进实盘信号。留着是给「回测/walk-forward」用，
-    // 不是决策入口。决策在「今日决策」。
+    // 研究层：策略看板里只有「低估值」是现役，因子实验室的 40 因子 + 92 坟墓
+    // 从不进实盘信号。留着是给「回测/walk-forward」用，不是决策入口。
     items: [
       { to: "/strategies/screener", label: "策略看板", icon: LayoutList },
       { to: "/factors", label: "因子实验室", icon: FlaskConical },
@@ -180,8 +202,6 @@ const SIDEBAR: {
       // 沿用 10-26 处理「行为边界」的同一做法：入口收进 tab，直链不删。
       // /ai/config 路由、页面、smoke PAGES、QuickSearch 直达词条全部保留；
       // navHit 的前缀匹配会把 /ai/config 归到 /ai，顶栏名和激活态都不丢。
-      // 2026-10-26 去掉「行为边界」侧栏入口：AI 能做什么全文在 AI-BOUNDARY.md，
-      // 页面直链 /ai/rules 仍可达。
     ],
   },
   { label: "设置", items: [{ to: "/settings", label: "设置与状态", icon: Settings }] },
@@ -530,8 +550,9 @@ function PageTitle() {
  */
 const COMMANDS: { label: string; keywords: string; to: string; search?: Record<string, unknown> }[] = [
   { label: "总览", keywords: "home dashboard 首页", to: "/" },
-  { label: "涨跌分布", keywords: "market overview 大盘 广度", to: "/overview" },
-  { label: "复盘与资金", keywords: "review flow 资金流向", to: "/review" },
+  { label: "涨跌分布", keywords: "market overview 大盘 广度 breadth", to: "/review/breadth" },
+  { label: "每日复盘", keywords: "review 复盘", to: "/review" },
+  { label: "资金流向", keywords: "flow 资金 北向 两融 期指 板块 个股", to: "/flow" },
   { label: "情绪信号", keywords: "signals 涨停", to: "/review/signals" },
   { label: "公司事件", keywords: "events 日历 业绩", to: "/review/events" },
   { label: "全球市场", keywords: "overseas hk us 港美", to: "/overseas", search: { tab: "indices", market: "hk", page: 1, sort: "chg" } },
@@ -547,7 +568,11 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "失败归因", keywords: "autopsy 归因 亏损", to: "/strategies/autopsy" },
   { label: "多股同屏", keywords: "grid 同屏 盯盘 位置", to: "/grid" },
   { label: "情绪周期", keywords: "cycle 周期 阶段 冰点 高潮 转移", to: "/cycle" },
-  { label: "题材简报", keywords: "brief 题材 催化 前瞻 简报", to: "/brief" },
+  { label: "题材", keywords: "themes 题材 催化 前瞻 简报 brief 轮动 rotation 情报 intel", to: "/themes" },
+  { label: "游资与席位", keywords: "youzi hotmoney seats 游资 席位 龙虎榜 营业部", to: "/youzi" },
+  { label: "前瞻回验", keywords: "huiyan forecast 前瞻 落档 回验 命中", to: "/huiyan" },
+  { label: "趋势中军", keywords: "rs 相对强度 趋势 中军 排名", to: "/rs" },
+  { label: "区间统计", keywords: "interval 区间 涨幅 统计 板块", to: "/interval" },
   { label: "因子实验室", keywords: "factors 因子", to: "/factors" },
   { label: "回测", keywords: "backtest", to: "/backtest" },
   { label: "AI 工作台", keywords: "ai 智能", to: "/ai" },

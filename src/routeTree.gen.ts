@@ -23,8 +23,10 @@ import { Route as EventsRouteImport } from './routes/events'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as GridRouteImport } from './routes/grid'
 import { Route as HotmoneyRouteImport } from './routes/hotmoney'
+import { Route as HuiyanRouteImport } from './routes/huiyan'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as IntelRouteImport } from './routes/intel'
+import { Route as IntervalRouteImport } from './routes/interval'
 import { Route as LadderRouteImport } from './routes/ladder'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembershipRouteImport } from './routes/membership'
@@ -38,13 +40,17 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RotationRouteImport } from './routes/rotation'
+import { Route as RsRouteImport } from './routes/rs'
 import { Route as ScreenerRouteImport } from './routes/screener'
+import { Route as SeatsRouteImport } from './routes/seats'
 import { Route as SectorsRouteImport } from './routes/sectors'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as StrategiesRouteImport } from './routes/strategies'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as SymbolRouteImport } from './routes/symbol'
+import { Route as ThemesRouteImport } from './routes/themes'
+import { Route as YouziRouteImport } from './routes/youzi'
 import { Route as AiIndexRouteImport } from './routes/ai/index'
 import { Route as AiConfigRouteImport } from './routes/ai/config'
 import { Route as AiRulesRouteImport } from './routes/ai/rules'
@@ -56,7 +62,15 @@ import { Route as FactorsBaselineRouteImport } from './routes/factors/baseline'
 import { Route as FactorsBucketsRouteImport } from './routes/factors/buckets'
 import { Route as FactorsFlowRouteImport } from './routes/factors/flow'
 import { Route as FactorsGatesRouteImport } from './routes/factors/gates'
-import { Route as FlowSplatRouteImport } from './routes/flow.$'
+import { Route as FlowIndexRouteImport } from './routes/flow/index'
+import { Route as FlowCloseRouteImport } from './routes/flow/close'
+import { Route as FlowFuturesRouteImport } from './routes/flow/futures'
+import { Route as FlowHotRouteImport } from './routes/flow/hot'
+import { Route as FlowIndustriesRouteImport } from './routes/flow/industries'
+import { Route as FlowMarginRouteImport } from './routes/flow/margin'
+import { Route as FlowNorthRouteImport } from './routes/flow/north'
+import { Route as FlowSectorsRouteImport } from './routes/flow/sectors'
+import { Route as FlowStocksRouteImport } from './routes/flow/stocks'
 import { Route as ResearchIndexRouteImport } from './routes/research/index'
 import { Route as ResearchDebateRouteImport } from './routes/research/debate'
 import { Route as ResearchNotesRouteImport } from './routes/research/notes'
@@ -64,7 +78,7 @@ import { Route as ResearchReportsRouteImport } from './routes/research/reports'
 import { Route as ReviewIndexRouteImport } from './routes/review/index'
 import { Route as ReviewBreadthRouteImport } from './routes/review/breadth'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
-import { Route as ReviewFlowRouteImport } from './routes/review/flow'
+import { Route as ReviewFlowRouteImport } from './routes/review.flow'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
 import { Route as ReviewThemeRouteImport } from './routes/review/theme'
 import { Route as StrategiesAutopsyRouteImport } from './routes/strategies/autopsy'
@@ -74,15 +88,14 @@ import { Route as StrategiesPositionsRouteImport } from './routes/strategies/pos
 import { Route as StrategiesScreenerRouteImport } from './routes/strategies/screener'
 import { Route as StrategiesSignalsRouteImport } from './routes/strategies/signals'
 import { Route as StrategiesTrackingRouteImport } from './routes/strategies/tracking'
-import { Route as ReviewFlowIndexRouteImport } from './routes/review/flow/index'
-import { Route as ReviewFlowCloseRouteImport } from './routes/review/flow/close'
-import { Route as ReviewFlowFuturesRouteImport } from './routes/review/flow/futures'
-import { Route as ReviewFlowHotRouteImport } from './routes/review/flow/hot'
-import { Route as ReviewFlowIndustriesRouteImport } from './routes/review/flow/industries'
-import { Route as ReviewFlowMarginRouteImport } from './routes/review/flow/margin'
-import { Route as ReviewFlowNorthRouteImport } from './routes/review/flow/north'
-import { Route as ReviewFlowSectorsRouteImport } from './routes/review/flow/sectors'
-import { Route as ReviewFlowStocksRouteImport } from './routes/review/flow/stocks'
+import { Route as ThemesIndexRouteImport } from './routes/themes/index'
+import { Route as ThemesBriefRouteImport } from './routes/themes/brief'
+import { Route as ThemesIntelRouteImport } from './routes/themes/intel'
+import { Route as ThemesRotationRouteImport } from './routes/themes/rotation'
+import { Route as YouziIndexRouteImport } from './routes/youzi/index'
+import { Route as YouziSeatsRouteImport } from './routes/youzi/seats'
+import { Route as YouziTrackRouteImport } from './routes/youzi/track'
+import { Route as ReviewFlowSplatRouteImport } from './routes/review.flow.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -154,6 +167,11 @@ const HotmoneyRoute = HotmoneyRouteImport.update({
   path: '/hotmoney',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HuiyanRoute = HuiyanRouteImport.update({
+  id: '/huiyan',
+  path: '/huiyan',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InboxRoute = InboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
@@ -162,6 +180,11 @@ const InboxRoute = InboxRouteImport.update({
 const IntelRoute = IntelRouteImport.update({
   id: '/intel',
   path: '/intel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntervalRoute = IntervalRouteImport.update({
+  id: '/interval',
+  path: '/interval',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LadderRoute = LadderRouteImport.update({
@@ -229,9 +252,19 @@ const RotationRoute = RotationRouteImport.update({
   path: '/rotation',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RsRoute = RsRouteImport.update({
+  id: '/rs',
+  path: '/rs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScreenerRoute = ScreenerRouteImport.update({
   id: '/screener',
   path: '/screener',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SeatsRoute = SeatsRouteImport.update({
+  id: '/seats',
+  path: '/seats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SectorsRoute = SectorsRouteImport.update({
@@ -262,6 +295,16 @@ const StudioRoute = StudioRouteImport.update({
 const SymbolRoute = SymbolRouteImport.update({
   id: '/symbol',
   path: '/symbol',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ThemesRoute = ThemesRouteImport.update({
+  id: '/themes',
+  path: '/themes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const YouziRoute = YouziRouteImport.update({
+  id: '/youzi',
+  path: '/youzi',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AiIndexRoute = AiIndexRouteImport.update({
@@ -319,9 +362,49 @@ const FactorsGatesRoute = FactorsGatesRouteImport.update({
   path: '/factors/gates',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FlowSplatRoute = FlowSplatRouteImport.update({
-  id: '/$',
-  path: '/$',
+const FlowIndexRoute = FlowIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowCloseRoute = FlowCloseRouteImport.update({
+  id: '/close',
+  path: '/close',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowFuturesRoute = FlowFuturesRouteImport.update({
+  id: '/futures',
+  path: '/futures',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowHotRoute = FlowHotRouteImport.update({
+  id: '/hot',
+  path: '/hot',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowIndustriesRoute = FlowIndustriesRouteImport.update({
+  id: '/industries',
+  path: '/industries',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowMarginRoute = FlowMarginRouteImport.update({
+  id: '/margin',
+  path: '/margin',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowNorthRoute = FlowNorthRouteImport.update({
+  id: '/north',
+  path: '/north',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowSectorsRoute = FlowSectorsRouteImport.update({
+  id: '/sectors',
+  path: '/sectors',
+  getParentRoute: () => FlowRoute,
+} as any)
+const FlowStocksRoute = FlowStocksRouteImport.update({
+  id: '/stocks',
+  path: '/stocks',
   getParentRoute: () => FlowRoute,
 } as any)
 const ResearchIndexRoute = ResearchIndexRouteImport.update({
@@ -409,49 +492,44 @@ const StrategiesTrackingRoute = StrategiesTrackingRouteImport.update({
   path: '/tracking',
   getParentRoute: () => StrategiesRoute,
 } as any)
-const ReviewFlowIndexRoute = ReviewFlowIndexRouteImport.update({
+const ThemesIndexRoute = ThemesIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ReviewFlowRoute,
+  getParentRoute: () => ThemesRoute,
 } as any)
-const ReviewFlowCloseRoute = ReviewFlowCloseRouteImport.update({
-  id: '/close',
-  path: '/close',
-  getParentRoute: () => ReviewFlowRoute,
+const ThemesBriefRoute = ThemesBriefRouteImport.update({
+  id: '/brief',
+  path: '/brief',
+  getParentRoute: () => ThemesRoute,
 } as any)
-const ReviewFlowFuturesRoute = ReviewFlowFuturesRouteImport.update({
-  id: '/futures',
-  path: '/futures',
-  getParentRoute: () => ReviewFlowRoute,
+const ThemesIntelRoute = ThemesIntelRouteImport.update({
+  id: '/intel',
+  path: '/intel',
+  getParentRoute: () => ThemesRoute,
 } as any)
-const ReviewFlowHotRoute = ReviewFlowHotRouteImport.update({
-  id: '/hot',
-  path: '/hot',
-  getParentRoute: () => ReviewFlowRoute,
+const ThemesRotationRoute = ThemesRotationRouteImport.update({
+  id: '/rotation',
+  path: '/rotation',
+  getParentRoute: () => ThemesRoute,
 } as any)
-const ReviewFlowIndustriesRoute = ReviewFlowIndustriesRouteImport.update({
-  id: '/industries',
-  path: '/industries',
-  getParentRoute: () => ReviewFlowRoute,
+const YouziIndexRoute = YouziIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => YouziRoute,
 } as any)
-const ReviewFlowMarginRoute = ReviewFlowMarginRouteImport.update({
-  id: '/margin',
-  path: '/margin',
-  getParentRoute: () => ReviewFlowRoute,
+const YouziSeatsRoute = YouziSeatsRouteImport.update({
+  id: '/seats',
+  path: '/seats',
+  getParentRoute: () => YouziRoute,
 } as any)
-const ReviewFlowNorthRoute = ReviewFlowNorthRouteImport.update({
-  id: '/north',
-  path: '/north',
-  getParentRoute: () => ReviewFlowRoute,
+const YouziTrackRoute = YouziTrackRouteImport.update({
+  id: '/track',
+  path: '/track',
+  getParentRoute: () => YouziRoute,
 } as any)
-const ReviewFlowSectorsRoute = ReviewFlowSectorsRouteImport.update({
-  id: '/sectors',
-  path: '/sectors',
-  getParentRoute: () => ReviewFlowRoute,
-} as any)
-const ReviewFlowStocksRoute = ReviewFlowStocksRouteImport.update({
-  id: '/stocks',
-  path: '/stocks',
+const ReviewFlowSplatRoute = ReviewFlowSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => ReviewFlowRoute,
 } as any)
 
@@ -470,8 +548,10 @@ export interface FileRoutesByFullPath {
   '/flow': typeof FlowRouteWithChildren
   '/grid': typeof GridRoute
   '/hotmoney': typeof HotmoneyRoute
+  '/huiyan': typeof HuiyanRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
+  '/interval': typeof IntervalRoute
   '/ladder': typeof LadderRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -485,13 +565,17 @@ export interface FileRoutesByFullPath {
   '/research': typeof ResearchRouteWithChildren
   '/review': typeof ReviewRouteWithChildren
   '/rotation': typeof RotationRoute
+  '/rs': typeof RsRoute
   '/screener': typeof ScreenerRoute
+  '/seats': typeof SeatsRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
+  '/themes': typeof ThemesRouteWithChildren
+  '/youzi': typeof YouziRouteWithChildren
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
@@ -501,7 +585,14 @@ export interface FileRoutesByFullPath {
   '/factors/buckets': typeof FactorsBucketsRoute
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
-  '/flow/$': typeof FlowSplatRoute
+  '/flow/close': typeof FlowCloseRoute
+  '/flow/futures': typeof FlowFuturesRoute
+  '/flow/hot': typeof FlowHotRoute
+  '/flow/industries': typeof FlowIndustriesRoute
+  '/flow/margin': typeof FlowMarginRoute
+  '/flow/north': typeof FlowNorthRoute
+  '/flow/sectors': typeof FlowSectorsRoute
+  '/flow/stocks': typeof FlowStocksRoute
   '/research/debate': typeof ResearchDebateRoute
   '/research/notes': typeof ResearchNotesRoute
   '/research/reports': typeof ResearchReportsRoute
@@ -517,19 +608,19 @@ export interface FileRoutesByFullPath {
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/strategies/signals': typeof StrategiesSignalsRoute
   '/strategies/tracking': typeof StrategiesTrackingRoute
+  '/themes/brief': typeof ThemesBriefRoute
+  '/themes/intel': typeof ThemesIntelRoute
+  '/themes/rotation': typeof ThemesRotationRoute
+  '/youzi/seats': typeof YouziSeatsRoute
+  '/youzi/track': typeof YouziTrackRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
+  '/flow/': typeof FlowIndexRoute
   '/research/': typeof ResearchIndexRoute
   '/review/': typeof ReviewIndexRoute
-  '/review/flow/close': typeof ReviewFlowCloseRoute
-  '/review/flow/futures': typeof ReviewFlowFuturesRoute
-  '/review/flow/hot': typeof ReviewFlowHotRoute
-  '/review/flow/industries': typeof ReviewFlowIndustriesRoute
-  '/review/flow/margin': typeof ReviewFlowMarginRoute
-  '/review/flow/north': typeof ReviewFlowNorthRoute
-  '/review/flow/sectors': typeof ReviewFlowSectorsRoute
-  '/review/flow/stocks': typeof ReviewFlowStocksRoute
-  '/review/flow/': typeof ReviewFlowIndexRoute
+  '/themes/': typeof ThemesIndexRoute
+  '/youzi/': typeof YouziIndexRoute
+  '/review/flow/$': typeof ReviewFlowSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -542,11 +633,12 @@ export interface FileRoutesByTo {
   '/debate': typeof DebateRoute
   '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
-  '/flow': typeof FlowRouteWithChildren
   '/grid': typeof GridRoute
   '/hotmoney': typeof HotmoneyRoute
+  '/huiyan': typeof HuiyanRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
+  '/interval': typeof IntervalRoute
   '/ladder': typeof LadderRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -558,7 +650,9 @@ export interface FileRoutesByTo {
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
   '/rotation': typeof RotationRoute
+  '/rs': typeof RsRoute
   '/screener': typeof ScreenerRoute
+  '/seats': typeof SeatsRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
@@ -574,12 +668,20 @@ export interface FileRoutesByTo {
   '/factors/buckets': typeof FactorsBucketsRoute
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
-  '/flow/$': typeof FlowSplatRoute
+  '/flow/close': typeof FlowCloseRoute
+  '/flow/futures': typeof FlowFuturesRoute
+  '/flow/hot': typeof FlowHotRoute
+  '/flow/industries': typeof FlowIndustriesRoute
+  '/flow/margin': typeof FlowMarginRoute
+  '/flow/north': typeof FlowNorthRoute
+  '/flow/sectors': typeof FlowSectorsRoute
+  '/flow/stocks': typeof FlowStocksRoute
   '/research/debate': typeof ResearchDebateRoute
   '/research/notes': typeof ResearchNotesRoute
   '/research/reports': typeof ResearchReportsRoute
   '/review/breadth': typeof ReviewBreadthRoute
   '/review/events': typeof ReviewEventsRoute
+  '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
   '/review/theme': typeof ReviewThemeRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
@@ -589,19 +691,19 @@ export interface FileRoutesByTo {
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/strategies/signals': typeof StrategiesSignalsRoute
   '/strategies/tracking': typeof StrategiesTrackingRoute
+  '/themes/brief': typeof ThemesBriefRoute
+  '/themes/intel': typeof ThemesIntelRoute
+  '/themes/rotation': typeof ThemesRotationRoute
+  '/youzi/seats': typeof YouziSeatsRoute
+  '/youzi/track': typeof YouziTrackRoute
   '/ai': typeof AiIndexRoute
   '/factors': typeof FactorsIndexRoute
+  '/flow': typeof FlowIndexRoute
   '/research': typeof ResearchIndexRoute
   '/review': typeof ReviewIndexRoute
-  '/review/flow/close': typeof ReviewFlowCloseRoute
-  '/review/flow/futures': typeof ReviewFlowFuturesRoute
-  '/review/flow/hot': typeof ReviewFlowHotRoute
-  '/review/flow/industries': typeof ReviewFlowIndustriesRoute
-  '/review/flow/margin': typeof ReviewFlowMarginRoute
-  '/review/flow/north': typeof ReviewFlowNorthRoute
-  '/review/flow/sectors': typeof ReviewFlowSectorsRoute
-  '/review/flow/stocks': typeof ReviewFlowStocksRoute
-  '/review/flow': typeof ReviewFlowIndexRoute
+  '/themes': typeof ThemesIndexRoute
+  '/youzi': typeof YouziIndexRoute
+  '/review/flow/$': typeof ReviewFlowSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -619,8 +721,10 @@ export interface FileRoutesById {
   '/flow': typeof FlowRouteWithChildren
   '/grid': typeof GridRoute
   '/hotmoney': typeof HotmoneyRoute
+  '/huiyan': typeof HuiyanRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
+  '/interval': typeof IntervalRoute
   '/ladder': typeof LadderRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -634,13 +738,17 @@ export interface FileRoutesById {
   '/research': typeof ResearchRouteWithChildren
   '/review': typeof ReviewRouteWithChildren
   '/rotation': typeof RotationRoute
+  '/rs': typeof RsRoute
   '/screener': typeof ScreenerRoute
+  '/seats': typeof SeatsRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/strategies': typeof StrategiesRouteWithChildren
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
+  '/themes': typeof ThemesRouteWithChildren
+  '/youzi': typeof YouziRouteWithChildren
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
@@ -650,7 +758,14 @@ export interface FileRoutesById {
   '/factors/buckets': typeof FactorsBucketsRoute
   '/factors/flow': typeof FactorsFlowRoute
   '/factors/gates': typeof FactorsGatesRoute
-  '/flow/$': typeof FlowSplatRoute
+  '/flow/close': typeof FlowCloseRoute
+  '/flow/futures': typeof FlowFuturesRoute
+  '/flow/hot': typeof FlowHotRoute
+  '/flow/industries': typeof FlowIndustriesRoute
+  '/flow/margin': typeof FlowMarginRoute
+  '/flow/north': typeof FlowNorthRoute
+  '/flow/sectors': typeof FlowSectorsRoute
+  '/flow/stocks': typeof FlowStocksRoute
   '/research/debate': typeof ResearchDebateRoute
   '/research/notes': typeof ResearchNotesRoute
   '/research/reports': typeof ResearchReportsRoute
@@ -666,19 +781,19 @@ export interface FileRoutesById {
   '/strategies/screener': typeof StrategiesScreenerRoute
   '/strategies/signals': typeof StrategiesSignalsRoute
   '/strategies/tracking': typeof StrategiesTrackingRoute
+  '/themes/brief': typeof ThemesBriefRoute
+  '/themes/intel': typeof ThemesIntelRoute
+  '/themes/rotation': typeof ThemesRotationRoute
+  '/youzi/seats': typeof YouziSeatsRoute
+  '/youzi/track': typeof YouziTrackRoute
   '/ai/': typeof AiIndexRoute
   '/factors/': typeof FactorsIndexRoute
+  '/flow/': typeof FlowIndexRoute
   '/research/': typeof ResearchIndexRoute
   '/review/': typeof ReviewIndexRoute
-  '/review/flow/close': typeof ReviewFlowCloseRoute
-  '/review/flow/futures': typeof ReviewFlowFuturesRoute
-  '/review/flow/hot': typeof ReviewFlowHotRoute
-  '/review/flow/industries': typeof ReviewFlowIndustriesRoute
-  '/review/flow/margin': typeof ReviewFlowMarginRoute
-  '/review/flow/north': typeof ReviewFlowNorthRoute
-  '/review/flow/sectors': typeof ReviewFlowSectorsRoute
-  '/review/flow/stocks': typeof ReviewFlowStocksRoute
-  '/review/flow/': typeof ReviewFlowIndexRoute
+  '/themes/': typeof ThemesIndexRoute
+  '/youzi/': typeof YouziIndexRoute
+  '/review/flow/$': typeof ReviewFlowSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -697,8 +812,10 @@ export interface FileRouteTypes {
     | '/flow'
     | '/grid'
     | '/hotmoney'
+    | '/huiyan'
     | '/inbox'
     | '/intel'
+    | '/interval'
     | '/ladder'
     | '/login'
     | '/membership'
@@ -712,13 +829,17 @@ export interface FileRouteTypes {
     | '/research'
     | '/review'
     | '/rotation'
+    | '/rs'
     | '/screener'
+    | '/seats'
     | '/sectors'
     | '/settings'
     | '/signals'
     | '/strategies'
     | '/studio'
     | '/symbol'
+    | '/themes'
+    | '/youzi'
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
@@ -728,7 +849,14 @@ export interface FileRouteTypes {
     | '/factors/buckets'
     | '/factors/flow'
     | '/factors/gates'
-    | '/flow/$'
+    | '/flow/close'
+    | '/flow/futures'
+    | '/flow/hot'
+    | '/flow/industries'
+    | '/flow/margin'
+    | '/flow/north'
+    | '/flow/sectors'
+    | '/flow/stocks'
     | '/research/debate'
     | '/research/notes'
     | '/research/reports'
@@ -744,19 +872,19 @@ export interface FileRouteTypes {
     | '/strategies/screener'
     | '/strategies/signals'
     | '/strategies/tracking'
+    | '/themes/brief'
+    | '/themes/intel'
+    | '/themes/rotation'
+    | '/youzi/seats'
+    | '/youzi/track'
     | '/ai/'
     | '/factors/'
+    | '/flow/'
     | '/research/'
     | '/review/'
-    | '/review/flow/close'
-    | '/review/flow/futures'
-    | '/review/flow/hot'
-    | '/review/flow/industries'
-    | '/review/flow/margin'
-    | '/review/flow/north'
-    | '/review/flow/sectors'
-    | '/review/flow/stocks'
-    | '/review/flow/'
+    | '/themes/'
+    | '/youzi/'
+    | '/review/flow/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -769,11 +897,12 @@ export interface FileRouteTypes {
     | '/debate'
     | '/decision'
     | '/events'
-    | '/flow'
     | '/grid'
     | '/hotmoney'
+    | '/huiyan'
     | '/inbox'
     | '/intel'
+    | '/interval'
     | '/ladder'
     | '/login'
     | '/membership'
@@ -785,7 +914,9 @@ export interface FileRouteTypes {
     | '/positions'
     | '/reports'
     | '/rotation'
+    | '/rs'
     | '/screener'
+    | '/seats'
     | '/sectors'
     | '/settings'
     | '/signals'
@@ -801,12 +932,20 @@ export interface FileRouteTypes {
     | '/factors/buckets'
     | '/factors/flow'
     | '/factors/gates'
-    | '/flow/$'
+    | '/flow/close'
+    | '/flow/futures'
+    | '/flow/hot'
+    | '/flow/industries'
+    | '/flow/margin'
+    | '/flow/north'
+    | '/flow/sectors'
+    | '/flow/stocks'
     | '/research/debate'
     | '/research/notes'
     | '/research/reports'
     | '/review/breadth'
     | '/review/events'
+    | '/review/flow'
     | '/review/signals'
     | '/review/theme'
     | '/strategies/autopsy'
@@ -816,19 +955,19 @@ export interface FileRouteTypes {
     | '/strategies/screener'
     | '/strategies/signals'
     | '/strategies/tracking'
+    | '/themes/brief'
+    | '/themes/intel'
+    | '/themes/rotation'
+    | '/youzi/seats'
+    | '/youzi/track'
     | '/ai'
     | '/factors'
+    | '/flow'
     | '/research'
     | '/review'
-    | '/review/flow/close'
-    | '/review/flow/futures'
-    | '/review/flow/hot'
-    | '/review/flow/industries'
-    | '/review/flow/margin'
-    | '/review/flow/north'
-    | '/review/flow/sectors'
-    | '/review/flow/stocks'
-    | '/review/flow'
+    | '/themes'
+    | '/youzi'
+    | '/review/flow/$'
   id:
     | '__root__'
     | '/'
@@ -845,8 +984,10 @@ export interface FileRouteTypes {
     | '/flow'
     | '/grid'
     | '/hotmoney'
+    | '/huiyan'
     | '/inbox'
     | '/intel'
+    | '/interval'
     | '/ladder'
     | '/login'
     | '/membership'
@@ -860,13 +1001,17 @@ export interface FileRouteTypes {
     | '/research'
     | '/review'
     | '/rotation'
+    | '/rs'
     | '/screener'
+    | '/seats'
     | '/sectors'
     | '/settings'
     | '/signals'
     | '/strategies'
     | '/studio'
     | '/symbol'
+    | '/themes'
+    | '/youzi'
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
@@ -876,7 +1021,14 @@ export interface FileRouteTypes {
     | '/factors/buckets'
     | '/factors/flow'
     | '/factors/gates'
-    | '/flow/$'
+    | '/flow/close'
+    | '/flow/futures'
+    | '/flow/hot'
+    | '/flow/industries'
+    | '/flow/margin'
+    | '/flow/north'
+    | '/flow/sectors'
+    | '/flow/stocks'
     | '/research/debate'
     | '/research/notes'
     | '/research/reports'
@@ -892,19 +1044,19 @@ export interface FileRouteTypes {
     | '/strategies/screener'
     | '/strategies/signals'
     | '/strategies/tracking'
+    | '/themes/brief'
+    | '/themes/intel'
+    | '/themes/rotation'
+    | '/youzi/seats'
+    | '/youzi/track'
     | '/ai/'
     | '/factors/'
+    | '/flow/'
     | '/research/'
     | '/review/'
-    | '/review/flow/close'
-    | '/review/flow/futures'
-    | '/review/flow/hot'
-    | '/review/flow/industries'
-    | '/review/flow/margin'
-    | '/review/flow/north'
-    | '/review/flow/sectors'
-    | '/review/flow/stocks'
-    | '/review/flow/'
+    | '/themes/'
+    | '/youzi/'
+    | '/review/flow/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -922,8 +1074,10 @@ export interface RootRouteChildren {
   FlowRoute: typeof FlowRouteWithChildren
   GridRoute: typeof GridRoute
   HotmoneyRoute: typeof HotmoneyRoute
+  HuiyanRoute: typeof HuiyanRoute
   InboxRoute: typeof InboxRoute
   IntelRoute: typeof IntelRoute
+  IntervalRoute: typeof IntervalRoute
   LadderRoute: typeof LadderRoute
   LoginRoute: typeof LoginRoute
   MembershipRoute: typeof MembershipRoute
@@ -937,13 +1091,17 @@ export interface RootRouteChildren {
   ResearchRoute: typeof ResearchRouteWithChildren
   ReviewRoute: typeof ReviewRouteWithChildren
   RotationRoute: typeof RotationRoute
+  RsRoute: typeof RsRoute
   ScreenerRoute: typeof ScreenerRoute
+  SeatsRoute: typeof SeatsRoute
   SectorsRoute: typeof SectorsRoute
   SettingsRoute: typeof SettingsRoute
   SignalsRoute: typeof SignalsRoute
   StrategiesRoute: typeof StrategiesRouteWithChildren
   StudioRoute: typeof StudioRoute
   SymbolRoute: typeof SymbolRoute
+  ThemesRoute: typeof ThemesRouteWithChildren
+  YouziRoute: typeof YouziRouteWithChildren
   ArenaSplatRoute: typeof ArenaSplatRoute
   FactorsAttribRoute: typeof FactorsAttribRoute
   FactorsBaselineRoute: typeof FactorsBaselineRoute
@@ -1053,6 +1211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HotmoneyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/huiyan': {
+      id: '/huiyan'
+      path: '/huiyan'
+      fullPath: '/huiyan'
+      preLoaderRoute: typeof HuiyanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inbox': {
       id: '/inbox'
       path: '/inbox'
@@ -1065,6 +1230,13 @@ declare module '@tanstack/react-router' {
       path: '/intel'
       fullPath: '/intel'
       preLoaderRoute: typeof IntelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/interval': {
+      id: '/interval'
+      path: '/interval'
+      fullPath: '/interval'
+      preLoaderRoute: typeof IntervalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ladder': {
@@ -1158,11 +1330,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RotationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rs': {
+      id: '/rs'
+      path: '/rs'
+      fullPath: '/rs'
+      preLoaderRoute: typeof RsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/screener': {
       id: '/screener'
       path: '/screener'
       fullPath: '/screener'
       preLoaderRoute: typeof ScreenerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/seats': {
+      id: '/seats'
+      path: '/seats'
+      fullPath: '/seats'
+      preLoaderRoute: typeof SeatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sectors': {
@@ -1205,6 +1391,20 @@ declare module '@tanstack/react-router' {
       path: '/symbol'
       fullPath: '/symbol'
       preLoaderRoute: typeof SymbolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/themes': {
+      id: '/themes'
+      path: '/themes'
+      fullPath: '/themes'
+      preLoaderRoute: typeof ThemesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/youzi': {
+      id: '/youzi'
+      path: '/youzi'
+      fullPath: '/youzi'
+      preLoaderRoute: typeof YouziRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ai/': {
@@ -1284,11 +1484,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FactorsGatesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/flow/$': {
-      id: '/flow/$'
-      path: '/$'
-      fullPath: '/flow/$'
-      preLoaderRoute: typeof FlowSplatRouteImport
+    '/flow/': {
+      id: '/flow/'
+      path: '/'
+      fullPath: '/flow/'
+      preLoaderRoute: typeof FlowIndexRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/close': {
+      id: '/flow/close'
+      path: '/close'
+      fullPath: '/flow/close'
+      preLoaderRoute: typeof FlowCloseRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/futures': {
+      id: '/flow/futures'
+      path: '/futures'
+      fullPath: '/flow/futures'
+      preLoaderRoute: typeof FlowFuturesRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/hot': {
+      id: '/flow/hot'
+      path: '/hot'
+      fullPath: '/flow/hot'
+      preLoaderRoute: typeof FlowHotRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/industries': {
+      id: '/flow/industries'
+      path: '/industries'
+      fullPath: '/flow/industries'
+      preLoaderRoute: typeof FlowIndustriesRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/margin': {
+      id: '/flow/margin'
+      path: '/margin'
+      fullPath: '/flow/margin'
+      preLoaderRoute: typeof FlowMarginRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/north': {
+      id: '/flow/north'
+      path: '/north'
+      fullPath: '/flow/north'
+      preLoaderRoute: typeof FlowNorthRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/sectors': {
+      id: '/flow/sectors'
+      path: '/sectors'
+      fullPath: '/flow/sectors'
+      preLoaderRoute: typeof FlowSectorsRouteImport
+      parentRoute: typeof FlowRoute
+    }
+    '/flow/stocks': {
+      id: '/flow/stocks'
+      path: '/stocks'
+      fullPath: '/flow/stocks'
+      preLoaderRoute: typeof FlowStocksRouteImport
       parentRoute: typeof FlowRoute
     }
     '/research/': {
@@ -1410,67 +1666,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StrategiesTrackingRouteImport
       parentRoute: typeof StrategiesRoute
     }
-    '/review/flow/': {
-      id: '/review/flow/'
+    '/themes/': {
+      id: '/themes/'
       path: '/'
-      fullPath: '/review/flow/'
-      preLoaderRoute: typeof ReviewFlowIndexRouteImport
-      parentRoute: typeof ReviewFlowRoute
+      fullPath: '/themes/'
+      preLoaderRoute: typeof ThemesIndexRouteImport
+      parentRoute: typeof ThemesRoute
     }
-    '/review/flow/close': {
-      id: '/review/flow/close'
-      path: '/close'
-      fullPath: '/review/flow/close'
-      preLoaderRoute: typeof ReviewFlowCloseRouteImport
-      parentRoute: typeof ReviewFlowRoute
+    '/themes/brief': {
+      id: '/themes/brief'
+      path: '/brief'
+      fullPath: '/themes/brief'
+      preLoaderRoute: typeof ThemesBriefRouteImport
+      parentRoute: typeof ThemesRoute
     }
-    '/review/flow/futures': {
-      id: '/review/flow/futures'
-      path: '/futures'
-      fullPath: '/review/flow/futures'
-      preLoaderRoute: typeof ReviewFlowFuturesRouteImport
-      parentRoute: typeof ReviewFlowRoute
+    '/themes/intel': {
+      id: '/themes/intel'
+      path: '/intel'
+      fullPath: '/themes/intel'
+      preLoaderRoute: typeof ThemesIntelRouteImport
+      parentRoute: typeof ThemesRoute
     }
-    '/review/flow/hot': {
-      id: '/review/flow/hot'
-      path: '/hot'
-      fullPath: '/review/flow/hot'
-      preLoaderRoute: typeof ReviewFlowHotRouteImport
-      parentRoute: typeof ReviewFlowRoute
+    '/themes/rotation': {
+      id: '/themes/rotation'
+      path: '/rotation'
+      fullPath: '/themes/rotation'
+      preLoaderRoute: typeof ThemesRotationRouteImport
+      parentRoute: typeof ThemesRoute
     }
-    '/review/flow/industries': {
-      id: '/review/flow/industries'
-      path: '/industries'
-      fullPath: '/review/flow/industries'
-      preLoaderRoute: typeof ReviewFlowIndustriesRouteImport
-      parentRoute: typeof ReviewFlowRoute
+    '/youzi/': {
+      id: '/youzi/'
+      path: '/'
+      fullPath: '/youzi/'
+      preLoaderRoute: typeof YouziIndexRouteImport
+      parentRoute: typeof YouziRoute
     }
-    '/review/flow/margin': {
-      id: '/review/flow/margin'
-      path: '/margin'
-      fullPath: '/review/flow/margin'
-      preLoaderRoute: typeof ReviewFlowMarginRouteImport
-      parentRoute: typeof ReviewFlowRoute
+    '/youzi/seats': {
+      id: '/youzi/seats'
+      path: '/seats'
+      fullPath: '/youzi/seats'
+      preLoaderRoute: typeof YouziSeatsRouteImport
+      parentRoute: typeof YouziRoute
     }
-    '/review/flow/north': {
-      id: '/review/flow/north'
-      path: '/north'
-      fullPath: '/review/flow/north'
-      preLoaderRoute: typeof ReviewFlowNorthRouteImport
-      parentRoute: typeof ReviewFlowRoute
+    '/youzi/track': {
+      id: '/youzi/track'
+      path: '/track'
+      fullPath: '/youzi/track'
+      preLoaderRoute: typeof YouziTrackRouteImport
+      parentRoute: typeof YouziRoute
     }
-    '/review/flow/sectors': {
-      id: '/review/flow/sectors'
-      path: '/sectors'
-      fullPath: '/review/flow/sectors'
-      preLoaderRoute: typeof ReviewFlowSectorsRouteImport
-      parentRoute: typeof ReviewFlowRoute
-    }
-    '/review/flow/stocks': {
-      id: '/review/flow/stocks'
-      path: '/stocks'
-      fullPath: '/review/flow/stocks'
-      preLoaderRoute: typeof ReviewFlowStocksRouteImport
+    '/review/flow/$': {
+      id: '/review/flow/$'
+      path: '/$'
+      fullPath: '/review/flow/$'
+      preLoaderRoute: typeof ReviewFlowSplatRouteImport
       parentRoute: typeof ReviewFlowRoute
     }
   }
@@ -1493,11 +1742,27 @@ const AiRouteChildren: AiRouteChildren = {
 const AiRouteWithChildren = AiRoute._addFileChildren(AiRouteChildren)
 
 interface FlowRouteChildren {
-  FlowSplatRoute: typeof FlowSplatRoute
+  FlowCloseRoute: typeof FlowCloseRoute
+  FlowFuturesRoute: typeof FlowFuturesRoute
+  FlowHotRoute: typeof FlowHotRoute
+  FlowIndustriesRoute: typeof FlowIndustriesRoute
+  FlowMarginRoute: typeof FlowMarginRoute
+  FlowNorthRoute: typeof FlowNorthRoute
+  FlowSectorsRoute: typeof FlowSectorsRoute
+  FlowStocksRoute: typeof FlowStocksRoute
+  FlowIndexRoute: typeof FlowIndexRoute
 }
 
 const FlowRouteChildren: FlowRouteChildren = {
-  FlowSplatRoute: FlowSplatRoute,
+  FlowCloseRoute: FlowCloseRoute,
+  FlowFuturesRoute: FlowFuturesRoute,
+  FlowHotRoute: FlowHotRoute,
+  FlowIndustriesRoute: FlowIndustriesRoute,
+  FlowMarginRoute: FlowMarginRoute,
+  FlowNorthRoute: FlowNorthRoute,
+  FlowSectorsRoute: FlowSectorsRoute,
+  FlowStocksRoute: FlowStocksRoute,
+  FlowIndexRoute: FlowIndexRoute,
 }
 
 const FlowRouteWithChildren = FlowRoute._addFileChildren(FlowRouteChildren)
@@ -1521,27 +1786,11 @@ const ResearchRouteWithChildren = ResearchRoute._addFileChildren(
 )
 
 interface ReviewFlowRouteChildren {
-  ReviewFlowCloseRoute: typeof ReviewFlowCloseRoute
-  ReviewFlowFuturesRoute: typeof ReviewFlowFuturesRoute
-  ReviewFlowHotRoute: typeof ReviewFlowHotRoute
-  ReviewFlowIndustriesRoute: typeof ReviewFlowIndustriesRoute
-  ReviewFlowMarginRoute: typeof ReviewFlowMarginRoute
-  ReviewFlowNorthRoute: typeof ReviewFlowNorthRoute
-  ReviewFlowSectorsRoute: typeof ReviewFlowSectorsRoute
-  ReviewFlowStocksRoute: typeof ReviewFlowStocksRoute
-  ReviewFlowIndexRoute: typeof ReviewFlowIndexRoute
+  ReviewFlowSplatRoute: typeof ReviewFlowSplatRoute
 }
 
 const ReviewFlowRouteChildren: ReviewFlowRouteChildren = {
-  ReviewFlowCloseRoute: ReviewFlowCloseRoute,
-  ReviewFlowFuturesRoute: ReviewFlowFuturesRoute,
-  ReviewFlowHotRoute: ReviewFlowHotRoute,
-  ReviewFlowIndustriesRoute: ReviewFlowIndustriesRoute,
-  ReviewFlowMarginRoute: ReviewFlowMarginRoute,
-  ReviewFlowNorthRoute: ReviewFlowNorthRoute,
-  ReviewFlowSectorsRoute: ReviewFlowSectorsRoute,
-  ReviewFlowStocksRoute: ReviewFlowStocksRoute,
-  ReviewFlowIndexRoute: ReviewFlowIndexRoute,
+  ReviewFlowSplatRoute: ReviewFlowSplatRoute,
 }
 
 const ReviewFlowRouteWithChildren = ReviewFlowRoute._addFileChildren(
@@ -1593,6 +1842,37 @@ const StrategiesRouteWithChildren = StrategiesRoute._addFileChildren(
   StrategiesRouteChildren,
 )
 
+interface ThemesRouteChildren {
+  ThemesBriefRoute: typeof ThemesBriefRoute
+  ThemesIntelRoute: typeof ThemesIntelRoute
+  ThemesRotationRoute: typeof ThemesRotationRoute
+  ThemesIndexRoute: typeof ThemesIndexRoute
+}
+
+const ThemesRouteChildren: ThemesRouteChildren = {
+  ThemesBriefRoute: ThemesBriefRoute,
+  ThemesIntelRoute: ThemesIntelRoute,
+  ThemesRotationRoute: ThemesRotationRoute,
+  ThemesIndexRoute: ThemesIndexRoute,
+}
+
+const ThemesRouteWithChildren =
+  ThemesRoute._addFileChildren(ThemesRouteChildren)
+
+interface YouziRouteChildren {
+  YouziSeatsRoute: typeof YouziSeatsRoute
+  YouziTrackRoute: typeof YouziTrackRoute
+  YouziIndexRoute: typeof YouziIndexRoute
+}
+
+const YouziRouteChildren: YouziRouteChildren = {
+  YouziSeatsRoute: YouziSeatsRoute,
+  YouziTrackRoute: YouziTrackRoute,
+  YouziIndexRoute: YouziIndexRoute,
+}
+
+const YouziRouteWithChildren = YouziRoute._addFileChildren(YouziRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
@@ -1608,8 +1888,10 @@ const rootRouteChildren: RootRouteChildren = {
   FlowRoute: FlowRouteWithChildren,
   GridRoute: GridRoute,
   HotmoneyRoute: HotmoneyRoute,
+  HuiyanRoute: HuiyanRoute,
   InboxRoute: InboxRoute,
   IntelRoute: IntelRoute,
+  IntervalRoute: IntervalRoute,
   LadderRoute: LadderRoute,
   LoginRoute: LoginRoute,
   MembershipRoute: MembershipRoute,
@@ -1623,13 +1905,17 @@ const rootRouteChildren: RootRouteChildren = {
   ResearchRoute: ResearchRouteWithChildren,
   ReviewRoute: ReviewRouteWithChildren,
   RotationRoute: RotationRoute,
+  RsRoute: RsRoute,
   ScreenerRoute: ScreenerRoute,
+  SeatsRoute: SeatsRoute,
   SectorsRoute: SectorsRoute,
   SettingsRoute: SettingsRoute,
   SignalsRoute: SignalsRoute,
   StrategiesRoute: StrategiesRouteWithChildren,
   StudioRoute: StudioRoute,
   SymbolRoute: SymbolRoute,
+  ThemesRoute: ThemesRouteWithChildren,
+  YouziRoute: YouziRouteWithChildren,
   ArenaSplatRoute: ArenaSplatRoute,
   FactorsAttribRoute: FactorsAttribRoute,
   FactorsBaselineRoute: FactorsBaselineRoute,

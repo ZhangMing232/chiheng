@@ -24,6 +24,14 @@ export function pctClass(value: number | null | undefined): string {
 }
 
 /** 一块扁平面板。盯盘页的基本容器。 */
+/**
+ * 卡片外壳。
+ *
+ * 头部是「标题 + 右侧 note」。**窄屏（390px）两者会抢宽度**：原来不换行、父级又
+ * overflow-hidden，结果 note 右边被裁掉半句（2026-11-11 手机截图发现，前瞻回验页
+ * 最明显）。现在头部 flex-wrap、note 加 min-w-0，窄屏时 note 掉到下一行；
+ * 宽屏放得下就不换行，版式不变。
+ */
 export function Panel({
   id,
   title,
@@ -45,14 +53,14 @@ export function Panel({
   return (
     <section id={id} className={`overflow-hidden rounded-lg border border-line bg-surface ${className}`}>
       {title ? (
-        <header className="flex items-baseline justify-between gap-3 border-b border-line px-3 py-2">
+        <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-3 py-2">
           {/* 效果图签名：标题前的朱砂竖条。品牌色四用法之一（顶栏线 / 名字旁竖条 /
               焦点环 / 选中垫底），这里统一给全站卡片标题加，整站立刻「像效果图」。 */}
           <h2 className="flex items-center gap-2 text-sm font-medium text-fg">
             <span className="h-3.5 w-[3px] shrink-0 rounded-full bg-brand" aria-hidden />
             {title}
           </h2>
-          <div className="flex items-baseline gap-2 text-xs text-muted">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-2 text-xs text-muted">
             {note}
             {action}
           </div>

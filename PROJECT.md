@@ -70,14 +70,19 @@ design/ docs/         规范、手册、进度表（STRATEGY-GEN2.md 是策略�
 data/                 全部运行时数据，**不在 git 里**，每天 23:30 自动快照（见 OPS.md）
 ```
 
-**页面清单**（= 侧栏七组）：**总览**——今日决策 `/decision`、总览 `/`、每日复盘
-`/review`（含资金流向、信号、公司事件子页）；**市场**——连板天梯 `/ladder`、
-多股同屏 `/grid`、情绪周期 `/cycle`、题材轮动 `/rotation`、游资追踪 `/hotmoney`、
-全球行情 `/overseas`；**资讯**——市场情报 `/intel`、题材简报 `/brief`、快讯 `/news`、
-消息与提醒 `/inbox`；**研究**——个股研判 `/research`、自选 `/my-stocks`；
-**AI**——进化 `/factors`、策略看板 `/strategies`（选股/追踪/跟单信号/策略管理/失败
-归因五个子页）、回测 `/backtest`；**工作台**——`/butler`；设置与状态 `/settings`。
-`/ai/config`、`/studio` 等子页只留直链，侧栏不再单列。个股详情 `/symbol` 从任意代码点入。
+**页面清单**（= 侧栏八组，2026-11-11 起按「一天的节奏」排）：
+**盘前**——总览 `/`、今日决策 `/decision`、前瞻回验 `/huiyan`；
+**盯盘**——多股同屏 `/grid`、连板天梯 `/ladder`；
+**盘后**——每日复盘 `/review`（涨跌分布/信号/公司事件三个子页）、资金流向 `/flow`
+（北向/行业/板块/个股/游资/收盘快照/两融/期指八个子页）、游资与席位 `/youzi`
+（游资追踪/席位档案）、题材 `/themes`（市场情报/题材轮动/题材简报）；
+**研究**——情绪周期 `/cycle`、区间统计 `/interval`、趋势中军 `/rs`、自选 `/my-stocks`；
+**资讯**——快讯 `/news`、消息与提醒 `/inbox`、全球行情 `/overseas`；
+**进化**——策略看板 `/strategies/screener`、因子实验室 `/factors`、回测 `/backtest`；
+**AI**——工作台 `/ai`、大管家 `/butler`；**设置**——`/settings`。
+`/ai/config`、`/studio`、`/research/*` 等子页只留直链，侧栏不再单列。
+个股详情 `/symbol` 从任意代码点入。旧地址（`/intel` `/rotation` `/brief` `/hotmoney`
+`/seats` `/review/flow/*`）全部留重定向，书签不断链。
 
 规模：647 提交 · 107,000 行（src + scripts）· 1,556 条测试。
 提交有闸门：pre-commit 跑 typecheck、pre-push 跑全量测试（`.githooks/`，
@@ -103,6 +108,10 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 | 回测记录 | `backtest.ts` 自动追加 | `runs.jsonl` | 跑一次加一行 |
 | 情绪周期序列 | `cycle-history.ts`（收盘快照后自动，只读本地 K 线，不联网） | `data/history/cycle/series.json` | 每天 |
 | 题材简报 | `brief-build.ts`（同上，串在快照之后） | `data/history/brief/*.json` | 每天 |
+| 收盘价快照（区间统计） | `closes-index.ts`（串在快照之后） | `data/history/closes/<date>.json` | 每天 |
+| 趋势中军 RS 榜 | `rs-build.ts`（同上，只读本地 K 线） | `data/history/rs/latest.json` | 每天 |
+| 前瞻回验落档 | `forecast.ts`（同上，自带「没封印不落」闸） | `data/history/forecast/<date>.json` | 每天 |
+| 席位档案 | `record-hotmoney.ts` + `seats-build.ts`（18:10，等东财龙虎榜） | `data/history/seats/latest.json` | 每天 |
 | 涨停原因原文 | 第三方盘后整理 | `data/history/limit-up-reasons/*.json` | 每天 |
 | 笔记 | 笔记页写 | `notes.json` | 你写的时候 |
 

@@ -46,11 +46,11 @@ export function SectionTabs({ tabs, ariaLabel }: { tabs: SectionTab[]; ariaLabel
 }
 
 /** 「研究」区的二级 tab（2026-10-26 四个平级页合成一页：个股研判/多空辩论/研报库/笔记）。 */
-/** 「复盘」区的二级 tab（2026-11-11 把 /overview 涨跌分布并进来，五个子页）。 */
+/** 「复盘」区的二级 tab（2026-11-11 把 /overview 涨跌分布并进来；同一天把
+ *  资金流向拆出去成平级的 /flow——它自己有 8 个子页，再挂在这里就是三层导航）。 */
 export const REVIEW_TABS: SectionTab[] = [
   { to: "/review/", label: "每日复盘" },
   { to: "/review/breadth", label: "涨跌分布" },
-  { to: "/review/flow/", label: "资金流向" },
   { to: "/review/signals", label: "信号" },
   { to: "/review/events", label: "公司事件" },
 ];
@@ -60,4 +60,17 @@ export const RESEARCH_TABS: SectionTab[] = [
   { to: "/research/debate", label: "多空辩论" },
   { to: "/research/reports", label: "研报库" },
   { to: "/research/notes", label: "笔记" },
+];
+
+/** 「题材」区（2026-11-11 三个平级页合成一页）：消息从哪来 → 钱在往哪去 → 里面哪几只。 */
+export const THEME_TABS: SectionTab[] = [
+  { to: "/themes/intel", label: "市场情报" },
+  { to: "/themes/rotation", label: "题材轮动" },
+  { to: "/themes/brief", label: "题材简报" },
+];
+
+/** 「游资与席位」区（2026-11-11 合并）：今天谁在买 → 跟这些席位买到底赚不赚。 */
+export const YOUZI_TABS: SectionTab[] = [
+  { to: "/youzi/track", label: "游资追踪" },
+  { to: "/youzi/seats", label: "席位档案" },
 ];

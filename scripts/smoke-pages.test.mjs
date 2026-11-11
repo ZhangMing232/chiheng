@@ -33,22 +33,29 @@ const LEGACY_ALIASES = [
   "/signals", // 10-21 复盘区合并 → /review/signals
   "/calendar", // 10-21 复盘区合并 → /review/events
   "/events", // 10-21 复盘区合并 → /review/events
-  "/sectors", // 10-23 资金流向合并 → /review/flow/sectors
-  "/flow", // 10-23 资金流向合并 → /review/flow
+  "/sectors", // 10-23 资金流向合并 → /flow/sectors（11-11 又拆回平级）
   "/debate", // 10-26 研究区合并 → /research/debate
   "/reports", // 10-26 研究区合并 → /research/reports
   "/notes", // 10-26 研究区合并 → /research/notes
   "/overview", // 11-11 复盘区合并 → /review/breadth
+  "/review/flow", // 11-11 资金流向拆回平级 → /flow（10-23 并进去的那三周的书签）
+  "/intel", // 11-11 题材区合并 → /themes/intel
+  "/rotation", // 11-11 题材区合并 → /themes/rotation
+  "/brief", // 11-11 题材区合并 → /themes/brief
+  "/hotmoney", // 11-11 游资与席位合并 → /youzi/track
+  "/seats", // 11-11 游资与席位合并 → /youzi/seats
 ];
 
 /** 不进 PAGES 的路由，理由写清楚（别让跳过变成静默）。 */
 const SKIP_WITH_REASON = {
   "/": "首页由步骤 1 单独测（菜单按钮点击 + 控制台），不走逐页扫描",
   "/strategies": "空白布局壳（只透 Outlet 不渲染），两个子页面都已覆盖",
+  "/themes": "空白布局壳（只透 Outlet 不渲染），索引直接跳 /themes/intel",
+  "/youzi": "空白布局壳（只透 Outlet 不渲染），索引直接跳 /youzi/track",
 };
 
 /** 每个合并动作留一个重定向代表，验旧书签不断链。 */
-const BOOKMARK_SAMPLES = ["/screener", "/positions", "/signals", "/calendar", "/flow/stocks", "/debate"];
+const BOOKMARK_SAMPLES = ["/screener", "/positions", "/signals", "/calendar", "/review/flow/stocks", "/debate", "/hotmoney", "/brief"];
 
 // ── 从 routeTree.gen.ts 的 import 清单推全部路由 URL ──────────────────────
 function routeUrls() {
@@ -59,13 +66,17 @@ function routeUrls() {
   const splatPrefixes = [];
   for (const f of files) {
     if (f === "__root") continue;
+    // 扁平路由文件名里的点就是路径分隔符：review.flow.$ → /review/flow/*，
+    // review.flow.tsx → /review/flow。不换掉的话这些路由会被推成
+    // "/review.flow" 这种根本不存在的路径，守门测试反而误报。
+    const flat = f.replace(/\./g, "/");
     if (f.endsWith("$")) {
       // 动态段路由（flow.$ → /flow/*）：它的子路径（/flow/stocks 等）由 PAGES
       // 直接列，这里只记前缀，phantom 检查时放行。
-      splatPrefixes.push(`/${f.replace(/\.\$$/, "")}/`);
+      splatPrefixes.push(`/${flat.replace(/\/\$$/, "")}/`);
       continue;
     }
-    let url = `/${f}`;
+    let url = `/${flat}`;
     if (f === "index") url = "/"; // 根索引：/index 剥成 / 而不是空串
     else if (url.endsWith("/index")) url = url.slice(0, -"/index".length);
     urls.add(url);

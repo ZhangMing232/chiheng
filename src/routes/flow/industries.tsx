@@ -13,7 +13,7 @@ import { Frame } from "@/components/screener/nav";
 import { flowAmount, FlowSectionTabs, List } from "@/components/flow-sections";
 import { getFlow } from "@/lib/market/quotes.functions";
 
-export const Route = createFileRoute("/review/flow/industries")({
+export const Route = createFileRoute("/flow/industries")({
   loader: async () => ({ book: await getFlow().catch(() => null) }),
   component: FlowIndustriesPage,
 });
