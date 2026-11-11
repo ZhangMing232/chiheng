@@ -58,6 +58,9 @@ function DecisionPage() {
   const ladderCount = ladder.reduce((n, l) => n + (l.streak >= 2 ? l.count : 0), 0);
   const maxStreak = ladder.reduce((m, l) => Math.max(m, l.streak), 0);
   const breakRate = pool?.summary?.breakRate ?? null;
+  // 封板率 = 涨停 /（涨停+炸板），对标连板网（85/(85+19)=81.7%）
+  const brokenCount = pool?.broken?.length ?? 0;
+  const sealRate = limitUpCount + brokenCount > 0 ? limitUpCount / (limitUpCount + brokenCount) : null;
   const mood = moodOf({ breakRate, maxStreak, ladderCount });
 
   // 短线：题材（涨停家数多的）+ 龙头
@@ -70,13 +73,14 @@ function DecisionPage() {
     <Frame wide aside="今日决策">
       <div className="flex flex-col gap-3">
         {/* ── 关键指标条 ── */}
-        <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-6">
+        <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-7">
           {[
             { label: "涨停", value: pool ? limitUpCount : "—", tone: "text-up" },
             { label: "连板", value: pool ? ladderCount : "—", tone: "text-up" },
             { label: "最高板", value: pool ? `${maxStreak}板` : "—", tone: "text-fg" },
             { label: "跌停", value: pool ? pool.limitDown.length : "—", tone: "text-down" },
             { label: "炸板率", value: breakRate != null ? `${(breakRate * 100).toFixed(0)}%` : "—", tone: "text-fg" },
+            { label: "封板率", value: sealRate != null ? `${(sealRate * 100).toFixed(1)}%` : "—", tone: "text-up" },
             { label: "情绪", value: mood.band, tone: "text-brand-text" },
           ].map((k) => (
             <div key={k.label} className="bg-surface px-3 py-2">
