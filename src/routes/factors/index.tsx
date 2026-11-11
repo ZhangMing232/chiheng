@@ -403,6 +403,10 @@ function FactorsIndexPage() {
       }
     >
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
+      <div className="rounded border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
+        研究层 · 不进实盘：这里的 40 个因子 + 92 个坟墓只用于挖矿与回测，<b className="text-fg">从不驱动任何实盘信号</b>。
+        现役决策只有「低估值」一个策略，看「今日决策」。因子→策略的桥（复合因子）样本外 +1.07 未过线，仍在研究。
+      </div>
       <FactorSectionTabs />
       {runs.batch ? <GateCards rows={runs.batch.rows} /> : null}
       {runs.batch ? <FactorLabCard summary={summary} tombstones={tombstones} batchIndex={runs.batchIndex} /> : null}

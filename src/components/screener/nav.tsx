@@ -132,7 +132,8 @@ const SIDEBAR: {
       { to: "/intel", label: "市场情报", icon: Sparkles },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/inbox", label: "消息与提醒", icon: Bell },
-      { to: "/studio", label: "自媒体图文", icon: Image },
+      // 2026-11-11 清理：自媒体图文（内容生成）从侧栏收掉——它是发内容的，不是交易决策，
+      // 直链 /studio 保留（不删路由），只是不在导航占位。
     ],
   },
   {
@@ -147,6 +148,9 @@ const SIDEBAR: {
   },
   {
     label: "进化",
+    // 2026-11-11 清理标注：这一组是研究层——策略看板里只有「低估值」是现役，
+    // 因子实验室的 40 因子 + 92 坟墓从不进实盘信号。留着是给「回测/walk-forward」用，
+    // 不是决策入口。决策在「今日决策」。
     items: [
       { to: "/strategies/screener", label: "策略看板", icon: LayoutList },
       { to: "/factors", label: "因子实验室", icon: FlaskConical },
