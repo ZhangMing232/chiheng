@@ -144,7 +144,8 @@ const SIDEBAR: {
     // 平铺成两个分组纯属占行；自选（持仓观察）作为研究工作流的一环归到研究下。
     // 旧地址 /debate /reports /notes 保留重定向，/strategies/positions 路由保留直链可达。
     items: [
-      { to: "/research", label: "研究", icon: FileSearch },
+      // 2026-11-11 清理：个股研判（/research 七阶段 SOP）从侧栏收掉——它说半天没结论、
+      // 还老缺数据，用户明确说不好用。直链保留，只是不占导航。自选（/my-stocks）留下。
       { to: "/my-stocks", label: "自选", icon: Star },
     ],
   },
@@ -524,8 +525,6 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "热点资讯", keywords: "news 快讯", to: "/news" },
   { label: "消息与提醒", keywords: "inbox 提醒", to: "/inbox" },
   { label: "自媒体", keywords: "studio 海报", to: "/studio" },
-  { label: "研究", keywords: "research 个股研判", to: "/research/" },
-  { label: "多空辩论", keywords: "debate 辩论", to: "/research/debate" },
   { label: "研报库", keywords: "reports", to: "/research/reports" },
   { label: "笔记", keywords: "notes", to: "/research/notes" },
   { label: "自选", keywords: "watchlist my-stocks", to: "/my-stocks" },

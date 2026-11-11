@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -109,14 +109,7 @@ function LadderPage() {
                                     className={`flex cursor-pointer items-baseline gap-1 rounded px-1 text-[12px] ${active ? "bg-up-soft" : "hover:bg-surface-2"}`}
                                     title={reasons.reasons[r.id]?.reason?.slice(0, 100) || undefined}
                                   >
-                                    <Link
-                                      to="/research"
-                                      search={{ q: r.id }}
-                                      className={`truncate no-underline ${active ? "text-up" : "text-fg"}`}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {r.name}
-                                    </Link>
+                                    <span className={`truncate ${active ? "text-up" : "text-fg"}`}>{r.name}</span>
                                     {r.seal ? <span className="num shrink-0 text-[10px] text-muted">{fmt(r.seal)}·开板{r.breaks ?? 0}</span> : null}
                                     {concept ? <span className="shrink-0 text-[10px] text-brand-text">{concept}</span> : null}
                                   </div>
