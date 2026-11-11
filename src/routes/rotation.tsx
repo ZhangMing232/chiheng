@@ -34,6 +34,8 @@ function RotationPage() {
   const cleaned = rows.filter((r) => !NOISE.has(r.name));
   const up = cleaned.filter((r) => r.rot === "加速").slice(0, 15);
   const down = cleaned.filter((r) => r.rot === "减速").slice(0, 8);
+  const maxUp = Math.max(1, ...up.map((r) => r.limitUp));
+  const maxDown = Math.max(1, ...down.map((r) => r.limitUp));
 
   return (
     <Frame wide aside="题材轮动">
@@ -47,14 +49,20 @@ function RotationPage() {
                 <div className="px-3 pt-2 text-xs text-muted">轮动进 · 加速（资金在进）</div>
                 <div className="flex flex-col gap-1 p-2">
                   {up.map((r) => (
-                    <div key={r.name} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
-                      <span className="flex items-baseline gap-1.5">
-                        <Tag tone="up">加速</Tag>
-                        <span className="truncate font-medium">{r.name}</span>
+                    <div key={r.name} className="rounded px-2 py-1.5 hover:bg-surface2">
+                      <div className="flex items-baseline justify-between gap-2 text-sm">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <Tag tone="up">加速</Tag>
+                          <span className="truncate font-medium">{r.name}</span>
+                        </span>
+                        <span className="num shrink-0 text-xs text-up">{r.limitUp} 涨停</span>
+                      </div>
+                      <span className="mt-1 block h-1.5 rounded bg-surface2">
+                        <span className="block h-1.5 rounded bg-up" style={{ width: `${(r.limitUp / maxUp) * 100}%` }} />
                       </span>
-                      <span className="num shrink-0 text-xs text-muted">
-                        {r.limitUp}涨停 · 均<span className={toneClass(r.avgChg)}>{(r.avgChg * 100).toFixed(1)}%</span> · 5日{(r.chg5d * 100).toFixed(1)}%
-                      </span>
+                      <div className="mt-0.5 text-[10px] text-muted">
+                        均<span className={toneClass(r.avgChg)}>{(r.avgChg * 100).toFixed(1)}%</span> · 5日{(r.chg5d * 100).toFixed(1)}%
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -63,14 +71,18 @@ function RotationPage() {
                 <div className="px-3 pt-2 text-xs text-muted">轮动出 · 减速（资金在撤）</div>
                 <div className="flex flex-col gap-1 p-2">
                   {down.map((r) => (
-                    <div key={r.name} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
-                      <span className="flex items-baseline gap-1.5">
-                        <Tag tone="down">减速</Tag>
-                        <span className="truncate font-medium">{r.name}</span>
+                    <div key={r.name} className="rounded px-2 py-1.5 hover:bg-surface2">
+                      <div className="flex items-baseline justify-between gap-2 text-sm">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <Tag tone="down">减速</Tag>
+                          <span className="truncate font-medium">{r.name}</span>
+                        </span>
+                        <span className="num shrink-0 text-xs text-down">{r.limitUp} 涨停</span>
+                      </div>
+                      <span className="mt-1 block h-1.5 rounded bg-surface2">
+                        <span className="block h-1.5 rounded bg-down" style={{ width: `${(r.limitUp / maxDown) * 100}%` }} />
                       </span>
-                      <span className="num shrink-0 text-xs text-muted">
-                        {r.limitUp}涨停 · 5日{(r.chg5d * 100).toFixed(1)}%
-                      </span>
+                      <div className="mt-0.5 text-[10px] text-muted">5日{(r.chg5d * 100).toFixed(1)}%</div>
                     </div>
                   ))}
                 </div>
