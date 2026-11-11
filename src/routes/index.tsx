@@ -266,6 +266,82 @@ function Dashboard() {
         <div className="bg-surface px-3 py-2"><KeyNum label="情绪温度" value={sentiment?.score != null ? `${sentiment.score}°` : null} hint={sentiment?.band ?? undefined} /></div>
       </div>
 
+      {/* ── 锚点导航：一眼跳到各段（对标连板网速览）── */}
+      <div className="flex flex-wrap items-center gap-2 rounded border border-line bg-surface px-3 py-1.5 text-xs">
+        <span className="text-muted">速览</span>
+        <a href="#s-main" className="text-accent hover:underline">当日主线</a>
+        <a href="#s-strength" className="text-accent hover:underline">主线强度</a>
+        <a href="#s-money" className="text-accent hover:underline">主力资金</a>
+        <a href="#s-positions" className="text-accent hover:underline">持仓</a>
+        <Link to="/ladder" className="text-accent hover:underline">连板天梯 →</Link>
+        <Link to="/decision" className="text-accent hover:underline">今日决策 →</Link>
+      </div>
+
+      {/* ── 当日主线：总龙头 + 板块 + 涨停家数（对标连板网当日主线）── */}
+      <div id="s-main" className="grid gap-2 lg:grid-cols-3">
+        <Panel title="当日主线" note="题材涨停家数排序 · 龙头" className="lg:col-span-2">
+          <div className="flex flex-col gap-1 p-2">
+            {themes.hot.slice(0, 8).map((r) => (
+              <div key={r.name} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="truncate font-medium">{r.name}</span>
+                  <span className="num shrink-0 text-xs text-up">{r.limitUp}涨停</span>
+                </span>
+                <span className="num shrink-0 text-[11px] text-muted">
+                  均{(r.avg > 0 ? "+" : "")}{r.avg.toFixed(1)}% · 龙头 {r.leader?.name ?? "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="主线强度" note="条长=相对强度">
+          <div className="flex flex-col gap-1.5 p-2">
+            {themes.hot.slice(0, 8).map((r) => {
+              const max = Math.max(1, ...themes.hot.map((x) => x.limitUp));
+              return (
+                <div key={r.name} className="flex items-center gap-2">
+                  <span className="w-20 truncate text-xs text-muted">{r.name}</span>
+                  <span className="h-2 flex-1 rounded bg-surface2">
+                    <span className="block h-2 rounded bg-up" style={{ width: `${(r.limitUp / max) * 100}%` }} />
+                  </span>
+                  <span className="num w-8 shrink-0 text-right text-xs">{r.limitUp}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
+
+      {/* ── 主力资金动向：板块/个股流入流出 Top8（对标连板网）── */}
+      <Panel title="主力资金动向" note={flow ? "板块/个股主力净额" : "资金流向还没拉到"} id="s-money">
+        {!flow ? (
+          <div className="px-3 py-4 text-sm text-muted">资金流向暂时拉不下来。</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 p-2 lg:grid-cols-4">
+            {[
+              { title: "板块流入", rows: flow.sectorsIn.slice(0, 8) },
+              { title: "板块流出", rows: flow.sectorsOut.slice(0, 8) },
+              { title: "个股流入", rows: flow.stocksIn.slice(0, 8) },
+              { title: "个股流出", rows: flow.stocksOut.slice(0, 8) },
+            ].map((g) => (
+              <div key={g.title}>
+                <div className="mb-1 text-[11px] text-muted">{g.title}</div>
+                <div className="flex flex-col gap-0.5">
+                  {g.rows.map((r) => (
+                    <div key={r.id} className="flex items-baseline justify-between gap-1 text-[12px]">
+                      <span className="truncate">{r.name}</span>
+                      <span className={"num shrink-0 " + (r.inflow > 0 ? "text-up" : "text-down")}>
+                        {(r.inflow / 10000).toFixed(1)}亿
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
       {/* ── 第一行 决策：温度计 + 时机判定 + 市场事实（系统状态降级到页尾）── */}
       <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-2">
