@@ -107,8 +107,19 @@ function DecisionPage() {
           ))}
         </div>
 
+        {/* ── 锚点导航（对标连板网速览）── */}
+        <div className="flex flex-wrap items-center gap-2 rounded border border-line bg-surface px-3 py-1.5 text-xs">
+          <span className="text-muted">速览</span>
+          <a href="#s-main" className="text-accent hover:underline">市场在玩什么</a>
+          <a href="#s-short" className="text-accent hover:underline">短线买什么</a>
+          <a href="#s-long" className="text-accent hover:underline">中长线买什么</a>
+          <a href="#s-reg" className="text-accent hover:underline">监管异动</a>
+          <a href="#s-sell" className="text-accent hover:underline">什么时候卖</a>
+          <Link to="/" className="text-accent hover:underline">完整复盘 →</Link>
+        </div>
+
         {/* ── 市场在玩什么 + 什么时候买 ── */}
-        <Panel title="市场在玩什么 · 什么时候买" note={`${themes.date || "—"} 收盘后 · 情绪${mood.band}`}>
+        <Panel id="s-main" title="市场在玩什么 · 什么时候买" note={`${themes.date || "—"} 收盘后 · 情绪${mood.band}`}>
           <div className="flex flex-col gap-3 px-3.5 py-3">
             <div className={`rounded border px-3 py-2 text-sm ${mood.tone === "up" ? "border-up/40 bg-up/5 text-fg" : mood.tone === "warn" ? "border-warn/40 bg-warn/5 text-fg" : "border-line bg-surface2 text-muted"}`}>
               <Tag tone={mood.tone === "up" ? "up" : mood.tone === "warn" ? "warn" : "muted"}>{mood.band}</Tag>
@@ -140,7 +151,7 @@ function DecisionPage() {
 
         {/* ── 双轨：短线 / 中长线 ── */}
         <div className="grid gap-2 lg:grid-cols-2">
-          <Panel title="短线 · 买什么" note={`${reviewed.date || "—"} 竞价审核后`}>
+          <Panel id="s-short" title="短线 · 买什么" note={`${reviewed.date || "—"} 竞价审核后`}>
             {shortSignals.length === 0 ? (
               <div className="px-3 py-6 text-sm text-muted">今天没有短线信号（题材补涨腿没触发）。</div>
             ) : (
@@ -162,7 +173,7 @@ function DecisionPage() {
             </div>
           </Panel>
 
-          <Panel title="中长线 · 买什么" note={`${reviewed.date || "—"} 低估值`}>
+          <Panel id="s-long" title="中长线 · 买什么" note={`${reviewed.date || "—"} 低估值`}>
             {longSignals.length === 0 ? (
               <div className="px-3 py-6 text-sm text-muted">今天没有低估值候选。</div>
             ) : (
@@ -186,7 +197,7 @@ function DecisionPage() {
         </div>
 
         {/* ── 监管异动 ── */}
-        <Panel title="监管异动雷达" note={`${reg.date || "—"} · 3日偏离值≥阈值触发`}>
+        <Panel id="s-reg" title="监管异动雷达" note={`${reg.date || "—"} · 3日偏离值≥阈值触发`}>
           {reg.rows.length === 0 ? (
             <div className="px-3 py-6 text-sm text-muted">还没算（regulatory-radar.ts 收盘后跑）。</div>
           ) : (
@@ -211,7 +222,7 @@ function DecisionPage() {
         </Panel>
 
         {/* ── 什么时候卖 ── */}
-        <Panel title="什么时候卖" note="持仓的纪律，不是建议">
+        <Panel id="s-sell" title="什么时候卖" note="持仓的纪律，不是建议">
           <div className="flex flex-col gap-1.5 px-3.5 py-3 text-sm">
             <div className="flex items-start gap-2"><Tag tone="warn">短线</Tag><span>断板（涨停打开）、炸板率升到 40%+、情绪退潮 → 走。</span></div>
             <div className="flex items-start gap-2"><Tag tone="muted">中长线</Tag><span>跌破止损 / 估值到位 / 趋势破位（20 日线拐头）→ 走。</span></div>
