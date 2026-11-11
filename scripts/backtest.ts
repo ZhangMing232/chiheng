@@ -2225,7 +2225,12 @@ async function main() {
             exit: spotFill.price,
             reason: spotFill.reason,
             ret: spotRet,
-            bench: benchOver(t, spotExitIdx, fee),
+            // benchOver 用的是**全局日历索引**（uniRet 按 dates 建），这里的出场索引
+            // 必须走 datePos.get(卖出日)，不能用 spotExitIdx —— 那是**个股行内索引**
+            // （idxOf 按每只票的行号建，动辄上千）。混用会把 uniRet[t+1..上千] 当整段
+            // 窗口累加，大盘基准被算成 −7.4%（10 天持有期），excess 凭空 +6.8pp。
+            // 2026-11-11 修：Spring 默认 spot 口径，+17.35 的假 alpha 就是这条造的。
+            bench: benchOver(t, datePos.get(spotFill.date) ?? t, fee),
             hold: Math.max(0, spotExitIdx - tIdx),
             ref: klineRef(CACHE, pick.id, rows[tIdx].date),
           });
