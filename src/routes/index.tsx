@@ -22,6 +22,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getLimitUpReasons, getLadder3Day, type LimitUpReasonsPayload, type LadderRow } from "@/lib/market/quotes.functions";
 import { Link } from "@tanstack/react-router";
+import { useStockDetail } from "@/components/stock-detail-modal";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, Prog, pctClass } from "@/components/terminal";
@@ -147,6 +148,7 @@ function Dashboard() {
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
     gates, reasons, ladder3,
   } = Route.useLoaderData();
+  const { openDetail, modal } = useStockDetail();
   const date = todayStr(phase);
   const todayDay = journal.days.find((day) => day.date === date) ?? null;
   const buysToday = todayDay?.trades ?? [];
@@ -234,6 +236,7 @@ function Dashboard() {
   const delta = (cur: number, pv: number | null) => (pv == null ? null : cur - pv === 0 ? "持平" : cur - pv > 0 ? `+${cur - pv}` : `${cur - pv}`);
 
   return (
+    <>
     <Frame
       wide
       status={{
@@ -329,7 +332,7 @@ function Dashboard() {
                 <div className="flex flex-col gap-0.5">
                   {g.rows.map((r) => (
                     <div key={r.id} className="flex items-baseline justify-between gap-1 text-[12px]">
-                      <span className="truncate">{r.name}</span>
+                      <button type="button" onClick={() => void openDetail(r.id)} className="truncate text-left hover:underline">{r.name}</button>
                       <span className={"num shrink-0 " + (r.inflow > 0 ? "text-up" : "text-down")}>
                         {(r.inflow / 10000).toFixed(1)}亿
                       </span>
@@ -479,7 +482,7 @@ function Dashboard() {
                     return (
                       <div key={r.id} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
                         <span className="flex min-w-0 items-baseline gap-1.5">
-                          <span className="truncate font-medium">{r.name}</span>
+                          <button type="button" onClick={() => void openDetail(r.id)} className="truncate text-left font-medium hover:underline">{r.name}</button>
                           {r.stat && !isPureStreak ? (
                             <span className="num shrink-0 rounded bg-surface2 px-1 text-[10px] text-warn">{r.stat}</span>
                           ) : null}
@@ -810,6 +813,8 @@ function Dashboard() {
         />
       </div>
     </Frame>
+    {modal}
+    </>
   );
 }
 

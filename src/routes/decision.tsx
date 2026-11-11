@@ -13,6 +13,7 @@
  */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useStockDetail } from "@/components/stock-detail-modal";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -51,6 +52,7 @@ function moodOf(p: { breakRate: number | null; maxStreak: number; ladderCount: n
 
 function DecisionPage() {
   const { snap, themes, reasons, reviewed, reg, ladder3 } = Route.useLoaderData();
+  const { openDetail, modal } = useStockDetail();
   const pool = snap.snapshot;
 
   // 指标条
@@ -87,6 +89,7 @@ function DecisionPage() {
   const shortSignals = reviewed.signals.filter((s) => s.leg === "short").slice(0, 8);
 
   return (
+    <>
     <Frame wide aside="今日决策">
       <div className="flex flex-col gap-3">
         {/* ── 关键指标条 ── */}
@@ -170,7 +173,7 @@ function DecisionPage() {
                   <div key={s.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
                     <span className="flex min-w-0 items-baseline gap-1.5">
                       <Tag tone="up">短线</Tag>
-                      <span className="truncate">{s.name}</span>
+                      <button type="button" onClick={() => void openDetail(s.id)} className="truncate text-left hover:underline">{s.name}</button>
                       <span className="num text-[10px] text-muted">{s.code}</span>
                     </span>
                     <span className="num shrink-0 text-xs text-muted">挂 {s.buyPrice}</span>
@@ -192,7 +195,7 @@ function DecisionPage() {
                   <div key={s.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
                     <span className="flex min-w-0 items-baseline gap-1.5">
                       <Tag tone="muted">低估值</Tag>
-                      <span className="truncate">{s.name}</span>
+                      <button type="button" onClick={() => void openDetail(s.id)} className="truncate text-left hover:underline">{s.name}</button>
                       <span className="num text-[10px] text-muted">{s.code}</span>
                     </span>
                     <span className="num shrink-0 text-xs text-muted">挂 {s.buyPrice}</span>
@@ -216,7 +219,7 @@ function DecisionPage() {
                 <div key={r.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface2">
                   <span className="flex min-w-0 items-baseline gap-1.5">
                     <Tag tone={r.level === "已达" ? "warn" : "muted"}>{r.level === "已达" ? "已达" : "临近"}</Tag>
-                    <span className="truncate">{r.name}</span>
+                    <button type="button" onClick={() => void openDetail(r.code)} className="truncate text-left hover:underline">{r.name}</button>
                     <span className="num text-[10px] text-muted">{r.streak}</span>
                   </span>
                   <span className="num shrink-0 text-xs text-warn">
@@ -241,5 +244,7 @@ function DecisionPage() {
         </Panel>
       </div>
     </Frame>
+    {modal}
+    </>
   );
 }

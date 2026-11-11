@@ -88,7 +88,7 @@ async function main() {
 
   // 1. 全市场股票列表（和 generate-signals 同源）
   const ids: string[] = [];
-  for (let page = 1; page <= 30 && ids.length < 5000; page += 1) {
+  for (let page = 1; page <= 60 && ids.length < 6000; page += 1) {
     const url = `https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=${page}&num=100&sort=symbol&asc=1&node=hs_a`;
     try {
       const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(15000) });

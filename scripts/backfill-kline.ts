@@ -29,9 +29,9 @@ async function fetchDay(id: string): Promise<{ date: string; o: number; c: numbe
 async function main() {
   let ids: string[] = process.argv.slice(2);
   if (ids.length === 0) {
-    // 从涨停池找缺失
-    const snap = JSON.parse(await readFile("data/signals/limit-pools-today.json", "utf8"));
-    ids = snap.limitUp.map((s: { id?: string }) => s.id).filter((x?: string): x is string => !!x && !ex(`${KLINE}/${x}.json`));
+    // 默认：universe 里所有缺 K 线缓存的票（不只涨停池）
+    const uni = JSON.parse(await readFile("data/universe-cache.json", "utf8")) as { payload?: { quotes?: { id: string }[] } };
+    ids = (uni.payload?.quotes ?? []).map((q) => q.id).filter((id) => id && !ex(`${KLINE}/${id}.json`));
   }
   ids = ids.filter((id) => !ex(`${KLINE}/${id}.json`));
   console.log(`回补 ${ids.length} 只缺失 K 线...`);
