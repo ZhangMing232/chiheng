@@ -378,8 +378,9 @@ function runMarketSnapshot() {
   });
 }
 
-// ── 早盘决策推送：开盘前 8:30 推「市场在玩什么/短线买什么/中长线买什么/什么时候卖」──
-// 用昨日收盘落盘的数据，不现场拉外部接口。去重看当天有没有推过（用 data/signals/decision-push.json）。
+// ── 早盘决策推送：9:26 竞价审核落盘之后推 ──
+// 为什么不是 8:30：8:30 只有昨收预判（candidates），没竞价判决；9:26 review-auction
+// 跑完 reviewed.json 才有「可执行/观望」的实盘判决。推的是「可执行」，不是预判。
 let decisionPushedDay = "";
 function runDecisionPush() {
   const day = new Date().toLocaleDateString("sv-SE");
@@ -387,8 +388,10 @@ function runDecisionPush() {
   if (!isMarketOpen(day)) return;
   const hour = new Date().getHours();
   const min = new Date().getMinutes();
-  if (hour < 8 || (hour === 8 && min < 30)) return;
-  if (hour >= 9 && !(hour === 9 && min < 30)) return; // 9:30 后不推，开盘了没意义
+  // 和 runSignalReview 同一个窗口：9:26 之后（竞价出清）且 12 点前。
+  if (hour < 9 || (hour === 9 && min < 26) || hour >= 12) return;
+  // 等竞价审核落盘：reviewed.json 还是昨天的，说明审核没跑完，这时推就是推昨收预判。
+  if (readSignalField("reviewed.json", "date") !== day) return;
   decisionPushedDay = day;
   const child = spawn(
     process.execPath,
