@@ -17,19 +17,20 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getMarketSnapshot } from "@/lib/market/limit-up.functions";
-import { getRegulatoryRadar, type RegulatoryRow } from "@/lib/market/quotes.functions";
+import { getRegulatoryRadar, getLadder3Day, type RegulatoryRow, type LadderRow } from "@/lib/market/quotes.functions";
 import { getThemeHeat, getLimitUpReasons, getSignalReviewed, type ThemeHeatItem, type SignalReviewed, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/decision")({
   loader: async () => {
-    const [snap, themes, reasons, reviewed, reg] = await Promise.all([
+    const [snap, themes, reasons, reviewed, reg, ladder3] = await Promise.all([
       getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
       getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
       getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
       getSignalReviewed().catch(() => ({ date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] })),
       getRegulatoryRadar().catch(() => ({ date: "", rows: [] as RegulatoryRow[] })),
+      getLadder3Day().catch(() => ({ dates: [] as string[], ladder: {} as Record<string, Record<string, LadderRow[]>>, promotion: {} })),
     ]);
-    return { snap, themes, reasons, reviewed, reg };
+    return { snap, themes, reasons, reviewed, reg, ladder3 };
   },
   component: DecisionPage,
 });
@@ -49,7 +50,7 @@ function moodOf(p: { breakRate: number | null; maxStreak: number; ladderCount: n
 }
 
 function DecisionPage() {
-  const { snap, themes, reasons, reviewed, reg } = Route.useLoaderData();
+  const { snap, themes, reasons, reviewed, reg, ladder3 } = Route.useLoaderData();
   const pool = snap.snapshot;
 
   // 指标条
@@ -62,6 +63,22 @@ function DecisionPage() {
   const brokenCount = pool?.broken?.length ?? 0;
   const sealRate = limitUpCount + brokenCount > 0 ? limitUpCount / (limitUpCount + brokenCount) : null;
   const mood = moodOf({ breakRate, maxStreak, ladderCount });
+  // 较前值：用 3 日梯队的昨天 vs 今天（对标连板网 KPI 条的「较前值」）
+  const prev = (() => {
+    const ds = ladder3.dates;
+    if (ds.length < 2) return null;
+    const yDay = ds[ds.length - 2];
+    const yLv = ladder3.ladder[yDay] ?? {};
+    const yTotal = Object.values(yLv).reduce((n, arr) => n + arr.length, 0);
+    const yLadder = Object.entries(yLv).reduce((n, [k, arr]) => n + (Number(k) >= 2 ? arr.length : 0), 0);
+    const yTop = Math.max(0, ...Object.keys(yLv).map(Number));
+    return { yTotal, yLadder, yTop };
+  })();
+  const delta = (cur: number, prev: number | null) => {
+    if (prev == null) return null;
+    const d = cur - prev;
+    return d === 0 ? "持平" : d > 0 ? `+${d}` : `${d}`;
+  };
 
   // 短线：题材（涨停家数多的）+ 龙头
   const hotThemes = themes.hot.slice(0, 6);
@@ -75,9 +92,9 @@ function DecisionPage() {
         {/* ── 关键指标条 ── */}
         <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-7">
           {[
-            { label: "涨停", value: pool ? limitUpCount : "—", tone: "text-up" },
-            { label: "连板", value: pool ? ladderCount : "—", tone: "text-up" },
-            { label: "最高板", value: pool ? `${maxStreak}板` : "—", tone: "text-fg" },
+            { label: "涨停", value: pool ? limitUpCount : "—", tone: "text-up", delta: prev ? delta(limitUpCount, prev.yTotal) : null },
+            { label: "连板", value: pool ? ladderCount : "—", tone: "text-up", delta: prev ? delta(ladderCount, prev.yLadder) : null },
+            { label: "最高板", value: pool ? `${maxStreak}板` : "—", tone: "text-fg", delta: prev ? delta(maxStreak, prev.yTop) : null },
             { label: "跌停", value: pool ? pool.limitDown.length : "—", tone: "text-down" },
             { label: "炸板率", value: breakRate != null ? `${(breakRate * 100).toFixed(0)}%` : "—", tone: "text-fg" },
             { label: "封板率", value: sealRate != null ? `${(sealRate * 100).toFixed(1)}%` : "—", tone: "text-up" },
@@ -85,7 +102,7 @@ function DecisionPage() {
           ].map((k) => (
             <div key={k.label} className="bg-surface px-3 py-2">
               <div className="text-xs text-muted">{k.label}</div>
-              <div className={"num mt-0.5 text-lg font-medium " + k.tone}>{k.value}</div>
+              <div className={"num mt-0.5 text-lg font-medium " + k.tone}>{k.value}{k.delta ? <span className="ml-1 text-[10px] font-normal text-muted">较前值{k.delta}</span> : null}</div>
             </div>
           ))}
         </div>
