@@ -1601,14 +1601,26 @@ export type StockDetailPayload = {
 
 /** 个股弹层：K线/涨停史/题材/监管异动（点天梯里的票时拉）。 */
 export const getStockDetail = createServerFn({ method: "GET" })
-  .validator((input: unknown): { id: string } => {
+  .validator((input: unknown): { id: string; name: string } => {
     const v = (input ?? {}) as Record<string, unknown>;
-    return { id: typeof v.id === "string" && /^(sh|sz)\d{6}$/.test(v.id) ? v.id : "" };
+    return {
+      id: typeof v.id === "string" && /^(sh|sz|bj)\d{6}$/.test(v.id) ? v.id : "",
+      name: typeof v.name === "string" ? v.name.trim() : "",
+    };
   })
   .handler(async ({ data }): Promise<StockDetailPayload> => {
-    const empty: StockDetailPayload = { id: data.id, name: "", kline: [], limitUps: [], concept: "", reason: "", regulatory: null };
-    if (!data.id) return empty;
+    const empty: StockDetailPayload = { id: data.id, name: data.name, kline: [], limitUps: [], concept: "", reason: "", regulatory: null };
     const { readFile } = await import("node:fs/promises");
+    // 名称 → id（hotmoney/intel 只给名字）
+    let id = data.id;
+    if (!id && data.name) {
+      try {
+        const uni = JSON.parse(await readFile(dataPath("data", "universe-cache.json"), "utf8")) as { payload?: { quotes?: { id: string; name: string }[] } };
+        id = uni.payload?.quotes?.find((q) => q.name === data.name)?.id ?? "";
+      } catch { /* skip */ }
+    }
+    if (!id) return { ...empty, id: "" };
+    data = { ...data, id };
     let name = "";
     try {
       const uni = JSON.parse(await readFile(dataPath("data", "universe-cache.json"), "utf8")) as { payload?: { quotes?: { id: string; name: string }[] } };

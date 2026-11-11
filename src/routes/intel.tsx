@@ -16,6 +16,7 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getMarketIntel } from "@/lib/market/quotes.functions";
+import { useStockDetail } from "@/components/stock-detail-modal";
 
 export const Route = createFileRoute("/intel")({
   loader: () => getMarketIntel().catch(() => ({ date: "", cards: [], annGroups: [], annTotal: 0 })),
@@ -28,8 +29,10 @@ function importanceTone(n: number): "warn" | "up" | "muted" {
 
 function IntelPage() {
   const { date, cards, annGroups, annTotal } = Route.useLoaderData();
+  const { openDetail, modal } = useStockDetail();
 
   return (
+    <>
     <Frame wide aside="市场情报">
       <div className="flex flex-col gap-3">
         <Panel title="市场情报 · 新闻解读" note={date ? `${date} · 新闻→题材→个股传导` : "还没采集"}>
@@ -59,7 +62,7 @@ function IntelPage() {
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       <span className="text-[11px] text-muted">受益个股：</span>
                       {c.stocks.map((s) => (
-                        <span key={s} className="rounded bg-surface2 px-1 py-px text-[11px] text-fg">{s}</span>
+                        <button key={s} type="button" onClick={() => void openDetail("", s)} className="rounded bg-surface2 px-1 py-px text-[11px] text-fg hover:underline">{s}</button>
                       ))}
                     </div>
                   ) : null}
@@ -91,5 +94,7 @@ function IntelPage() {
         </Panel>
       </div>
     </Frame>
+    {modal}
+    </>
   );
 }

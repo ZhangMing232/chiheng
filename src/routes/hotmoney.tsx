@@ -17,6 +17,7 @@ import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getHotMoney } from "@/lib/market/quotes.functions";
 import { toneClass } from "@/lib/market/format";
+import { useStockDetail } from "@/components/stock-detail-modal";
 
 export const Route = createFileRoute("/hotmoney")({
   loader: () => getHotMoney().catch(() => ({ date: "", seats: [] })),
@@ -34,10 +35,12 @@ function tierOf(name: string): { label: string; tone: "warn" | "up" | "muted" } 
 
 function HotMoneyPage() {
   const { date, seats } = Route.useLoaderData();
+  const { openDetail, modal } = useStockDetail();
   const buyers = seats.filter((s) => s.netWan > 0).slice(0, 12);
   const sellers = seats.filter((s) => s.netWan < 0).slice(0, 6);
 
   return (
+    <>
     <Frame wide aside="游资追踪">
       <div className="flex flex-col gap-3">
         <Panel title="游资追踪" note={date ? `${date} 龙虎榜 · 席位按游资名号聚合` : "龙虎榜还没出"}>
@@ -61,9 +64,9 @@ function HotMoneyPage() {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {s.stocks.slice(0, 6).map((st) => (
-                            <span key={st.name} className={`num rounded bg-surface2 px-1 py-px text-[11px] ${toneClass(st.netWan)}`}>
+                            <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[11px] hover:underline ${toneClass(st.netWan)}`}>
                               {st.name}
-                            </span>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -87,9 +90,9 @@ function HotMoneyPage() {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {s.stocks.slice(0, 6).map((st) => (
-                            <span key={st.name} className={`num rounded bg-surface2 px-1 py-px text-[11px] ${toneClass(st.netWan)}`}>
+                            <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[11px] hover:underline ${toneClass(st.netWan)}`}>
                               {st.name}
-                            </span>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -105,5 +108,7 @@ function HotMoneyPage() {
         </Panel>
       </div>
     </Frame>
+    {modal}
+    </>
   );
 }
