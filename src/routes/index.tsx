@@ -54,14 +54,13 @@ import {
   type ThemeHeatItem,
   type SignalReviewed,
 } from "@/lib/market/quotes.functions";
-import { getAlerts } from "@/lib/market/alerts.functions";
 import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 
 /** 首页要的数据一次取齐。任何一块拉失败都降级成空，不让整页打不开。 */
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, alerts, gatesData, pools, themes, reviewed] =
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, gatesData, pools, themes, reviewed] =
       await Promise.all([
         getIndices().catch(() => [] as IndexQuote[]),
         getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
@@ -73,7 +72,6 @@ export const Route = createFileRoute("/")({
         getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
         getOverseasIndices().catch(() => ({ quotes: [] as IndexQuote[], gaps: [] as string[] })),
         getNews().catch(() => [] as NewsItem[]),
-        getAlerts().catch(() => [] as Awaited<ReturnType<typeof getAlerts>>),
         getStrategyGates().catch(() => ({ gates: {} })),
         // 三池只读盘后心跳落盘的快照，零外部请求。原来这里直接调 getSignals，
         // 3 个东财池串行 ×1300ms 把 GET / 拖到 4.39 秒（2026-11-11 回归）。
@@ -117,7 +115,6 @@ export const Route = createFileRoute("/")({
       overseas: overseas.quotes.slice(0, 6),
       overseasGaps: overseas.gaps,
       news: news.slice(0, 6),
-      alerts,
       gates: gatesData.gates,
     };
   },
@@ -140,7 +137,7 @@ function Dashboard() {
     phase, indices, journal, universe, recorder, trend, flow,
     breadth, sentiment, stamp, serverNow, pools, themes, reviewed,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
-    alerts, gates,
+    gates,
   } = Route.useLoaderData();
   const date = todayStr(phase);
   const todayDay = journal.days.find((day) => day.date === date) ?? null;
@@ -189,12 +186,18 @@ function Dashboard() {
   // 全部只读落盘快照，不现场拉外部接口；读不到就给空态，不拿空数组冒充「今天没有」。
   const poolSnap = pools.snapshot;
   const limitRows = poolSnap?.limitUp ?? [];
-  const streakRows = [...limitRows]
-    .filter((r) => (r.streak ?? 0) >= 2)
-    .sort((a, b) => (b.streak ?? 0) - (a.streak ?? 0))
-    .slice(0, 6);
-  const firstBoardRows = limitRows.filter((r) => (r.streak ?? 1) <= 1).slice(0, 3);
-  const brokenRows = (poolSnap?.broken ?? []).slice(0, 3);
+  // 连板梯队：按连板数分组、组内全量（面板内滚动），不截断——用户要的是完整梯队。
+  const ladderGroups = (() => {
+    const m = new Map<number, typeof limitRows>();
+    for (const r of limitRows) {
+      const st = r.streak ?? 1;
+      const arr = m.get(st) ?? [];
+      arr.push(r);
+      m.set(st, arr);
+    }
+    return [...m.entries()].sort((a, b) => b[0] - a[0]).map(([streak, rows]) => ({ streak, rows }));
+  })();
+  const brokenRows = poolSnap?.broken ?? [];
   const hotThemes = themes.hot.slice(0, 4);
   const shortSignals = reviewed.signals.filter((s) => s.leg === "short").slice(0, 5);
   const longSignals = reviewed.signals.filter((s) => s.leg === "long").slice(0, 5);
@@ -332,63 +335,54 @@ function Dashboard() {
             </div>
           </Panel>
 
-          <Panel title="未读提醒" note={<Link to="/inbox" className="text-accent hover:underline">打开收件箱 →</Link>}>
-            <div className="flex flex-col gap-0.5 p-2">
-              {alerts.slice(0, 5).map((a) => (
-                <div key={a.id} className="flex items-baseline gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-2">
-                  <span
-                    className="h-1.5 w-1.5 shrink-0 self-center rounded-full"
-                    style={{ background: a.kind === "failed" ? "var(--color-warn)" : "var(--color-brand)" }}
-                    aria-label={a.kind === "failed" ? "没跑成" : "预警应验"}
-                  />
-                  <span className="min-w-0 flex-1 truncate">{a.title}</span>
-                  <span className="num shrink-0 text-xs text-muted">{a.at.slice(5, 16).replace("T", " ")}</span>
-                </div>
-              ))}
-              {alerts.length === 0 ? (
-                <div className="px-2 py-6 text-center text-sm text-muted">收件箱是空的</div>
-              ) : null}
-            </div>
-          </Panel>
         </aside>
       </div>
 
       {/* ── 第二行 盘面：具体个股连板 / 热门概念 / 下一个可能热门 ── */}
       <div className="grid gap-2 lg:grid-cols-3">
-        <Panel title="具体个股连板" note={poolFresh ?? "今天还没采集"}>
+        <Panel title="连板梯队" note={poolFresh ?? "今天还没采集"}>
           {!poolSnap ? (
             <div className="px-3 py-6 text-sm text-muted">{pools.why ?? "三池快照还没落盘，收盘后 15:12 采集"}</div>
           ) : (
-            <div className="flex flex-col gap-0.5 p-2">
-              {streakRows.map((r) => (
-                <div key={r.id} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    <Tag tone="up">{r.streak} 连板</Tag>
-                    <span className="truncate">{r.name}</span>
-                    <span className="num text-xs text-muted">{r.code}</span>
-                  </span>
-                  <span className="num shrink-0 text-xs text-up">{r.price.toFixed(2)}</span>
+            <div className="flex max-h-[460px] flex-col gap-1.5 overflow-y-auto scroll-slim p-2">
+              {/* 梯队汇总：几板有几只，一眼看清 */}
+              <div className="flex flex-wrap gap-1">
+                {ladderGroups.map((g) => (
+                  <Tag key={g.streak} tone={g.streak >= 3 ? "up" : "muted"}>
+                    {g.streak === 1 ? "首板" : `${g.streak}连板`} {g.rows.length}
+                  </Tag>
+                ))}
+              </div>
+              {/* 分组明细：按连板数从高到低，全量不截断 */}
+              {ladderGroups.map((g) => (
+                <div key={g.streak} className="flex flex-col gap-0.5">
+                  <div className="px-2 text-[11px] text-muted">
+                    {g.streak === 1 ? "首板" : `${g.streak} 连板`}（{g.rows.length}）
+                  </div>
+                  {g.rows.map((r) => (
+                    <div key={r.id} className="flex items-baseline justify-between gap-2 rounded px-2 py-0.5 text-sm hover:bg-surface-2">
+                      <span className="flex min-w-0 items-baseline gap-1.5">
+                        <span className="truncate">{r.name}</span>
+                        <span className="num text-[10px] text-muted">{r.code}</span>
+                      </span>
+                      <span className="num shrink-0 text-xs text-up">{r.price.toFixed(2)}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
-              {firstBoardRows.map((r) => (
-                <div key={`f-${r.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    <Tag tone="muted">首板</Tag>
-                    <span className="truncate">{r.name}</span>
-                  </span>
-                  <span className="num shrink-0 text-xs text-muted">{r.price.toFixed(2)}</span>
+              {/* 炸板：全量 */}
+              {brokenRows.length > 0 ? (
+                <div className="flex flex-col gap-0.5">
+                  <div className="px-2 text-[11px] text-muted">炸板（{brokenRows.length}）</div>
+                  {brokenRows.map((r) => (
+                    <div key={`b-${r.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-0.5 text-sm hover:bg-surface-2">
+                      <span className="truncate">{r.name}</span>
+                      <span className={"num shrink-0 text-xs " + pctClass(r.pct)}>{r.pct > 0 ? "+" : ""}{r.pct.toFixed(1)}%</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {brokenRows.map((r) => (
-                <div key={`b-${r.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    <Tag tone="down">炸板</Tag>
-                    <span className="truncate">{r.name}</span>
-                  </span>
-                  <span className={"num shrink-0 text-xs " + pctClass(r.pct)}>{r.pct > 0 ? "+" : ""}{r.pct.toFixed(1)}%</span>
-                </div>
-              ))}
-              {streakRows.length === 0 && firstBoardRows.length === 0 && brokenRows.length === 0 ? (
+              ) : null}
+              {ladderGroups.length === 0 && brokenRows.length === 0 ? (
                 <div className="px-2 py-5 text-center text-sm text-muted">
                   {poolSnap.why ?? "快照里没有个股明细，不拿全 0 冒充「今天没涨停」"}
                 </div>
