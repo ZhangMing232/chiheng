@@ -18,7 +18,7 @@
  *    人工产业认知 + 海外源，赤轨两样都没有。编一张就是编数据，所以本页只给
  *    板块自身的月度数据，不画产业链位置。
  * 4. 缺分类和缺月度是**两件事**，分开报，不合并成一句「行业数据缺失」。
- * 5. 只描述过去，不预测，不给买卖暗示。
+ * 5. 读数以量价与资金事实为主；前瞻判断须逐条标证据等级，不给买卖暗示。
  */
 
 import { useMemo, useState } from "react";
@@ -209,7 +209,7 @@ function BoardDetailPanel({ detail }: { detail: BoardDetail }) {
         <span className="text-[11px] text-muted">{detail.thermo.basis}</span>
       </div>
       <p className="px-3.5 py-2 text-[11px] text-muted">
-        这是量价与资金维度的读数，不等于行业景气度，也只描述过去。板块自身的数据，不含上下游链条——赤轨没有产业链映射表，不编。
+        这是量价与资金维度的读数，不等于行业景气度。板块自身的数据，不含上下游链条——赤轨没有产业链映射表，不编。
       </p>
 
       {detail.months.length === 0 ? (

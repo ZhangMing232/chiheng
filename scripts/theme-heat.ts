@@ -9,7 +9,7 @@
  *
  * 用法：node --experimental-strip-types --import ./scripts/alias.mjs scripts/theme-heat.ts
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { sendPushPlus } from "@/lib/market/push";
 
 type Quote = { id: string; code?: string; name?: string; price: number; chg: number | null; st?: boolean };
@@ -66,7 +66,12 @@ const families = [...surname.entries()]
   .slice(0, 6);
 
 const today = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
-writeFileSync("data/theme-heat.json", JSON.stringify({ date: today, hot, total: rows.length }, null, 2));
+const themeData = { date: today, hot, total: rows.length };
+writeFileSync("data/theme-heat.json", JSON.stringify(themeData, null, 2));
+// 2026-11-11 起按日归档：原来只有一份 theme-heat.json、每天覆写，攒不出历史样本，
+// 也就做不了「下一个可能热门」的样本外验证。页面仍读原文件，这里只多写一份历史。
+mkdirSync(`data/history/theme-heat/${today.slice(0, 7)}`, { recursive: true });
+writeFileSync(`data/history/theme-heat/${today.slice(0, 7)}/${today}.json`, JSON.stringify(themeData, null, 2));
 
 const lines = hot.map((r) => {
   const li = r.leader ? `｜龙头 ${r.leader.name} ${r.leader.chg > 0 ? "+" : ""}${r.leader.chg.toFixed(1)}%` : "";

@@ -1403,6 +1403,11 @@ export interface SignalCandidate {
 export interface SignalReviewed extends SignalCandidate {
   auctionPrice: number | null; auctionGap: number | null;
   verdict: "ok" | "warn" | "skip"; verdictReason: string;
+  /** generate-signals.ts 2026-11-09 起给候选打两腿标记；旧文件没有，故可选。 */
+  leg?: "long" | "short";
+  holdDays?: number;
+  stop?: number;
+  target?: number;
 }
 
 /** 收盘初筛候选信号。 */

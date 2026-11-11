@@ -3,17 +3,20 @@
  * 总览首页（《赤轨 UI 升级方案 2026-10》首页 Zone A–D，直接替换旧主控台）。
  * 目标：30 秒看懂「市场怎么样 + 系统正不正常」，全站第一屏的成品感在这页立住。
  *
- * 分区：
- * - Zone A 市场核心：指数条 + 情绪温度计（签名组件）+ 今日关键数字 + 大盘分时
- * - Zone B 资金与结构：资金快照三格 + 行业资金 Top5 双色条
- * - Zone C 全球对照 + 产品状态：全球指数迷你列表 + 服务/开平仓/挑战者进度
- * - Zone D 轻量延伸：今日信号 + 热点快讯
+ * 分区（2026-11-11 用户拍板重排，按「先判断位置 → 盘面 → 个股 → 状态」）：
+ * - 第一行 决策：情绪温度计 + 冰点沸点时机判定（标证据等级）+ 各种指数
+ * - 第二行 盘面：大盘分时 + 具体个股连板/涨停 + 热门概念 + 下一个可能热门
+ * - 第三行 个股：今日盘前候选（预登记策略筛出）+ 今日模拟盘成交
+ * - 第四行 状态：项目情况 + 资金/全球对照 + 热点快讯
  *
  * 纪律：
  * - 全部复用现成接口，任何一块拉失败都降级成说明，不造假数。
  * - 全市场快照照旧在 loader 里瘦身（~5300 只进 SSR HTML 会把手机端卡死），
  *   涨跌家数用现成的 getBreadth（服务端算好，不塞全量快照给浏览器）。
- * - 不放任何买卖建议。
+ * - **不放任何买卖建议**（red-line.ts 红线）。前瞻判断逐条标证据等级，
+ *   没验过的不写成确定结论；「今日盘前候选」是数据复述，不是买入推荐。
+ * - 三池走盘后心跳落盘的快照（getMarketSnapshot），**绝不进 SSR loader 实时采集**：
+ *   东财 3 池串行 ×1300ms 曾把 GET / 拖到 4.386620s。
  */
 
 import { createFileRoute } from "@tanstack/react-router";
@@ -21,14 +24,14 @@ import { Link } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, Prog, pctClass } from "@/components/terminal";
-import type { ReactNode } from "react";
 import { SentimentGauge } from "@/components/sentiment-gauge";
 import { Clock, Gauge, ShieldCheck } from "lucide-react";
 import { HeroStat } from "@/components/hero-stat";
 import { sessionPhase } from "@/lib/market/session";
 import { journalTradeIds, slimUniverse as slimUniverseByIds } from "@/lib/market/slim-universe";
 import { computeSentiment } from "@/lib/market/sentiment";
-import { getSignals } from "@/lib/market/limit-up.functions";
+import { getMarketSnapshot } from "@/lib/market/limit-up.functions";
+import { continuationOf, LAGGARD_EVIDENCE } from "@/lib/market/theme-continuation";
 import type { Breadth } from "@/lib/market/slim-universe";
 import type { IndexQuote, Quote, SessionInfo } from "@/lib/market/types";
 import type { NewsItem } from "@/lib/market/news";
@@ -44,8 +47,12 @@ import {
   getRecorder,
   getServerJournal,
   getStrategyGates,
+  getThemeHeat,
+  getSignalReviewed,
   getTrend,
   getUniverse,
+  type ThemeHeatItem,
+  type SignalReviewed,
 } from "@/lib/market/quotes.functions";
 import { getAlerts } from "@/lib/market/alerts.functions";
 import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
@@ -54,7 +61,7 @@ import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, alerts, gatesData, signals] =
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, alerts, gatesData, pools, themes, reviewed] =
       await Promise.all([
         getIndices().catch(() => [] as IndexQuote[]),
         getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
@@ -68,9 +75,11 @@ export const Route = createFileRoute("/")({
         getNews().catch(() => [] as NewsItem[]),
         getAlerts().catch(() => [] as Awaited<ReturnType<typeof getAlerts>>),
         getStrategyGates().catch(() => ({ gates: {} })),
-        // 连板梯队 + 炸板率是情绪温度计的「情绪周期」维度（区别于强弱）。东财接口
-        // 按天限流，失败降级为 null（温度计退回到只算强弱四个分量）。
-        getSignals({ data: {} }).catch(() => null),
+        // 三池只读盘后心跳落盘的快照，零外部请求。原来这里直接调 getSignals，
+        // 3 个东财池串行 ×1300ms 把 GET / 拖到 4.39 秒（2026-11-11 回归）。
+        getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
+        getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
+        getSignalReviewed().catch(() => ({ date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] })),
       ]);
     // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
     const trend = indices[0]
@@ -81,13 +90,15 @@ export const Route = createFileRoute("/")({
     const slimUniverse = slimUniverseByIds(universe, journalTradeIds(journal));
     // 情绪温度计在服务端算好（分量全是上面的真实数据，计算本身在 lib 里有测试钉着）。
     // 连板高度 + 炸板率是「情绪周期」维度：连板高 = 沸点、炸板率高 = 退潮。
+    // 读不到快照就退化成四分量（null 是「不知道」，不补 0）。
+    const poolSnap = pools.snapshot;
     const sentiment = breadth
       ? computeSentiment(
           breadth,
           indices.map((item) => item.pct),
           flow ? flow.market.reduce((total, part) => total + part.main, 0) : null,
-          signals?.summary?.ladder ?? null,
-          signals?.summary?.breakRate ?? null,
+          poolSnap?.summary?.ladder ?? null,
+          poolSnap?.summary?.breakRate ?? null,
         )
       : null;
     // 数据时间脚注：指数行情的时间戳最可靠；没有就标未知。
@@ -97,7 +108,7 @@ export const Route = createFileRoute("/")({
         : null;
     return {
       phase, indices, journal, universe: slimUniverse, recorder, trend, flow,
-      breadth, sentiment, stamp,
+      breadth, sentiment, stamp, pools, themes, reviewed,
       // 行情新鲜度条的「延迟」依赖当前时刻：放进 loader 算一次、随 loader 数据序列化，
       // SSR 与客户端 hydration 拿到的是同一个值，不会因服务端/客户端时刻差触发 #418。
       serverNow: Date.now(),
@@ -115,15 +126,6 @@ export const Route = createFileRoute("/")({
 
 import { ACTIVE_STYLES } from "@/lib/market/strategies";
 
-const STYLE_LABEL: Record<string, string> = {
-  early: "启动",
-  trend: "趋势",
-  breakout: "突破",
-  value: "价值",
-  relay: "补涨",
-  rebound: "反弹",
-};
-
 function todayStr(phase: SessionInfo): string {
   return phase.date ?? "";
 }
@@ -136,7 +138,7 @@ function yi(wan: number | null): string {
 function Dashboard() {
   const {
     phase, indices, journal, universe, recorder, trend, flow,
-    breadth, sentiment, stamp, serverNow,
+    breadth, sentiment, stamp, serverNow, pools, themes, reviewed,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
     alerts, gates,
   } = Route.useLoaderData();
@@ -183,6 +185,24 @@ function Dashboard() {
     sentiment?.score != null ? `情绪温度 ${sentiment.score}「${sentiment.band}」` : null,
   ].filter((f): f is string => f != null);
 
+  // ── 2026-11-11 新增三块：连板个股 / 热门概念 / 下一个可能热门 ──
+  // 全部只读落盘快照，不现场拉外部接口；读不到就给空态，不拿空数组冒充「今天没有」。
+  const poolSnap = pools.snapshot;
+  const limitRows = poolSnap?.limitUp ?? [];
+  const streakRows = [...limitRows]
+    .filter((r) => (r.streak ?? 0) >= 2)
+    .sort((a, b) => (b.streak ?? 0) - (a.streak ?? 0))
+    .slice(0, 6);
+  const firstBoardRows = limitRows.filter((r) => (r.streak ?? 1) <= 1).slice(0, 3);
+  const brokenRows = (poolSnap?.broken ?? []).slice(0, 3);
+  const hotThemes = themes.hot.slice(0, 4);
+  const shortSignals = reviewed.signals.filter((s) => s.leg === "short").slice(0, 5);
+  const longSignals = reviewed.signals.filter((s) => s.leg === "long").slice(0, 5);
+  const candidateCount = reviewed.signals.length;
+  const poolFresh = poolSnap
+    ? `${poolSnap.date} ${poolSnap.sealed ? "收盘后" : "盘中未定"}`
+    : null;
+
   return (
     <Frame
       wide
@@ -205,40 +225,26 @@ function Dashboard() {
           : { state: "unavailable", label: "行情还没拉到", message: "点重试再拉一次", canRetry: true }
       }
     >
-      {/* ── Zone A 市场核心状态（2026-11-10 按效果图重构：KPI 头版 + 市场结论 + 右栏）── */}
-      <div className="grid gap-2 sm:grid-cols-3">
-        <HeroStat
-          icon={<ShieldCheck size={18} />}
-          label="系统健康"
-          value={String(healthScore)}
-          suffix="/ 100"
-          tone={healthScore === 100 ? "ok" : "warn"}
-          sub={
-            healthScore === 100
-              ? "记账 · 行情 · 闸门 · 指数 四项都在"
-              : `缺：${checks.filter((c) => !c.ok).map((c) => c.label).join("、")}`
-          }
-        />
-        <HeroStat
-          icon={<Clock size={18} />}
-          label="行情延迟"
-          value={delaySec != null ? `${delaySec} 秒` : "—"}
-          tone={delaySec == null ? "muted" : delaySec < 120 ? "ok" : "warn"}
-          sub={universe?.asOf ? `更新于 ${new Date(universe.asOf).toTimeString().slice(0, 5)}` : "行情还没拉到"}
-        />
-        <HeroStat
-          icon={<Gauge size={18} />}
-          label="风控闸门"
-          value={gatesOff === 0 ? "正常" : `${gatesOff} 套停用`}
-          tone={gatesOff === 0 ? "ok" : "warn"}
-          sub={gatesOff === 0 ? "未触发熔断，策略按预登记规则记账" : "停用名单见策略页，冷却后复跑判决"}
-        />
-      </div>
-
+      {/* ── 第一行 决策：温度计 + 时机判定 + 市场事实（系统状态降级到页尾）── */}
       <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)]">
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,290px)_minmax(0,1fr)_minmax(0,1fr)]">
             <SentimentGauge reading={sentiment} updatedAt={stamp} />
+            <Panel title="冰点沸点 · 是不是时机" note="前瞻判断 · 逐条标证据等级">
+              <div className="flex flex-col gap-2 px-3.5 py-3 text-sm leading-relaxed">
+                <div className="flex items-start gap-2">
+                  <Tag tone="warn">沸点 · 已验证</Tag>
+                  <span className="text-fg">追高连板已证伪：三连板+ 每笔 −3.71%，t=−10.19，六切片 6/6 全负。</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Tag tone="muted">冰点 · 待验证</Tag>
+                  <span className="text-fg">缺情绪温度计历史序列，还不能说「冰点就是买点」。历史样本从今日起按日落盘。</span>
+                </div>
+                <div className="border-t border-line pt-2 text-xs text-muted">
+                  当前档位：{sentiment?.band ?? "数据不足"}。只给情景概率与裁决点，不给买卖动作建议。
+                </div>
+              </div>
+            </Panel>
             <Panel title="市场结论" note={stamp != null ? `更新于 ${new Date(stamp).toTimeString().slice(0, 5)}` : undefined}>
               <ul className="flex flex-col gap-2 px-3.5 py-3 text-sm leading-relaxed">
                 {marketFacts.map((f) => (
@@ -267,36 +273,11 @@ function Dashboard() {
         </div>
       </Panel>
 
-      <div className="grid gap-2 lg:grid-cols-2">
-        <Panel title="今日关键数字" note={breadth ? `全市场 ${breadth.up + breadth.down + breadth.flat} 只` : undefined}>
-          <div className="flex flex-col gap-2.5 p-3">
-            <KeyNum
-              label="上涨 / 下跌"
-              value={breadth ? `${breadth.up} / ${breadth.down}` : null}
-              hint={breadth ? `平盘 ${breadth.flat}` : "涨跌家数暂不可用"}
-            />
-            <KeyNum
-              label="涨停 / 跌停"
-              value={breadth ? `${breadth.limitUp} / ${breadth.limitDown}` : null}
-              hint="涨跌停是情绪极值"
-            />
-            <KeyNum
-              label="两市成交额"
-              value={tapeAmount != null ? yi(tapeAmount) : null}
-              hint={prevTape ? `昨日 ${yi(prevTape)}` : "成交额暂不可用"}
-            />
-            <KeyNum
-              label="主力净流入 · 全市场"
-              value={mainInflow == null ? null : yi(mainInflow)}
-              tone={mainInflow == null ? undefined : mainInflow > 0 ? "text-up" : mainInflow < 0 ? "text-down" : undefined}
-              hint={flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂不可用"}
-            />
-          </div>
-        </Panel>
-
+      <div className="grid gap-2">
+        {/* 原来的「今日关键数字」已移到第三行「市场事实与资金」，这里只留放大的大盘分时。 */}
         <Panel title="大盘分时" note={indices[0] ? `${indices[0].name} ${indices[0].price.toFixed(2)}` : "指数暂时拉不下来"}>
           {trend && trend.points.length > 1 ? (
-            <div className="h-[150px] px-2 py-2">
+            <div className="h-[210px] px-2 py-2">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend.points} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   <defs>
@@ -318,7 +299,7 @@ function Dashboard() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex h-[150px] items-center justify-center text-sm text-muted">分时数据暂时拉不下来</div>
+            <div className="flex h-[210px] items-center justify-center text-sm text-muted">分时数据暂时拉不下来</div>
           )}
         </Panel>
       </div>
@@ -370,6 +351,159 @@ function Dashboard() {
             </div>
           </Panel>
         </aside>
+      </div>
+
+      {/* ── 第二行 盘面：具体个股连板 / 热门概念 / 下一个可能热门 ── */}
+      <div className="grid gap-2 lg:grid-cols-3">
+        <Panel title="具体个股连板" note={poolFresh ?? "今天还没采集"}>
+          {!poolSnap ? (
+            <div className="px-3 py-6 text-sm text-muted">{pools.why ?? "三池快照还没落盘，收盘后 15:12 采集"}</div>
+          ) : (
+            <div className="flex flex-col gap-0.5 p-2">
+              {streakRows.map((r) => (
+                <div key={r.id} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <Tag tone="up">{r.streak} 连板</Tag>
+                    <span className="truncate">{r.name}</span>
+                    <span className="num text-xs text-muted">{r.code}</span>
+                  </span>
+                  <span className="num shrink-0 text-xs text-up">{r.price.toFixed(2)}</span>
+                </div>
+              ))}
+              {firstBoardRows.map((r) => (
+                <div key={`f-${r.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <Tag tone="muted">首板</Tag>
+                    <span className="truncate">{r.name}</span>
+                  </span>
+                  <span className="num shrink-0 text-xs text-muted">{r.price.toFixed(2)}</span>
+                </div>
+              ))}
+              {brokenRows.map((r) => (
+                <div key={`b-${r.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <Tag tone="down">炸板</Tag>
+                    <span className="truncate">{r.name}</span>
+                  </span>
+                  <span className={"num shrink-0 text-xs " + pctClass(r.pct)}>{r.pct > 0 ? "+" : ""}{r.pct.toFixed(1)}%</span>
+                </div>
+              ))}
+              {streakRows.length === 0 && firstBoardRows.length === 0 && brokenRows.length === 0 ? (
+                <div className="px-2 py-5 text-center text-sm text-muted">
+                  {poolSnap.why ?? "快照里没有个股明细，不拿全 0 冒充「今天没涨停」"}
+                </div>
+              ) : null}
+              <div className="border-t border-line px-2 pt-2 text-[11px] leading-snug text-muted">
+                {poolSnap.limitUp.length} 只涨停 · {poolSnap.broken.length} 只炸板 · {poolSnap.limitDown.length} 只跌停 ·
+                炸板率 {poolSnap.summary?.breakRate != null ? `${(poolSnap.summary.breakRate * 100).toFixed(0)}%` : "—"}
+                {poolSnap.sealed ? "" : " · 盘中未定"}
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="热门概念" note={themes.date ? `${themes.date} 收盘后` : "今天还没生成"}>
+          {hotThemes.length === 0 ? (
+            <div className="px-3 py-6 text-sm text-muted">题材热度榜还没生成，theme-heat.ts 每天 15:10 跑。</div>
+          ) : (
+            <div className="flex flex-col gap-1 p-2">
+              {hotThemes.map((r) => {
+                const c = continuationOf(r);
+                return (
+                  <div key={r.name} className="rounded px-2 py-1.5 hover:bg-surface-2">
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="truncate">{r.name}</span>
+                      <span className="num shrink-0 text-up">{r.limitUp} 只涨停</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted">
+                      <span className="truncate">均 {r.avg > 0 ? "+" : ""}{r.avg.toFixed(1)}% · 龙头 {r.leader?.name ?? "—"}</span>
+                      <Tag tone={c.evidence === "已验证" ? "up" : c.evidence === "噪声级" ? "warn" : "muted"}>{c.evidence}</Tag>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="border-t border-line px-2 py-2 text-right text-xs">
+            <Link to="/review/theme" className="text-accent hover:underline">完整题材榜 →</Link>
+          </div>
+        </Panel>
+
+        <Panel title="下一个可能热门" note="前瞻观察 · 情景概率 · 非买入信号">
+          <div className="flex flex-col gap-1.5 p-2">
+            <div className="text-[11px] text-muted">概念延续性（每条标证据等级）</div>
+            {hotThemes.slice(0, 2).map((r) => {
+              const c = continuationOf(r);
+              return (
+                <div key={`c-${r.name}`} className="rounded px-2 py-1.5 hover:bg-surface-2">
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="truncate">{r.name}</span>
+                    <Tag tone={c.tone === "up" ? "up" : c.tone === "warn" ? "warn" : "muted"}>{c.evidence}</Tag>
+                  </div>
+                  <div className="text-[11px] leading-snug text-muted">{c.label} · {c.basis}</div>
+                </div>
+              );
+            })}
+            {hotThemes.length === 0 ? <div className="px-2 py-3 text-sm text-muted">题材数据没来，观察也就不给。</div> : null}
+            <div className="border-t border-line pt-2 text-[11px] text-muted">
+              题材补涨候选 · {shortSignals.length} 只 · {LAGGARD_EVIDENCE.level}
+            </div>
+            {shortSignals.map((s) => (
+              <div key={`s-${s.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="truncate">{s.name}</span>
+                  <span className="truncate text-[11px] text-muted">{s.reason}</span>
+                </span>
+                <Tag tone={s.verdict === "ok" ? "up" : "warn"}>{s.verdict === "ok" ? "通过" : "提醒"}</Tag>
+              </div>
+            ))}
+            {shortSignals.length === 0 ? <div className="px-2 py-3 text-sm text-muted">今天没有题材补涨候选。</div> : null}
+            <div className="border-t border-line pt-2 text-[11px] leading-snug text-muted">
+              {LAGGARD_EVIDENCE.basis}。只作观察名单，不作买入信号。
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {/* ── 第三行 个股：今日盘前候选（数据复述，不是买入推荐）── */}
+      <div className="grid gap-2 lg:grid-cols-2">
+        <Panel
+          title="今日盘前候选 · 预登记策略筛出"
+          note={reviewed.date ? `${reviewed.date} · ${candidateCount} 个 / 通过 ${reviewed.ok} · 提醒 ${reviewed.warn}` : "今天还没审核"}
+        >
+          {longSignals.length === 0 ? (
+            <div className="px-3 py-6 text-sm text-muted">盘前审核还没生成候选，9:26 后才有。</div>
+          ) : (
+            <div className="flex flex-col gap-0.5 p-2">
+              {longSignals.map((s) => (
+                <div key={`l-${s.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="truncate">{s.name}</span>
+                    <span className="truncate text-[11px] text-muted">{s.reason}</span>
+                  </span>
+                  <span className="num shrink-0 text-xs text-muted">{s.buyPrice.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="border-t border-line px-2 py-2 text-[11px] leading-snug text-muted">
+            数据复述，不是买入推荐。短线腿见上方「下一个可能热门」，审核结论与预登记参数在
+            <Link to="/strategies/positions" className="text-accent hover:underline"> 持仓页 </Link>。
+          </div>
+        </Panel>
+        <Panel title="市场事实与资金" note={breadth ? `全市场 ${breadth.up + breadth.down + breadth.flat} 只` : undefined}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 p-3">
+            <KeyNum label="上涨 / 下跌" value={breadth ? `${breadth.up} / ${breadth.down}` : null} hint={breadth ? `平盘 ${breadth.flat}` : "涨跌家数暂不可用"} />
+            <KeyNum label="涨停 / 跌停" value={breadth ? `${breadth.limitUp} / ${breadth.limitDown}` : null} hint="涨跌停是情绪极值" />
+            <KeyNum label="两市成交额" value={tapeAmount != null ? yi(tapeAmount) : null} hint={prevTape ? `昨日 ${yi(prevTape)}` : "成交额暂不可用"} />
+            <KeyNum
+              label="主力净流入 · 全市场"
+              value={mainInflow == null ? null : yi(mainInflow)}
+              tone={mainInflow == null ? undefined : mainInflow > 0 ? "text-up" : mainInflow < 0 ? "text-down" : undefined}
+              hint={flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂不可用"}
+            />
+          </div>
+        </Panel>
       </div>
 
       {/* ── Zone B 资金与结构 ── */}
@@ -525,6 +659,36 @@ function Dashboard() {
             {news.length === 0 ? <div className="px-2 py-6 text-center text-sm text-muted">快讯暂不可用</div> : null}
           </div>
         </Panel>
+      </div>
+
+      {/* ── 第四行尾 项目情况：系统状态从原先的页首降级到这里 ── */}
+      <div className="grid gap-2 sm:grid-cols-3">
+        <HeroStat
+          icon={<ShieldCheck size={18} />}
+          label="系统健康"
+          value={String(healthScore)}
+          suffix="/ 100"
+          tone={healthScore === 100 ? "ok" : "warn"}
+          sub={
+            healthScore === 100
+              ? "记账 · 行情 · 闸门 · 指数 四项都在"
+              : `缺：${checks.filter((c) => !c.ok).map((c) => c.label).join("、")}`
+          }
+        />
+        <HeroStat
+          icon={<Clock size={18} />}
+          label="行情延迟"
+          value={delaySec != null ? `${delaySec} 秒` : "—"}
+          tone={delaySec == null ? "muted" : delaySec < 120 ? "ok" : "warn"}
+          sub={universe?.asOf ? `更新于 ${new Date(universe.asOf).toTimeString().slice(0, 5)}` : "行情还没拉到"}
+        />
+        <HeroStat
+          icon={<Gauge size={18} />}
+          label="风控闸门"
+          value={gatesOff === 0 ? "正常" : `${gatesOff} 套停用`}
+          tone={gatesOff === 0 ? "ok" : "warn"}
+          sub={gatesOff === 0 ? "未触发熔断，策略按预登记规则记账" : "停用名单见策略页，冷却后复跑判决"}
+        />
       </div>
     </Frame>
   );

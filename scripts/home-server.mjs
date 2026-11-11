@@ -342,6 +342,42 @@ function runTdxDaily() {
   });
 }
 
+// ── 市场快照：收盘后 15:12 采三池 + 广度，按日落盘，首页只读这份（零外部请求）。
+// 2026-11-11 体检：原来首页 loader 直接调 getSignals，3 个东财池串行 ×1300ms
+// 把 GET / 拖到 4.386620s。采集挪到心跳后，页面读 data/signals/limit-pools-today.json。
+// 同时按日归档 data/history/{limit-pools,theme-components}/，为「预测市场」攒历史样本。
+// 跨重启去重：当日归档若已是 sealed=true 就跳过；盘中采的 sealed=false 收盘后重采覆盖。
+let marketSnapshotRanDay = "";
+function runMarketSnapshot() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (marketSnapshotRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 12)) return;
+  try {
+    const archive = join(ROOT, "data", "history", "limit-pools", `${day}.json`);
+    if (existsSync(archive)) {
+      const prev = JSON.parse(readFileSync(archive, "utf8"));
+      if (prev?.sealed === true) {
+        marketSnapshotRanDay = day;
+        return;
+      }
+    }
+  } catch {
+    // 归档读不懂就正常重采，不静默跳过
+  }
+  marketSnapshotRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/capture-market-snapshot.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("市场快照没采成，首页会标「今天还没采集」，不拿旧值冒充");
+  });
+}
+
 // ── 短线形态台账：每天收盘后（15:35）跑，攒形态证据，不给买卖建议
 // 放在信号生成（15:30）之后：它读的是 K 线缓存，不与候选生成抢文件。
 // 跨重启去重看 summary.json 的 generatedFor，跟其它每日任务同一套规矩。
@@ -396,6 +432,7 @@ function runPreflight() {
 
 runKlineRefresh();
 runTdxDaily();
+runMarketSnapshot();
 runStrategyVerdict();
 runSignalGen();
 runSignalReview();
@@ -404,6 +441,7 @@ runShortFormsScan();
 runPreflight();
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
+const marketSnapshotTimer = setInterval(runMarketSnapshot, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
