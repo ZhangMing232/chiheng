@@ -2516,6 +2516,51 @@ async function main() {
    * 收益减掉同期全池，剩下的才是这个因子挑出来的东西。
    * 信噪比按「每天一个最高档减最低档」算，这样不会被某几天的暴涨暴跌带偏。
    */
+  /**
+   * 复合因子策略检验：把 N 个因子按当天横截面 z-score 合成一个分数，买分数最高的
+   * topN 只，持 N 天。这是「因子 → 策略」的桥——单因子横截面 t>2 不等于组合成策略
+   * 能赚钱（要过交易成本和执行结构），所以组合完必须用和策略同一把尺（逐日聚类 t）
+   * 判，不能看因子 t。
+   *
+   * 方向：用因子预注册的 direction（不是用观测 t 的符号硬凑——那是过拟合）。
+   * 只挑「观测 t 和预注册方向一致且显著」的因子进组合。
+   */
+  function analyzeComposite(
+    daily: DailyRow[][],
+    dates: string[],
+    startIdx: number,
+    hold: number,
+    factorIndices: number[],
+    directions: number[],
+    topN: number,
+  ): { clusterT: number | null; excess: number; n: number; days: number } | null {
+    const trades: { ret: number; bench: number; exitDate: string }[] = [];
+    for (let t = 0; t < daily.length; t += 1) {
+      const exitDate = dates[startIdx + t + hold] ?? "";
+      const rows: { ex: number; vals: number[] }[] = [];
+      for (const r of daily[t]) {
+        const vals = factorIndices.map((f) => r.vals[f]);
+        if (vals.some((v) => v == null)) continue;
+        rows.push({ ex: r.ex, vals: vals as number[] });
+      }
+      if (rows.length < topN * 3) continue;
+      const zArr: number[][] = factorIndices.map(() => []);
+      for (const r of rows) r.vals.forEach((v, i) => zArr[i].push(v));
+      const zs = zArr.map((arr) => {
+        const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+        const sd = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length) || 1;
+        return arr.map((v) => (v - mean) / sd);
+      });
+      const scored = rows.map((r, i) => ({
+        ex: r.ex,
+        score: zs.reduce((s, z, k) => s + z[i] * directions[k], 0),
+      }));
+      scored.sort((a, b) => b.score - a.score);
+      for (const s of scored.slice(0, topN)) trades.push({ ret: s.ex, bench: 0, exitDate });
+    }
+    return clusterTOf(trades);
+  }
+
   if (process.env.BT_FACTOR === "1") {
     const N = Number(process.env.BT_N ?? 3);
     const buckets = Number(process.env.BT_BUCKETS ?? 5);
@@ -2610,8 +2655,57 @@ async function main() {
     const mid = Math.floor((fStart + fp.dates.length - 2) / 2);
     const fullDaily = buildDaily(fp.klines, fp.idxOf, fp.dates, fp.benchOver, fStart, fp.dates.length - N);
     const full = analyzeFactors(fullDaily, factorCount, buckets);
+
     const first = analyzeFactors(buildDaily(fp.klines, fp.idxOf, fp.dates, fp.benchOver, fStart, Math.min(mid, fp.dates.length - N)), factorCount, buckets);
     const second = analyzeFactors(buildDaily(fp.klines, fp.idxOf, fp.dates, fp.benchOver, mid, fp.dates.length - N), factorCount, buckets);
+
+    // ── 因子 → 策略：把过关因子组合成复合策略试一把 ──────────────────────
+    // 这是「无数合适因子形成策略」的落地：z-score 合成、买 topN、持 N 天，
+    // 用逐日聚类 t 判（和策略同一把尺）。BT_COMPOSITE_FACTORS 可指定因子，
+    // 否则自动挑「观测 t 与预注册方向一致且 |t|≥2」的。
+    {
+      const autoPick = full
+        .map((r, i) => ({ i, t: r.nDays > 0 ? r.t : 0 }))
+        .filter((x) => x.t * factors[x.i].direction >= 2)
+        .map((x) => x.i);
+      const picked = process.env.BT_COMPOSITE_FACTORS
+        ? process.env.BT_COMPOSITE_FACTORS.split(",")
+            .map((id) => factors.findIndex((f) => f.id === id.trim()))
+            .filter((i) => i >= 0)
+        : autoPick;
+      if (picked.length > 0) {
+        const topN = Number(process.env.BT_COMPOSITE_TOPN ?? 5);
+        const dirs = picked.map((i) => factors[i].direction);
+        const comp = analyzeComposite(fullDaily, fp.dates, fStart, N, picked, dirs, topN);
+        if (comp) {
+          console.log(`\n── 复合因子策略（${picked.length} 个因子 → top${topN}，持 ${N} 天，逐日聚类）──`);
+          console.log(`  因子：${picked.map((i) => factors[i].name).join(" + ")}`);
+          console.log(
+            `  全样本(样本内) clusterT=${comp.clusterT == null ? "算不出" : (comp.clusterT >= 0 ? "+" : "") + comp.clusterT.toFixed(2)}` +
+              `  excess=${(comp.excess * 100).toFixed(2)}pp  n=${comp.n} days=${comp.days}`,
+          );
+        }
+        // 样本外：因子只用前半段挑（first 的 t），组合策略在后半段验。
+        // 全样本那个 +2.25 是「同一份数据挑因子、又在这份数据上测」，必须拿这条对照。
+        const oosPicked = first
+          .map((r, i) => ({ i, t: r.nDays > 0 ? r.t : 0 }))
+          .filter((x) => x.t * factors[x.i].direction >= 2)
+          .map((x) => x.i);
+        if (oosPicked.length > 0) {
+          const oosDirs = oosPicked.map((i) => factors[i].direction);
+          const secondDaily = buildDaily(fp.klines, fp.idxOf, fp.dates, fp.benchOver, mid, fp.dates.length - N);
+          const oos = analyzeComposite(secondDaily, fp.dates, mid, N, oosPicked, oosDirs, topN);
+          if (oos) {
+            console.log(`  ── 样本外（前段挑 ${oosPicked.length} 个因子 → 后段验）──`);
+            console.log(`  因子：${oosPicked.map((i) => factors[i].name).join(" + ")}`);
+            console.log(
+              `  样本外 clusterT=${oos.clusterT == null ? "算不出" : (oos.clusterT >= 0 ? "+" : "") + oos.clusterT.toFixed(2)}` +
+                `  excess=${(oos.excess * 100).toFixed(2)}pp  n=${oos.n} days=${oos.days}`,
+            );
+          }
+        }
+      }
+    }
 
     // G4 换样本：错开一位的**另一批**票（step≥2 保证与主样本不重叠），跑同一套检验
     const resampleIds = ids.filter((_, i) => (i + offsetVal + 1) % fStep === 0).slice(0, FACTOR_SAMPLE);
