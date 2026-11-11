@@ -19,6 +19,7 @@ import { Route as DebateRouteImport } from './routes/debate'
 import { Route as DecisionRouteImport } from './routes/decision'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as FlowRouteImport } from './routes/flow'
+import { Route as HotmoneyRouteImport } from './routes/hotmoney'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembershipRouteImport } from './routes/membership'
@@ -125,6 +126,11 @@ const EventsRoute = EventsRouteImport.update({
 const FlowRoute = FlowRouteImport.update({
   id: '/flow',
   path: '/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HotmoneyRoute = HotmoneyRouteImport.update({
+  id: '/hotmoney',
+  path: '/hotmoney',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -424,6 +430,7 @@ export interface FileRoutesByFullPath {
   '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
+  '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -492,6 +499,7 @@ export interface FileRoutesByTo {
   '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
+  '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -559,6 +567,7 @@ export interface FileRoutesById {
   '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
+  '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/membership': typeof MembershipRoute
@@ -630,6 +639,7 @@ export interface FileRouteTypes {
     | '/decision'
     | '/events'
     | '/flow'
+    | '/hotmoney'
     | '/inbox'
     | '/login'
     | '/membership'
@@ -698,6 +708,7 @@ export interface FileRouteTypes {
     | '/decision'
     | '/events'
     | '/flow'
+    | '/hotmoney'
     | '/inbox'
     | '/login'
     | '/membership'
@@ -764,6 +775,7 @@ export interface FileRouteTypes {
     | '/decision'
     | '/events'
     | '/flow'
+    | '/hotmoney'
     | '/inbox'
     | '/login'
     | '/membership'
@@ -834,6 +846,7 @@ export interface RootRouteChildren {
   DecisionRoute: typeof DecisionRoute
   EventsRoute: typeof EventsRoute
   FlowRoute: typeof FlowRouteWithChildren
+  HotmoneyRoute: typeof HotmoneyRoute
   InboxRoute: typeof InboxRoute
   LoginRoute: typeof LoginRoute
   MembershipRoute: typeof MembershipRoute
@@ -932,6 +945,13 @@ declare module '@tanstack/react-router' {
       path: '/flow'
       fullPath: '/flow'
       preLoaderRoute: typeof FlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hotmoney': {
+      id: '/hotmoney'
+      path: '/hotmoney'
+      fullPath: '/hotmoney'
+      preLoaderRoute: typeof HotmoneyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -1464,6 +1484,7 @@ const rootRouteChildren: RootRouteChildren = {
   DecisionRoute: DecisionRoute,
   EventsRoute: EventsRoute,
   FlowRoute: FlowRouteWithChildren,
+  HotmoneyRoute: HotmoneyRoute,
   InboxRoute: InboxRoute,
   LoginRoute: LoginRoute,
   MembershipRoute: MembershipRoute,

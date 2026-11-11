@@ -403,6 +403,28 @@ function runDecisionPush() {
   });
 }
 
+// ── 龙虎榜/游资：收盘后 17:00 抓（东财龙虎榜 ~17:00 更新）——按天落盘 data/risk/hotmoney/。
+// 页面 getHotMoney 是现拉缓存的，这里是补历史归档（回测用）。去重看当日文件是否已落。
+let hotmoneyRanDay = "";
+function runHotmoneyFetch() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (hotmoneyRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  if (hour < 17) return;
+  const f = join(ROOT, "data", "risk", "hotmoney", `${day}.json`);
+  if (existsSync(f)) { hotmoneyRanDay = day; return; }
+  hotmoneyRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/fetch-hotmoney-history.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("龙虎榜归档没抓成，手动跑 fetch-hotmoney-history.ts 补");
+  });
+}
+
 // ── 监管异动雷达：收盘后 15:15 算（快照 15:12 落盘之后）——从 K 线算 3 日偏离值，
 // 纯计算零外部源。去重看 data/history/regulatory/<date>.json 是否已落。
 let regulatoryRanDay = "";
@@ -505,6 +527,7 @@ runTdxDaily();
 runMarketSnapshot();
 runLimitUpReason();
 runRegulatoryRadar();
+runHotmoneyFetch();
 runDecisionPush();
 runStrategyVerdict();
 runSignalGen();
@@ -517,6 +540,7 @@ const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
 const marketSnapshotTimer = setInterval(runMarketSnapshot, 60_000);
 const limitUpReasonTimer = setInterval(runLimitUpReason, 60_000);
 const regulatoryTimer = setInterval(runRegulatoryRadar, 60_000);
+const hotmoneyTimer = setInterval(runHotmoneyFetch, 60_000);
 const decisionPushTimer = setInterval(runDecisionPush, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
