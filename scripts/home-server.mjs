@@ -374,8 +374,32 @@ function runMarketSnapshot() {
     { stdio: "inherit" },
   );
   child.on("exit", (code) => {
-    if (code) console.error("市场快照没采成，首页会标「今天还没采集」，不拿旧值冒充");
+    if (code) {
+      console.error("市场快照没采成，首页会标「今天还没采集」，不拿旧值冒充");
+      return;
+    }
+    // 快照落盘之后顺着算下游两份数据（都只读本地文件，不联网）：
+    //   cycle-history → 情绪周期序列（/cycle）
+    //   brief-build   → 题材前瞻简报（/brief）
+    // 串行跑，因为后两个都依赖刚写的 limit-pools-today.json。
+    runAfterSnapshot();
   });
+}
+
+/** 快照之后的下游计算。失败只在日志里说，不阻塞别的定时任务。 */
+function runAfterSnapshot() {
+  const steps = ["scripts/cycle-history.ts", "scripts/brief-build.ts"];
+  const next = (i) => {
+    if (i >= steps.length) return;
+    const c = spawn(process.execPath, ["--experimental-strip-types", "--import", "./scripts/alias.mjs", steps[i]], {
+      stdio: "inherit",
+    });
+    c.on("exit", (code) => {
+      if (code) console.error(`${steps[i]} 没跑成（退出码 ${code}），对应页面会保持上一份数据`);
+      next(i + 1);
+    });
+  };
+  next(0);
 }
 
 // ── 早盘决策推送：9:26 竞价审核落盘之后推 ──

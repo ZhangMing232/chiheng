@@ -34,6 +34,9 @@ const PAGES = [
   "/intel", // 2026-11-11 新增市场情报页
   "/rotation", // 2026-11-11 新增题材轮动页
   "/ladder", // 2026-11-11 新增连板天梯页
+  "/grid", // 2026-11-11 新增多股同屏（位置不重排 + 涨停原因气泡）
+  "/cycle", // 2026-11-11 新增情绪周期（阶段带 / 板位热力图 / 转移矩阵）
+  "/brief", // 2026-11-11 新增题材前瞻简报（催化 / 密度 / 个股分数与论据）
   // 市场
   "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events", "/news", "/overseas",
   // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）
@@ -59,7 +62,9 @@ const PAGES = [
 // （含底部 pinned 的 /ai）。上一版里的 /flow 在 10-23 撤掉侧栏入口后必然点不到，
 // 是漂移的一部分。子页面（/strategies/positions、/review/signals、/review/flow/*
 // 这类）不在侧栏里，靠页面内 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
-const NAV_PAGES = ["/butler", "/studio", "/strategies/screener", "/factors", "/my-stocks", "/backtest", "/ai"]; // /research 2026-11-11 从侧栏收掉
+// /studio、/research 2026-11-11 从侧栏收掉（只留直链），不该再放进这一组——
+// 放进来必然「导航里找不到链接」，白占一个 fail。
+const NAV_PAGES = ["/butler", "/grid", "/cycle", "/brief", "/strategies/screener", "/factors", "/my-stocks", "/backtest", "/ai"];
 
 /** 等 fn 返回非 undefined 值，超时抛错 */
 async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {

@@ -40,6 +40,25 @@
   --shadow-pop: 0 6px 18px rgb(22 28 37 / 0.12);
 }
 
+/* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
+ * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
+ * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。
+ * 用法：热力图色阶、阶段色带、阶段徽标。不要往正文内容上洒。
+ *
+ * 注意：**故意写在 @theme 外面**。Tailwind v4 会把 @theme 里没有被工具类用到的
+ * 变量裁掉，而这里的颜色只在 style="background:var(--color-phase-x)" 里用，
+ * 工具类扫不到——放进 @theme 的话产物里根本没有这几个变量，色带会整条空白
+ * （2026-11-11 实测踩过：页面渲染正常但柱子全透明）。
+ */
+:root {
+  --color-phase-fix: #3f8f31; /* 修复：跌完开始有人接 */
+  --color-phase-up: #c1760a; /* 升温：赚钱效应扩散 */
+  --color-phase-top: #c9202e; /* 高潮：情绪顶点（唯一允许用红，因为它是"最热"） */
+  --color-phase-cool: #c2469a; /* 降温：还有热度但接力变差 */
+  --color-phase-ebb: #6b4fd0; /* 退潮：亏钱效应 */
+  --color-phase-ice: #1f6fbe; /* 冰点：没人玩 */
+}
+
 /* 键帽。快捷键面板和文档里都用它，两处看起来必须是同一样东西。 */
 .kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -85,6 +104,60 @@ html[data-theme="dark"] {
   --color-ai-line: rgba(103, 232, 249, 0.35);
   --shadow-card: 0 8px 24px rgb(0 0 0 / 0.28);
   --shadow-pop: 0 6px 18px rgb(0 0 0 / 0.28);
+  /* 六档阶段色：深色下整体提亮、降饱和一点点，避免刺眼 */
+  --color-phase-fix: #63c94e;
+  --color-phase-up: #f9b23c;
+  --color-phase-top: #ff3b30;
+  --color-phase-cool: #ff7ac2;
+  --color-phase-ebb: #a98bf5;
+  --color-phase-ice: #3d9ae0;
+}
+
+/* ── 涨跌配色（2026-11-11）────────────────────────────────────
+ * 默认红涨绿跌，这是 A 股约定，也是这个项目的铁律，**不要改默认值**。
+ * 这里只提供一个人工开关：看过外盘的人可以把红绿翻过来。开关在顶栏「显示」里，
+ * 存 localStorage 的 chiheng-scheme，默认 "cn"。
+ * 只翻 up/down 四个 token，别的一律不动——翻的只是"涨跌用哪个色"，不是主题。
+ */
+html[data-scheme="intl"] {
+  --color-up: #0b7040;
+  --color-down: #c9202e;
+  --color-up-soft: #e7f6ef;
+  --color-down-soft: #fdecee;
+}
+
+html[data-theme="dark"][data-scheme="intl"] {
+  --color-up: #43a583;
+  --color-down: #e84d4d;
+  --color-up-soft: rgba(67, 165, 131, 0.12);
+  --color-down-soft: rgba(232, 77, 77, 0.12);
+}
+
+/* ── 摸鱼模式（2026-11-11，参考连板网 🐟）──────────────────────
+ * 一键把"红红绿绿的行情页"变成"一份无聊的工作文档"。
+ *
+ * 实现方式特意**不用 filter: saturate()**：filter 会给元素造 containing block，
+ * 页面里所有 position:fixed 的浮层（弹层、抽屉、气泡）会从"贴视口"变成"贴父元素"，
+ * 平时看不出来，一开摸鱼就全飞位置。改成动 token——把 up/down/gold/warn 全换成灰，
+ * 结构、字号、层次都还在，唯独不再扎眼。
+ *
+ * 开关在顶栏「显示」里，存 localStorage 的 chiheng-slack。
+ */
+html[data-slack="1"] {
+  --color-up: #6b7280;
+  --color-down: #6b7280;
+  --color-up-soft: #eef0f3;
+  --color-down-soft: #eef0f3;
+  --color-gold: #7a7f88;
+  --color-gold-soft: #eef0f3;
+  --color-warn: #6f747c;
+  --color-warn-soft: #eef0f3;
+  --color-phase-fix: #7a7f88;
+  --color-phase-up: #7a7f88;
+  --color-phase-top: #7a7f88;
+  --color-phase-cool: #7a7f88;
+  --color-phase-ebb: #7a7f88;
+  --color-phase-ice: #7a7f88;
 }
 
 @layer base {
@@ -331,4 +404,108 @@ main tbody tr:hover td.sticky {
 
 .stale {
   opacity: 0.55;
+}
+
+/* === 微动效六件套（2026-11-11 定）===
+ *
+ * 参考连板网的做法：整站只有六种动效，别的不许再加。
+ * 数据密度高的页面，任何 200ms 的渐变都会让眼睛觉得"慢半拍"，所以这里没有
+ * "所有东西都淡入"，只有这六个有明确语义动作用处：
+ *
+ *   .sheet-in      弹层/抽屉出现（0.22s 上滑）——只说"我从下面来了"
+ *   .toast-fade    复制成功之类的浮字（2.6s 自淡出）——不用手动关
+ *   .live-dot      实时红点（1.4s 呼吸）——只说"这是活的"
+ *   .flash-twice   格子状态变化（金框闪两下）——只闪两下，不常驻
+ *   .skeleton      骨架屏（1.1s 扫光）——内容没到之前占住位置，别让布局跳
+ *   .pulse-once    一次性引导（1.6s 光圈 ×3）——只给"新功能第一次出现"
+ *
+ * 全部在 @media (prefers-reduced-motion: reduce) 下会被上面那条全局规则压成 0.01ms，
+ * 系统开了"减弱动态"的用户看到的是静态结果，不是没效果。
+ */
+@keyframes ch-sheet-in {
+  from {
+    opacity: 0.65;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.sheet-in {
+  animation: ch-sheet-in 0.22s ease-out;
+}
+
+@keyframes ch-toast-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  12% {
+    opacity: 1;
+    transform: none;
+  }
+  78% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.toast-fade {
+  animation: ch-toast-fade 2.6s ease forwards;
+}
+
+@keyframes ch-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.live-dot {
+  animation: ch-live-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ch-flash-twice {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+  50% {
+    box-shadow: inset 0 0 0 2px var(--color-gold);
+  }
+}
+.flash-twice {
+  animation: ch-flash-twice 1.2s ease-out 2;
+}
+
+@keyframes ch-skeleton-scan {
+  from {
+    background-position: -160px 0;
+  }
+  to {
+    background-position: 160px 0;
+  }
+}
+.skeleton {
+  background-image: linear-gradient(90deg, var(--color-surface-2) 0, var(--color-line) 40px, var(--color-surface-2) 80px);
+  background-size: 160px 100%;
+  animation: ch-skeleton-scan 1.1s linear infinite;
+}
+
+@keyframes ch-pulse-once {
+  0% {
+    box-shadow: 0 0 0 0 rgb(22 119 255 / 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgb(22 119 255 / 0);
+  }
+}
+.pulse-once {
+  animation: ch-pulse-once 1.6s ease-out 3;
 }

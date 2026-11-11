@@ -18,6 +18,7 @@
  */
 
 import {
+  Activity,
   Bell,
   Compass,
   BrainCircuit,
@@ -25,24 +26,29 @@ import {
   CreditCard,
   FileSearch,
   FileText,
+  Flame,
   FlaskConical,
   Gauge,
+  GitBranch,
   Globe,
   History,
   Image,
   LayoutDashboard,
+  LayoutGrid,
   LineChart,
   ListFilter,
   LogIn,
   type LucideIcon,
   Newspaper,
   NotebookPen,
+  RefreshCw,
   Scale,
   ScanSearch,
   Settings,
   Sparkles,
   Star,
   Table,
+  Target,
   Users,
 } from "lucide-react";
 
@@ -164,6 +170,60 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
         ornament: "day-rhythm",
     purpose: "港股美股，A股之外的另一个盘",
     hue: "blue",
+  },
+  // 2026-11-11 新增的市场组五个页面。底纹跟组走（blue），
+  // 标题/职能跟侧栏 aside 对齐——两处不一致时用户会以为点错了页。
+  "/decision": {
+    title: "今日决策",
+    icon: Target,
+    purpose: "今天该不该动手：先过闸门，再看结论",
+    hue: "blue",
+    ornament: "gate-badges",
+  },
+  "/ladder": {
+    title: "连板天梯",
+    icon: GitBranch,
+    purpose: "按板位排梯队，看接力有没有人接",
+    hue: "blue",
+    ornament: "ladder-rungs",
+  },
+  "/grid": {
+    title: "多股同屏",
+    icon: LayoutGrid,
+    purpose: "所有涨停压进一屏，位置整天不动",
+    hue: "blue",
+  },
+  "/cycle": {
+    title: "情绪周期",
+    icon: Activity,
+    purpose: "今天处在哪个阶段，历史上这个阶段之后怎么走",
+    hue: "blue",
+    ornament: "pulse-wave",
+  },
+  "/rotation": {
+    title: "题材轮动",
+    icon: RefreshCw,
+    purpose: "钱从哪个题材流到哪个题材",
+    hue: "blue",
+  },
+  "/hotmoney": {
+    title: "游资追踪",
+    icon: Flame,
+    purpose: "谁在买：营业部席位与龙虎榜动向",
+    hue: "blue",
+  },
+  "/intel": {
+    title: "市场情报",
+    icon: Newspaper,
+    purpose: "消息、公告、异动，按题材归堆",
+    hue: "blue",
+  },
+  "/brief": {
+    title: "题材简报",
+    icon: FileText,
+    purpose: "催化 → 题材 → 个股，每只票的分数能手工复算",
+    hue: "blue",
+    ornament: "evidence-chain",
   },
 
   "/strategies/screener": {

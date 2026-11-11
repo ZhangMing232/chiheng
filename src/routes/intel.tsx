@@ -33,7 +33,7 @@ function IntelPage() {
 
   return (
     <>
-    <Frame wide aside="市场情报">
+    <Frame wide>
       <div className="flex flex-col gap-3">
         <Panel title="市场情报 · 新闻解读" note={date ? `${date} · 新闻→题材→个股传导` : "还没采集"}>
           {cards.length === 0 ? (

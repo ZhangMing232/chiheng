@@ -41,9 +41,9 @@ function HotMoneyPage() {
 
   return (
     <>
-    <Frame wide aside="游资追踪">
+    <Frame wide>
       <div className="flex flex-col gap-3">
-        <Panel title="游资追踪" note={date ? `${date} 龙虎榜 · 席位按游资名号聚合` : "龙虎榜还没出"}>
+        <Panel title="席位净买卖" note={date ? `${date} 龙虎榜 · 席位按游资名号聚合` : "龙虎榜还没出"}>
           {seats.length === 0 ? (
             <StateBlock kind="empty" title="今天还没龙虎榜" hint="东财龙虎榜收盘后 ~17:00 才更新，盘中/早盘是空的。" />
           ) : (

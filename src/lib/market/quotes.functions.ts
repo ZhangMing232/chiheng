@@ -20,6 +20,7 @@ import { loadBacktestRuns } from "@/lib/market/backtest-runs";
 import { readAILog } from "@/lib/market/ai-log";
 import { profileStatus, readProfiles } from "@/lib/market/ai-profiles";
 import type { PaperDay } from "@/lib/paper";
+import type { Phase } from "@/lib/market/cycle";
 import { loadRelay } from "@/lib/market/sectors";
 import { loadNews, loadStockArticles, searchStocks, stockChg, type StockArticle, type StockHit } from "@/lib/market/news";
 import { loadFlow } from "@/lib/market/flow";
@@ -1589,6 +1590,103 @@ export const getLadder3Day = createServerFn({ method: "GET" }).handler(async ():
   }
 });
 
+export type CycleSeriesPayload = {
+  date: string;
+  series: Array<{
+    date: string;
+    limitUp: number;
+    ladder: number;
+    maxStreak: number;
+    byTier: Record<string, number>;
+    up: number;
+    down: number;
+    eqReturn: number;
+    n: number;
+    temp: number;
+    phase: Phase;
+    tempDelta5: number;
+  }>;
+  meta: { source: string; note: string; generatedAt: string } | null;
+};
+
+/**
+ * 情绪周期序列（scripts/cycle-history.ts 从 K 线缓存算出来的那 260 天）。
+ * 只读落盘文件，不在请求里算——那要扫 5000 个 K 线文件，SSR 会卡死。
+ */
+export const getCycleSeries = createServerFn({ method: "GET" }).handler(async (): Promise<CycleSeriesPayload> => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const raw = await readFile(dataPath("data", "history", "cycle", "series.json"), "utf8");
+    const parsed = JSON.parse(raw) as {
+      series?: CycleSeriesPayload["series"];
+      source?: string;
+      note?: string;
+      generatedAt?: string;
+    };
+    const series = parsed.series ?? [];
+    return {
+      date: series[series.length - 1]?.date ?? "",
+      series,
+      meta:
+        parsed.source || parsed.note
+          ? { source: parsed.source ?? "", note: parsed.note ?? "", generatedAt: parsed.generatedAt ?? "" }
+          : null,
+    };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getCycleSeries 读文件失败:", e instanceof Error ? e.message : String(e));
+    return { date: "", series: [], meta: null };
+  }
+});
+
+export type BriefPayload = {
+  date: string;
+  generatedAt: string;
+  sealed: boolean;
+  reasonDate: string;
+  totalLimitUp: number;
+  scoring: { version: number; terms: string[]; note: string };
+  themes: Array<{
+    name: string;
+    code: string;
+    members: number;
+    limitUp: number;
+    lift: number;
+    maxStreak: number;
+    leader: string;
+    note: string;
+    catalyst: { title: string; date: string; reason: string } | null;
+    stocks: Array<{
+      id: string;
+      code: string;
+      name: string;
+      streak: number;
+      sealFund: number;
+      score: number;
+      scoreParts: { label: string; value: string }[];
+    }>;
+  }>;
+};
+
+/**
+ * 题材前瞻简报（scripts/brief-build.ts 生成）。
+ * 只读落盘文件：算一次要扫概念成分股 + 行情 + 涨停池 + 原因，不该放在请求里。
+ */
+export const getBrief = createServerFn({ method: "GET" }).handler(async (): Promise<BriefPayload | null> => {
+  try {
+    const { readFile, readdir } = await import("node:fs/promises");
+    const dir = dataPath("data", "history", "brief");
+    const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith(".json")).sort();
+    if (files.length === 0) return null;
+    const raw = await readFile(`${dir}/${files[files.length - 1]}`, "utf8");
+    return JSON.parse(raw) as BriefPayload;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getBrief 读文件失败:", e instanceof Error ? e.message : String(e));
+    return null;
+  }
+});
+
 export type StockDetailPayload = {
   id: string;
   name: string;
@@ -1598,7 +1696,6 @@ export type StockDetailPayload = {
   reason: string;
   regulatory: { dev: number; threshold: number; level: string } | null;
 };
-
 /** 个股弹层：K线/涨停史/题材/监管异动（点天梯里的票时拉）。 */
 export const getStockDetail = createServerFn({ method: "GET" })
   .validator((input: unknown): { id: string; name: string } => {

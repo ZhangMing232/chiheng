@@ -65,7 +65,7 @@ let capMap: Record<string, number> = {};
 // 个股自身 PE 历史分位（pct：0=自身历史最便宜，100=最贵；streak：连续低位天数）。
 // 由 buildPePctMap() 在 loadPeHistory 之后预计算，策略函数按 m.date 查，避免每笔重复扫全序列。
 // 这是把「PE≤18 绝对值」改写成「相对自身历史便宜 + 持续低位」的核心结构——直接修复价值策略的 value-trap 失败。
-let pePctMap: Record<string, Map<string, { pct: number; streak: number }>> = {};
+const pePctMap: Record<string, Map<string, { pct: number; streak: number }>> = {};
 
 async function loadPeHistory(): Promise<void> {
   const dir = `${CACHE}/../pe-history`;

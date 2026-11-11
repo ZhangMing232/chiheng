@@ -15,14 +15,17 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Activity,
   Bell,
   Compass,
   Bot,
   ChevronDown,
   FileSearch,
+  FileText,
   FlaskConical,
   Gauge,
   Globe,
+  Grid3x3,
   History,
   Image,
   LayoutDashboard,
@@ -48,6 +51,7 @@ import type { StatusSnapshot } from "@/lib/ui/app-status";
 import { isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { snapshotAge } from "@/lib/market/format";
+import { usePageVisible } from "@/lib/ui/use-visible-interval";
 
 /** 顶栏账号入口：已登录显示邮箱（或名字）+ 付费档位徽章，点进 /membership 看档位与定价；
  *  未登录显示「登录」。会话解析中渲染空，不闪。 */
@@ -108,7 +112,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/ladder" | "/rotation" | "/intel" | "/hotmoney" | "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/ladder" | "/rotation" | "/intel" | "/hotmoney" | "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings" | "/cycle" | "/grid" | "/brief"; label: string; icon: LucideIcon }[];
 }[] = [
   { label: "总览", items: [
     { to: "/decision", label: "今日决策", icon: Compass },
@@ -123,6 +127,9 @@ const SIDEBAR: {
       // 指数/资金/快讯全重复，只有直方图独有。侧栏「市场」组少一个入口。
       { to: "/review", label: "每日复盘", icon: History },
       { to: "/ladder", label: "连板天梯", icon: TrendingUp },
+      // 2026-11-11 新增：多股同屏（位置不重排的盯盘格）与情绪周期（阶段/热力图/转移）
+      { to: "/grid", label: "多股同屏", icon: Grid3x3 },
+      { to: "/cycle", label: "情绪周期", icon: Activity },
       { to: "/rotation", label: "题材轮动", icon: RefreshCw },
       { to: "/hotmoney", label: "游资追踪", icon: LineChart },
       { to: "/overseas", label: "全球行情", icon: Globe },
@@ -132,6 +139,8 @@ const SIDEBAR: {
     label: "资讯",
     items: [
       { to: "/intel", label: "市场情报", icon: Sparkles },
+      // 2026-11-11 新增：题材前瞻简报（催化 / 密度 / 个股分数与论据）
+      { to: "/brief", label: "题材简报", icon: FileText },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/inbox", label: "消息与提醒", icon: Bell },
       // 2026-11-11 清理：自媒体图文（内容生成）从侧栏收掉——它是发内容的，不是交易决策，
@@ -236,10 +245,12 @@ function SideNav() {
   }
   // 侧栏「消息与提醒」的未读红点：和 /inbox 页用**同一个**已读水位
   // （chiheng-alert-read-at），两处计数永远一致。
+  const visible = usePageVisible();
   const inboxQuery = useQuery({
     queryKey: ["sidebar-inbox-unread"],
     queryFn: () => getAlerts(),
-    refetchInterval: 120_000,
+    // 页面在后台就别查了：侧栏红点没人看，白烧接口。
+    refetchInterval: visible ? 120_000 : false,
   });
   const [inboxMark, setInboxMark] = useState<string | null>(null);
   useEffect(() => {
@@ -371,6 +382,8 @@ function SideNav() {
  * 之前占位的「计算节点 12/16」是效果图的假数，代码里无此数据源，已撤掉。
  */
 function useSysStatus() {
+  // 后台不刷：状态条上一串「延迟 N 秒」没人看，回到前台后下一个周期自然补上。
+  const visible = usePageVisible();
   const { data } = useQuery({
     queryKey: ["sys-status"],
     queryFn: async () => {
@@ -386,7 +399,7 @@ function useSysStatus() {
       // 触发 #418；每 60s refetch 时这个时刻自然刷新。
       return { rec, uni, queue, log, gates, serverNow: Date.now() };
     },
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
   });
   const serverNow = data?.serverNow ?? 0;
   const rec = data?.rec ?? null;
@@ -532,6 +545,9 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "策略管理", keywords: "arena 竞技场 策略管理", to: "/strategies/manage" },
   { label: "跟单与持仓", keywords: "signals 竞技场 信号 持仓 跟踪", to: "/strategies/positions" },
   { label: "失败归因", keywords: "autopsy 归因 亏损", to: "/strategies/autopsy" },
+  { label: "多股同屏", keywords: "grid 同屏 盯盘 位置", to: "/grid" },
+  { label: "情绪周期", keywords: "cycle 周期 阶段 冰点 高潮 转移", to: "/cycle" },
+  { label: "题材简报", keywords: "brief 题材 催化 前瞻 简报", to: "/brief" },
   { label: "因子实验室", keywords: "factors 因子", to: "/factors" },
   { label: "回测", keywords: "backtest", to: "/backtest" },
   { label: "AI 工作台", keywords: "ai 智能", to: "/ai" },
@@ -787,6 +803,80 @@ export function TypeSize() {
 }
 
 /**
+ * 涨跌配色：A 股约定（红涨绿跌，默认）还是国际习惯（绿涨红跌）。
+ *
+ * 只翻 --color-up / --color-down 两组 token，别的都不动。默认值必须留在 cn——
+ * 红涨绿跌是这个项目的硬约定，不是个人偏好，开关只是给看外盘的人留个口子。
+ * 存 localStorage 的 chiheng-scheme；__root.tsx 的内联脚本会在首帧就套上，
+ * 避免切页时先红后绿地闪一下。
+ */
+export function ColorScheme() {
+  const [intl, setIntl] = useState(false);
+  useEffect(() => {
+    setIntl(localStorage.getItem("chiheng-scheme") === "intl");
+  }, []);
+  const pick = (next: boolean) => {
+    setIntl(next);
+    if (next) document.documentElement.dataset.scheme = "intl";
+    else delete document.documentElement.dataset.scheme;
+    localStorage.setItem("chiheng-scheme", next ? "intl" : "cn");
+  };
+  return (
+    <div className="flex rounded-full bg-surface-2 p-0.5" aria-label="涨跌配色">
+      <button
+        type="button"
+        onClick={() => pick(false)}
+        className={"rounded-full px-2.5 py-1.5 text-xs " + (!intl ? "bg-surface text-fg" : "text-muted")}
+      >
+        红涨绿跌
+      </button>
+      <button
+        type="button"
+        onClick={() => pick(true)}
+        className={"rounded-full px-2.5 py-1.5 text-xs " + (intl ? "bg-surface text-fg" : "text-muted")}
+      >
+        绿涨红跌
+      </button>
+    </div>
+  );
+}
+
+/**
+ * 摸鱼模式：把红红绿绿的行情页变成一份无聊的工作文档。
+ *
+ * 实现是动 token 不是加 filter——filter 会给元素造 containing block，
+ * 页面上所有 fixed 浮层会跟着父元素跑，一开就全错位。详见 styles.css 的注释。
+ * 存 localStorage 的 chiheng-slack。
+ */
+export function SlackMode() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    setOn(localStorage.getItem("chiheng-slack") === "1");
+  }, []);
+  const toggle = () => {
+    const next = !on;
+    setOn(next);
+    if (next) document.documentElement.dataset.slack = "1";
+    else delete document.documentElement.dataset.slack;
+    localStorage.setItem("chiheng-slack", next ? "1" : "0");
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={on}
+      title="把涨跌配色抹成灰，看起来像在工作"
+      className={
+        "rounded-full px-2.5 py-1.5 text-xs " +
+        (on ? "bg-surface text-fg ring-1 ring-line" : "bg-surface-2 text-muted hover:text-fg")
+      }
+    >
+      {on ? "🐟 摸鱼中" : "🐟 摸鱼模式"}
+    </button>
+  );
+}
+
+/**
  * 铃铛下拉里的微信推送配置（PushPlus）。
  * 只给主人账号显示——推送本身只在主人账本上触发，别人配置了也不会收到。
  * 填新 token 覆盖旧的；留空点保存 = 关闭微信推送（回到只发 Mac 通知）。
@@ -855,10 +945,11 @@ function PushConfig() {
  */
 function AlertBell() {
   const navigate = useNavigate();
+  const visible = usePageVisible();
   const { data } = useQuery({
     queryKey: ["sell-alerts"],
     queryFn: () => getSellAlerts(),
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
   });
   const alerts = data?.alerts ?? [];
   // 已读水位存在浏览器里。SSR 阶段没有 localStorage，初始给 null，挂载后再读。
@@ -891,7 +982,7 @@ function AlertBell() {
     queryKey: ["bell-inbox-alerts"],
     queryFn: () => getAlerts(),
     enabled: open,
-    refetchInterval: 60_000,
+    refetchInterval: open && visible ? 60_000 : false,
   });
   const inboxRows = inboxQuery.data ?? [];
   // 系统提醒的已读水位：和 /inbox 页同一个 key（chiheng-alert-read-at）。
@@ -1300,6 +1391,8 @@ export function Frame({
                 <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded border border-line bg-surface p-2">
                   <ThemeMode />
                   <TypeSize />
+                  <ColorScheme />
+                  <SlackMode />
                 </div>
               </details>
             </div>

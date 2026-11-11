@@ -13,12 +13,15 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AiRouteImport } from './routes/ai'
 import { Route as BacktestRouteImport } from './routes/backtest'
+import { Route as BriefRouteImport } from './routes/brief'
 import { Route as ButlerRouteImport } from './routes/butler'
 import { Route as CalendarRouteImport } from './routes/calendar'
+import { Route as CycleRouteImport } from './routes/cycle'
 import { Route as DebateRouteImport } from './routes/debate'
 import { Route as DecisionRouteImport } from './routes/decision'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as FlowRouteImport } from './routes/flow'
+import { Route as GridRouteImport } from './routes/grid'
 import { Route as HotmoneyRouteImport } from './routes/hotmoney'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as IntelRouteImport } from './routes/intel'
@@ -101,6 +104,11 @@ const BacktestRoute = BacktestRouteImport.update({
   path: '/backtest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BriefRoute = BriefRouteImport.update({
+  id: '/brief',
+  path: '/brief',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ButlerRoute = ButlerRouteImport.update({
   id: '/butler',
   path: '/butler',
@@ -109,6 +117,11 @@ const ButlerRoute = ButlerRouteImport.update({
 const CalendarRoute = CalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CycleRoute = CycleRouteImport.update({
+  id: '/cycle',
+  path: '/cycle',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DebateRoute = DebateRouteImport.update({
@@ -129,6 +142,11 @@ const EventsRoute = EventsRouteImport.update({
 const FlowRoute = FlowRouteImport.update({
   id: '/flow',
   path: '/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GridRoute = GridRouteImport.update({
+  id: '/grid',
+  path: '/grid',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HotmoneyRoute = HotmoneyRouteImport.update({
@@ -442,12 +460,15 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
+  '/brief': typeof BriefRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
+  '/cycle': typeof CycleRoute
   '/debate': typeof DebateRoute
   '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
+  '/grid': typeof GridRoute
   '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
@@ -514,12 +535,15 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/backtest': typeof BacktestRoute
+  '/brief': typeof BriefRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
+  '/cycle': typeof CycleRoute
   '/debate': typeof DebateRoute
   '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
+  '/grid': typeof GridRoute
   '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
@@ -585,12 +609,15 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/ai': typeof AiRouteWithChildren
   '/backtest': typeof BacktestRoute
+  '/brief': typeof BriefRoute
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
+  '/cycle': typeof CycleRoute
   '/debate': typeof DebateRoute
   '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
+  '/grid': typeof GridRoute
   '/hotmoney': typeof HotmoneyRoute
   '/inbox': typeof InboxRoute
   '/intel': typeof IntelRoute
@@ -660,12 +687,15 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ai'
     | '/backtest'
+    | '/brief'
     | '/butler'
     | '/calendar'
+    | '/cycle'
     | '/debate'
     | '/decision'
     | '/events'
     | '/flow'
+    | '/grid'
     | '/hotmoney'
     | '/inbox'
     | '/intel'
@@ -732,12 +762,15 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/backtest'
+    | '/brief'
     | '/butler'
     | '/calendar'
+    | '/cycle'
     | '/debate'
     | '/decision'
     | '/events'
     | '/flow'
+    | '/grid'
     | '/hotmoney'
     | '/inbox'
     | '/intel'
@@ -802,12 +835,15 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ai'
     | '/backtest'
+    | '/brief'
     | '/butler'
     | '/calendar'
+    | '/cycle'
     | '/debate'
     | '/decision'
     | '/events'
     | '/flow'
+    | '/grid'
     | '/hotmoney'
     | '/inbox'
     | '/intel'
@@ -876,12 +912,15 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AiRoute: typeof AiRouteWithChildren
   BacktestRoute: typeof BacktestRoute
+  BriefRoute: typeof BriefRoute
   ButlerRoute: typeof ButlerRoute
   CalendarRoute: typeof CalendarRoute
+  CycleRoute: typeof CycleRoute
   DebateRoute: typeof DebateRoute
   DecisionRoute: typeof DecisionRoute
   EventsRoute: typeof EventsRoute
   FlowRoute: typeof FlowRouteWithChildren
+  GridRoute: typeof GridRoute
   HotmoneyRoute: typeof HotmoneyRoute
   InboxRoute: typeof InboxRoute
   IntelRoute: typeof IntelRoute
@@ -944,6 +983,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/brief': {
+      id: '/brief'
+      path: '/brief'
+      fullPath: '/brief'
+      preLoaderRoute: typeof BriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/butler': {
       id: '/butler'
       path: '/butler'
@@ -956,6 +1002,13 @@ declare module '@tanstack/react-router' {
       path: '/calendar'
       fullPath: '/calendar'
       preLoaderRoute: typeof CalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cycle': {
+      id: '/cycle'
+      path: '/cycle'
+      fullPath: '/cycle'
+      preLoaderRoute: typeof CycleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/debate': {
@@ -984,6 +1037,13 @@ declare module '@tanstack/react-router' {
       path: '/flow'
       fullPath: '/flow'
       preLoaderRoute: typeof FlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/grid': {
+      id: '/grid'
+      path: '/grid'
+      fullPath: '/grid'
+      preLoaderRoute: typeof GridRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hotmoney': {
@@ -1538,12 +1598,15 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AiRoute: AiRouteWithChildren,
   BacktestRoute: BacktestRoute,
+  BriefRoute: BriefRoute,
   ButlerRoute: ButlerRoute,
   CalendarRoute: CalendarRoute,
+  CycleRoute: CycleRoute,
   DebateRoute: DebateRoute,
   DecisionRoute: DecisionRoute,
   EventsRoute: EventsRoute,
   FlowRoute: FlowRouteWithChildren,
+  GridRoute: GridRoute,
   HotmoneyRoute: HotmoneyRoute,
   InboxRoute: InboxRoute,
   IntelRoute: IntelRoute,

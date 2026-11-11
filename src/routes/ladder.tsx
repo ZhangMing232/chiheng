@@ -112,7 +112,7 @@ function LadderPage() {
   const dates = [...ladder.dates].reverse();
   if (dates.length === 0) {
     return (
-      <Frame wide aside="连板天梯">
+      <Frame wide>
         <Panel title="连板天梯"><StateBlock kind="empty" title="还没算" hint="ladder-3day.ts 跑一次就有。" /></Panel>
       </Frame>
     );
@@ -134,9 +134,9 @@ function LadderPage() {
   };
 
   return (
-    <Frame wide aside="连板天梯">
+    <Frame wide>
       <div className="flex flex-col gap-3">
-        <Panel title="连板天梯" note={dates.join(" / ")}>
+        <Panel title="三日板位演变" note={dates.join(" / ")}>
           <div className="px-3 py-2 text-[11px] text-muted">
             最新在左 · 横看一行即该板位 3 日演变 · 点股名弹 K 线/涨停史，点行高亮它在 3 天出现的位置
           </div>

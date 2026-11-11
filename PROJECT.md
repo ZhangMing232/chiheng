@@ -33,8 +33,8 @@ cd /Volumes/colorful/chiheng
 npm run serve        # 启动服务（正式网页 http://127.0.0.1:8787，前台，窗口别关）
 npm run preflight    # 开盘前自检：11 项检查 + 退出码（0 就绪 / 1 有阻塞 / 2 休市）
 npm run build:mac    # 改了前端之后必须 build 才可见（⚠️ 见下方「我跑不了的命令」）
-npm test             # 1,430 条测试，约 3 秒跑完
-npm run lint         # 0 error（87 个既有 warning）
+npm test             # 1,556 条测试，约 3 秒跑完
+npm run lint         # 0 error（110 个既有 warning）
 ```
 
 ### 我（AI）跑不了的命令
@@ -58,10 +58,10 @@ npm run lint         # 0 error（87 个既有 warning）
 
 ```
 src/
-├── routes/           30+ 个页面（66 个路由文件，含旧地址重定向）
-├── lib/market/       166 个模块：策略、数据、账本、研究流水线
+├── routes/           75 个路由文件（含旧地址重定向）；39 个是顶层页面
+├── lib/market/       302 个模块：策略、数据、账本、研究流水线
 │   ├── providers/    行情源适配（tencent / sina / eastmoney / overseas）
-│   └── *.test.ts     测试和源码 1:1 挨着（全仓 136 个测试文件）
+│   └── *.test.ts     测试和源码 1:1 挨着（全仓 156 个测试文件）
 ├── components/       终端风格组件（Panel / Table / Stat / Tag / StateBlock）
 └── lib/auth, lib/paper.ts
 scripts/              抓取与运维（Python + mjs + ts 混合，.mjs 不做类型检查）
@@ -70,16 +70,16 @@ design/ docs/         规范、手册、进度表（STRATEGY-GEN2.md 是策略�
 data/                 全部运行时数据，**不在 git 里**，每天 23:30 自动快照（见 OPS.md）
 ```
 
-**页面清单**（= 侧栏七组）：总览 `/`、系统导览 `/guide`；涨跌分布 `/overview`、
-每日复盘 `/review`（含资金流向、信号、公司事件子页）、全球行情 `/overseas`；
-快讯 `/news`、消息与提醒 `/inbox`、自媒体图文 `/studio`；个股研判 `/research`、
-自选 `/my-stocks`；**策略看板 `/strategies`**（选股/追踪/跟单信号/策略管理/失败归因
-五个子页）、因子实验室 `/factors`、回测 `/backtest`；AI 工作台 `/ai`（页内二级 tab：
-进化控制台 / 接口配置 / Token 用量 / 闸门与判据）、大管家 `/butler`；设置与状态 `/settings`。
-`/ai/config` 等子页直链保留可达，侧栏不再单列。
-个股详情 `/symbol` 从任意代码点入。
+**页面清单**（= 侧栏七组）：**总览**——今日决策 `/decision`、总览 `/`、每日复盘
+`/review`（含资金流向、信号、公司事件子页）；**市场**——连板天梯 `/ladder`、
+多股同屏 `/grid`、情绪周期 `/cycle`、题材轮动 `/rotation`、游资追踪 `/hotmoney`、
+全球行情 `/overseas`；**资讯**——市场情报 `/intel`、题材简报 `/brief`、快讯 `/news`、
+消息与提醒 `/inbox`；**研究**——个股研判 `/research`、自选 `/my-stocks`；
+**AI**——进化 `/factors`、策略看板 `/strategies`（选股/追踪/跟单信号/策略管理/失败
+归因五个子页）、回测 `/backtest`；**工作台**——`/butler`；设置与状态 `/settings`。
+`/ai/config`、`/studio` 等子页只留直链，侧栏不再单列。个股详情 `/symbol` 从任意代码点入。
 
-规模：550+ 提交 · 71,000 行（src + scripts）· 1,430 条测试。
+规模：647 提交 · 107,000 行（src + scripts）· 1,556 条测试。
 提交有闸门：pre-commit 跑 typecheck、pre-push 跑全量测试（`.githooks/`，
 `git config core.hooksPath` 已指向它）。
 
@@ -101,6 +101,9 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 | 行业分类 | `fetch-industry.mjs` | `industry.json` 496 板块/5659 只 | 6 小时 |
 | 行业月度 | `fetch-industry-monthly.mjs` | `industry-monthly.json` 8928 完整月 | 24 小时 |
 | 回测记录 | `backtest.ts` 自动追加 | `runs.jsonl` | 跑一次加一行 |
+| 情绪周期序列 | `cycle-history.ts`（收盘快照后自动，只读本地 K 线，不联网） | `data/history/cycle/series.json` | 每天 |
+| 题材简报 | `brief-build.ts`（同上，串在快照之后） | `data/history/brief/*.json` | 每天 |
+| 涨停原因原文 | 第三方盘后整理 | `data/history/limit-up-reasons/*.json` | 每天 |
 | 笔记 | 笔记页写 | `notes.json` | 你写的时候 |
 
 **限速与缓存 TTL 只有一个来源**：`src/lib/market/fetch-policy.ts`。
@@ -170,7 +173,7 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 | 项 | 状态 |
 |---|---|
 | 服务 | **在跑**：launchd 托管三件——serve（开机自启 · 网页 8787）、tunnel（对外 meanwhy.top）、backup（每天 23:30 快照）。⚠️ `com.chiheng.verdict`（原每天 16:10 的重复判决）**11-06 已 bootout 卸载**，plist 早就不存在；每日判决统一走 `record-journal` 收盘封印段的 `auto-verdict.ts`（15:08）。详见 `design/REMAINING.md` §13 |
-| 测试 | 1,430 条全绿 · typecheck 干净 · lint 0 error（87 个既有 warning） |
+| 测试 | 1,556 条全绿 · typecheck 干净 · lint 0 error（110 个既有 warning）· 页面冒烟 0 FAIL |
 | 策略 | 现役 2 套：低估值在跑；放量突破被闸门暂停（10-29 起，冷却中）。已下线 4 套只结算历史仓 |
 | 记账 | 每分钟记账正常；「赤轨日终」推送 2026-11-05 首次触发成功（stamp 去重一天一次） |
 | 备份 | `data/` 741MB，23:30 定时快照到 `~/chiheng-backup`（留 5 份）。⚠️ **11-06 才修好**（launchd 包 bash + 日志落内盘），此前从未跑成过；今晚 23:30 首次真实定时触发，明早验 `last exit code`。详见 OPS.md |

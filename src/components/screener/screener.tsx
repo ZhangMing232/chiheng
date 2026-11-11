@@ -155,13 +155,20 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   useEffect(() => {
     const pull = () => void getRelay().then(setRelay).catch(() => undefined);
     pull();
-    const timer = window.setInterval(pull, 60_000);
+    // 页面在后台不轮询：接力榜没人看的时候不该占接口（参考连板网的 visibilitychange 做法）。
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      pull();
+    }, 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
     if (!phase.open) return;
-    const timer = window.setInterval(() => void refresh(false), 60_000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void refresh(false);
+    }, 60_000);
     return () => window.clearInterval(timer);
   }, [phase.open, refresh]);
 

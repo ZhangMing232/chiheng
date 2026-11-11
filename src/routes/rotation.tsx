@@ -59,9 +59,9 @@ function RotationPage() {
   const maxDown = Math.max(1, ...down.map((r) => r.limitUp));
 
   return (
-    <Frame wide aside="题材轮动">
+    <Frame wide>
       <div className="flex flex-col gap-3">
-        <Panel title="题材轮动" note={date ? `${date} · 涨停家数 vs 近5日均值` : "还没算"}>
+        <Panel title="轮动方向" note={date ? `${date} · 涨停家数 vs 近5日均值` : "还没算"}>
           {cleaned.length === 0 ? (
             <StateBlock kind="empty" title="还没算" hint="theme-rotation.ts 收盘后跑。" />
           ) : (

@@ -90,7 +90,7 @@ function DecisionPage() {
 
   return (
     <>
-    <Frame wide aside="今日决策">
+    <Frame wide>
       <div className="flex flex-col gap-3">
         {/* ── 关键指标条 ── */}
         <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-7">

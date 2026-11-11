@@ -45,7 +45,7 @@ export const Route = createRootRoute({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('chiheng-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}",
+              "try{var d=document.documentElement,t=localStorage.getItem('chiheng-theme');if(t==='light'||t==='dark')d.dataset.theme=t;if(localStorage.getItem('chiheng-scheme')==='intl')d.dataset.scheme='intl';if(localStorage.getItem('chiheng-slack')==='1')d.dataset.slack='1'}catch(e){}",
           }}
         />
         <HeadContent />
