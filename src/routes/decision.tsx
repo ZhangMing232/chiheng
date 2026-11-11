@@ -17,17 +17,19 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getMarketSnapshot } from "@/lib/market/limit-up.functions";
+import { getRegulatoryRadar, type RegulatoryRow } from "@/lib/market/quotes.functions";
 import { getThemeHeat, getLimitUpReasons, getSignalReviewed, type ThemeHeatItem, type SignalReviewed, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/decision")({
   loader: async () => {
-    const [snap, themes, reasons, reviewed] = await Promise.all([
+    const [snap, themes, reasons, reviewed, reg] = await Promise.all([
       getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
       getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
       getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
       getSignalReviewed().catch(() => ({ date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] })),
+      getRegulatoryRadar().catch(() => ({ date: "", rows: [] as RegulatoryRow[] })),
     ]);
-    return { snap, themes, reasons, reviewed };
+    return { snap, themes, reasons, reviewed, reg };
   },
   component: DecisionPage,
 });
@@ -47,7 +49,7 @@ function moodOf(p: { breakRate: number | null; maxStreak: number; ladderCount: n
 }
 
 function DecisionPage() {
-  const { snap, themes, reasons, reviewed } = Route.useLoaderData();
+  const { snap, themes, reasons, reviewed, reg } = Route.useLoaderData();
   const pool = snap.snapshot;
 
   // 指标条
@@ -161,6 +163,31 @@ function DecisionPage() {
             </div>
           </Panel>
         </div>
+
+        {/* ── 监管异动 ── */}
+        <Panel title="监管异动雷达" note={`${reg.date || "—"} · 3日偏离值≥阈值触发`}>
+          {reg.rows.length === 0 ? (
+            <div className="px-3 py-6 text-sm text-muted">还没算（regulatory-radar.ts 收盘后跑）。</div>
+          ) : (
+            <div className="flex flex-col gap-1 p-2">
+              {reg.rows.filter((r) => r.level !== "正常").slice(0, 15).map((r) => (
+                <div key={r.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface2">
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <Tag tone={r.level === "已达" ? "warn" : "muted"}>{r.level === "已达" ? "已达" : "临近"}</Tag>
+                    <span className="truncate">{r.name}</span>
+                    <span className="num text-[10px] text-muted">{r.streak}</span>
+                  </span>
+                  <span className="num shrink-0 text-xs text-warn">
+                    {(r.dev * 100).toFixed(1)}%/{r.threshold.toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+              <div className="border-t border-line px-2 pt-1.5 text-[11px] text-muted">
+                3日偏离值 = Σ(个股涨幅−基准指数涨幅)。已达=触发异动线，临近=≥0.8×线。高位股停牌风险提示，非利空判定。
+              </div>
+            </div>
+          )}
+        </Panel>
 
         {/* ── 什么时候卖 ── */}
         <Panel title="什么时候卖" note="持仓的纪律，不是建议">

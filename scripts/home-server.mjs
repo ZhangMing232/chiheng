@@ -403,6 +403,29 @@ function runDecisionPush() {
   });
 }
 
+// ── 监管异动雷达：收盘后 15:15 算（快照 15:12 落盘之后）——从 K 线算 3 日偏离值，
+// 纯计算零外部源。去重看 data/history/regulatory/<date>.json 是否已落。
+let regulatoryRanDay = "";
+function runRegulatoryRadar() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (regulatoryRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 15)) return;
+  const archive = join(ROOT, "data", "history", "regulatory", `${day}.json`);
+  if (existsSync(archive)) { regulatoryRanDay = day; return; }
+  regulatoryRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/regulatory-radar.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("监管异动雷达没算成，手动跑 regulatory-radar.ts 补");
+  });
+}
+
 // ── 涨停原因：收盘后 15:20 采（快照 15:12 落盘之后、形态台账 15:35 之前）──
 // 数据源：yipanai.com 的公开接口（转发韭研公社/开盘啦），免登录。
 // 采 85 只 ×250ms ≈ 25s，串行不急。
@@ -481,6 +504,7 @@ runKlineRefresh();
 runTdxDaily();
 runMarketSnapshot();
 runLimitUpReason();
+runRegulatoryRadar();
 runDecisionPush();
 runStrategyVerdict();
 runSignalGen();
@@ -492,6 +516,7 @@ const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
 const marketSnapshotTimer = setInterval(runMarketSnapshot, 60_000);
 const limitUpReasonTimer = setInterval(runLimitUpReason, 60_000);
+const regulatoryTimer = setInterval(runRegulatoryRadar, 60_000);
 const decisionPushTimer = setInterval(runDecisionPush, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);

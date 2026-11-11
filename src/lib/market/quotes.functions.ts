@@ -1487,6 +1487,33 @@ export const getLimitUpReasons = createServerFn({ method: "GET" }).handler(async
   }
 });
 
+export type RegulatoryRow = {
+  code: string;
+  name: string;
+  streak: string;
+  dev: number;
+  threshold: number;
+  level: "已达" | "临近" | "正常";
+};
+export type RegulatoryPayload = { date: string; rows: RegulatoryRow[] };
+
+/** 监管异动雷达（regulatory-radar.ts 收盘后算，纯计算零外部源）。 */
+export const getRegulatoryRadar = createServerFn({ method: "GET" }).handler(async (): Promise<RegulatoryPayload> => {
+  try {
+    const { readFile, readdir } = await import("node:fs/promises");
+    const dir = dataPath("data", "history", "regulatory");
+    const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith(".json")).sort();
+    if (files.length === 0) return { date: "", rows: [] };
+    const raw = await readFile(`${dir}/${files[files.length - 1]}`, "utf8");
+    const parsed = JSON.parse(raw) as RegulatoryPayload;
+    return { date: parsed.date ?? "", rows: parsed.rows ?? [] };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getRegulatoryRadar 读文件失败:", e instanceof Error ? e.message : String(e));
+    return { date: "", rows: [] };
+  }
+});
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {
