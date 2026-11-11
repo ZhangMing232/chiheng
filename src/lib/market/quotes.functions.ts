@@ -1543,6 +1543,33 @@ export const getMarketIntel = createServerFn({ method: "GET" }).handler(async ()
   }
 });
 
+export type RotationRow = {
+  name: string;
+  limitUp: number;
+  avgChg: number;
+  chg5d: number;
+  avgLimitUp5d: number;
+  rot: "加速" | "减速" | "平稳";
+};
+export type RotationPayload = { date: string; rows: RotationRow[] };
+
+/** 题材轮动（theme-rotation.ts 收盘后算，自算零外部源）。 */
+export const getThemeRotation = createServerFn({ method: "GET" }).handler(async (): Promise<RotationPayload> => {
+  try {
+    const { readFile, readdir } = await import("node:fs/promises");
+    const dir = dataPath("data", "history", "theme-rotation");
+    const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith(".json")).sort();
+    if (files.length === 0) return { date: "", rows: [] };
+    const raw = await readFile(`${dir}/${files[files.length - 1]}`, "utf8");
+    const parsed = JSON.parse(raw) as RotationPayload;
+    return { date: parsed.date ?? "", rows: parsed.rows ?? [] };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getThemeRotation 读文件失败:", e instanceof Error ? e.message : String(e));
+    return { date: "", rows: [] };
+  }
+});
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {

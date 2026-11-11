@@ -403,6 +403,26 @@ function runDecisionPush() {
   });
 }
 
+// ── 题材轮动：收盘后 15:15 算（快照 15:12 之后）——从 K 线算题材动量+轮动方向，自算零外部源──
+let rotationRanDay = "";
+function runThemeRotation() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (rotationRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 15)) return;
+  rotationRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/theme-rotation.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("题材轮动没算成，手动跑 theme-rotation.ts 补");
+  });
+}
+
 // ── 市场情报：收盘后 15:30 采（新闻解读→题材→个股传导，转发弈盘 hotspot 公开接口）──
 let marketIntelRanDay = "";
 function runMarketIntel() {
@@ -549,6 +569,7 @@ runLimitUpReason();
 runRegulatoryRadar();
 runHotmoneyFetch();
 runMarketIntel();
+runThemeRotation();
 runDecisionPush();
 runStrategyVerdict();
 runSignalGen();
@@ -563,6 +584,7 @@ const limitUpReasonTimer = setInterval(runLimitUpReason, 60_000);
 const regulatoryTimer = setInterval(runRegulatoryRadar, 60_000);
 const hotmoneyTimer = setInterval(runHotmoneyFetch, 60_000);
 const marketIntelTimer = setInterval(runMarketIntel, 60_000);
+const rotationTimer = setInterval(runThemeRotation, 60_000);
 const decisionPushTimer = setInterval(runDecisionPush, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);

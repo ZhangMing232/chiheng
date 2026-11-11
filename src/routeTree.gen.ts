@@ -33,6 +33,7 @@ import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReviewRouteImport } from './routes/review'
+import { Route as RotationRouteImport } from './routes/rotation'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as SectorsRouteImport } from './routes/sectors'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -197,6 +198,11 @@ const ResearchRoute = ResearchRouteImport.update({
 const ReviewRoute = ReviewRouteImport.update({
   id: '/review',
   path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RotationRoute = RotationRouteImport.update({
+  id: '/rotation',
+  path: '/rotation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScreenerRoute = ScreenerRouteImport.update({
@@ -450,6 +456,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRouteWithChildren
   '/review': typeof ReviewRouteWithChildren
+  '/rotation': typeof RotationRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
@@ -518,6 +525,7 @@ export interface FileRoutesByTo {
   '/overview': typeof OverviewRoute
   '/positions': typeof PositionsRoute
   '/reports': typeof ReportsRoute
+  '/rotation': typeof RotationRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
@@ -589,6 +597,7 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRouteWithChildren
   '/review': typeof ReviewRouteWithChildren
+  '/rotation': typeof RotationRoute
   '/screener': typeof ScreenerRoute
   '/sectors': typeof SectorsRoute
   '/settings': typeof SettingsRoute
@@ -662,6 +671,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/research'
     | '/review'
+    | '/rotation'
     | '/screener'
     | '/sectors'
     | '/settings'
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/overview'
     | '/positions'
     | '/reports'
+    | '/rotation'
     | '/screener'
     | '/sectors'
     | '/settings'
@@ -800,6 +811,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/research'
     | '/review'
+    | '/rotation'
     | '/screener'
     | '/sectors'
     | '/settings'
@@ -872,6 +884,7 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRouteWithChildren
   ReviewRoute: typeof ReviewRouteWithChildren
+  RotationRoute: typeof RotationRoute
   ScreenerRoute: typeof ScreenerRoute
   SectorsRoute: typeof SectorsRoute
   SettingsRoute: typeof SettingsRoute
@@ -1056,6 +1069,13 @@ declare module '@tanstack/react-router' {
       path: '/review'
       fullPath: '/review'
       preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rotation': {
+      id: '/rotation'
+      path: '/rotation'
+      fullPath: '/rotation'
+      preLoaderRoute: typeof RotationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/screener': {
@@ -1518,6 +1538,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRouteWithChildren,
   ReviewRoute: ReviewRouteWithChildren,
+  RotationRoute: RotationRoute,
   ScreenerRoute: ScreenerRoute,
   SectorsRoute: SectorsRoute,
   SettingsRoute: SettingsRoute,

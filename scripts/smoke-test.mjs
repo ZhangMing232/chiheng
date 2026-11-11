@@ -32,6 +32,7 @@ const PAGES = [
   "/decision", // 2026-11-11 新增今日决策页
   "/hotmoney", // 2026-11-11 新增游资追踪页
   "/intel", // 2026-11-11 新增市场情报页
+  "/rotation", // 2026-11-11 新增题材轮动页
   // 市场
   "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events", "/news", "/overseas",
   // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）
