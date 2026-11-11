@@ -205,6 +205,12 @@ function Dashboard() {
   const poolFresh = poolSnap
     ? `${poolSnap.date} ${poolSnap.sealed ? "收盘后" : "盘中未定"}`
     : null;
+  // 关键指标条：复盘第一眼（对标连板网/弈盘顶部一排数字）
+  const limitUpCount = poolSnap?.limitUp.length ?? 0;
+  const ladderCount = poolSnap?.summary?.ladder?.reduce((n, l) => n + (l.streak >= 2 ? l.count : 0), 0) ?? 0;
+  const maxStreak = poolSnap?.summary?.ladder?.reduce((m, l) => Math.max(m, l.streak), 0) ?? 0;
+  const limitDownCount = poolSnap?.limitDown.length ?? 0;
+  const breakRateVal = poolSnap?.summary?.breakRate ?? null;
 
   return (
     <Frame
@@ -228,6 +234,16 @@ function Dashboard() {
           : { state: "unavailable", label: "行情还没拉到", message: "点重试再拉一次", canRetry: true }
       }
     >
+      {/* ── 关键指标条：复盘第一眼，对标连板网/弈盘顶部那一排 ── */}
+      <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-6">
+        <div className="bg-surface px-3 py-2"><KeyNum label="涨停" value={poolSnap ? limitUpCount : null} tone="text-up" /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="连板" value={poolSnap ? ladderCount : null} tone="text-up" /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="最高板" value={poolSnap ? `${maxStreak}板` : null} /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="跌停" value={poolSnap ? limitDownCount : null} tone="text-down" /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="炸板率" value={breakRateVal != null ? `${(breakRateVal * 100).toFixed(0)}%` : null} /></div>
+        <div className="bg-surface px-3 py-2"><KeyNum label="情绪温度" value={sentiment?.score != null ? `${sentiment.score}°` : null} hint={sentiment?.band ?? undefined} /></div>
+      </div>
+
       {/* ── 第一行 决策：温度计 + 时机判定 + 市场事实（系统状态降级到页尾）── */}
       <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-2">
