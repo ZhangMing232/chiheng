@@ -59,7 +59,7 @@ const PAGES = [
 // （含底部 pinned 的 /ai）。上一版里的 /flow 在 10-23 撤掉侧栏入口后必然点不到，
 // 是漂移的一部分。子页面（/strategies/positions、/review/signals、/review/flow/*
 // 这类）不在侧栏里，靠页面内 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
-const NAV_PAGES = ["/butler", "/studio", "/strategies/screener", "/factors", "/research", "/my-stocks", "/backtest", "/ai"];
+const NAV_PAGES = ["/butler", "/studio", "/strategies/screener", "/factors", "/my-stocks", "/backtest", "/ai"]; // /research 2026-11-11 从侧栏收掉
 
 /** 等 fn 返回非 undefined 值，超时抛错 */
 async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {
