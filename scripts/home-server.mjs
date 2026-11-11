@@ -378,6 +378,28 @@ function runMarketSnapshot() {
   });
 }
 
+// ── 早盘决策推送：开盘前 8:30 推「市场在玩什么/短线买什么/中长线买什么/什么时候卖」──
+// 用昨日收盘落盘的数据，不现场拉外部接口。去重看当天有没有推过（用 data/signals/decision-push.json）。
+let decisionPushedDay = "";
+function runDecisionPush() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (decisionPushedDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 8 || (hour === 8 && min < 30)) return;
+  if (hour >= 9 && !(hour === 9 && min < 30)) return; // 9:30 后不推，开盘了没意义
+  decisionPushedDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/push-decision.ts", "--push"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("早盘决策推送失败，手动跑 push-decision.ts --push 补");
+  });
+}
+
 // ── 涨停原因：收盘后 15:20 采（快照 15:12 落盘之后、形态台账 15:35 之前）──
 // 数据源：yipanai.com 的公开接口（转发韭研公社/开盘啦），免登录。
 // 采 85 只 ×250ms ≈ 25s，串行不急。
@@ -456,6 +478,7 @@ runKlineRefresh();
 runTdxDaily();
 runMarketSnapshot();
 runLimitUpReason();
+runDecisionPush();
 runStrategyVerdict();
 runSignalGen();
 runSignalReview();
@@ -466,6 +489,7 @@ const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
 const marketSnapshotTimer = setInterval(runMarketSnapshot, 60_000);
 const limitUpReasonTimer = setInterval(runLimitUpReason, 60_000);
+const decisionPushTimer = setInterval(runDecisionPush, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);

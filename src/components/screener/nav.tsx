@@ -107,9 +107,12 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/decision" | "/" | "/overview" | "/review" | "/overseas" | "/news" | "/inbox" | "/studio" | "/research" | "/my-stocks" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/ai/config" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
-  { label: "总览", items: [{ to: "/", label: "总览", icon: LayoutDashboard }] },
+  { label: "总览", items: [
+    { to: "/decision", label: "今日决策", icon: Compass },
+    { to: "/", label: "总览", icon: LayoutDashboard },
+  ] },
   {
     label: "市场",
     items: [

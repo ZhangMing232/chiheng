@@ -16,6 +16,7 @@ import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as ButlerRouteImport } from './routes/butler'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DebateRouteImport } from './routes/debate'
+import { Route as DecisionRouteImport } from './routes/decision'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as InboxRouteImport } from './routes/inbox'
@@ -109,6 +110,11 @@ const CalendarRoute = CalendarRouteImport.update({
 const DebateRoute = DebateRouteImport.update({
   id: '/debate',
   path: '/debate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DecisionRoute = DecisionRouteImport.update({
+  id: '/decision',
+  path: '/decision',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsRoute = EventsRouteImport.update({
@@ -415,6 +421,7 @@ export interface FileRoutesByFullPath {
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
+  '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
@@ -482,6 +489,7 @@ export interface FileRoutesByTo {
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
+  '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
@@ -548,6 +556,7 @@ export interface FileRoutesById {
   '/butler': typeof ButlerRoute
   '/calendar': typeof CalendarRoute
   '/debate': typeof DebateRoute
+  '/decision': typeof DecisionRoute
   '/events': typeof EventsRoute
   '/flow': typeof FlowRouteWithChildren
   '/inbox': typeof InboxRoute
@@ -618,6 +627,7 @@ export interface FileRouteTypes {
     | '/butler'
     | '/calendar'
     | '/debate'
+    | '/decision'
     | '/events'
     | '/flow'
     | '/inbox'
@@ -685,6 +695,7 @@ export interface FileRouteTypes {
     | '/butler'
     | '/calendar'
     | '/debate'
+    | '/decision'
     | '/events'
     | '/flow'
     | '/inbox'
@@ -750,6 +761,7 @@ export interface FileRouteTypes {
     | '/butler'
     | '/calendar'
     | '/debate'
+    | '/decision'
     | '/events'
     | '/flow'
     | '/inbox'
@@ -819,6 +831,7 @@ export interface RootRouteChildren {
   ButlerRoute: typeof ButlerRoute
   CalendarRoute: typeof CalendarRoute
   DebateRoute: typeof DebateRoute
+  DecisionRoute: typeof DecisionRoute
   EventsRoute: typeof EventsRoute
   FlowRoute: typeof FlowRouteWithChildren
   InboxRoute: typeof InboxRoute
@@ -898,6 +911,13 @@ declare module '@tanstack/react-router' {
       path: '/debate'
       fullPath: '/debate'
       preLoaderRoute: typeof DebateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/decision': {
+      id: '/decision'
+      path: '/decision'
+      fullPath: '/decision'
+      preLoaderRoute: typeof DecisionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events': {
@@ -1441,6 +1461,7 @@ const rootRouteChildren: RootRouteChildren = {
   ButlerRoute: ButlerRoute,
   CalendarRoute: CalendarRoute,
   DebateRoute: DebateRoute,
+  DecisionRoute: DecisionRoute,
   EventsRoute: EventsRoute,
   FlowRoute: FlowRouteWithChildren,
   InboxRoute: InboxRoute,
