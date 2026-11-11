@@ -1589,6 +1589,72 @@ export const getLadder3Day = createServerFn({ method: "GET" }).handler(async ():
   }
 });
 
+export type StockDetailPayload = {
+  id: string;
+  name: string;
+  kline: { date: string; c: number }[];
+  limitUps: string[];
+  concept: string;
+  reason: string;
+  regulatory: { dev: number; threshold: number; level: string } | null;
+};
+
+/** 个股弹层：K线/涨停史/题材/监管异动（点天梯里的票时拉）。 */
+export const getStockDetail = createServerFn({ method: "GET" })
+  .validator((input: unknown): { id: string } => {
+    const v = (input ?? {}) as Record<string, unknown>;
+    return { id: typeof v.id === "string" && /^(sh|sz)\d{6}$/.test(v.id) ? v.id : "" };
+  })
+  .handler(async ({ data }): Promise<StockDetailPayload> => {
+    const empty: StockDetailPayload = { id: data.id, name: "", kline: [], limitUps: [], concept: "", reason: "", regulatory: null };
+    if (!data.id) return empty;
+    const { readFile } = await import("node:fs/promises");
+    let name = "";
+    try {
+      const uni = JSON.parse(await readFile(dataPath("data", "universe-cache.json"), "utf8")) as { payload?: { quotes?: { id: string; name: string }[] } };
+      name = uni.payload?.quotes?.find((q) => q.id === data.id)?.name ?? "";
+    } catch { /* skip */ }
+    // K 线近 60 日
+    let kline: { date: string; c: number }[] = [];
+    let limitUps: string[] = [];
+    try {
+      const kl = JSON.parse(await readFile(dataPath("data", "backtest", "kline", `${data.id}.json`), "utf8")) as { date: string; c: number }[];
+      kline = kl.slice(-60).map((b) => ({ date: b.date, c: b.c }));
+      const thr = data.id.startsWith("sz30") || data.id.startsWith("sh68") ? 0.195 : 0.095;
+      for (let i = 1; i < kl.length; i += 1) {
+        if (kl[i - 1].c > 0 && kl[i].c / kl[i - 1].c - 1 >= thr) limitUps.push(kl[i].date);
+      }
+      limitUps = limitUps.slice(-10).reverse();
+    } catch { /* skip */ }
+    // 监管异动
+    let regulatory: StockDetailPayload["regulatory"] = null;
+    try {
+      const { readdir } = await import("node:fs/promises");
+      const dir = dataPath("data", "history", "regulatory");
+      const files = (await readdir(dir)).filter((f) => f.endsWith(".json")).sort();
+      if (files.length) {
+        const reg = JSON.parse(await readFile(`${dir}/${files[files.length - 1]}`, "utf8")) as { rows: { code: string; dev: number; threshold: number; level: string }[] };
+        const row = reg.rows?.find((r) => r.code === data.id);
+        if (row) regulatory = { dev: row.dev, threshold: row.threshold, level: row.level };
+      }
+    } catch { /* skip */ }
+    // 涨停原因（key 是裸代码）
+    let concept = "";
+    let reason = "";
+    try {
+      const { readdir } = await import("node:fs/promises");
+      const dir = dataPath("data", "history", "limit-up-reasons");
+      const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith(".json")).sort();
+      if (files.length) {
+        const rs = JSON.parse(await readFile(`${dir}/${files[files.length - 1]}`, "utf8")) as { reasons: Record<string, { primary_concept?: string; reason?: string }> };
+        const bare = data.id.replace(/^(sh|sz|bj)/, "");
+        concept = rs.reasons?.[bare]?.primary_concept ?? "";
+        reason = rs.reasons?.[bare]?.reason ?? "";
+      }
+    } catch { /* skip */ }
+    return { ...empty, name, kline, limitUps, regulatory, concept, reason };
+  });
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {
