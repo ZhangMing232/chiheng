@@ -378,6 +378,28 @@ function runMarketSnapshot() {
   });
 }
 
+// ── 涨停原因：收盘后 15:20 采（快照 15:12 落盘之后、形态台账 15:35 之前）──
+// 数据源：yipanai.com 的公开接口（转发韭研公社/开盘啦），免登录。
+// 采 85 只 ×250ms ≈ 25s，串行不急。
+let limitUpReasonRanDay = "";
+function runLimitUpReason() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (limitUpReasonRanDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 20)) return;
+  limitUpReasonRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/fetch-limit-up-reason.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("涨停原因没采成，梯队不显示概念标签（不编原因）");
+  });
+}
+
 // ── 短线形态台账：每天收盘后（15:35）跑，攒形态证据，不给买卖建议
 // 放在信号生成（15:30）之后：它读的是 K 线缓存，不与候选生成抢文件。
 // 跨重启去重看 summary.json 的 generatedFor，跟其它每日任务同一套规矩。
@@ -433,6 +455,7 @@ function runPreflight() {
 runKlineRefresh();
 runTdxDaily();
 runMarketSnapshot();
+runLimitUpReason();
 runStrategyVerdict();
 runSignalGen();
 runSignalReview();
@@ -442,6 +465,7 @@ runPreflight();
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
 const marketSnapshotTimer = setInterval(runMarketSnapshot, 60_000);
+const limitUpReasonTimer = setInterval(runLimitUpReason, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);

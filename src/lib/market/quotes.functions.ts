@@ -1455,6 +1455,38 @@ export const getThemeHeat = createServerFn({ method: "GET" }).handler(async () =
   }
 });
 
+export type LimitUpReason = {
+  code: string;
+  name: string;
+  primary_concept: string;
+  theme: string;
+  reason: string;
+  source: string;
+};
+export type SectorReason = { title: string; reason: string; date: string };
+export type LimitUpReasonsPayload = {
+  date: string;
+  reasons: Record<string, LimitUpReason>;
+  sectors: Record<string, SectorReason[]>;
+};
+
+/** 涨停原因（fetch-limit-up-reason.ts 每天收盘后采，转发韭研公社/开盘啦）。 */
+export const getLimitUpReasons = createServerFn({ method: "GET" }).handler(async (): Promise<LimitUpReasonsPayload> => {
+  try {
+    const { readFile, readdir } = await import("node:fs/promises");
+    const dir = dataPath("data", "history", "limit-up-reasons");
+    const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith(".json")).sort();
+    if (files.length === 0) return { date: "", reasons: {}, sectors: {} };
+    const raw = await readFile(`${dir}/${files[files.length - 1]}`, "utf8");
+    const parsed = JSON.parse(raw) as LimitUpReasonsPayload;
+    return { date: parsed.date ?? "", reasons: parsed.reasons ?? {}, sectors: parsed.sectors ?? {} };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
+      console.error("getLimitUpReasons 读文件失败:", e instanceof Error ? e.message : String(e));
+    return { date: "", reasons: {}, sectors: {} };
+  }
+});
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {

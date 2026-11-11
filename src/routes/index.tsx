@@ -20,6 +20,7 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router";
+import { getLimitUpReasons, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
 import { Link } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
@@ -60,7 +61,7 @@ import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, gatesData, pools, themes, reviewed] =
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, gatesData, pools, themes, reviewed, reasonsData] =
       await Promise.all([
         getIndices().catch(() => [] as IndexQuote[]),
         getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
@@ -78,6 +79,8 @@ export const Route = createFileRoute("/")({
         getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
         getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
         getSignalReviewed().catch(() => ({ date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] })),
+        // 涨停原因（fetch-limit-up-reason.ts 收盘后采，转发韭研/开盘啦）
+        getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
       ]);
     // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
     const trend = indices[0]
@@ -115,6 +118,8 @@ export const Route = createFileRoute("/")({
       overseas: overseas.quotes.slice(0, 6),
       overseasGaps: overseas.gaps,
       news: news.slice(0, 6),
+      reasons: reasonsData.reasons,
+      sectors: reasonsData.sectors,
       gates: gatesData.gates,
     };
   },
@@ -137,7 +142,7 @@ function Dashboard() {
     phase, indices, journal, universe, recorder, trend, flow,
     breadth, sentiment, stamp, serverNow, pools, themes, reviewed,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
-    gates,
+    gates, reasons,
   } = Route.useLoaderData();
   const date = todayStr(phase);
   const todayDay = journal.days.find((day) => day.date === date) ?? null;
@@ -380,6 +385,11 @@ function Dashboard() {
                       <span className="flex min-w-0 items-baseline gap-1.5">
                         <span className="truncate">{r.name}</span>
                         <span className="num text-[10px] text-muted">{r.code}</span>
+                        {reasons[r.code]?.primary_concept ? (
+                          <span className="truncate rounded bg-brand-soft px-1 text-[10px] text-brand-text">
+                            {reasons[r.code].primary_concept}
+                          </span>
+                        ) : null}
                       </span>
                       <span className="num shrink-0 text-xs text-up">{r.price.toFixed(2)}</span>
                     </div>
