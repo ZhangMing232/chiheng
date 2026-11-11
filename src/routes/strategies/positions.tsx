@@ -31,7 +31,8 @@ import { Term } from "@/components/term";
 import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getChallengerRobustness, getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, type NavPoint } from "@/lib/market/quotes.functions";
+import { getChallengerRobustness, getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, getSignalCandidates, getSignalReviewed, getSignalTracking, getShortForms, type NavPoint, type SignalCandidate, type SignalReviewed, type SignalTrackItem, type SignalTrackSummary, type ShortFormsData } from "@/lib/market/quotes.functions";
+import { SignalFollowBoard, type SignalBoardData } from "@/components/strategy/signal-board";
 import type { Challenger } from "@/lib/market/challenger";
 import type { ChallengerRobustReport } from "@/lib/market/challenger-robust";
 import { CollapsibleSection } from "@/components/collapsible";
@@ -47,7 +48,7 @@ import { healthChecks } from "@/lib/market/portfolio-health";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
-    const [universe, journal, nav, chal, samples, robust] = await Promise.all([
+    const [universe, journal, nav, chal, samples, robust, sigC, sigR, sigT, sigF] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getServerJournal(),
       // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
@@ -55,6 +56,10 @@ export const Route = createFileRoute("/strategies/positions")({
       getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string> })),
       getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
       getChallengerRobustness().catch(() => ({}) as Record<string, ChallengerRobustReport>),
+      getSignalCandidates().catch(() => ({ signals: [] as SignalCandidate[] })),
+      getSignalReviewed().catch(() => ({ signals: [] as SignalReviewed[] })),
+      getSignalTracking().catch(() => ({ signalDate: "", trackedDate: "", summary: null as SignalTrackSummary | null, signals: [] as SignalTrackItem[] })),
+      getShortForms().catch(() => null as ShortFormsData | null),
     ]);
     // 组合体检（portfolio-health.ts）要行业归属和 PE 分位：只对未平仓的票查，
     // 数量很小（盯盘上限 10 只），逐只读文件可接受；查不到就 null，检查项如实降级。
@@ -82,6 +87,12 @@ export const Route = createFileRoute("/strategies/positions")({
       robust,
       industry,
       peRanks,
+      signals: {
+        candidates: sigC.signals,
+        reviewed: sigR.signals,
+        tracking: sigT,
+        forms: sigF,
+      } satisfies SignalBoardData,
     };
   },
   component: Positions,
@@ -532,7 +543,7 @@ function verdictOf(t: number | null): { label: string; tone: "up" | "down" | "mu
 }
 
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks, signals } = Route.useLoaderData();
   const [ready, setReady] = useState(false);
   useEffect(() => {
     // rehydrate() 有时返回 void、有时返回 Promise，两种都当成「读完了」
@@ -1068,6 +1079,7 @@ function Positions() {
       <PageTabs
         storageKey="chiheng-pos-tab"
         tabs={[
+          { key: "follow", label: "跟单", content: <SignalFollowBoard data={signals} /> },
           {
             key: "hold",
             label: urgent.length > 0 ? `持仓 · 需处理 ${urgent.length}` : "持仓",

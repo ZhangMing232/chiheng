@@ -518,7 +518,7 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "自选", keywords: "watchlist my-stocks", to: "/my-stocks" },
   { label: "策略看板", keywords: "screener 策略 选股 持仓", to: "/strategies/screener" },
   { label: "策略管理", keywords: "arena 竞技场 策略管理", to: "/strategies/manage" },
-  { label: "每日信号", keywords: "signals 竞技场 信号", to: "/strategies/signals" },
+  { label: "跟单与持仓", keywords: "signals 竞技场 信号 持仓 跟踪", to: "/strategies/positions" },
   { label: "失败归因", keywords: "autopsy 归因 亏损", to: "/strategies/autopsy" },
   { label: "因子实验室", keywords: "factors 因子", to: "/factors" },
   { label: "回测", keywords: "backtest", to: "/backtest" },

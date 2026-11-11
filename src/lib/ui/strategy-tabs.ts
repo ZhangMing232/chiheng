@@ -12,8 +12,10 @@
  */
 export const STRATEGY_TABS: { to: string; label: string }[] = [
   { to: "/strategies/screener", label: "策略选股" },
-  { to: "/strategies/positions", label: "策略追踪" },
-  { to: "/strategies/signals", label: "跟单信号" },
+  // 2026-11-11 用户要求「策略追踪 + 跟单信号」合成一页：原来的「跟单信号」内容
+  // 并进这个页的「跟单」子 tab，标签从「策略追踪」改成「策略跟踪」，六个 tab → 五。
+  // /strategies/signals 保留为重定向，书签不断。
+  { to: "/strategies/positions", label: "策略跟踪" },
   { to: "/strategies/manage", label: "策略管理" },
   { to: "/strategies/genome", label: "策略基因组" },
   { to: "/strategies/autopsy", label: "失败归因" },

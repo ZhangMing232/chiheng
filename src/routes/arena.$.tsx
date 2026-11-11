@@ -9,16 +9,16 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 const ARENA_REDIRECTS: Record<string, string> = {
-  "/arena": "/strategies/signals",
-  "/arena/signals": "/strategies/signals",
+  "/arena": "/strategies/positions",
+  "/arena/signals": "/strategies/positions",
   "/arena/strategies": "/strategies/manage",
-  "/arena/tracking": "/strategies/signals",
+  "/arena/tracking": "/strategies/positions",
   "/arena/autopsy": "/strategies/autopsy",
 };
 
 export const Route = createFileRoute("/arena/$")({
   beforeLoad: ({ location }) => {
-    const to = ARENA_REDIRECTS[location.pathname] ?? "/strategies/signals";
+    const to = ARENA_REDIRECTS[location.pathname] ?? "/strategies/positions";
     throw redirect({ to, replace: true });
   },
 });
