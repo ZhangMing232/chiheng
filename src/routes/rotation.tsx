@@ -13,11 +13,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { getThemeRotation } from "@/lib/market/quotes.functions";
+import { getThemeRotation, getThemeHeat, type ThemeHeatItem } from "@/lib/market/quotes.functions";
 import { toneClass } from "@/lib/market/format";
 
 export const Route = createFileRoute("/rotation")({
-  loader: () => getThemeRotation().catch(() => ({ date: "", rows: [] })),
+  loader: async () => {
+    const [rot, th] = await Promise.all([
+      getThemeRotation().catch(() => ({ date: "", rows: [] })),
+      getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
+    ]);
+    return { rot, th };
+  },
   component: RotationPage,
 });
 
@@ -30,7 +36,11 @@ const NOISE = new Set([
 const rotTone = { 加速: "up", 减速: "down", 平稳: "muted" } as const;
 
 function RotationPage() {
-  const { date, rows } = Route.useLoaderData();
+  const { rot, th } = Route.useLoaderData();
+  const date = rot.date || th.date;
+  // 合并：题材（涨停/龙头来自 theme-heat，轮动方向/5日来自 theme-rotation）
+  const heatByName = new Map(th.hot.map((h) => [h.name, h]));
+  const rows = rot.rows.map((r) => ({ ...r, heat: heatByName.get(r.name) ?? null }));
   const cleaned = rows.filter((r) => !NOISE.has(r.name));
   const up = cleaned.filter((r) => r.rot === "加速").slice(0, 15);
   const down = cleaned.filter((r) => r.rot === "减速").slice(0, 8);
@@ -60,8 +70,9 @@ function RotationPage() {
                       <span className="mt-1 block h-1.5 rounded bg-surface2">
                         <span className="block h-1.5 rounded bg-up" style={{ width: `${(r.limitUp / maxUp) * 100}%` }} />
                       </span>
-                      <div className="mt-0.5 text-[10px] text-muted">
-                        均<span className={toneClass(r.avgChg)}>{(r.avgChg * 100).toFixed(1)}%</span> · 5日{(r.chg5d * 100).toFixed(1)}%
+                      <div className="mt-0.5 flex items-baseline justify-between text-[10px] text-muted">
+                        <span>均<span className={toneClass(r.avgChg)}>{(r.avgChg * 100).toFixed(1)}%</span> · 5日{(r.chg5d * 100).toFixed(1)}%</span>
+                        <span>龙头 {r.heat?.leader?.name ?? "—"}</span>
                       </div>
                     </div>
                   ))}
@@ -82,7 +93,10 @@ function RotationPage() {
                       <span className="mt-1 block h-1.5 rounded bg-surface2">
                         <span className="block h-1.5 rounded bg-down" style={{ width: `${(r.limitUp / maxDown) * 100}%` }} />
                       </span>
-                      <div className="mt-0.5 text-[10px] text-muted">5日{(r.chg5d * 100).toFixed(1)}%</div>
+                      <div className="mt-0.5 flex items-baseline justify-between text-[10px] text-muted">
+                        <span>5日{(r.chg5d * 100).toFixed(1)}%</span>
+                        <span>龙头 {r.heat?.leader?.name ?? "—"}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
