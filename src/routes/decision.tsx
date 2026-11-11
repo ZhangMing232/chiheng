@@ -128,18 +128,28 @@ function DecisionPage() {
             <div>
               <div className="mb-1.5 text-xs text-muted">题材热度（涨停家数多的优先，龙头=板内涨幅最高非涨停股）</div>
               <div className="grid gap-2 sm:grid-cols-2">
-                {hotThemes.map((r) => (
-                  <div key={r.name} className="rounded border border-line bg-surface px-3 py-2">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-sm font-medium">{r.name}</span>
-                      <span className="num text-xs text-up">{r.limitUp} 涨停</span>
+                {hotThemes.map((r) => {
+                  // 驱动逻辑：点连板网当日主线那种一句话（优先板块爆发原因）
+                  const sectorLogics = reasons.sectors[r.name] ?? [];
+                  const logic = sectorLogics[0]?.title || sectorLogics[0]?.reason || "";
+                  return (
+                    <div key={r.name} className="rounded border border-line bg-surface px-3 py-2">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm font-medium">{r.name}</span>
+                        <span className="num text-xs text-up">{r.limitUp} 涨停</span>
+                      </div>
+                      <div className="mt-0.5 flex items-baseline justify-between text-[11px] text-muted">
+                        <span>均 {r.avg > 0 ? "+" : ""}{r.avg.toFixed(1)}%</span>
+                        <span>龙头 {r.leader?.name ?? "—"}</span>
+                      </div>
+                      {logic ? (
+                        <div className="mt-1 line-clamp-2 border-t border-line pt-1 text-[10px] leading-snug text-muted">
+                          {logic.slice(0, 80)}{logic.length > 80 ? "…" : ""}
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="mt-0.5 flex items-baseline justify-between text-[11px] text-muted">
-                      <span>均 {r.avg > 0 ? "+" : ""}{r.avg.toFixed(1)}%</span>
-                      <span>龙头 {r.leader?.name ?? "—"}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div className="text-[11px] leading-relaxed text-muted">
