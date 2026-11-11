@@ -380,20 +380,26 @@ function Dashboard() {
                   <div className="px-2 text-[11px] text-muted">
                     {g.streak === 1 ? "首板" : `${g.streak} 连板`}（{g.rows.length}）
                   </div>
-                  {g.rows.map((r) => (
-                    <div key={r.id} className="flex items-baseline justify-between gap-2 rounded px-2 py-0.5 text-sm hover:bg-surface-2">
-                      <span className="flex min-w-0 items-baseline gap-1.5">
-                        <span className="truncate">{r.name}</span>
-                        <span className="num text-[10px] text-muted">{r.code}</span>
-                        {reasons[r.code]?.primary_concept ? (
-                          <span className="truncate rounded bg-brand-soft px-1 text-[10px] text-brand-text">
-                            {reasons[r.code].primary_concept}
-                          </span>
+                  {g.rows.map((r) => {
+                    const concept = reasons[r.code]?.primary_concept ?? r.industry ?? "";
+                    const isPureStreak = r.stat === `${r.streak}天${r.streak}板`;
+                    return (
+                      <div key={r.id} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <span className="truncate font-medium">{r.name}</span>
+                          {r.stat && !isPureStreak ? (
+                            <span className="num shrink-0 rounded bg-surface2 px-1 text-[10px] text-warn">{r.stat}</span>
+                          ) : null}
+                        </span>
+                        <span className="num shrink-0 text-[11px] text-muted">
+                          {r.sealFund ? `${(r.sealFund / 10000).toFixed(0)}万` : "—"} · 开板{r.breaks ?? 0}
+                        </span>
+                        {concept ? (
+                          <span className="shrink-0 rounded bg-brand-soft px-1 text-[10px] text-brand-text">{concept}</span>
                         ) : null}
-                      </span>
-                      <span className="num shrink-0 text-xs text-up">{r.price.toFixed(2)}</span>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
               {/* 炸板：全量 */}
