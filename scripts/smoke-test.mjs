@@ -30,7 +30,7 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PAGES = [
   "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）
   // 市场
-  "/overview", "/review", "/review/signals", "/review/events", "/news", "/overseas",
+  "/review", "/review/breadth", "/review/signals", "/review/events", "/news", "/overseas",
   // 工作台 + 研究 + 我的（侧栏剩下的组，按侧栏顺序）
   "/butler", "/studio", "/research", "/debate", "/research/debate", "/research/reports", "/research/notes",
   "/my-stocks", "/inbox", "/settings", "/admin", "/membership", "/login",
@@ -54,7 +54,7 @@ const PAGES = [
 // （含底部 pinned 的 /ai）。上一版里的 /flow 在 10-23 撤掉侧栏入口后必然点不到，
 // 是漂移的一部分。子页面（/strategies/positions、/review/signals、/review/flow/*
 // 这类）不在侧栏里，靠页面内 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
-const NAV_PAGES = ["/butler", "/studio", "/overview", "/strategies/screener", "/factors", "/research", "/my-stocks", "/backtest", "/ai"];
+const NAV_PAGES = ["/butler", "/studio", "/strategies/screener", "/factors", "/research", "/my-stocks", "/backtest", "/ai"];
 
 /** 等 fn 返回非 undefined 值，超时抛错 */
 async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {

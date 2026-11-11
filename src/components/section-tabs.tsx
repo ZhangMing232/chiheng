@@ -46,6 +46,15 @@ export function SectionTabs({ tabs, ariaLabel }: { tabs: SectionTab[]; ariaLabel
 }
 
 /** 「研究」区的二级 tab（2026-10-26 四个平级页合成一页：个股研判/多空辩论/研报库/笔记）。 */
+/** 「复盘」区的二级 tab（2026-11-11 把 /overview 涨跌分布并进来，五个子页）。 */
+export const REVIEW_TABS: SectionTab[] = [
+  { to: "/review/", label: "每日复盘" },
+  { to: "/review/breadth", label: "涨跌分布" },
+  { to: "/review/flow/", label: "资金流向" },
+  { to: "/review/signals", label: "信号" },
+  { to: "/review/events", label: "公司事件" },
+];
+
 export const RESEARCH_TABS: SectionTab[] = [
   { to: "/research/", label: "个股研判" },
   { to: "/research/debate", label: "多空辩论" },

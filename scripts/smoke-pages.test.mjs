@@ -38,6 +38,7 @@ const LEGACY_ALIASES = [
   "/debate", // 10-26 研究区合并 → /research/debate
   "/reports", // 10-26 研究区合并 → /research/reports
   "/notes", // 10-26 研究区合并 → /research/notes
+  "/overview", // 11-11 复盘区合并 → /review/breadth
 ];
 
 /** 不进 PAGES 的路由，理由写清楚（别让跳过变成静默）。 */

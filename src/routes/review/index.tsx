@@ -16,7 +16,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { SectionTabs } from "@/components/section-tabs";
+import { SectionTabs, REVIEW_TABS } from "@/components/section-tabs";
 import { HeroStat } from "@/components/hero-stat";
 import { Activity, Coins, LineChart, Wallet } from "lucide-react";
 import { CollapsibleSection } from "@/components/collapsible";
@@ -138,12 +138,7 @@ function Review() {
           顶部给二级 tab，和信号子页是同一组。 */}
       <SectionTabs
         ariaLabel="复盘"
-        tabs={[
-          { to: "/review/", label: "每日复盘" },
-          { to: "/review/flow/", label: "资金流向" },
-          { to: "/review/signals", label: "信号" },
-          { to: "/review/events", label: "公司事件" },
-        ]}
+        tabs={REVIEW_TABS}
       />
       {/* 今日结论（效果图招牌件）：四张卡，数字全现算 */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

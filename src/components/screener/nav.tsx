@@ -113,9 +113,10 @@ const SIDEBAR: {
   {
     label: "市场",
     items: [
-      { to: "/overview", label: "涨跌分布", icon: Gauge },
       // 2026-10-26 三合一：每日复盘 / 资金流向 / 信号 / 公司事件合成一个「每日复盘」页，
       // 里面二级 tab 切换（SectionTabs），侧栏不再平铺四个入口。
+      // 2026-11-11 再把 /overview 涨跌分布并进来做第五个子 tab——它和复盘都是市场视图，
+      // 指数/资金/快讯全重复，只有直方图独有。侧栏「市场」组少一个入口。
       { to: "/review", label: "每日复盘", icon: History },
       { to: "/overseas", label: "全球行情", icon: Globe },
     ],

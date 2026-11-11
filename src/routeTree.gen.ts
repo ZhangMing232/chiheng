@@ -54,6 +54,7 @@ import { Route as ResearchDebateRouteImport } from './routes/research/debate'
 import { Route as ResearchNotesRouteImport } from './routes/research/notes'
 import { Route as ResearchReportsRouteImport } from './routes/research/reports'
 import { Route as ReviewIndexRouteImport } from './routes/review/index'
+import { Route as ReviewBreadthRouteImport } from './routes/review/breadth'
 import { Route as ReviewEventsRouteImport } from './routes/review/events'
 import { Route as ReviewFlowRouteImport } from './routes/review/flow'
 import { Route as ReviewSignalsRouteImport } from './routes/review/signals'
@@ -299,6 +300,11 @@ const ReviewIndexRoute = ReviewIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ReviewRoute,
 } as any)
+const ReviewBreadthRoute = ReviewBreadthRouteImport.update({
+  id: '/breadth',
+  path: '/breadth',
+  getParentRoute: () => ReviewRoute,
+} as any)
 const ReviewEventsRoute = ReviewEventsRouteImport.update({
   id: '/events',
   path: '/events',
@@ -437,6 +443,7 @@ export interface FileRoutesByFullPath {
   '/research/debate': typeof ResearchDebateRoute
   '/research/notes': typeof ResearchNotesRoute
   '/research/reports': typeof ResearchReportsRoute
+  '/review/breadth': typeof ReviewBreadthRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
@@ -500,6 +507,7 @@ export interface FileRoutesByTo {
   '/research/debate': typeof ResearchDebateRoute
   '/research/notes': typeof ResearchNotesRoute
   '/research/reports': typeof ResearchReportsRoute
+  '/review/breadth': typeof ReviewBreadthRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/signals': typeof ReviewSignalsRoute
   '/strategies/autopsy': typeof StrategiesAutopsyRoute
@@ -566,6 +574,7 @@ export interface FileRoutesById {
   '/research/debate': typeof ResearchDebateRoute
   '/research/notes': typeof ResearchNotesRoute
   '/research/reports': typeof ResearchReportsRoute
+  '/review/breadth': typeof ReviewBreadthRoute
   '/review/events': typeof ReviewEventsRoute
   '/review/flow': typeof ReviewFlowRouteWithChildren
   '/review/signals': typeof ReviewSignalsRoute
@@ -634,6 +643,7 @@ export interface FileRouteTypes {
     | '/research/debate'
     | '/research/notes'
     | '/research/reports'
+    | '/review/breadth'
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
@@ -697,6 +707,7 @@ export interface FileRouteTypes {
     | '/research/debate'
     | '/research/notes'
     | '/research/reports'
+    | '/review/breadth'
     | '/review/events'
     | '/review/signals'
     | '/strategies/autopsy'
@@ -762,6 +773,7 @@ export interface FileRouteTypes {
     | '/research/debate'
     | '/research/notes'
     | '/research/reports'
+    | '/review/breadth'
     | '/review/events'
     | '/review/flow'
     | '/review/signals'
@@ -1142,6 +1154,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewIndexRouteImport
       parentRoute: typeof ReviewRoute
     }
+    '/review/breadth': {
+      id: '/review/breadth'
+      path: '/breadth'
+      fullPath: '/review/breadth'
+      preLoaderRoute: typeof ReviewBreadthRouteImport
+      parentRoute: typeof ReviewRoute
+    }
     '/review/events': {
       id: '/review/events'
       path: '/events'
@@ -1351,6 +1370,7 @@ const ReviewFlowRouteWithChildren = ReviewFlowRoute._addFileChildren(
 )
 
 interface ReviewRouteChildren {
+  ReviewBreadthRoute: typeof ReviewBreadthRoute
   ReviewEventsRoute: typeof ReviewEventsRoute
   ReviewFlowRoute: typeof ReviewFlowRouteWithChildren
   ReviewSignalsRoute: typeof ReviewSignalsRoute
@@ -1358,6 +1378,7 @@ interface ReviewRouteChildren {
 }
 
 const ReviewRouteChildren: ReviewRouteChildren = {
+  ReviewBreadthRoute: ReviewBreadthRoute,
   ReviewEventsRoute: ReviewEventsRoute,
   ReviewFlowRoute: ReviewFlowRouteWithChildren,
   ReviewSignalsRoute: ReviewSignalsRoute,

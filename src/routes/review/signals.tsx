@@ -17,7 +17,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { SectionTabs } from "@/components/section-tabs";
+import { SectionTabs, REVIEW_TABS } from "@/components/section-tabs";
 import { Panel, Stat, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
@@ -44,12 +44,7 @@ function SignalsPage() {
   const tabs = (
     <SectionTabs
       ariaLabel="复盘"
-      tabs={[
-        { to: "/review/", label: "每日复盘" },
-        { to: "/review/flow/", label: "资金流向" },
-        { to: "/review/signals", label: "信号" },
-        { to: "/review/events", label: "公司事件" },
-      ]}
+      tabs={REVIEW_TABS}
     />
   );
 

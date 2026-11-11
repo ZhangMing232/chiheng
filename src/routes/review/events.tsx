@@ -13,7 +13,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { SectionTabs } from "@/components/section-tabs";
+import { SectionTabs, REVIEW_TABS } from "@/components/section-tabs";
 import { getBuybacks, getForecasts, getHolderTrades, getIpos, getPledges, getSurveys } from "@/lib/market/events.functions";
 import { EventsPanel } from "@/routes/events";
 
@@ -39,12 +39,7 @@ function ReviewEventsPage() {
     <Frame wide aside="公司事件">
       <SectionTabs
         ariaLabel="复盘"
-        tabs={[
-          { to: "/review/", label: "每日复盘" },
-          { to: "/review/flow/", label: "资金流向" },
-          { to: "/review/signals", label: "信号" },
-          { to: "/review/events", label: "公司事件" },
-        ]}
+        tabs={REVIEW_TABS}
       />
       <EventsPanel
         data={forecasts}
