@@ -9,11 +9,12 @@
  * 轮动进只说明资金在进，怎么跟要看龙头与情绪。
  */
 
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { getThemeRotation, getThemeHeat, type ThemeHeatItem } from "@/lib/market/quotes.functions";
+import { getThemeRotation, getThemeHeat, getThemeMembers, type ThemeHeatItem, type ThemeMembersPayload } from "@/lib/market/quotes.functions";
 import { toneClass } from "@/lib/market/format";
 
 export const Route = createFileRoute("/rotation")({
@@ -39,6 +40,16 @@ function RotationPage() {
   const { rot, th } = Route.useLoaderData();
   const date = rot.date || th.date;
   // 合并：题材（涨停/龙头来自 theme-heat，轮动方向/5日来自 theme-rotation）
+  const [members, setMembers] = useState<ThemeMembersPayload | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
+  const openMembers = async (name: string) => {
+    setLoading(name);
+    try {
+      setMembers(await getThemeMembers({ data: { name } }));
+    } finally {
+      setLoading(null);
+    }
+  };
   const heatByName = new Map(th.hot.map((h) => [h.name, h]));
   const rows = rot.rows.map((r) => ({ ...r, heat: heatByName.get(r.name) ?? null }));
   const cleaned = rows.filter((r) => !NOISE.has(r.name));
@@ -59,7 +70,7 @@ function RotationPage() {
                 <div className="px-3 pt-2 text-xs text-muted">轮动进 · 加速（资金在进）</div>
                 <div className="flex flex-col gap-1 p-2">
                   {up.map((r) => (
-                    <div key={r.name} className="rounded px-2 py-1.5 hover:bg-surface2">
+                    <div key={r.name} onClick={() => void openMembers(r.name)} className="cursor-pointer rounded px-2 py-1.5 hover:bg-surface2">
                       <div className="flex items-baseline justify-between gap-2 text-sm">
                         <span className="flex min-w-0 items-baseline gap-1.5">
                           <Tag tone="up">加速</Tag>
@@ -82,7 +93,7 @@ function RotationPage() {
                 <div className="px-3 pt-2 text-xs text-muted">轮动出 · 减速（资金在撤）</div>
                 <div className="flex flex-col gap-1 p-2">
                   {down.map((r) => (
-                    <div key={r.name} className="rounded px-2 py-1.5 hover:bg-surface2">
+                    <div key={r.name} onClick={() => void openMembers(r.name)} className="cursor-pointer rounded px-2 py-1.5 hover:bg-surface2">
                       <div className="flex items-baseline justify-between gap-2 text-sm">
                         <span className="flex min-w-0 items-baseline gap-1.5">
                           <Tag tone="down">减速</Tag>
@@ -109,6 +120,33 @@ function RotationPage() {
           </div>
         </Panel>
       </div>
+      {members ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setMembers(null)}>
+          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg border border-line bg-surface p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-baseline justify-between">
+              <div>
+                <span className="text-base font-medium">{members.name}</span>
+                <span className="ml-2 text-xs text-muted">共 {members.total} 只（按涨跌幅排）</span>
+              </div>
+              <button type="button" onClick={() => setMembers(null)} className="text-sm text-muted hover:text-fg">✕</button>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              {members.members.slice(0, 60).map((m) => (
+                <div key={m.id} className="flex items-baseline justify-between gap-2 rounded px-1 py-0.5 text-[12px] hover:bg-surface2">
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="truncate">{m.name}</span>
+                    {m.limitUp ? <Tag tone="up">涨停</Tag> : null}
+                  </span>
+                  <span className={"num shrink-0 " + ((m.chg ?? 0) >= 0 ? "text-up" : "text-down")}>
+                    {(m.chg ?? 0) > 0 ? "+" : ""}{(m.chg ?? 0).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+            {members.total > 60 ? <div className="mt-2 text-[11px] text-muted">只显示前 60 只</div> : null}
+          </div>
+        </div>
+      ) : null}
     </Frame>
   );
 }

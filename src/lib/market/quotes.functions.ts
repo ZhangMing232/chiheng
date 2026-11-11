@@ -1655,6 +1655,54 @@ export const getStockDetail = createServerFn({ method: "GET" })
     return { ...empty, name, kline, limitUps, regulatory, concept, reason };
   });
 
+export type ThemeMember = { id: string; name: string; chg: number | null; price: number | null; limitUp: boolean };
+export type ThemeMembersPayload = { name: string; members: ThemeMember[]; total: number };
+
+/** 题材成分股（本地 concepts.json + universe 缓存，零外部请求）。 */
+export const getThemeMembers = createServerFn({ method: "GET" })
+  .validator((input: unknown): { name: string } => {
+    const v = (input ?? {}) as Record<string, unknown>;
+    return { name: typeof v.name === "string" ? v.name : "" };
+  })
+  .handler(async ({ data }): Promise<ThemeMembersPayload> => {
+    if (!data.name) return { name: "", members: [], total: 0 };
+    const { readFile } = await import("node:fs/promises");
+    let members: string[] = [];
+    let total = 0;
+    try {
+      const cj = JSON.parse(await readFile(dataPath("data", "backtest", "concepts.json"), "utf8")) as {
+        boards?: { name: string; members: string[] }[];
+      };
+      const boards = cj.boards ?? [];
+      // 精确匹配优先，再前缀匹配
+      const exact = boards.find((b) => b.name === data.name);
+      const fuzzy = exact ?? boards.find((b) => b.name.includes(data.name) || data.name.includes(b.name));
+      if (fuzzy) {
+        members = fuzzy.members.filter((m) => /^(sh|sz|bj)\d{6}$/.test(m));
+        total = members.length;
+      }
+    } catch {
+      return { name: data.name, members: [], total: 0 };
+    }
+    // universe 缓存拿名称/涨跌/现价
+    const quoteOf = new Map<string, { name: string; chg: number | null; price: number | null }>();
+    try {
+      const uni = JSON.parse(await readFile(dataPath("data", "universe-cache.json"), "utf8")) as {
+        payload?: { quotes?: { id: string; name: string; chg: number | null; price: number | null }[] };
+      };
+      for (const q of uni.payload?.quotes ?? []) quoteOf.set(q.id, { name: q.name, chg: q.chg, price: q.price });
+    } catch { /* skip */ }
+    const out: ThemeMember[] = [];
+    for (const id of members) {
+      const q = quoteOf.get(id);
+      if (!q) continue;
+      const thr = id.startsWith("sz30") || id.startsWith("sh68") ? 19.5 : 9.5;
+      out.push({ id, name: q.name, chg: q.chg, price: q.price, limitUp: (q.chg ?? 0) >= thr });
+    }
+    out.sort((a, b) => Math.abs(b.chg ?? 0) - Math.abs(a.chg ?? 0));
+    return { name: data.name, members: out, total };
+  });
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {
