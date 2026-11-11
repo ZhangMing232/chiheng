@@ -69,6 +69,10 @@ export function computeSentiment(
   breadth: Breadth,
   indexPcts: number[],
   mainInflow: number | null,
+  /** 连板梯队（limit-up.ts 的 streakLadder 产物）。null = 数据不可用。 */
+  ladder?: { streak: number; count: number }[] | null,
+  /** 炸板率（0~1）。null = 数据不可用。 */
+  breakRate?: number | null,
 ): SentimentReading {
   const traded = breadth.up + breadth.down;
 
@@ -92,6 +96,18 @@ export function computeSentiment(
 
   // 分量 4：主力资金方向。只有单日快照，方向性权重：净流入偏热、净流出偏冷。
   const flowScore = mainInflow == null ? null : mainInflow > 0 ? 65 : mainInflow < 0 ? 35 : 50;
+
+  // 分量 5：连板高度（情绪的高度，不是强弱）。最高连板越高情绪越亢奋，逼近沸点。
+  // 这是「情绪周期」的核心维度：连板是打板资金的共识温度计。
+  const maxStreak = ladder?.length ? Math.max(...ladder.map((l) => l.streak)) : 0;
+  const streakScore =
+    ladder == null
+      ? null
+      : maxStreak >= 5 ? 85 : maxStreak === 4 ? 75 : maxStreak === 3 ? 65 : maxStreak === 2 ? 55 : maxStreak === 1 ? 45 : 35;
+
+  // 分量 6：炸板率（情绪退潮信号）。炸板率高 = 追高资金被套 = 情绪开始转冷，
+  // 即使今天指数还是红的。这是「沸点之后的退潮」——逆情绪的关键。
+  const breakScore = breakRate == null ? null : Math.max(0, Math.min(100, Math.round(65 - breakRate * 70)));
 
   const components: SentimentComponent[] = [
     {
@@ -135,6 +151,20 @@ export function computeSentiment(
         mainInflow == null
           ? "资金流向不可用"
           : `全市场主力净流入 ${(mainInflow / 10_000).toFixed(1)} 亿`,
+    },
+    {
+      key: "streak",
+      label: "连板高度",
+      score: streakScore,
+      weight: 0.15,
+      fact: ladder == null ? "连板数据不可用" : maxStreak > 0 ? `最高 ${maxStreak} 连板` : "今日无连板",
+    },
+    {
+      key: "break",
+      label: "炸板率",
+      score: breakScore,
+      weight: 0.1,
+      fact: breakRate == null ? "炸板率不可用" : `炸板率 ${(breakRate * 100).toFixed(0)}%`,
     },
   ];
 

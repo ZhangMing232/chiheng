@@ -28,6 +28,7 @@ import { HeroStat } from "@/components/hero-stat";
 import { sessionPhase } from "@/lib/market/session";
 import { journalTradeIds, slimUniverse as slimUniverseByIds } from "@/lib/market/slim-universe";
 import { computeSentiment } from "@/lib/market/sentiment";
+import { getSignals } from "@/lib/market/limit-up.functions";
 import type { Breadth } from "@/lib/market/slim-universe";
 import type { IndexQuote, Quote, SessionInfo } from "@/lib/market/types";
 import type { NewsItem } from "@/lib/market/news";
@@ -53,7 +54,7 @@ import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, alerts, gatesData] =
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, alerts, gatesData, signals] =
       await Promise.all([
         getIndices().catch(() => [] as IndexQuote[]),
         getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
@@ -67,6 +68,9 @@ export const Route = createFileRoute("/")({
         getNews().catch(() => [] as NewsItem[]),
         getAlerts().catch(() => [] as Awaited<ReturnType<typeof getAlerts>>),
         getStrategyGates().catch(() => ({ gates: {} })),
+        // 连板梯队 + 炸板率是情绪温度计的「情绪周期」维度（区别于强弱）。东财接口
+        // 按天限流，失败降级为 null（温度计退回到只算强弱四个分量）。
+        getSignals({ data: {} }).catch(() => null),
       ]);
     // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
     const trend = indices[0]
@@ -76,11 +80,14 @@ export const Route = createFileRoute("/")({
     // 首页只用持仓相关的几只（priceOf 按 id 查现价/涨跌），先按账本 id 瘦身再返回。
     const slimUniverse = slimUniverseByIds(universe, journalTradeIds(journal));
     // 情绪温度计在服务端算好（分量全是上面的真实数据，计算本身在 lib 里有测试钉着）。
+    // 连板高度 + 炸板率是「情绪周期」维度：连板高 = 沸点、炸板率高 = 退潮。
     const sentiment = breadth
       ? computeSentiment(
           breadth,
           indices.map((item) => item.pct),
           flow ? flow.market.reduce((total, part) => total + part.main, 0) : null,
+          signals?.summary?.ladder ?? null,
+          signals?.summary?.breakRate ?? null,
         )
       : null;
     // 数据时间脚注：指数行情的时间戳最可靠；没有就标未知。
