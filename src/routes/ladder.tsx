@@ -1,14 +1,14 @@
 /**
- * 连板天梯（对标连板网 /tianti.html 的单日版）——板位从高到低，首板折叠，悬停看原因。
+ * 连板天梯（对标连板网 /tianti.html）——3 日并排 + 晋级率 + 首板折叠 + 点击高亮。
  *
- * 交互逻辑（逆向连板网学到的，之前漏了）：
- * 1. 首板默认折叠：首板每天几十只，展开撑爆页面，接力只发生在 2 板以上；
- *    折叠的只是名单，「1进2」数字留在行头。
- * 2. 悬停一只票 → 浮出涨停原因（title 提示）。
- * 3. 每只票显示：封单额(万) · 开板次数 · 题材标签 · N天M板。
+ * 交互逻辑（逆向连板网 JS 学到的）：
+ * 1. 3 日并排（最新在左），横看一行即是该板位的 3 日演变。
+ * 2. 晋级率：昨日 N 板今天晋级 N+1 板的比例（接力健康度）。
+ * 3. 点任一只票 → 它在这 3 天出现的所有位置一起高亮（看晋级/断板）。
+ * 4. 首板默认折叠（首板几十只，接力只发生在 2 板以上）。
+ * 5. 每只票：封单额(万)·开板次数·题材（今日有封单，历史日只有名称）。
  *
- * 还没做（数据积累中）：3 日并排对比 + 晋级率（要 3 天归档）、接力高亮、
- * 反包行（要前日断板数据）。
+ * 数据：ladder-3day.ts 从 K 线缓存算（不依赖归档）。
  */
 
 import { useState } from "react";
@@ -16,114 +16,129 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { getMarketSnapshot } from "@/lib/market/limit-up.functions";
-import { getLimitUpReasons } from "@/lib/market/quotes.functions";
+import { getLadder3Day, getLimitUpReasons, type LadderRow } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/ladder")({
   loader: async () => {
-    const [snap, reasons] = await Promise.all([
-      getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
-      getLimitUpReasons().catch(() => ({ date: "", reasons: {} as Record<string, import("@/lib/market/quotes.functions").LimitUpReason>, sectors: {} })),
+    const [ladder, reasons] = await Promise.all([
+      getLadder3Day().catch(() => ({ dates: [] as string[], ladder: {} as Record<string, Record<string, LadderRow[]>>, promotion: {} as Record<string, Record<string, { total: number; promoted: number }>> })),
+      getLimitUpReasons().catch(() => ({ date: "", reasons: {} as Record<string, { reason: string; primary_concept: string }>, sectors: {} })),
     ]);
-    return { snap, reasons };
+    return { ladder, reasons };
   },
   component: LadderPage,
 });
 
+const fmt = (n: number) => `${(n / 10000).toFixed(0)}万`;
+
 function LadderPage() {
-  const { snap, reasons } = Route.useLoaderData();
+  const { ladder, reasons } = Route.useLoaderData();
   const [expandFirst, setExpandFirst] = useState(false);
-  const pool = snap.snapshot;
-  const limitRows = pool?.limitUp ?? [];
+  const [hl, setHl] = useState<string | null>(null);
 
-  // 板位从高到低分组
-  const groups = (() => {
-    const m = new Map<number, typeof limitRows>();
-    for (const r of limitRows) {
-      const st = r.streak ?? 1;
-      const arr = m.get(st) ?? [];
-      arr.push(r);
-      m.set(st, arr);
-    }
-    return [...m.entries()].sort((a, b) => b[0] - a[0]).map(([streak, rows]) => ({ streak, rows }));
-  })();
+  const dates = [...ladder.dates].reverse(); // 最新在左（对标连板网）
+  if (dates.length === 0) {
+    return (
+      <Frame wide aside="连板天梯">
+        <Panel title="连板天梯">
+          <StateBlock kind="empty" title="还没算" hint="ladder-3day.ts 从 K 线算，跑一次就有。" />
+        </Panel>
+      </Frame>
+    );
+  }
 
-  const firstBoard = groups.find((g) => g.streak === 1);
-  const highBoards = groups.filter((g) => g.streak >= 2);
-  const firstCount = firstBoard?.rows.length ?? 0;
+  // 所有出现的板位（从高到低）
+  const levels = [...new Set(dates.flatMap((d) => Object.keys(ladder.ladder[d] ?? {})))]
+    .map(Number)
+    .sort((a, b) => b - a);
 
-  const reasonText = (code: string) => {
-    const r = reasons.reasons[code];
-    return r?.reason ? r.reason.slice(0, 120) + (r.reason.length > 120 ? "…" : "") : "";
+  const dayStats = (d: string) => {
+    const lv = ladder.ladder[d] ?? {};
+    const total = Object.values(lv).reduce((n, arr) => n + arr.length, 0);
+    const top = Math.max(0, ...Object.keys(lv).map(Number));
+    return { total, top };
   };
-
-  const renderRows = (rows: typeof limitRows) =>
-    rows.map((r) => {
-      const concept = reasons.reasons[r.code]?.primary_concept ?? r.industry ?? "";
-      const isPureStreak = r.stat === `${r.streak}天${r.streak}板`;
-      return (
-        <Link
-          key={r.id}
-          to="/research"
-          search={{ q: r.code }}
-          title={reasonText(r.code) || undefined}
-          className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2"
-        >
-          <span className="flex min-w-0 items-baseline gap-1.5">
-            <span className="truncate font-medium">{r.name}</span>
-            {r.stat && !isPureStreak ? (
-              <span className="num shrink-0 rounded bg-surface2 px-1 text-[10px] text-warn">{r.stat}</span>
-            ) : null}
-          </span>
-          <span className="num shrink-0 text-[11px] text-muted">
-            {r.sealFund ? `${(r.sealFund / 10000).toFixed(0)}万` : "—"} · 开板{r.breaks ?? 0}
-          </span>
-          {concept ? (
-            <span className="shrink-0 rounded bg-brand-soft px-1 text-[10px] text-brand-text">{concept}</span>
-          ) : null}
-        </Link>
-      );
-    });
 
   return (
     <Frame wide aside="连板天梯">
       <div className="flex flex-col gap-3">
-        <Panel title="连板天梯" note={pool ? `${pool.date} ${pool.sealed ? "收盘后" : "盘中未定"}` : "今天还没采集"}>
-          {!pool ? (
-            <StateBlock kind="empty" title="今天还没采集" hint="capture-market-snapshot.ts 收盘后 15:12 跑。" />
-          ) : (
-            <div className="flex flex-col gap-2 p-2">
-              {highBoards.map((g) => (
-                <div key={g.streak} className="rounded border border-line bg-surface">
-                  <div className="flex items-baseline justify-between border-b border-line px-3 py-1.5">
-                    <span className="text-sm font-medium text-up">{g.streak} 板</span>
-                    <span className="num text-xs text-muted">共 {g.rows.length} 只</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 p-1.5">{renderRows(g.rows)}</div>
-                </div>
-              ))}
-
-              {/* 首板：默认折叠，只留「1进2」数字在行头（对标连板网） */}
-              <div className="rounded border border-line bg-surface">
-                <div className="flex items-baseline justify-between border-b border-line px-3 py-1.5">
-                  <span className="text-sm font-medium">首板</span>
-                  <span className="num text-xs text-muted">共 {firstCount} 只</span>
-                </div>
-                {expandFirst ? (
-                  <div className="flex flex-col gap-0.5 p-1.5">{firstBoard ? renderRows(firstBoard.rows) : null}</div>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setExpandFirst((v) => !v)}
-                  className="w-full px-3 py-1.5 text-left text-xs text-muted hover:text-fg"
-                >
-                  {expandFirst ? "收起首板名单 ▴" : `展开首板名单 ${firstCount} 只 ▾`}
-                </button>
-              </div>
-            </div>
-          )}
+        <Panel title="连板天梯" note={dates.join(" / ")}>
+          <div className="px-3 py-2 text-[11px] text-muted">
+            最新在左 · 横着看一行即是该板位的 3 日演变 · 点任一只票，它在这 3 天出现的位置会一起高亮
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="px-2 py-1.5 text-left text-xs text-muted">板位</th>
+                  {dates.map((d) => {
+                    const s = dayStats(d);
+                    return (
+                      <th key={d} className="px-2 py-1.5 text-left text-xs">
+                        <div className="font-medium">{d.slice(5)}</div>
+                        <div className="font-normal text-muted">涨停{s.total} · 最高{s.top}板</div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {levels.map((lv) => {
+                  const isFirst = lv === 1;
+                  if (isFirst && !expandFirst) return null;
+                  return (
+                    <tr key={lv} className="border-b border-line align-top">
+                      <td className="px-2 py-1.5 text-sm font-medium whitespace-nowrap">{lv === 1 ? "首板" : `${lv}板`}</td>
+                      {dates.map((d) => {
+                        const rows = ladder.ladder[d]?.[String(lv)] ?? [];
+                        const promo = ladder.promotion[d]?.[String(lv)];
+                        return (
+                          <td key={d} className="px-2 py-1.5">
+                            <div className="mb-0.5 text-[11px] text-muted">
+                              共{rows.length}只
+                              {promo ? ` · ${lv}进${lv + 1} ${((promo.promoted / Math.max(1, promo.total)) * 100).toFixed(0)}%` : ""}
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              {rows.map((r) => {
+                                const concept = reasons.reasons[r.id]?.primary_concept ?? "";
+                                const active = hl === r.id;
+                                return (
+                                  <div
+                                    key={r.id}
+                                    onClick={() => setHl((v) => (v === r.id ? null : r.id))}
+                                    className={`flex cursor-pointer items-baseline gap-1 rounded px-1 text-[12px] ${active ? "bg-up-soft" : "hover:bg-surface-2"}`}
+                                    title={reasons.reasons[r.id]?.reason?.slice(0, 100) || undefined}
+                                  >
+                                    <Link
+                                      to="/research"
+                                      search={{ q: r.id }}
+                                      className={`truncate no-underline ${active ? "text-up" : "text-fg"}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {r.name}
+                                    </Link>
+                                    {r.seal ? <span className="num shrink-0 text-[10px] text-muted">{fmt(r.seal)}·开板{r.breaks ?? 0}</span> : null}
+                                    {concept ? <span className="shrink-0 text-[10px] text-brand-text">{concept}</span> : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-line px-3 py-2">
+            <button type="button" onClick={() => setExpandFirst((v) => !v)} className="text-xs text-muted hover:text-fg">
+              {expandFirst ? "收起首板名单 ▴" : "展开首板名单 ▾"}
+            </button>
+          </div>
           <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
-            悬停一只票看涨停原因，点股名看 K 线。接力只发生在 2 板以上，首板默认折叠。3 日并排对比 + 晋级率要 3 天归档，攒够自动上。
+            晋级率 = 昨日该档晋级到下一板的比例（历史频率，不是预测）。涨停家数→次日 +0.4%~0.77%（已验证），但追高连板 −3.71%（已证伪）。只做 2 板以上接力，首板默认折叠。
           </div>
         </Panel>
       </div>

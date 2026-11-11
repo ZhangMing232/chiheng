@@ -1570,6 +1570,25 @@ export const getThemeRotation = createServerFn({ method: "GET" }).handler(async 
   }
 });
 
+export type LadderRow = { id: string; name: string; streak: number; seal?: number; breaks?: number };
+export type Ladder3DayPayload = {
+  dates: string[];
+  ladder: Record<string, Record<string, LadderRow[]>>;
+  promotion: Record<string, Record<string, { total: number; promoted: number }>>;
+};
+
+/** 连板天梯 3 日（ladder-3day.ts 从 K 线算，含晋级率）。 */
+export const getLadder3Day = createServerFn({ method: "GET" }).handler(async (): Promise<Ladder3DayPayload> => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const raw = await readFile(dataPath("data", "history", "ladder", "latest.json"), "utf8");
+    const parsed = JSON.parse(raw) as Ladder3DayPayload;
+    return { dates: parsed.dates ?? [], ladder: parsed.ladder ?? {}, promotion: parsed.promotion ?? {} };
+  } catch {
+    return { dates: [], ladder: {}, promotion: {} };
+  }
+});
+
 /** 竞价审核结果。 */
 export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async () => {
   try {
