@@ -20,6 +20,7 @@ import { StateBlock } from "@/components/state-block";
 import { getCycleSeries } from "@/lib/market/quotes.functions";
 import { PHASES, PHASE_TONE, nextDayOutcome, promotion, transferMatrix, type Phase } from "@/lib/market/cycle";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/cycle")({
   loader: async () => getCycleSeries().catch(() => ({ date: "", series: [], meta: null })),
@@ -72,6 +73,21 @@ function CyclePage() {
         /* 顶栏这一行放真实状态，不重复页名（页名在第一行页头里已经有了） */
         <span className="num text-xs text-muted">
     <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 冰点/修复/升温/高潮/降温/退潮六档" />
+    <PixelSummary
+      label="CYCLE // NOW"
+      note={
+        <span title="本页阶段按情绪温度分档；/today 的『退潮/沸点』按炸板率与连板数判，两者口径不同">
+          {last.date} · 阶段按温度分档（与今日页炸板率口径不同）
+        </span>
+      }
+      stats={[
+        { label: "当前阶段", value: last.phase, tone: "brand", hero: true },
+        { label: "涨停", value: last.limitUp ?? null, tone: "up" },
+        { label: "连板", value: last.ladder ?? null },
+        { label: "最高板", value: last.maxStreak, tone: "warn" },
+      { label: "情绪温度", value: last.temp?.toFixed?.(0) ?? last.temp, tone: "brand", hint: last.tempDelta5 != null ? `5日 ${last.tempDelta5 > 0 ? "+" : ""}${last.tempDelta5.toFixed(0)}` : undefined },
+      ]}
+    />
           {last.date} · 温度 {last.temp.toFixed(1)} · {todayPhase}
         </span>
       }

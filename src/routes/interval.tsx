@@ -19,6 +19,7 @@ import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getInterval } from "@/lib/market/archive.functions";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/interval")({
   validateSearch: (raw: Record<string, unknown>): { from?: string; to?: string } => ({
@@ -60,6 +61,15 @@ function IntervalPage() {
       aside={
         <span className="num text-xs text-muted">
     <PixelHeader label="RANGE // STATS" meta="区间统计 · 只看收盘价，给涨幅不给净额" />
+    <PixelSummary
+      label="RANGE // SUMMARY"
+      note={`${p.from} → ${p.to}`}
+      stats={[
+        { label: "区间上涨", value: up, tone: "up", hero: true, hint: `共 ${p.stocks.length} 只` },
+        { label: "下跌", value: p.stocks.length - up, tone: "down" },
+        { label: "题材走强", value: upBoards, tone: "brand", hint: `共 ${p.boards.length} 个` },
+      ]}
+    />
           {p.from} → {p.to} · {p.sessions} 个交易日 · 覆盖 {p.covered}/{p.universe} 只
         </span>
       }
