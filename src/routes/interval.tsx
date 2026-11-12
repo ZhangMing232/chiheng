@@ -18,6 +18,7 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getInterval } from "@/lib/market/archive.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/interval")({
   validateSearch: (raw: Record<string, unknown>): { from?: string; to?: string } => ({
@@ -39,6 +40,7 @@ function IntervalPage() {
   if (!p) {
     return (
       <Frame wide>
+      <PixelHeader label="RANGE // STATS" meta="区间统计 · 只看收盘价，给涨幅不给净额" />
         <Panel title="区间统计">
           <StateBlock kind="empty" title="还没建收盘价索引" hint="跑 scripts/closes-index.ts（读本地 K 线，不联网）。" />
         </Panel>
@@ -57,6 +59,7 @@ function IntervalPage() {
       wide
       aside={
         <span className="num text-xs text-muted">
+    <PixelHeader label="RANGE // STATS" meta="区间统计 · 只看收盘价，给涨幅不给净额" />
           {p.from} → {p.to} · {p.sessions} 个交易日 · 覆盖 {p.covered}/{p.universe} 只
         </span>
       }

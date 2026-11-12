@@ -35,6 +35,7 @@ import {
 } from "@/lib/market/overseas-list.functions";
 import { filterOverseas, sortOverseas, type OverseasMarket, type OverseasSort } from "@/lib/market/overseas-list";
 import { fmtPrice, toneClass } from "@/lib/market/format";
+import { PixelHeader } from "@/components/pixel-header";
 
 type Tab = "list" | "indices" | "watch";
 
@@ -90,6 +91,8 @@ function OverseasPage() {
         // pct 可能为 null（休市/没拿到）——那就只说名字，不编 0%。
         indices && indices.quotes.length > 0 ? (
           <span className="text-[12px] tabular-nums">
+      <PixelHeader label="OVERSEAS // GLOBAL" meta="港美指数与个股 · 时区不同，别拿它的涨跌当次日指引" />
+      <PixelHeader label="OVERSEAS // GLOBAL" meta="港美指数与个股 · 时区不同，别拿它的涨跌当次日指引" />
             {indices.quotes[0]!.name}
             {/* 用 chg（涨跌幅）不用 price：涨跌幅始终是现价和昨收算的比例，
                 与点位的缩放口径无关（见 overseas-index-batch.ts 的口径纪律）。 */}
@@ -102,6 +105,7 @@ function OverseasPage() {
         )
       }
     >
+      <PixelHeader label="OVERSEAS // GLOBAL" meta="港美指数与个股 · 时区不同，别拿它的涨跌当次日指引" />
       <Panel title="港美行情" note="只看数据，不做策略">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
           {TABS.map((tab) => (

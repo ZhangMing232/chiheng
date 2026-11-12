@@ -16,6 +16,7 @@ import { getFactorDiag } from "@/lib/market/quotes.functions";
 import { ShrinkFlipPanel } from "@/components/screener/factor-diag-panels";
 import type { FactorDiagPayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/factors/attrib")({
   loader: async () => {
@@ -38,6 +39,7 @@ function FactorAttribPage() {
   return (
     <Frame wide aside="因子发掘 · 缩量归因">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
+      <PixelHeader label="FACTORS // ATTRIBUTION" meta="失败归因 · 没过的话坏在哪" />
       <FactorSectionTabs />
       <Section
         title="缩量天数归因"

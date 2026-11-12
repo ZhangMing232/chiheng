@@ -33,6 +33,7 @@ import { getGenomeView } from "@/lib/market/quotes.functions";
 import type { GenomeCandidate } from "@/lib/market/strategy-genome";
 import type { BacktestVerdict } from "@/lib/market/strategy-gate";
 import { FlaskConical, GitBranch, ShieldCheck, XCircle } from "lucide-react";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/strategies/genome")({
   loader: async () => {
@@ -64,6 +65,7 @@ function GenomePage() {
   return (
     <Frame wide>
       <SectionTabs tabs={STRATEGY_TABS} />
+      <PixelHeader label="STRATEGY // GENOME" meta="参数与基因视图 · 变体判赢也未必有现役席位" />
       <SectionTabs tabs={BACKTEST_SUB_TABS} ariaLabel="回测审计" />
       <div className="flex flex-col gap-4">
         <Panel

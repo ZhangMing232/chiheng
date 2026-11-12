@@ -17,6 +17,7 @@ import { Panel, Table, Tag, pctClass, thClass, tdClass } from "@/components/term
 import { StateBlock } from "@/components/state-block";
 import { getWatchlistFn, addWatchFn, removeWatchFn } from "@/lib/market/watchlist.functions";
 import { getUniverse } from "@/lib/market/quotes.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/my-stocks")({
   loader: () => getWatchlistFn(),
@@ -81,6 +82,7 @@ function MyStocksPage() {
         tone: watchCount > 0 ? "brand" : "neutral",
       }}
     >
+      <PixelHeader label="MY // WATCHLIST" meta="自选与持仓摘要 · 真实持仓的成本与止损在策略跟踪" />
       <Panel
         title="自选与持仓"
         note={

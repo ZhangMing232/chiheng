@@ -24,6 +24,7 @@ import { GapList } from "@/components/source-line";
 import { getSignals } from "@/lib/market/limit-up.functions";
 import { type LimitUpRow } from "@/lib/market/limit-up";
 import { toneClass } from "@/lib/market/format";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/review/signals")({
   // date 缺的时候**不写这个键**：写了空串，TanStack 会认为 URL 和归一化后的
@@ -42,10 +43,10 @@ function SignalsPage() {
   const data = Route.useLoaderData();
   // 2026-10-21 整合：信号并入了「复盘」区（/review 下两个子页面），顶部和复盘页同一组 tab。
   const tabs = (
-    <SectionTabs
-      ariaLabel="复盘"
-      tabs={REVIEW_TABS}
-    />
+    <>
+      <SectionTabs ariaLabel="复盘" tabs={REVIEW_TABS} />
+      <PixelHeader label="REVIEW // SIGNALS" meta="收盘信号 · 当日涨停与异动汇总" />
+    </>
   );
 
   if (!data) {

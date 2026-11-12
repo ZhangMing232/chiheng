@@ -13,6 +13,7 @@ import { STRATEGY_TABS, SCREENER_SUB_TABS } from "@/lib/ui/strategy-tabs";
 import { Swords, Plus, Trash2, Sparkles, WandIcon } from "lucide-react";
 import { expressNaturalLanguage, getUserStrategies, saveUserStrategies, type UserStrategy } from "@/lib/market/quotes.functions";
 import { validateFactorExpr } from "@/lib/market/factor-expr";
+import { PixelHeader } from "@/components/pixel-header";
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -57,6 +58,7 @@ function ArenaStrategies() {
       <Panel title="策略管理" note="AI 帮写表达式 + 手工输入，保存后可在选股和回测里用。">
         <div className="flex flex-col gap-4 px-4 py-3">
           <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
+          <PixelHeader label="STRATEGY // MANAGE" meta="我的策略 · 自然语言或表达式，落库前先校验" />
           <SectionTabs tabs={SCREENER_SUB_TABS} ariaLabel="策略子页面" />
 
           <div>

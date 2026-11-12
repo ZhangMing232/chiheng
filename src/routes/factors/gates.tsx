@@ -25,6 +25,7 @@ import {
   RERUN_HINT,
   Section,
 } from "@/components/factor-sections";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/factors/gates")({
   validateSearch: (search: Record<string, unknown>) => ({ batch: parseBatch(search) }),
@@ -51,6 +52,7 @@ function FactorGatesPage() {
   return (
     <Frame wide aside="因子发掘 · 6 关判决">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
+      <PixelHeader label="FACTORS // GATES" meta="六关门控 · 每道闸卡在哪" />
       <FactorSectionTabs />
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/gates" />
       <Section

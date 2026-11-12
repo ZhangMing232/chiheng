@@ -16,6 +16,7 @@ import { Frame } from "@/components/screener/nav";
 import { SectionTabs, REVIEW_TABS } from "@/components/section-tabs";
 import { getBuybacks, getForecasts, getHolderTrades, getIpos, getPledges, getSurveys } from "@/lib/market/events.functions";
 import { EventsPanel } from "@/routes/events";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/review/events")({
   loader: async () => {
@@ -41,6 +42,7 @@ function ReviewEventsPage() {
         ariaLabel="复盘"
         tabs={REVIEW_TABS}
       />
+      <PixelHeader label="REVIEW // EVENTS" meta="公司事件 · 业绩/增减持/中标/停牌" />
       <EventsPanel
         data={forecasts}
         holders={holders}

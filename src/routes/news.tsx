@@ -20,6 +20,7 @@ import { watchList, type StyleId } from "@/lib/market/strategies";
 import { getNews, getRelay, getRules, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import type { NewsItem, NewsTone } from "@/lib/market/news";
+import { PixelHeader } from "@/components/pixel-header";
 
 const WATCH: StyleId[] = ["early", "trend", "breakout", "value"];
 const TONE_LABEL: Record<NewsTone, string> = { good: "利好", bad: "利空", flat: "未表态" };
@@ -179,6 +180,7 @@ function NewsPage() {
       ornamentContent={
         news.length > 0 ? (
           <span className="text-[12px] tabular-nums">
+      <PixelHeader label="NEWS // FEED" meta="快讯流 · 原文在来源站，这里只做归集" />
             利好 {good.boards.length + good.stocks.length} · 利空{" "}
             {bad.boards.length + bad.stocks.length}
           </span>

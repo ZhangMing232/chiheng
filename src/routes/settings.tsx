@@ -29,6 +29,7 @@ import { getMailStatus } from "@/lib/market/mail.functions";
 import { sourceLabel } from "@/lib/market/data-status";
 import { snapshotAgeSince } from "@/lib/market/format";
 import type { Universe } from "@/lib/market/types";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/settings")({
   loader: async () => {
@@ -83,6 +84,7 @@ function SettingsPage() {
         )
       }
     >
+      <PixelHeader label="SYS // SETTINGS" meta="设置与系统状态 · 数据源、延迟、任务心跳" />
       {/* 唯一的设置表单，放最上面：来找配置的人第一眼就该看见，不用往下翻 */}
       <MailConfigCard initial={mail} />
 

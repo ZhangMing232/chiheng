@@ -26,6 +26,7 @@ import type { IndexQuote } from "@/lib/market/types";
 import type { FlowBook } from "@/lib/market/flow";
 import type { NewsItem } from "@/lib/market/news";
 import { BarChart3, Coins, Flame, LineChart, TrendingUp } from "lucide-react";
+import { PixelHeader } from "@/components/pixel-header";
 
 /** 万元 → 亿/万，带符号（净流出是负的）。装饰件只显示真实的数。 */
 function fmtYi(wan: number): string {
@@ -124,6 +125,7 @@ function OverviewPage() {
       }
     >
       <SectionTabs ariaLabel="复盘" tabs={REVIEW_TABS} />
+      <PixelHeader label="REVIEW // BREADTH" meta="涨跌分布 · 广度回答的是『多数票在涨还是多数在跌』" />
       <h1 className="font-display text-xl font-medium tracking-wide">市场总览</h1>
       <p className="-mt-1 max-w-[70ch] text-sm leading-relaxed text-muted">{marketLine}</p>
 

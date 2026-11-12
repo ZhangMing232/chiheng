@@ -19,6 +19,7 @@ import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getCycleSeries } from "@/lib/market/quotes.functions";
 import { PHASES, PHASE_TONE, nextDayOutcome, promotion, transferMatrix, type Phase } from "@/lib/market/cycle";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/cycle")({
   loader: async () => getCycleSeries().catch(() => ({ date: "", series: [], meta: null })),
@@ -40,6 +41,7 @@ function CyclePage() {
   if (series.length === 0) {
     return (
       <Frame wide aside="情绪周期">
+      <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 冰点/修复/升温/高潮/降温/退潮六档" />
         <Panel title="情绪周期">
           <StateBlock kind="empty" title="还没算" hint="跑一次 scripts/cycle-history.ts 就有（扫本地 K 线，不联网）。" />        </Panel>
       </Frame>
@@ -69,6 +71,7 @@ function CyclePage() {
       aside={
         /* 顶栏这一行放真实状态，不重复页名（页名在第一行页头里已经有了） */
         <span className="num text-xs text-muted">
+    <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 冰点/修复/升温/高潮/降温/退潮六档" />
           {last.date} · 温度 {last.temp.toFixed(1)} · {todayPhase}
         </span>
       }

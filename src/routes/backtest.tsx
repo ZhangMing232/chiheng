@@ -32,6 +32,7 @@ import { barsToShow, buildCurve, curveSummary, monthlyBars, yearlyBars } from "@
 import { bootstrapSharpeCI, kurtosisOf, psr, sharpe, skewness, walkForward } from "@/lib/market/robustness";
 import { AreaChart, BarChart, LineChart } from "@/components/backtest-charts";
 import { toneClass } from "@/lib/market/format";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/backtest")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -80,6 +81,7 @@ function BacktestPage() {
         }}
       >
         <SectionTabs tabs={BACKTEST_SUB_TABS} ariaLabel="回测审计" />
+        <PixelHeader label="BACKTEST // AUDIT" meta="运行 / 比较 / 稳健性 / 审计 · 判决只认 |t|≥2" />
         <Panel title="回测" note="还没有运行记录">
           <StateBlock
             kind="empty"
@@ -107,6 +109,7 @@ function BacktestPage() {
         // rows 已经按当前排序排好了，rows[0] 就是当前排序下的第一。
         rows.length > 0 ? (
           <span className="text-[12px] tabular-nums">
+      <PixelHeader label="BACKTEST // AUDIT" meta="运行 / 比较 / 稳健性 / 审计 · 判决只认 t≥2" />
             {rows[0]!.label} 超额 {rows[0]!.alpha >= 0 ? "+" : ""}
             {(rows[0]!.alpha * 100).toFixed(2)}% · t {rows[0]!.tStat.toFixed(2)}
           </span>

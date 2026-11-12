@@ -17,6 +17,7 @@ import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getRs } from "@/lib/market/archive.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/rs")({
   loader: async () => await getRs(),
@@ -49,6 +50,7 @@ function RsPage() {
 
   return (
     <Frame wide aside={<span className="num text-xs text-muted">{rs.date} · 参与排名 {rs.universe} 只 · 上榜 {rows.length} 只</span>}>
+      <PixelHeader label="RS // LEADERS" meta="多周期加权 RS 前 200 · 相对强不等于绝对上涨" />
       <div className="flex flex-col gap-3">
         <Panel title="趋势中军" note={<span className="text-[12px]">强度是多周期加权，不是今天的涨幅</span>}>
           <div className="grid grid-cols-2 gap-px overflow-hidden border-b border-line bg-line sm:grid-cols-4">

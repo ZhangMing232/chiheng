@@ -15,6 +15,7 @@ import { StateBlock } from "@/components/state-block";
 import { getFactorBaseline } from "@/lib/market/quotes.functions";
 import type { FactorBaselinePayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/factors/baseline")({
   loader: async () => {
@@ -31,6 +32,7 @@ function FactorBaselinePage() {
   return (
     <Frame wide aside="因子发掘 · 基线原文">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
+      <PixelHeader label="FACTORS // BASELINE" meta="基线证据 · 对照组本身是什么" />
       <FactorSectionTabs />
       <Section
         title="回测基线原文"

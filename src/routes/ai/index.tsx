@@ -42,6 +42,7 @@ import type { AILogEntry } from "@/lib/market/ai-log";
 import type { AIUsageEntry } from "@/lib/market/ai-usage";
 import { AISectionTabs, Section, type AIStatusPayload } from "@/components/ai-panels";
 import { Eye, Lightbulb, ShieldCheck, Gauge, UserCheck, Play, CheckCircle2, CircleDashed } from "lucide-react";
+import { PixelHeader } from "@/components/pixel-header";
 
 /** 上海时区当天 0 点的 ISO 串（账本/AI 账都按上海日）。now 由调用方传（loader 下发），
  *  不在 render 里读系统时钟——否则跨日边界 SSR/hydration 会对不上，触发 #418。 */
@@ -233,6 +234,7 @@ function AIConsolePage() {
 
   return (
     <Frame wide aside="AI 管理 · AI 控制中枢">
+      <PixelHeader label="AI // WORKBENCH" meta="AI 只在研究层跑，不直接下单" />
       <AISectionTabs />
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="font-display text-xl font-medium tracking-wide">AI 控制中枢</h1>

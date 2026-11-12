@@ -36,6 +36,7 @@ import {
   type StyleLossSummary,
   type TradeLossSummary,
 } from "@/lib/market/loss-attrib";
+import { PixelHeader } from "@/components/pixel-header";
 
 
 export const Route = createFileRoute("/strategies/autopsy")({
@@ -116,6 +117,7 @@ function AutopsyPage() {
       <Panel title="失败归因" note="亏在哪、为什么亏——按退出原因拆，用因果解释，不给买卖建议。">
         <div className="flex flex-col gap-4 px-4 py-3">
           <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
+          <PixelHeader label="STRATEGY // AUTOPSY" meta="失败归因 · 亏在哪一步" />
           <SectionTabs tabs={BACKTEST_SUB_TABS} ariaLabel="回测审计" />
 
           <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">

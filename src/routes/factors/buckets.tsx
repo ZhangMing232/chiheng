@@ -26,6 +26,7 @@ import {
   RERUN_HINT,
   Section,
 } from "@/components/factor-sections";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/factors/buckets")({
   validateSearch: (search: Record<string, unknown>) => ({ batch: parseBatch(search) }),
@@ -52,6 +53,7 @@ function FactorBucketsPage() {
   return (
     <Frame wide aside="因子发掘 · 分档明细">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
+      <PixelHeader label="FACTORS // BUCKETS" meta="分档明细 · 单调性有没有" />
       <FactorSectionTabs />
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/buckets" />
       <Section

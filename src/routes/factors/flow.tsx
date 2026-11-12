@@ -18,6 +18,7 @@ import { flowStress } from "@/lib/market/factors-view";
 import { FlowProbePanel } from "@/components/screener/factor-diag-panels";
 import type { FactorDiagPayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/factors/flow")({
   loader: async () => {
@@ -41,6 +42,7 @@ function FactorFlowPage() {
   return (
     <Frame wide aside="因子发掘 · 资金流探路">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
+      <PixelHeader label="FACTORS // EXPLORE" meta="外部因子探路 · 借鉴来的能不能用" />
       <FactorSectionTabs />
       <Section
         title="资金流探路"
