@@ -297,14 +297,14 @@ function SideNav() {
           className="h-[26px] w-[26px] shrink-0 rounded-[8px]"
           aria-hidden
           style={{
-            background: "radial-gradient(circle at 32% 30%, #ff6a5e, #e64b33 60%, #a82f33)",
-            boxShadow: "inset 0 0 0 1px rgba(229,72,77,.4)",
+            background: "radial-gradient(circle at 32% 30%, #7df4ff, #22e6ff 55%, #0f7f96)",
+            boxShadow: "inset 0 0 0 1px rgba(34,230,255,.45)",
           }}
         />
         {narrow ? null : (
           <span className="leading-tight">
             <span className="block text-[15px] font-bold tracking-wide text-fg">赤轨</span>
-            <span className="block text-[10px] text-muted">策略实验台</span>
+            <span className="block text-[11px] text-muted">策略实验台</span>
           </span>
         )}
       </Link>
@@ -320,7 +320,7 @@ function SideNav() {
                   type="button"
                   onClick={() => toggle(group.label)}
                   aria-expanded={open}
-                  className="flex w-full items-center justify-between rounded px-3 pt-4 pb-1 text-[10px] tracking-widest text-muted hover:text-fg"
+                  className="flex w-full items-center justify-between rounded px-3 pt-4 pb-1 text-[12px] tracking-widest text-muted hover:text-fg"
                 >
                   {group.label}
                   <ChevronDown className={"size-3 transition-transform " + (open ? "" : "-rotate-90")} aria-hidden />
@@ -800,7 +800,7 @@ export function ThemeMode() {
           key={item.id}
           type="button"
           onClick={() => setMode(item.id)}
-          className={"rounded-full px-2.5 py-1.5 text-xs " + (mode === item.id ? "bg-surface text-fg" : "text-muted")}
+          className={"whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs " + (mode === item.id ? "bg-surface text-fg" : "text-muted")}
         >
           {item.label}
         </button>
@@ -819,7 +819,7 @@ export function TypeSize() {
           key={item.id}
           type="button"
           onClick={() => setSize(item.id)}
-          className={"rounded-full px-2.5 py-1.5 text-xs " + (size === item.id ? "bg-surface text-fg" : "text-muted")}
+          className={"whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs " + (size === item.id ? "bg-surface text-fg" : "text-muted")}
         >
           {item.label}
         </button>
@@ -852,14 +852,14 @@ export function ColorScheme() {
       <button
         type="button"
         onClick={() => pick(false)}
-        className={"rounded-full px-2.5 py-1.5 text-xs " + (!intl ? "bg-surface text-fg" : "text-muted")}
+        className={"whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs " + (!intl ? "bg-surface text-fg" : "text-muted")}
       >
         红涨绿跌
       </button>
       <button
         type="button"
         onClick={() => pick(true)}
-        className={"rounded-full px-2.5 py-1.5 text-xs " + (intl ? "bg-surface text-fg" : "text-muted")}
+        className={"whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs " + (intl ? "bg-surface text-fg" : "text-muted")}
       >
         绿涨红跌
       </button>
