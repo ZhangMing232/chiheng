@@ -230,7 +230,7 @@ async function main() {
     // 执行行压成「买 价格 | 止损 | 目标」三要素，一眼可下单；纪律一行钉死。
     {
       const fmt = (r: (typeof reviewed)[number], mark: string) =>
-        `${mark} ${r.name} ${r.code} | ${orderFieldsOf(r)} | 竞价${r.auctionPrice} ${gapText(r)}`;
+        `${mark} ${r.name} ${r.code} | ${orderFieldsOf({ ...r, auctionPrice: r.auctionPrice })} | 竞价${r.auctionPrice} ${gapText(r)}`;
       const lok = longRows.filter((r) => r.verdict === "ok");
       const lwarn = longRows.filter((r) => r.verdict === "warn");
       const lskip = longRows.filter((r) => r.verdict === "skip");
@@ -260,7 +260,7 @@ async function main() {
     // 短线腿：题材补涨「短线买入单」。行格式同中长线三要素，多带一句题材理由。
     {
       const fmt = (r: (typeof reviewed)[number], mark: string) =>
-        `${mark} ${r.name} ${r.code}｜${r.reason.slice(0, 24)}｜${orderFieldsOf(r)} | 竞价${r.auctionPrice} ${gapText(r)}`;
+        `${mark} ${r.name} ${r.code}｜${r.reason.slice(0, 24)}｜${orderFieldsOf({ ...r, auctionPrice: r.auctionPrice })} | 竞价${r.auctionPrice} ${gapText(r)}`;
       const sok = shortRows.filter((r) => r.verdict === "ok");
       const swarn = shortRows.filter((r) => r.verdict === "warn");
       const sskip = shortRows.filter((r) => r.verdict === "skip");

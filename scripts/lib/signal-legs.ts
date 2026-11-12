@@ -33,14 +33,68 @@ export function exitTextOf(s: { leg?: Leg; strategy?: string; holdDays?: number 
   return `走 第${holdDaysOf(s)}日`;
 }
 
+/**
+ * 「今天到底按什么价下单」——报给你的价必须是能成交、且不追高的价。
+ *
+ * 为什么不是挂价（2026-11-12 用户两次指出）：挂价＝昨收，等于要求今天跌回昨天的价。
+ * 实测 20 笔只成交 9 笔（45%），今天 8 条只 2 条——报一个全天没出现过的价，
+ * 挂着也买不到，那不是建议。
+ *
+ * 也不是死板照搬竞价价：竞价高开 13% 还按竞价买，那是追高（连板追高 −3.71% 已证伪）。
+ *
+ * 规则（简单、可解释）：
+ *   竞价 ≤ 昨收 × 1.02  → 下单价＝竞价价（挂得上，开盘即成交）
+ *   竞价 > 昨收 × 1.02  → 今天不买（高开超过 2%，不追）
+ *   竞价还没出来        → 退回昨收价，并标明「未竞价」
+ * 止损/目标按原来的相对距离一起平移，不因为换了价位就变成另一个风险敞口。
+ */
+export const CHASE_CAP = 0.02;
+
+export function orderPriceOf(s: {
+  buyPrice: number;
+  auctionPrice?: number | null;
+  stop?: number | null;
+  target?: number | null;
+}): { price: number | null; skipReason: string | null; stop: number | null; target: number | null; pending: boolean } {
+  const base = s.buyPrice;
+  const au = s.auctionPrice;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const stopPct = s.stop != null && base > 0 ? s.stop / base - 1 : null;
+  const targetPct = s.target != null && base > 0 ? s.target / base - 1 : null;
+
+  let price: number | null;
+  let skipReason: string | null = null;
+  let pending = false;
+  if (au == null || !(au > 0)) {
+    price = base;
+    pending = true;
+  } else if (au <= base * (1 + CHASE_CAP)) {
+    price = au;
+  } else {
+    price = null;
+    skipReason = `竞价 ${au} 比昨收 ${base} 高 ${(((au - base) / base) * 100).toFixed(1)}%，超过 ${(CHASE_CAP * 100).toFixed(0)}% 不追`;
+  }
+  return {
+    price: price == null ? null : r2(price),
+    skipReason,
+    stop: price != null && stopPct != null ? r2(price * (1 + stopPct)) : (s.stop ?? null),
+    target: price != null && targetPct != null ? r2(price * (1 + targetPct)) : (s.target ?? null),
+    pending,
+  };
+}
+
 /** 一张单子的四个必答：买多少、亏到哪走、赚到哪走、什么时候走。两腿推送共用，别各写一份。 */
 export function orderFieldsOf(s: {
   leg?: Leg;
   strategy?: string;
   holdDays?: number;
   buyPrice: number;
+  auctionPrice?: number | null;
   stop?: number | null;
   target?: number | null;
 }): string {
-  return `买 ${s.buyPrice} | 止损 ${s.stop ?? "—"} | 目标 ${s.target ?? "—"} | ${exitTextOf(s)}`;
+  const o = orderPriceOf(s);
+  if (o.price == null) return `今天不买 —— ${o.skipReason ?? "竞价过高"}`;
+  const tag = o.pending ? "（未竞价，按昨收）" : "";
+  return `买 ${o.price}${tag} | 止损 ${o.stop ?? "—"} | 目标 ${o.target ?? "—"} | ${exitTextOf(s)}`;
 }

@@ -78,7 +78,7 @@ function SignalRows({
     x.auctionPrice != null && x.buyPrice > 0 ? x.auctionPrice / x.buyPrice - 1 : null;
   const isChase = (x: SignalReviewed) => {
     const g = chasePct(x);
-    return g != null && g > 0.03;
+    return g != null && g > 0.02;
   };
   const buyable = list.filter((x) => !isChase(x));
   const giveUp = list.filter(isChase);
@@ -124,7 +124,7 @@ function SignalRows({
       {giveUp.length > 0 ? (
         <div className="mt-1 rounded border border-line bg-surface2 px-2 py-1.5">
           <div className="text-[11px] font-medium text-warn">
-            不追高，今天不买：{giveUp.length} 只（竞价高出昨收 3% 以上）
+            不追高，今天不买：{giveUp.length} 只（竞价高出昨收 2% 以上）
           </div>
           {giveUp.map((x) => (
             <div key={x.code} className="flex items-baseline justify-between gap-2 py-0.5 text-[11px] text-muted">
@@ -162,7 +162,7 @@ function FillTag({ s }: { s: SignalReviewed }) {
 /** 一屏之内的成交率，一句话说完：给了几条、能买几条、真成交几条、放弃几条。 */
 function FillSummary({ list }: { list: SignalReviewed[] }) {
   if (list.length === 0) return null;
-  const giveUp = list.filter((x) => x.auctionPrice != null && x.buyPrice > 0 && x.auctionPrice / x.buyPrice - 1 > 0.03);
+  const giveUp = list.filter((x) => x.auctionPrice != null && x.buyPrice > 0 && x.auctionPrice / x.buyPrice - 1 > 0.02);
   const active = list.filter((x) => !giveUp.includes(x));
   const filled = active.filter((x) => x.fill?.status === "filled").length;
   const missed = active.filter((x) => x.fill?.status === "missed").length;
@@ -319,7 +319,7 @@ function DecisionPage() {
             )}
             <div className="border-t border-line px-2 py-2 text-[11px] leading-relaxed text-muted">
               口径：热门题材的次强/补涨股（题材补涨腿）。<b className="text-fg">买价＝竞价价</b>（挂它就能成交）；
-              昨收只当纪律线，竞价高出 3% 就不追。原来按昨收挂，过去 20 笔只成交 9 笔（
+              昨收只当纪律线，竞价高出 2% 就不追（与推送同一条闸）。原来按昨收挂，过去 20 笔只成交 9 笔（
               <b className="text-warn">45%</b>）——报个全天没出现过的价等于没给价。
               改成能成交的价≠更能赚：这条腿回测成交样本 +0.06%，本来就没有超额。
               <FillSummary list={shortSignals} />
