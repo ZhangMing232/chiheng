@@ -17,6 +17,7 @@ import { SectionTabs, REVIEW_TABS } from "@/components/section-tabs";
 import { getBuybacks, getForecasts, getHolderTrades, getIpos, getPledges, getSurveys } from "@/lib/market/events.functions";
 import { EventsPanel } from "@/routes/events";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/review/events")({
   loader: async () => {
@@ -43,6 +44,18 @@ function ReviewEventsPage() {
         tabs={REVIEW_TABS}
       />
       <PixelHeader label="REVIEW // EVENTS" meta="公司事件 · 业绩/增减持/中标/停牌" />
+      <PixelSummary
+        label="EVENTS // COUNT"
+        note="业绩预告 / 增减持 / 调研 / 回购 / 质押 / 新股"
+        stats={[
+          { label: "业绩预告", value: forecasts?.companies?.length ?? null, tone: "brand", hero: true },
+          { label: "增减持", value: holders?.rows?.length ?? null, tone: "up" },
+          { label: "机构调研", value: surveys?.rows?.length ?? null },
+          { label: "回购", value: buybacks?.rows?.length ?? null, tone: "down" },
+          { label: "质押", value: pledges?.rows?.length ?? null, tone: "warn" },
+          { label: "新股", value: ipos?.rows?.length ?? null },
+        ]}
+      />
       <EventsPanel
         data={forecasts}
         holders={holders}

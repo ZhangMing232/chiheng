@@ -18,6 +18,7 @@ import { StateBlock } from "@/components/state-block";
 import { getWatchlistFn, addWatchFn, removeWatchFn } from "@/lib/market/watchlist.functions";
 import { getUniverse } from "@/lib/market/quotes.functions";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/my-stocks")({
   loader: () => getWatchlistFn(),
@@ -83,6 +84,13 @@ function MyStocksPage() {
       }}
     >
       <PixelHeader label="MY // WATCHLIST" meta="自选与持仓摘要 · 真实持仓的成本与止损在策略跟踪" />
+      <PixelSummary
+        label="MY // WATCHLIST"
+        note={isFetching ? "刷新中…" : "持仓成本与止损在策略跟踪页"}
+        stats={[
+          { label: "自选", value: watchCount, tone: "brand", hero: true, hint: "只" },
+        ]}
+      />
       <Panel
         title="自选与持仓"
         note={
