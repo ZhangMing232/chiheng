@@ -11,6 +11,7 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { SectionTabs, FACTOR_TABS } from "@/components/section-tabs";
 import { StateBlock } from "@/components/state-block";
 import { Table, tdClass, thClass, pctClass } from "@/components/terminal";
 import { signedPct } from "@/lib/market/format";
@@ -50,6 +51,7 @@ function FactorBucketsPage() {
 
   return (
     <Frame wide aside="因子发掘 · 分档明细">
+      <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <FactorSectionTabs />
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/buckets" />
       <Section

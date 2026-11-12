@@ -17,6 +17,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { SectionTabs, FACTOR_TABS } from "@/components/section-tabs";
 import { FactorLoopPanels } from "@/components/screener/factor-loop-panels";
 import { Stat, Panel, Tag, Prog } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -402,6 +403,7 @@ function FactorsIndexPage() {
         )
       }
     >
+      <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
       <div className="rounded border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
         研究层 · 不进实盘：这里的 40 个因子 + 92 个坟墓只用于挖矿与回测，<b className="text-fg">从不驱动任何实盘信号</b>。

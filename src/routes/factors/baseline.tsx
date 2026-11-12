@@ -10,6 +10,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { SectionTabs, FACTOR_TABS } from "@/components/section-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getFactorBaseline } from "@/lib/market/quotes.functions";
 import type { FactorBaselinePayload } from "@/lib/market/factor-runs-file";
@@ -29,6 +30,7 @@ function FactorBaselinePage() {
   const { baseline } = Route.useLoaderData();
   return (
     <Frame wide aside="因子发掘 · 基线原文">
+      <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <FactorSectionTabs />
       <Section
         title="回测基线原文"

@@ -87,3 +87,25 @@ export const WATCH_TABS: SectionTab[] = [
   { to: "/watch/", label: "今日梯队" },
   { to: "/watch/history", label: "三日演变" },
 ];
+
+/**
+ * 「因子实验室」区。2026-11-12 收成一个工作台：原来 6 个页面各是独立路由，
+ * 彼此没有 tab，用户只能从侧栏和零散链接一个个点进去，看起来像六个产品。
+ *
+ * 六块内容是同一件事的六个证据面，不是六个任务：
+ *   结论总览 → 这套因子到底过不过关
+ *   六关门控 → 每一道闸卡在哪
+ *   分档明细 → 单调性有没有（分箱收益）
+ *   失败归因 → 没过的话是坏在哪
+ *   外部探路 → 借鉴的外部因子能不能用
+ *   基线证据 → 对照组本身是什么
+ * 注意：因子层只做研究，不产生实盘信号。
+ */
+export const FACTOR_TABS: SectionTab[] = [
+  { to: "/factors", label: "结论总览" },
+  { to: "/factors/gates", label: "六关门控" },
+  { to: "/factors/buckets", label: "分档明细" },
+  { to: "/factors/attrib", label: "失败归因" },
+  { to: "/factors/flow", label: "外部探路" },
+  { to: "/factors/baseline", label: "基线证据" },
+];

@@ -11,6 +11,7 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { SectionTabs, FACTOR_TABS } from "@/components/section-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getFactorRuns } from "@/lib/market/quotes.functions";
 import { factorRows } from "@/lib/market/factors-view";
@@ -49,6 +50,7 @@ function FactorGatesPage() {
 
   return (
     <Frame wide aside="因子发掘 · 6 关判决">
+      <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <FactorSectionTabs />
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/gates" />
       <Section
