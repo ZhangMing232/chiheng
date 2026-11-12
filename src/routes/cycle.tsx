@@ -81,35 +81,35 @@ function CyclePage() {
         >
           <div className="flex flex-wrap items-end gap-x-8 gap-y-3 px-3 py-3">
             <div>
-              <div className="text-[11px] text-muted">阶段</div>
+              <div className="text-[12px] text-muted">阶段</div>
               <div className="num text-2xl font-medium" style={{ color: toneOf(todayPhase) }}>
                 {todayPhase}
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-muted">温度</div>
+              <div className="text-[12px] text-muted">温度</div>
               <div className="num text-2xl font-medium">{last.temp.toFixed(1)}</div>
             </div>
             <div>
-              <div className="text-[11px] text-muted">较 5 日前</div>
+              <div className="text-[12px] text-muted">较 5 日前</div>
               <div className={"num text-2xl font-medium " + (last.tempDelta5 >= 0 ? "text-up" : "text-down")}>
                 {last.tempDelta5 >= 0 ? "+" : ""}
                 {last.tempDelta5.toFixed(1)}
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-muted">涨停 / 连板 / 最高</div>
+              <div className="text-[12px] text-muted">涨停 / 连板 / 最高</div>
               <div className="num text-lg">
                 {last.limitUp} / {last.ladder} / {last.maxStreak} 板
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-muted">全池等权</div>
+              <div className="text-[12px] text-muted">全池等权</div>
               <div className={"num text-lg " + (last.eqReturn >= 0 ? "text-up" : "text-down")}>{fmtRet(last.eqReturn)}</div>
             </div>
             {promos.length > 0 ? (
               <div>
-                <div className="text-[11px] text-muted">昨日晋级率</div>
+                <div className="text-[12px] text-muted">昨日晋级率</div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
                   {promos.map((p) => (
                     <span key={p.tier} className="num">
@@ -125,7 +125,7 @@ function CyclePage() {
             ) : null}
           </div>
           {meta?.note ? (
-            <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+            <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
               口径：{meta.note}。阶段是本项目的推导口径，不是行业标准；样本不足时只看数字不下结论。
             </div>
           ) : null}
@@ -150,7 +150,7 @@ function CyclePage() {
             </div>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
               {PHASES.map((p) => (
-                <span key={p} className="flex items-center gap-1 text-[11px] text-muted">
+                <span key={p} className="flex items-center gap-1 text-[12px] text-muted">
                   <span className="h-2 w-2 rounded-sm" style={{ background: toneOf(p) }} aria-hidden />
                   {p}
                 </span>
@@ -163,7 +163,7 @@ function CyclePage() {
         <Panel title="板位热力图" note={`近 ${heat.length} 个交易日 · 色深=家数（平方根标度，不是涨跌）`}>
           <div className="overflow-x-auto px-3 py-3 scroll-slim">
             {/* min-w：窄屏必须横向滚，不能让 30 天挤进 390px 把日期压成一团 */}
-            <table className="w-full min-w-[760px] text-[11px]">
+            <table className="w-full min-w-[760px] text-[12px]">
               <thead>
                 <tr>
                   <th className="w-10 text-left font-normal text-muted">板位</th>
@@ -237,7 +237,7 @@ function CyclePage() {
                         return (
                           <td key={to} className="p-[1px]">
                             <div
-                              className="num grid h-7 place-items-center rounded-sm text-[11px]"
+                              className="num grid h-7 place-items-center rounded-sm text-[12px]"
                               style={{
                                 background: c.rate === 0 ? "transparent" : `color-mix(in srgb, ${toneOf(from)} ${a * 100}%, var(--color-surface))`,
                                 color: a > 0.5 ? "#fff" : "var(--color-fg)",
@@ -255,7 +255,7 @@ function CyclePage() {
                 })}
               </tbody>
             </table>
-            <div className="mt-2 text-[11px] leading-relaxed text-muted">
+            <div className="mt-2 text-[12px] leading-relaxed text-muted">
               读法：行是今天所处阶段，列是次日落到哪。占比按行归一（同一行加起来 100%）。
               样本少于 30 的阶段，这一行只能当参考，不能当规律。
             </div>
@@ -294,7 +294,7 @@ function CyclePage() {
               </tbody>
             </table>
           </div>
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             上涨概率是最基本的基线：全市场任何一天上涨概率本来就在 50% 上下。除非某阶段明显偏离，
             否则不要把它读成「这个阶段该买」。真实可部署的判断必须过六切片 + 样本外，这里只给历史分布。
           </div>
@@ -321,7 +321,7 @@ function CyclePage() {
                       {scene.reliable ? "" : "（样本不足，只作观察）"}。
                     </div>
                   ) : null}
-                  <div className="border-t border-line pt-2 text-[11px] text-muted">
+                  <div className="border-t border-line pt-2 text-[12px] text-muted">
                     只给情景概率与裁决点，不给买卖动作建议。真正下单前看 /decision 的闸门与 /strategies/positions 的持仓。
                   </div>
                 </>

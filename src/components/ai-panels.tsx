@@ -174,7 +174,7 @@ export function ProfileModal({ editing, onClose }: { editing: ProfileStatus | nu
             </select>
           </label>
           {preset?.hint ? (
-            <p className="rounded border border-line bg-surface-2 px-2 py-1.5 text-[11px] leading-relaxed text-muted">{preset.hint}</p>
+            <p className="rounded border border-line bg-surface-2 px-2 py-1.5 text-[12px] leading-relaxed text-muted">{preset.hint}</p>
           ) : null}
           <label className="block text-xs text-muted">
             名称
@@ -242,7 +242,7 @@ export function ProfileModal({ editing, onClose }: { editing: ProfileStatus | nu
               />
             </label>
           </div>
-          <p className="text-[11px] text-muted">
+          <p className="text-[12px] text-muted">
             单价留空会自动按内置参考价填入（2026-10 核对的官方价，元/百万 tokens），和你的套餐不一致就在上面改；
             调用发生时快照当时的价，以后改价不影响历史账。没进参考表的模型不填价就只统计 tokens 不算钱。
           </p>
@@ -308,7 +308,7 @@ export function RulesSection({ groups }: { groups: RuleGroup[] }) {
           <div key={g.id}>
             <div className="flex flex-wrap items-baseline gap-x-2">
               <h3 className="text-xs font-medium">{g.title}</h3>
-              <span className="text-[11px] text-muted">{g.source}</span>
+              <span className="text-[12px] text-muted">{g.source}</span>
             </div>
             <Table className="data-table mt-1">
               <tbody>
@@ -323,7 +323,7 @@ export function RulesSection({ groups }: { groups: RuleGroup[] }) {
             </Table>
           </div>
         ))}
-        <p className="text-[11px] leading-relaxed text-muted">
+        <p className="text-[12px] leading-relaxed text-muted">
           只读：数值是运行时从代码常量拼的，改阈值要到对应文件改常量提交（改规则要带理由）。「block 级」= 不过就熔断当晚判决；「warn 级」= 记账不挡跑。
         </p>
       </div>

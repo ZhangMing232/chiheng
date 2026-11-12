@@ -75,7 +75,7 @@ function FactorBucketsPage() {
                 <tr key={row.id} className="border-b border-line last:border-b-0">
                   <td data-l="因子" className="sticky left-0 bg-surface px-2.5 py-1.5 text-left">
                     <span className="font-medium">{row.name}</span>
-                    <span className="ml-1.5 text-[11px] text-muted">{row.category}</span>
+                    <span className="ml-1.5 text-[12px] text-muted">{row.category}</span>
                   </td>
                   {row.bucketMeans.map((v, i) => (
                     <td key={i} data-l={`档${i + 1}`} className={tdClass(pctClass(v * 100))}>

@@ -33,7 +33,7 @@ export function HeroStat({
           <span className={`text-2xl font-semibold tabular-nums ${valueTone === "up" ? "text-up" : valueTone === "down" ? "text-down" : "text-fg"}`}>{value}</span>
           {suffix ? <span className="text-xs text-muted">{suffix}</span> : null}
         </div>
-        <div className="truncate text-[11px] text-muted">{sub}</div>
+        <div className="truncate text-[12px] text-muted">{sub}</div>
       </div>
     </div>
   );

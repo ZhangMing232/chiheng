@@ -106,12 +106,12 @@ function BacktestPage() {
         // **真实数据**：选中那次运行里超额最高的一套策略。
         // rows 已经按当前排序排好了，rows[0] 就是当前排序下的第一。
         rows.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             {rows[0]!.label} 超额 {rows[0]!.alpha >= 0 ? "+" : ""}
             {(rows[0]!.alpha * 100).toFixed(2)}% · t {rows[0]!.tStat.toFixed(2)}
           </span>
         ) : (
-          <span className="text-[11px]">这次运行没有可排的策略</span>
+          <span className="text-[12px]">这次运行没有可排的策略</span>
         )
       }
     >
@@ -149,7 +149,7 @@ function BacktestPage() {
                     ) : same ? (
                       <Tag tone="muted">口径相同</Tag>
                     ) : (
-                      <span className="text-[11px] text-muted" title={diff.join("；")}>
+                      <span className="text-[12px] text-muted" title={diff.join("；")}>
                         不可比：{diff[0]}
                         {diff.length > 1 ? ` 等 ${diff.length} 处` : ""}
                       </span>
@@ -179,7 +179,7 @@ function BacktestPage() {
             </li>
           ))}
         </ul>
-        <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
+        <p className="mt-2 border-t border-line pt-2 text-[12px] leading-relaxed text-muted">
           过拟合的量化（PBO、参数敏感度）在「策略追踪 → 体检」的挑战者面板里。审计只摆事实，阈值可在 strategy-audit.ts 调。
         </p>
       </Panel>
@@ -202,7 +202,7 @@ function BacktestPage() {
               按{SORT_LABEL[key]}排
             </button>
           ))}
-          <span className="text-[11px] text-muted">按信噪比排时，|t| &lt; 2 的会沉底——那个超额和 0 分不开。</span>
+          <span className="text-[12px] text-muted">按信噪比排时，|t| &lt; 2 的会沉底——那个超额和 0 分不开。</span>
         </div>
 
         <table className="data-table w-full">
@@ -227,7 +227,7 @@ function BacktestPage() {
               <tr key={s.key} className="border-b border-line/60">
                 <td className={tdClass("text-left")}>
                   <span className="text-fg">{s.label}</span>
-                  {Math.abs(s.tStat) < 2 ? <span className="ml-1.5 text-[11px] text-muted">没测出来</span> : null}
+                  {Math.abs(s.tStat) < 2 ? <span className="ml-1.5 text-[12px] text-muted">没测出来</span> : null}
                 </td>
                 <td className={tdClass()}>{s.trades}</td>
                 <td className={tdClass()}>{`${(s.winRate * 100).toFixed(0)}%`}</td>
@@ -247,14 +247,14 @@ function BacktestPage() {
         <BacktestCharts picked={picked} />
 
         {weak.length > 0 ? (
-          <div className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+          <div className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
             测不出超额（|t| &lt; 2）的有 {weak.length} 套：
             {weak.map((s) => s.label).join("、")}。
             它们的超额和 0 分不开，写成「有效」就是自欺——要看它们，得等样本更多或换口径重跑。
           </div>
         ) : null}
 
-        <div className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+        <div className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
           回测本身的局限（照抄脚本里的原文，别当优点）：单笔收益率等权累加、不是复利；样本含幸存者偏差；
           市值过滤用的是今天的快照不是历史；抽样结论外推到全市场要谨慎；回测是限价单口径，与线上现价口径有差。
           这一页只展示跑出来的数字，不给买卖建议。有样本外证据的前瞻结论会标注证据等级。
@@ -285,7 +285,7 @@ function BacktestCharts({ picked }: { picked: BacktestRun }) {
       <Panel title="曲线" note="这次运行没落日度序列">
         <p className="px-3.5 py-3 text-sm text-muted">
           这次运行是<strong>改动之前</strong>跑的，没存日度序列，画不出曲线。重跑一次回测就有了
-          （<code className="text-[11px]">node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts</code>）。
+          （<code className="text-[12px]">node --experimental-strip-types --import ./scripts/alias.mjs scripts/backtest.ts</code>）。
           老记录照样能看上面的指标表——只是没图。
         </p>
       </Panel>
@@ -339,13 +339,13 @@ function BacktestCharts({ picked }: { picked: BacktestRun }) {
           </button>
         ))}
         {summary ? (
-          <span className="text-[11px] text-muted">
+          <span className="text-[12px] text-muted">
             总累计 {(summary.total * 100).toFixed(2)}% · 最大回落 {(summary.maxDd * 100).toFixed(1)} 个百分点 · 胜出月份 {summary.winMonths}/{summary.months}
           </span>
         ) : null}
       </div>
 
-      <div className="px-3.5 py-2 text-[11px] text-muted">
+      <div className="px-3.5 py-2 text-[12px] text-muted">
         纵轴是<strong>按天等权</strong>的收益率累加，不是复利净值，也<strong>不是上面表格那个「平均收益」</strong>——
         表格是每笔等权（一笔一个样本，统计口径），曲线是每天等权（一天全部平仓算一份，组合口径）。
         持仓期重叠时两者会明显分叉：某天集中平仓 50 笔，笔平均只占 50/N，日平均占 1/N 天。
@@ -369,7 +369,7 @@ function BacktestCharts({ picked }: { picked: BacktestRun }) {
           <p className="py-1 text-xs text-muted">按月度（该月成交日的等权平均）</p>
           <BarChart labels={show.map((b) => b.key)} data={show.map((b) => b.ret)} />
           {hidden.length > 0 ? (
-            <p className="py-1 text-[11px] text-muted">
+            <p className="py-1 text-[12px] text-muted">
               {hidden.length} 个月没画：{hidden.join("、")}——成交日不够 3 天，几次的平均不是平均。
             </p>
           ) : null}
@@ -408,7 +408,7 @@ function RobustnessBlock({ daily }: { daily: { date: string; ret: number }[] }) 
   }, [daily]);
 
   return (
-    <div className="px-3.5 py-2 text-[11px] text-muted">
+    <div className="px-3.5 py-2 text-[12px] text-muted">
       <p className="py-1 text-xs text-fg">稳健性（Vibe-Trading 同款算法，只展示不改判决）</p>
       {"error" in wf ? (
         <p className="py-1">Walk-Forward 切不了段：{wf.error}</p>

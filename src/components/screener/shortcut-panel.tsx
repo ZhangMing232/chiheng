@@ -52,7 +52,7 @@ export function ShortcutPanel({ open, onClose }: { open: boolean; onClose: () =>
         <div className="max-h-[70vh] overflow-auto px-4 py-3">
           {[...groups.entries()].map(([group, items]) => (
             <div key={group} className="mb-4 last:mb-0">
-              <div className="mb-1.5 text-[11px] tracking-wide text-muted">{group}</div>
+              <div className="mb-1.5 text-[12px] tracking-wide text-muted">{group}</div>
               <dl className="grid gap-1.5">
                 {items.map((item) => (
                   <div key={item.keys.join("+")} className="flex items-baseline gap-3">
@@ -63,7 +63,7 @@ export function ShortcutPanel({ open, onClose }: { open: boolean; onClose: () =>
                     </dt>
                     <dd className="min-w-0 flex-1">
                       <span className="text-xs text-fg">{item.label}</span>
-                      <span className="ml-2 text-[11px] text-muted">{item.desc}</span>
+                      <span className="ml-2 text-[12px] text-muted">{item.desc}</span>
                     </dd>
                   </div>
                 ))}

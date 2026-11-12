@@ -164,7 +164,7 @@ export function EventsPanel({
         ))}
       </div>
 
-      <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+      <p className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
         <strong>「预增/略增/首亏」是公司在公告里用的措辞，原样显示，不是我们的判断。</strong>
         我们只给一个克制的倾向：预增/扭亏/续盈 偏正，首亏/续亏/略减 偏负，
         <strong>「略增」明确不表态</strong>。<br />
@@ -267,7 +267,7 @@ function HolderTradesPanel({ data }: { data: HolderTradesPayload | null }) {
         <Stat label="披露了均价" value={withPrice} hint={`${rows.length} 条里`} />
       </div>
 
-      <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+      <p className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
         <strong>只认公告披露的字段</strong>：方向、股数、变动后持股、成交均价、变动方式。
         东财另有一个变动比例字段，实测和「增持/减持」的方向对不上（有公告写着增持、
         那个字段却是负的），<strong>口径不明就不显示</strong>。均价很多公告不披露，
@@ -354,7 +354,7 @@ function SurveysPanel({ data }: { data: SurveysPayload | null }) {
         <Stat label="披露了地点" value={rows.filter((r) => r.place != null).length} hint="现场调研才有" />
       </div>
 
-      <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+      <p className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
         <strong>汇总模式</strong>：一次调研一行，家数是参与机构合计。一家机构一行的明细没接——
         那一层很多记录表不写机构类型和人名，接了也是半截数据。<br />
         <strong>接待日通常早于公告日几天</strong>（公司先接待、后发公告），两个日期都列着。
@@ -437,7 +437,7 @@ function BuybacksPanel({ data }: { data: BuybacksPayload | null }) {
         />
       </div>
 
-      <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+      <p className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
         <strong>进度码只映射实测确认的三个</strong>（董事会预案/股东大会通过/实施中），
         其余显示原码——东财还有连它自己页面都不显示名称的码位，不猜。<br />
         <strong>已回购字段「—」表示没开始实施，不是 0</strong>。倾向只对实施中/完成
@@ -525,7 +525,7 @@ function PledgesPanel({ data }: { data: PledgesPayload | null }) {
         <Stat label="发布频率" value="周频" hint="中国结算通常周五发布" />
       </div>
 
-      <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+      <p className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
         <strong>周频数据</strong>——中国结算通常周五发布，所以「数据截至」是上周某天，不是今天。<br />
         <strong>只覆盖沪深</strong>：北交所的票不在这张表里，不是「北交所没有质押」。<br />
         质押比例 = 质押股数占总股本 %。<strong>比例高本身不是坏事，但连续大跌时是风险放大器</strong>——
@@ -592,7 +592,7 @@ function IposPanel({ data }: { data: IposPayload | null }) {
   const rows = data.rows;
   return (
     <Panel title="新股申购日历（东财）" note={`${rows.length} 只（含未申购的排期）`}>
-      <p className="border-b border-line px-3.5 py-2 text-[11px] text-muted">
+      <p className="border-b border-line px-3.5 py-2 text-[12px] text-muted">
         <strong>发行价「—」= 还没定价</strong>（不是免费）。板块优先取交易所准确分类，
         北交所新股取的是兜底字段。中签率要申购结束后才公布。<strong>只列日历事实，
         不打新建议</strong>——破发不破发谁说了都不算。

@@ -66,7 +66,7 @@ function SeatsPage() {
       <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
       <PixelHeader label="HOTMONEY // SEATS" meta="席位历史 · 样本 ≥20 笔才给结论" />
       <div className="flex flex-col gap-3">
-        <Panel title="今日席位" note={today ? <span className="text-[11px]">{today.date} · {today.seats.length} 个席位上榜</span> : undefined}>
+        <Panel title="今日席位" note={today ? <span className="text-[12px]">{today.date} · {today.seats.length} 个席位上榜</span> : undefined}>
           {!today || today.seats.length === 0 ? (
             <StateBlock kind="empty" title="今天还没采到席位" hint="龙虎榜盘后才公布，采集挂在收盘流程里。没有就是没有，不补旧值。" />
           ) : (
@@ -93,7 +93,7 @@ function SeatsPage() {
 
         <Panel
           title="跟买战绩"
-          note={<span className="text-[11px]">≥20 笔可结算才进榜 · 按 {data.hold} 日平均收益排</span>}
+          note={<span className="text-[12px]">≥20 笔可结算才进榜 · 按 {data.hold} 日平均收益排</span>}
         >
           <div className="overflow-x-auto px-3 py-2 scroll-slim">
             <table className="data-table w-full min-w-[640px] text-xs">
@@ -123,7 +123,7 @@ function SeatsPage() {
               </tbody>
             </table>
           </div>
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             榜尾那 10 个是同一批里最差的（表里用「…」隔开），不是另一份名单。
             「次日均」= 次日开盘买入、当日收盘卖出；「{data.hold} 日均」= 持有 {data.hold} 个交易日。
             两个都是**次日开盘价**成交，因为席位是收盘后才公布的。
@@ -137,7 +137,7 @@ function SeatsPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="搜席位名（营业部简称）"
-              className="w-52 rounded border border-line bg-surface px-2 py-1 text-[11px]"
+              className="w-52 rounded border border-line bg-surface px-2 py-1 text-[12px]"
             />
           }
         >
@@ -158,15 +158,15 @@ function SeatsPage() {
                     </span>
                     <span className="flex shrink-0 items-baseline gap-3">
                       <span className="num text-[10px] text-muted">{data.hold}日 {pct(s.avg5)}</span>
-                      <span className={"num text-[11px] " + (s.netWan >= 0 ? "text-up" : "text-down")}>{yi(s.netWan)}</span>
+                      <span className={"num text-[12px] " + (s.netWan >= 0 ? "text-up" : "text-down")}>{yi(s.netWan)}</span>
                     </span>
                   </button>
                   {open === s.name ? (
                     <div className="bg-surface-2 px-3 py-2">
                       {s.recs.length === 0 ? (
-                        <div className="text-[11px] text-muted">这个席位的买入记录都没对上代码，明细为空。</div>
+                        <div className="text-[12px] text-muted">这个席位的买入记录都没对上代码，明细为空。</div>
                       ) : (
-                        <table className="w-full text-[11px]">
+                        <table className="w-full text-[12px]">
                           <thead>
                             <tr className="text-muted">
                               <th className="text-left font-normal">日期</th>
@@ -194,14 +194,14 @@ function SeatsPage() {
                 </div>
               ))}
               {seats.length > 60 ? (
-                <div className="px-3 py-2 text-[11px] text-muted">只显示前 60 个，用搜索缩小范围。</div>
+                <div className="px-3 py-2 text-[12px] text-muted">只显示前 60 个，用搜索缩小范围。</div>
               ) : null}
             </div>
           )}
         </Panel>
 
         <Panel title="这一页的缺陷（先说清楚）">
-          <div className="flex flex-col gap-1.5 px-3 py-3 text-[11px] leading-relaxed text-muted">
+          <div className="flex flex-col gap-1.5 px-3 py-3 text-[12px] leading-relaxed text-muted">
             <div>
               <Tag tone="warn">缺陷</Tag>{" "}
               <b className="text-fg">席位名被截断过。</b>采集时压成简称，会丢前缀——「北证券宁波江安路」

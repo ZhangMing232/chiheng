@@ -98,7 +98,7 @@ export function SentimentGauge({
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="text-xs font-medium tracking-wide text-muted">市场情绪温度计</h3>
-          <div className="flex items-center gap-2 text-[11px] text-muted">
+          <div className="flex items-center gap-2 text-[12px] text-muted">
             {updatedAt != null ? (
               <span className="tabular-nums">更新于 {new Date(updatedAt).toTimeString().slice(0, 5)}</span>
             ) : (
@@ -131,12 +131,12 @@ export function SentimentGauge({
       {open ? (
         <div className="absolute top-10 right-3 left-3 z-20 rounded border border-line bg-surface-2 p-3 shadow-lg sm:left-auto sm:w-72">
           <div className="text-xs font-medium">综合分怎么算</div>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted">
+          <p className="mt-1 text-[12px] leading-relaxed text-muted">
             四个分量按固定权重加权（{reading.weightUsed < 1 ? "部分数据缺失，权重已按比例归一" : "数据齐全"}）：
           </p>
           <ul className="mt-1.5 space-y-1">
             {reading.components.map((c) => (
-              <li key={c.key} className="flex items-baseline justify-between gap-2 text-[11px]">
+              <li key={c.key} className="flex items-baseline justify-between gap-2 text-[12px]">
                 <span className="shrink-0 text-muted">
                   {c.label}
                   <span className="ml-1 text-muted/60">×{c.weight}</span>
@@ -145,7 +145,7 @@ export function SentimentGauge({
               </li>
             ))}
           </ul>
-          <div className="mt-2 border-t border-line pt-1.5 text-[11px] leading-relaxed text-muted">
+          <div className="mt-2 border-t border-line pt-1.5 text-[12px] leading-relaxed text-muted">
             {reading.components.map((c) => (
               <div key={c.key}>· {c.fact}</div>
             ))}
@@ -153,7 +153,7 @@ export function SentimentGauge({
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="mt-2 w-full rounded border border-line px-2 py-1 text-[11px] text-muted transition hover:bg-surface hover:text-fg"
+            className="mt-2 w-full rounded border border-line px-2 py-1 text-[12px] text-muted transition hover:bg-surface hover:text-fg"
           >
             收起
           </button>

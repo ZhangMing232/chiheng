@@ -97,7 +97,7 @@ function MembershipPage() {
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <h3 className="text-sm font-medium">{tier.label}</h3>
-                  {isCurrent ? <span className="text-[11px] text-brand-text">当前档位</span> : null}
+                  {isCurrent ? <span className="text-[12px] text-brand-text">当前档位</span> : null}
                 </div>
                 <p className="mt-1.5 text-lg font-semibold tabular-nums">
                   ¥{tier.price}
@@ -116,7 +116,7 @@ function MembershipPage() {
             );
           })}
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted">{PAYMENT_CHANNEL_NOTE}</p>
+        <p className="mt-2 text-[12px] leading-relaxed text-muted">{PAYMENT_CHANNEL_NOTE}</p>
       </Panel>
 
       {/* 开通流程 */}
@@ -135,7 +135,7 @@ function MembershipPage() {
             ——先注册再付款，别反过来。
           </p>
         ) : null}
-        <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
+        <p className="mt-2 border-t border-line pt-2 text-[12px] leading-relaxed text-muted">
           AI 额度闸已上线：付费档位立即获得每日 AI 进化 / 诊断额度（当前档位面板可见今日已用）。更多硬权益（工具矿山、自选股上限等）的上线进度见 design/MEMBERSHIP.md。
         </p>
       </Panel>

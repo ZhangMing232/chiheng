@@ -148,7 +148,7 @@ function AIConfigPage() {
                     </button>
                   </span>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-muted sm:grid-cols-4">
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] text-muted sm:grid-cols-4">
                   <span className="min-w-0 truncate font-mono" title={p.baseUrl}>
                     {p.baseUrl}
                   </span>
@@ -160,7 +160,7 @@ function AIConfigPage() {
                       : "未填单价"}
                   </span>
                 </div>
-                <p className="mt-1.5 text-[11px] text-muted">
+                <p className="mt-1.5 text-[12px] text-muted">
                   {m
                     ? `近 7 天：${m.calls} 次调用 · 成功率 ${Math.round((m.ok / m.calls) * 100)}% · 平均 ${(m.ms / m.calls / 1000).toFixed(1)}s`
                     : "近 7 天这个模型还没被调用过——上面的数字要等真调用才有，不预填。"}
@@ -186,7 +186,7 @@ function AIConfigPage() {
       <GlowPanel className="mt-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
           <p className="text-xs font-medium text-ai">自动切换策略</p>
-          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted">
+          <p className="min-w-0 flex-1 text-[12px] leading-relaxed text-muted">
             {ai.fallbackOrder.length > 1 ? (
               <>
                 主档案超时/报错自动按序切到下一个（封顶两个）：
@@ -200,7 +200,7 @@ function AIConfigPage() {
         </div>
       </GlowPanel>
 
-      {ai.configured ? null : <p className="mt-2 text-[11px] text-warn">当前没有启用中的档案——闭环和自动进化都不会跑，先启用一套。</p>}
+      {ai.configured ? null : <p className="mt-2 text-[12px] text-warn">当前没有启用中的档案——闭环和自动进化都不会跑，先启用一套。</p>}
       {message ? <p className="mt-2 text-xs text-muted">{message}</p> : null}
       {modal ? <ProfileModal editing={modal === "new" ? null : modal} onClose={() => setModal(null)} /> : null}
     </Frame>

@@ -82,11 +82,11 @@ function ReportsPage() {
         // at 是「YYYY-MM-DD HH:mm」或「YYYY-MM-DD」——只取日期部分，图上/页头
         // 写一长串时间戳没意义（和海报层同一个教训）。
         rows.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             最新 {rows[0]!.name || rows[0]!.symbol} · {rows[0]!.at.slice(0, 10)}
           </span>
         ) : (
-          <span className="text-[11px]">还没有存过报告</span>
+          <span className="text-[12px]">还没有存过报告</span>
         )
       }
     >
@@ -240,7 +240,7 @@ function DiffView({ diffs }: { diffs: SectionDiff[] }) {
   }
   return (
     <div className="flex flex-col">
-      <p className="border-b border-line px-3.5 py-2 text-[11px] text-muted">
+      <p className="border-b border-line px-3.5 py-2 text-[12px] text-muted">
         {diffs.length} 个章节：{changed.length} 个有变动。表格分隔行和空行不算改动；证据哈希编号每次运行都会变，比较前已去掉。
       </p>
       {diffs.map((d) => (
@@ -253,7 +253,7 @@ function DiffView({ diffs }: { diffs: SectionDiff[] }) {
             </span>
           </summary>
           {d.ops.length > 0 ? (
-            <ul className="mt-1.5 flex flex-col gap-0.5 pl-1 font-mono text-[11px] leading-relaxed">
+            <ul className="mt-1.5 flex flex-col gap-0.5 pl-1 font-mono text-[12px] leading-relaxed">
               {d.ops.map((op, i) => (
                 <li key={i} className={op.op === "add" ? "text-up" : "text-down"}>
                   {op.op === "add" ? "+ " : "− "}
@@ -341,7 +341,7 @@ function DocLibraryPanel({ library }: { library: Awaited<ReturnType<typeof getDo
                         <span className="text-sm font-medium">{hit.docTitle}</span>
                         <Tag tone="muted">{hit.format}</Tag>
                         <Tag tone="brand">{hit.chunk.locator}</Tag>
-                        <span className="text-[11px] text-muted">命中 {hit.terms.join("、")}</span>
+                        <span className="text-[12px] text-muted">命中 {hit.terms.join("、")}</span>
                       </div>
                       <p className="mt-1 text-sm leading-relaxed text-fg">{snippetOf(hit.chunk, hit.terms)}</p>
                     </li>
@@ -368,17 +368,17 @@ function DocLibraryPanel({ library }: { library: Awaited<ReturnType<typeof getDo
           </ul>
 
           {library.broken.length > 0 ? (
-            <p className="border-t border-line px-3.5 py-2 text-[11px] text-warn">
+            <p className="border-t border-line px-3.5 py-2 text-[12px] text-warn">
               {library.broken.length} 份读不出来（没算进上面的列表）：
               {library.broken.map((b) => `${b.file}（${b.why}）`).join("、")}
             </p>
           ) : null}
 
-          <p className="border-t border-line px-3.5 py-2 text-[11px] leading-relaxed text-muted">
+          <p className="border-t border-line px-3.5 py-2 text-[12px] leading-relaxed text-muted">
             文档存在本机，换一台机器不会跟过来。PDF 和 Word 都能解析；
             <strong>扫描件（图片版 PDF）抽不出字，需要 OCR，不会入库</strong>。
           </p>
-          <details className="border-t border-line/60 px-3.5 py-2 text-[11px] text-muted">
+          <details className="border-t border-line/60 px-3.5 py-2 text-[12px] text-muted">
             <summary className="cursor-pointer select-none">给开发者：导入文档的命令</summary>
             <p className="mt-2 leading-relaxed">
               <code className="break-all">python3 scripts/ingest-doc.py &lt;路径&gt;</code>（支持 PDF / docx / md / txt / json）。

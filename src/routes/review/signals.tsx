@@ -66,7 +66,7 @@ function SignalsPage() {
       {tabs}
       <Panel title="今日信号" note={`${data.date}${data.sealed ? " · 已收盘，数据已定" : " · 盘中，数据未定"}`}>
         {!data.sealed ? (
-          <p className="border-b border-line px-3.5 py-2 text-[11px] text-muted">
+          <p className="border-b border-line px-3.5 py-2 text-[12px] text-muted">
             现在是盘中：涨停池要收盘后才定，现在看到的是半截。别拿它当结论。
           </p>
         ) : null}
@@ -116,7 +116,7 @@ function SignalsPage() {
               </div>
             ) : null}
 
-            <p className="border-t border-line px-3.5 py-2 text-[11px] text-muted">
+            <p className="border-t border-line px-3.5 py-2 text-[12px] text-muted">
               这一页只说"今天发生了什么"，不说"明天买什么"。板学那套赤轨不碰。
             </p>
           </>

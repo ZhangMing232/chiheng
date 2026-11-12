@@ -58,20 +58,20 @@ function IntelPage() {
                   {c.benefits.length ? (
                     <div className="mt-1 flex flex-wrap gap-1">
                       {c.benefits.map((b) => (
-                        <span key={b} className="rounded bg-brand-soft px-1 py-px text-[11px] text-brand-text">{b}</span>
+                        <span key={b} className="rounded bg-brand-soft px-1 py-px text-[12px] text-brand-text">{b}</span>
                       ))}
                     </div>
                   ) : null}
                   {c.stocks.length ? (
                     <div className="mt-1.5 flex flex-wrap gap-1">
-                      <span className="text-[11px] text-muted">受益个股：</span>
+                      <span className="text-[12px] text-muted">受益个股：</span>
                       {c.stocks.map((s) => (
-                        <button key={s} type="button" onClick={() => void openDetail("", s)} className="rounded bg-surface2 px-1 py-px text-[11px] text-fg hover:underline">{s}</button>
+                        <button key={s} type="button" onClick={() => void openDetail("", s)} className="rounded bg-surface2 px-1 py-px text-[12px] text-fg hover:underline">{s}</button>
                       ))}
                     </div>
                   ) : null}
                   {c.reason ? (
-                    <div className="mt-1.5 border-t border-line pt-1.5 text-[11px] leading-relaxed text-muted">{c.reason}</div>
+                    <div className="mt-1.5 border-t border-line pt-1.5 text-[12px] leading-relaxed text-muted">{c.reason}</div>
                   ) : null}
                 </div>
               ))}
@@ -92,7 +92,7 @@ function IntelPage() {
               ))}
             </div>
           )}
-          <div className="border-t border-line px-3 py-2 text-[11px] text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] text-muted">
             新闻解读重要度与传导为 yipanai 的评分/匹配，非赤轨计算；受益个股是题材成分股，不是买卖建议。
           </div>
         </Panel>

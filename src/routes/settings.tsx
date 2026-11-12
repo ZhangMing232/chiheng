@@ -75,11 +75,11 @@ function SettingsPage() {
       }}
       ornamentContent={
         missing.length > 0 ? (
-          <span className="text-[11px] text-warn">缺 {missing.length} 项数据源</span>
+          <span className="text-[12px] text-warn">缺 {missing.length} 项数据源</span>
         ) : stale.length > 0 ? (
-          <span className="text-[11px] text-muted">{stale.length} 项待更新（不影响看盘）</span>
+          <span className="text-[12px] text-muted">{stale.length} 项待更新（不影响看盘）</span>
         ) : (
-          <span className="text-[11px]">所有数据源都是新的</span>
+          <span className="text-[12px]">所有数据源都是新的</span>
         )
       }
     >
@@ -140,7 +140,7 @@ function SettingsPage() {
           </tbody>
         </table>
         </div>
-        <p className="px-3.5 py-2 text-[11px] text-muted">
+        <p className="px-3.5 py-2 text-[12px] text-muted">
           除上面的「每日复盘日报」外，这里都是只读展示；要改值去它右边写的那一页，在这儿改不会存。
         </p>
       </Panel>
@@ -162,26 +162,26 @@ function SettingsPage() {
                 <tr key={f.label} className="border-b border-line/60">
                   <td className={tdClass("text-left")}>
                     <span className="text-fg">{f.label}</span>
-                    {f.required ? <span className="ml-1.5 text-[11px] text-muted">必需</span> : null}
+                    {f.required ? <span className="ml-1.5 text-[12px] text-muted">必需</span> : null}
                   </td>
                   <td className={tdClass("text-right text-muted")}>{f.sizeKb == null ? "—" : `${f.sizeKb} KB`}</td>
                   <td className={tdClass("text-left")}>
                     <Tag tone={f.state === "ok" ? "muted" : f.state === "na" ? "muted" : "warn"}>{f.note}</Tag>
                   </td>
                   <td className={tdClass("text-left text-muted")}>
-                    <span className="text-[11px] leading-snug">{f.refresh}</span>
+                    <span className="text-[12px] leading-snug">{f.refresh}</span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="px-3.5 py-2 text-[11px] leading-relaxed text-muted">
+        <p className="px-3.5 py-2 text-[12px] leading-relaxed text-muted">
           「没抓过」和「待更新」不是一回事：前者压根没生成过，后者是生成过但旧了。
           <span className="text-fg">标「待更新」多半是周末休市或后台任务还没轮到，不影响今天看盘</span>；
           必需项都在就行（缺必需项页面会真的开不了）。真要手动重抓，命令收在最下面的「给开发者」里，平时不用管。
         </p>
-        <details className="border-t border-line/60 px-3.5 py-2 text-[11px] text-muted">
+        <details className="border-t border-line/60 px-3.5 py-2 text-[12px] text-muted">
           <summary className="cursor-pointer select-none">给开发者：手动重抓命令</summary>
           <ul className="mt-2 space-y-1.5">
             {files.filter((f) => f.command).map((f) => (

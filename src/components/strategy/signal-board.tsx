@@ -46,9 +46,9 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
                 <span className="rounded bg-surface2 px-1 py-0.5 text-[10px]">{s.strategy}</span>
                 <span className="tabular-nums">挂 {s.buyPrice}</span>
               </div>
-              <p className="text-[11px] text-muted">{s.reason}</p>
+              <p className="text-[12px] text-muted">{s.reason}</p>
               {hasReview && r.verdictReason && (
-                <p className={`text-[11px] ${r.verdict === "ok" ? "text-up" : "text-yellow-500"}`}>
+                <p className={`text-[12px] ${r.verdict === "ok" ? "text-up" : "text-yellow-500"}`}>
                   {r.verdict === "ok" ? "✓ " : "⚠ "}{r.verdictReason}
                 </p>
               )}
@@ -131,7 +131,7 @@ function ShortFormsBoard({ data }: { data: ShortFormsData | null }) {
           {cov?.tdxLatestDate ? ` · 盘后包 ${cov.tdxLatestDate}（${cov.tdxRows} 只）` : " · 盘后包暂无"}
           {" · "}历史统计截至 {cov?.targetDate ?? "—"}
         </div>
-        <p className="text-[11px] leading-relaxed text-muted">
+        <p className="text-[12px] leading-relaxed text-muted">
           {data.caveats[0] ?? ""} {data.caveats[1] ?? ""} 完整口径见 data/signals/forms/summary.json。
         </p>
       </div>

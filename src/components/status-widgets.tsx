@@ -33,7 +33,7 @@ export function StatusBadge({ snapshot, compact = false }: { snapshot: StatusSna
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border ${cls.border} ${cls.bg} ${cls.fg} ${
-        compact ? "px-1.5 py-px text-[10px]" : "px-2 py-0.5 text-[11px]"
+        compact ? "px-1.5 py-px text-[10px]" : "px-2 py-0.5 text-[12px]"
       }`}
       title={describeSnapshot(snapshot)}
     >
@@ -52,7 +52,7 @@ export function FreshnessBar({ snapshot, onRetry, className = "" }: { snapshot: 
   const meta = statusMeta[snapshot.state];
   const cls = TONE_CLS[meta.tone];
   return (
-    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded border ${cls.border} ${cls.bg} px-3 py-1.5 text-[11px] ${className}`} role="status" aria-label={describeSnapshot(snapshot)}>
+    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded border ${cls.border} ${cls.bg} px-3 py-1.5 text-[12px] ${className}`} role="status" aria-label={describeSnapshot(snapshot)}>
       <span className="flex min-w-0 items-center gap-3">
         <StatusBadge snapshot={snapshot} />
         {snapshot.source ? <span className="text-muted">数据源：{snapshot.source}</span> : null}
@@ -96,7 +96,7 @@ export function StatusCard({
       <div className="mt-1 text-lg font-semibold tabular-nums text-fg">
         {snapshot.latencySeconds != null ? formatLatency(snapshot.latencySeconds) : snapshot.label}
       </div>
-      {detail ? <div className="mt-0.5 text-[11px] text-muted">{detail}</div> : null}
+      {detail ? <div className="mt-0.5 text-[12px] text-muted">{detail}</div> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </section>
   );

@@ -60,13 +60,13 @@ function FactorGatesPage() {
         {rows.length > 0 ? (
           <div>
             <FactorGateTable rows={rows} />
-            <p className="px-3 py-2 text-[11px] leading-relaxed text-muted">
+            <p className="px-3 py-2 text-[12px] leading-relaxed text-muted">
               六关判什么：G1 单调且方向符合预注册（Spearman ≥0.8）· G2 |t|≥2 · G3 前后两段同向且各 |t|≥1 ·
               G4 换一批不重叠的股票仍同向且 |t|≥2 · G5 Bonferroni 按已测总数 N 收紧临界 · G6 顶档被可交易闸挡掉 ≤50%。
             </p>
             <div className="border-t border-line px-3 py-2">
-              <p className="text-[11px] font-medium text-muted">败在一关 = 得了一种病，对症下药才值得再试：</p>
-              <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted">
+              <p className="text-[12px] font-medium text-muted">败在一关 = 得了一种病，对症下药才值得再试：</p>
+              <ul className="mt-1 space-y-0.5 text-[12px] leading-relaxed text-muted">
                 <li>· G1 形状不符——五档形状和当初登记的方向对不上；要改就按真实形状换个新 id 重新预登记，旧记录留档。</li>
                 <li>· G2 t 不够——|t|&lt;2 等于没测出来，大概率是噪声，别当回事。</li>
                 <li>· G3 时段翻脸——前半段后半段结论相反，换个行情环境就亏钱，最致命，别抱幻想。</li>

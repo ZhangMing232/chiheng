@@ -46,12 +46,12 @@ export function StockDetailBody({ detail, onClose }: { detail: StockDetailPayloa
         </div>
         {detail.concept ? <div className="mb-2"><Tag tone="brand">{detail.concept}</Tag></div> : null}
         <div className="mb-3">
-          <div className="mb-1 text-[11px] text-muted">近 60 日收盘</div>
+          <div className="mb-1 text-[12px] text-muted">近 60 日收盘</div>
           <Spark data={detail.kline} />
         </div>
         {detail.limitUps.length > 0 ? (
           <div className="mb-3">
-            <div className="mb-1 text-[11px] text-muted">近 10 次涨停</div>
+            <div className="mb-1 text-[12px] text-muted">近 10 次涨停</div>
             <div className="flex flex-wrap gap-1">
               {detail.limitUps.map((d) => <span key={d} className="num rounded bg-up-soft px-1 text-[10px] text-up">{d.slice(5)}</span>)}
             </div>
@@ -66,7 +66,7 @@ export function StockDetailBody({ detail, onClose }: { detail: StockDetailPayloa
           </div>
         ) : null}
         {detail.reason ? (
-          <div className="border-t border-line pt-2 text-[11px] leading-relaxed text-muted">{detail.reason.slice(0, 200)}</div>
+          <div className="border-t border-line pt-2 text-[12px] leading-relaxed text-muted">{detail.reason.slice(0, 200)}</div>
         ) : null}
         <div className="mt-2 text-[10px] text-muted">封板/开板明细见连板天梯；数据仅供研究，不构成投资建议。</div>
       </div>

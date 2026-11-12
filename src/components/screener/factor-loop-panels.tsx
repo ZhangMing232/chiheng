@@ -40,7 +40,7 @@ function Section({ id, title, hint, children }: { id?: string; title: string; hi
     <section id={id} className="scroll-mt-24 overflow-hidden rounded border border-line bg-surface">
       <div className="border-b border-line px-3.5 py-2">
         <h2 className="text-sm font-medium">{title}</h2>
-        {hint ? <p className="mt-0.5 text-[11px] leading-relaxed text-muted">{hint}</p> : null}
+        {hint ? <p className="mt-0.5 text-[12px] leading-relaxed text-muted">{hint}</p> : null}
       </div>
       {children}
     </section>
@@ -123,13 +123,13 @@ function DeathsArchive({ records }: { records: TombstoneRecord[] }) {
       >
         <span>
           死因档案 <span className="tabular-nums">{records.length}</span> 条
-          <span className="ml-2 text-[11px] text-muted/70">败在哪几关、当初的经济逻辑，全留底</span>
+          <span className="ml-2 text-[12px] text-muted/70">败在哪几关、当初的经济逻辑，全留底</span>
         </span>
         <span className="shrink-0">{open ? "收起 ▲" : "展开 ▼"}</span>
       </button>
       <ul className="mt-1.5 space-y-1.5">
         {shown.map((r) => (
-          <li key={`${r.id}-${r.diedAt}`} className="text-[11px] leading-relaxed">
+          <li key={`${r.id}-${r.diedAt}`} className="text-[12px] leading-relaxed">
             <span className="font-medium text-fg">{r.name}</span>
             <span className="ml-2 text-muted">
               {r.source === "ai" ? "AI 提" : "人工提"} · 跑 {r.runs} 轮 · 连败 {r.failCount}
@@ -205,14 +205,14 @@ function QueueRow({ e }: { e: QueueEntry }) {
       <td data-l="状态" className={`px-2.5 py-1.5 ${st.className}`}>{st.label}</td>
       <td data-l="因子" className="px-2.5 py-1.5 text-left">
         <span className="font-medium">{e.name}</span>
-        <span className="ml-1.5 text-[11px] text-muted">{e.id}</span>
-        {e.note ? <span className="ml-1.5 text-[11px] text-muted">（{e.note}）</span> : null}
+        <span className="ml-1.5 text-[12px] text-muted">{e.id}</span>
+        {e.note ? <span className="ml-1.5 text-[12px] text-muted">（{e.note}）</span> : null}
       </td>
       <td data-l="方向" className="px-2.5 py-1.5">{e.direction > 0 ? "正向" : "反向"}</td>
-      <td data-l="表达式" className="px-2.5 py-1.5 font-mono text-[11px] text-muted">{e.expr}</td>
-      <td data-l="经济逻辑" className="max-w-[36ch] px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">{e.rationale}</td>
-      <td data-l="跑过/失败" className="px-2.5 py-1.5 text-[11px] text-muted">{e.runs} 次{e.failCount > 0 ? ` · 连续失败 ${e.failCount}` : ""}</td>
-      <td data-l="运气线 DSR" className="px-2.5 py-1.5 text-[11px]" title="试 N 个因子时运气最好的显著性基准线：per-period 夏普高过这条线=不像是搜出来的。只展示，不改 6 关判决。">
+      <td data-l="表达式" className="px-2.5 py-1.5 font-mono text-[12px] text-muted">{e.expr}</td>
+      <td data-l="经济逻辑" className="max-w-[36ch] px-2.5 py-1.5 text-[12px] leading-relaxed text-muted">{e.rationale}</td>
+      <td data-l="跑过/失败" className="px-2.5 py-1.5 text-[12px] text-muted">{e.runs} 次{e.failCount > 0 ? ` · 连续失败 ${e.failCount}` : ""}</td>
+      <td data-l="运气线 DSR" className="px-2.5 py-1.5 text-[12px]" title="试 N 个因子时运气最好的显著性基准线：per-period 夏普高过这条线=不像是搜出来的。只展示，不改 6 关判决。">
         {e.lastDsr ? (
           <span className={e.lastDsr.survives ? "text-emerald-500" : "text-amber-500"}>
             {(e.lastDsr.value * 100).toFixed(0)}%{e.lastDsr.survives ? " ✓" : ""}
@@ -222,7 +222,7 @@ function QueueRow({ e }: { e: QueueEntry }) {
           <span className="text-muted">—</span>
         )}
       </td>
-      <td data-l="IC / ICIR" className="px-2.5 py-1.5 text-[11px]" title="逐日横截面「因子值 vs 未来超额」的 Spearman 秩相关：IC=均值，ICIR=均值/标准差（日频）。读数按原始方向存，对照「方向」列看正负。只展示，不改 6 关判决。">
+      <td data-l="IC / ICIR" className="px-2.5 py-1.5 text-[12px]" title="逐日横截面「因子值 vs 未来超额」的 Spearman 秩相关：IC=均值，ICIR=均值/标准差（日频）。读数按原始方向存，对照「方向」列看正负。只展示，不改 6 关判决。">
         {e.lastIc && e.lastIc.mean != null ? (
           <span>
             <span className={e.lastIc.mean * e.direction > 0 ? "text-emerald-500" : "text-amber-500"}>
@@ -412,7 +412,7 @@ export function FactorLoopPanels() {
               </Table>
             </CollapsibleSection>
           ) : null}
-          {queue.missing ? <p className="mt-2 text-[11px] text-muted">{queue.missing}（还没跑过，正常）</p> : null}
+          {queue.missing ? <p className="mt-2 text-[12px] text-muted">{queue.missing}（还没跑过，正常）</p> : null}
         </div>
       </Section>
 
@@ -467,7 +467,7 @@ export function FactorLoopPanels() {
                         <ProgressRing n={smp.champN} target={smp.target} label="冠军" />
                       </span>
                     ) : null}
-                    {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
+                    {c.note ? <span className="w-full text-[12px] text-muted">{c.note}</span> : null}
                   </li>
                 );
               })}
@@ -475,12 +475,12 @@ export function FactorLoopPanels() {
           ) : (
             <StateBlock kind="empty" title="还没有挑战者" hint="点上面的「让 AI 提名挑战者」，或手工编辑 data/challengers.json（README 有模板）。" />
           )}
-          <p className="mt-2 text-[11px] text-muted">
+          <p className="mt-2 text-[12px] text-muted">
             当前 {runningCount} 个在跑 · <Link to="/strategies/positions" className="hover:text-fg hover:underline">去策略追踪看持仓明细 →</Link>
           </p>
         </div>
       </Section>
-      <p className="px-1 text-[11px] text-muted">
+      <p className="px-1 text-[12px] text-muted">
         AI 接口配置、Token 用量与自动进化开关在「<Link to="/ai" className="text-brand-text underline-offset-2 hover:underline">接入 AI</Link>」页。
       </p>
     </div>

@@ -78,7 +78,7 @@ function GenomePage() {
             <Stat label="判死" value={rejected} tone={rejected > 0 ? "down" : "muted"} />
           </div>
           {waiting > 0 ? (
-            <p className="mt-3 text-[11px] text-muted">
+            <p className="mt-3 text-[12px] text-muted">
               还有 {waiting} 套待判。判决在收盘封印后自动跑（每天一轮全池回测），判完写回本页。
             </p>
           ) : null}
@@ -125,7 +125,7 @@ function GenomePage() {
                         {v.clusterT.toFixed(2)}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-[11px] text-muted">
+                    <div className="mt-1 flex items-center justify-between text-[12px] text-muted">
                       <span className="tabular-nums">超额 {(v.excess * 100).toFixed(2)}pp</span>
                       <span className="tabular-nums">
                         {v.n} 笔 / {v.days} 天
@@ -150,30 +150,30 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{c.name}</span>
-          <span className="text-[11px] text-muted tabular-nums">{c.id}</span>
+          <span className="text-[12px] text-muted tabular-nums">{c.id}</span>
           <Tag tone={meta.tone}>{meta.label}</Tag>
         </div>
-        <span className="text-[11px] text-muted">{c.since}</span>
+        <span className="text-[12px] text-muted">{c.since}</span>
       </div>
 
-      <div className="mt-2 space-y-1 text-[11px]">
+      <div className="mt-2 space-y-1 text-[12px]">
         <div className="flex gap-2">
           <span className="w-10 shrink-0 text-muted">选股</span>
-          <span className="font-mono text-[11px] leading-relaxed">{c.select.join(" 且 ")}</span>
+          <span className="font-mono text-[12px] leading-relaxed">{c.select.join(" 且 ")}</span>
         </div>
         <div className="flex gap-2">
           <span className="w-10 shrink-0 text-muted">排序</span>
-          <span className="font-mono text-[11px]">{c.rankBy}</span>
+          <span className="font-mono text-[12px]">{c.rankBy}</span>
         </div>
         <div className="flex gap-2">
           <span className="w-10 shrink-0 text-muted">定价</span>
-          <span className="font-mono text-[11px]">{c.pricing.shape}</span>
+          <span className="font-mono text-[12px]">{c.pricing.shape}</span>
           <span className="text-muted">持有 {c.holdDays} 天 · 止损 {c.stopPct}% · 目标 {c.targetPct}%</span>
         </div>
       </div>
 
       {seeded && seeded.factorIds.length > 0 ? (
-        <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+        <div className="mt-2 flex items-center gap-1.5 text-[12px]">
           <GitBranch size={12} className="text-brand" />
           <span className="text-muted">融合自因子</span>
           <span className="font-mono">{seeded.factorIds.join("、")}</span>
@@ -183,11 +183,11 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
 
       {v ? (
         <div className="mt-2 rounded-lg border border-line bg-surface-2 px-2.5 py-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium">
+          <div className="flex items-center gap-1.5 text-[12px] font-medium">
             <FlaskConical size={12} className="text-brand" />
             全池回测判决
           </div>
-          <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] sm:grid-cols-4">
+          <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] sm:grid-cols-4">
             <div>
               <span className="text-muted">信噪比 </span>
               <span className={`tabular-nums ${v.clusteredT != null && Math.abs(v.clusteredT) >= 2 ? "text-up" : "text-muted"}`}>
@@ -207,25 +207,25 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
               <span>{v.halvesSameSign == null ? "没算" : v.halvesSameSign ? "同向" : "翻脸"}</span>
             </div>
           </div>
-          <p className="mt-1.5 text-[11px] text-muted">{v.reason}</p>
+          <p className="mt-1.5 text-[12px] text-muted">{v.reason}</p>
         </div>
       ) : null}
 
       {c.failedGates && c.failedGates.length > 0 ? (
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-down">
+        <div className="mt-2 flex items-center gap-1.5 text-[12px] text-down">
           <XCircle size={12} />
           败于：{c.failedGates.join(" / ")}
         </div>
       ) : null}
 
       {c.status === "promoted" ? (
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-up">
+        <div className="mt-2 flex items-center gap-1.5 text-[12px] text-up">
           <ShieldCheck size={12} />
           过了白皮书 §4 的两道关（|t|≥2 且前后同向）——但**还没进实盘**，要单独拍板。
         </div>
       ) : null}
 
-      {c.note ? <p className="mt-2 text-[11px] leading-relaxed text-muted">{c.note}</p> : null}
+      {c.note ? <p className="mt-2 text-[12px] leading-relaxed text-muted">{c.note}</p> : null}
     </div>
   );
 }

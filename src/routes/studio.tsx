@@ -322,7 +322,7 @@ function StudioPage() {
       ornamentContent={
         // **真实数据**：体裁和风格都是用户当前选中的（组件 state）。
         // 页头跟着选中的组合变——换体裁时不用等生成就能看出差别。
-        <span className="text-[11px]">
+        <span className="text-[12px]">
           {GENRES.find((g) => g.id === genre)?.label ?? genre} ·{" "}
           {theme === "dark" ? "深色行情" : "浅色杂志"}
         </span>
@@ -331,7 +331,7 @@ function StudioPage() {
       <Panel title="自媒体图文" note="选体裁 → 选数据 → 生成图+文 · 不荐股不编数">
         {/* 第一级：体裁 */}
         <div className="border-b border-line px-3.5 py-2">
-          <div className="pb-1.5 text-[11px] text-muted">怎么写（体裁决定图和文的形态）</div>
+          <div className="pb-1.5 text-[12px] text-muted">怎么写（体裁决定图和文的形态）</div>
           <div className="flex flex-wrap gap-2">
             {GENRES.map((item) => (
               <button
@@ -352,7 +352,7 @@ function StudioPage() {
 
         {/* 第二级：数据源 + 范围 */}
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
-          <span className="text-[11px] text-muted">写什么</span>
+          <span className="text-[12px] text-muted">写什么</span>
           {g.topics.map((t) => (
             <button key={t.id} type="button" onClick={() => setTopic(t.id)} className={tabClass(topic === t.id)}>
               {t.label}
@@ -360,7 +360,7 @@ function StudioPage() {
           ))}
           {g.topNOptions.length > 1 ? (
             <>
-              <span className="ml-2 text-[11px] text-muted">条数</span>
+              <span className="ml-2 text-[12px] text-muted">条数</span>
               {g.topNOptions.map((n) => (
                 <button key={n} type="button" onClick={() => setTopN(n)} className={tabClass(topN === n)}>
                   {n}
@@ -373,7 +373,7 @@ function StudioPage() {
         {/* 事件体裁：挑一条快讯 */}
         {topic === "news" && data.news.length > 0 ? (
           <div className="border-b border-line px-3.5 py-2">
-            <div className="pb-1.5 text-[11px] text-muted">挑一条深读（最新 {data.news.length} 条）</div>
+            <div className="pb-1.5 text-[12px] text-muted">挑一条深读（最新 {data.news.length} 条）</div>
             <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">
               {data.news.slice(0, 20).map((n, i) => (
                 <button
@@ -394,7 +394,7 @@ function StudioPage() {
 
         {/* 风格（两套视觉系统：深色行情风 / 浅色杂志风） */}
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
-          <span className="text-[11px] text-muted">风格</span>
+          <span className="text-[12px] text-muted">风格</span>
           {([
             { id: "dark", label: "深色行情" },
             { id: "light", label: "浅色杂志" },
@@ -403,14 +403,14 @@ function StudioPage() {
               {x.label}
             </button>
           ))}
-          <span className="text-[11px] text-muted">
+          <span className="text-[12px] text-muted">
             资金流向题材：AI 设计排版 + 真实数据逐字注入（服务端校验数字）· 其他题材：模板渲染（AI 画的数字不可信）
           </span>
         </div>
 
         {/* 平台 */}
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
-          <span className="text-[11px] text-muted">平台</span>
+          <span className="text-[12px] text-muted">平台</span>
           {PLATFORMS.map((p) => (
             <button key={p.id} type="button" onClick={() => setPlatform(p.id)} className={tabClass(platform === p.id)}>
               {p.label}
@@ -442,7 +442,7 @@ function StudioPage() {
               图片
             </label>
             {wantImage ? (
-              <span className="flex items-center gap-2 text-[11px] text-muted">
+              <span className="flex items-center gap-2 text-[12px] text-muted">
                 格式
                 <label className="flex cursor-pointer items-center gap-1">
                   <input type="checkbox" checked={wantVertical} onChange={(e) => setWantVertical(e.target.checked)} className="accent-brand" />
@@ -498,7 +498,7 @@ function StudioPage() {
             <div className="rounded border border-line">
               <div className="border-b border-line px-3 py-2">
                 <span className="text-xs font-medium text-fg">AI 设计师沟通</span>
-                <span className="ml-2 text-[11px] text-muted">
+                <span className="ml-2 text-[12px] text-muted">
                   聊设计方向（配色/布局/氛围），它看着今天的真实数据回你 · 聊完点「生成图 + 文」
                 </span>
               </div>
@@ -516,10 +516,10 @@ function StudioPage() {
                       </span>
                     </div>
                   ))}
-                  {chatBusy ? <span className="text-[11px] text-muted">设计师思考中…</span> : null}
+                  {chatBusy ? <span className="text-[12px] text-muted">设计师思考中…</span> : null}
                 </div>
               ) : (
-                <p className="px-3 py-2 text-[11px] text-muted">
+                <p className="px-3 py-2 text-[12px] text-muted">
                   试试：「想要科技感暗色风，流入侧用金色强调」或「上半部分太满，标题区留点呼吸」
                 </p>
               )}
@@ -549,7 +549,7 @@ function StudioPage() {
           {error ? <p className="text-sm text-up">{error}</p> : null}
           {renderNote ? <p className="text-xs text-warn">{renderNote}</p> : null}
           {renderPath ? (
-            <p className="text-[11px] text-muted">
+            <p className="text-[12px] text-muted">
               渲染路径：{renderPath === "svg" ? "服务端 SVG 模板" : "浏览器 canvas（回退）"}
             </p>
           ) : null}

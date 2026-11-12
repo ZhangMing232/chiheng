@@ -98,7 +98,7 @@ function HuiyanPage() {
 
         <Panel
           title="落档战绩"
-          note={<span className="text-[11px]">只算真的当晚落过档的期，口径回算不混进来</span>}
+          note={<span className="text-[12px]">只算真的当晚落过档的期，口径回算不混进来</span>}
         >
           <div className="grid grid-cols-2 gap-px overflow-hidden border-b border-line bg-line sm:grid-cols-4">
             <Cell label="可结算期数" value={`${settled.length}`} hint={`共落档 ${locked.length} 期`} />
@@ -115,14 +115,14 @@ function HuiyanPage() {
             const stuck = settled.reduce((n, p) => n + (p.summary?.stuck ?? 0), 0);
             if (unfilled === 0 && stuck === 0) return null;
             return (
-              <div className="border-b border-line bg-surface-2 px-3 py-2 text-[11px] leading-relaxed">
+              <div className="border-b border-line bg-surface-2 px-3 py-2 text-[12px] leading-relaxed">
                 <b className="text-warn">成交不了的不算进胜率：</b>
                 {unfilled > 0 ? <>一字涨停买不进 {unfilled} 笔（没买到就没有这笔）。</> : null}
                 {stuck > 0 ? <>一字跌停卖不出 {stuck} 笔（买到了但砸在手里，不计入已完成盈亏）。</> : null}
               </div>
             );
           })()}
-          <div className="px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="px-3 py-2 text-[12px] leading-relaxed text-muted">
             {settled.length === 0 ? (
               <>
                 还没有可结算的期。最新一期（{locked[0]?.date ?? "—"}）挑完锁档后，
@@ -143,9 +143,9 @@ function HuiyanPage() {
 
         <Panel
           title="逐期对照"
-          note={<span className="text-[11px]">每期 3 只 · 按规则挑 · 挑完锁档</span>}
+          note={<span className="text-[12px]">每期 3 只 · 按规则挑 · 挑完锁档</span>}
         >
-          <div className="border-b border-line bg-surface-2 px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-b border-line bg-surface-2 px-3 py-2 text-[12px] leading-relaxed text-muted">
             结算时间线（写死，不含未来函数）：<b className="text-fg">选股 T 日收盘</b> →{" "}
             <b className="text-fg">买入 T+1 开盘</b>（最早能成交的价）→ <b className="text-fg">结算 T+1 收盘</b>。
             每期下面都把这三天摆出来，你一眼就能看到「我是哪天、什么价买的」。
@@ -167,7 +167,7 @@ function HuiyanPage() {
 
         <Panel
           title="口径回算（事后重算，不是当时发的清单）"
-          note={<span className="text-[11px]">同一套规则 · 过去 {bt?.periods.length ?? 0} 个交易日重跑</span>}
+          note={<span className="text-[12px]">同一套规则 · 过去 {bt?.periods.length ?? 0} 个交易日重跑</span>}
         >
           {!bt ? (
             <StateBlock kind="empty" title="还没回算" hint="跑 scripts/forecast.ts --backtest。" />
@@ -189,7 +189,7 @@ function HuiyanPage() {
                 />
                 <Cell label="次日涨停" value={rate(bt.periods.reduce((s, p) => s + (p.summary?.limitUps ?? 0), 0), btPicks)} hint="—" />
               </div>
-              <div className="border-b border-line bg-surface-2 px-3 py-2 text-[11px] leading-relaxed">
+              <div className="border-b border-line bg-surface-2 px-3 py-2 text-[12px] leading-relaxed">
                 <b className="text-fg">这一块要连着基准读。</b>「追买成立」这个指标单看很容易骗人：
                 全市场随便一只票，当天最高价高于开盘价的概率就有{" "}
                 {bt.baseline?.chaseRate != null ? `${(bt.baseline.chaseRate * 100).toFixed(1)}%` : "—"}，
@@ -202,7 +202,7 @@ function HuiyanPage() {
                 if (un === 0 && st === 0) return null;
                 const raw = btPicks + un;
                 return (
-                  <div className="border-b border-line bg-surface-2 px-3 py-2 text-[11px] leading-relaxed">
+                  <div className="border-b border-line bg-surface-2 px-3 py-2 text-[12px] leading-relaxed">
                     <b className="text-warn">先扣掉成交不了的：</b>
                     {raw} 笔里 <b className="text-fg">{un}</b> 笔是一字涨停买不进（
                     {((un / raw) * 100).toFixed(1)}%），已从样本剔除
@@ -212,7 +212,7 @@ function HuiyanPage() {
                 );
               })()}
               <details className="px-3 py-2">
-                <summary className="cursor-pointer text-[11px] text-muted hover:text-fg">
+                <summary className="cursor-pointer text-[12px] text-muted hover:text-fg">
                   展开逐期明细（{bt.periods.length} 期）
                 </summary>
                 <div className="mt-2 flex flex-col divide-y divide-line">
@@ -223,7 +223,7 @@ function HuiyanPage() {
               </details>
             </>
           )}
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             {bt?.note ?? "事后重算，不能当对外战绩。"}
             另外涨停是用日 K 涨幅阈值近似的（主板 9.5% / 双创 19.5% / 北交所 29.5%），
             和真实涨停池会有几只出入，所以期数不等于涨停家数。
@@ -231,7 +231,7 @@ function HuiyanPage() {
         </Panel>
 
         <Panel title="这一页的规矩">
-          <div className="flex flex-col gap-1.5 px-3 py-3 text-[11px] leading-relaxed text-muted">
+          <div className="flex flex-col gap-1.5 px-3 py-3 text-[12px] leading-relaxed text-muted">
             <div>· 落档之后不改。要改规则，就在新的一天改，历史留着当疤。</div>
             <div>· 盘中不落档。今天没收盘就落，等于不知道结局先写好答案。</div>
             <div>· 口径回算永远单独放、单独标。混进「落档战绩」就是拿事后聪明冒充当时判断。</div>
@@ -246,7 +246,7 @@ function HuiyanPage() {
 function Cell({ label, value, hint, good }: { label: string; value: string; hint?: string; good?: boolean }) {
   return (
     <div className="bg-surface px-3 py-2">
-      <div className="text-[11px] text-muted">{label}</div>
+      <div className="text-[12px] text-muted">{label}</div>
       <div className={"num text-lg font-medium " + (good ? "text-up" : "text-fg")}>{value}</div>
       {hint ? <div className="num text-[10px] text-muted">{hint}</div> : null}
     </div>
@@ -401,7 +401,7 @@ function PickRow({
           {failLabel ?? (settled ? pct(trade) : bought ? pct(livePct) : "待结算")}
         </span>
       </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 num text-[11px] text-muted">
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 num text-[12px] text-muted">
         <span>
           选股 <b className="text-fg">{money(settled ? o!.pickPrice : pickPrice)}</b>
         </span>

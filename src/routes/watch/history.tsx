@@ -76,12 +76,12 @@ function StockModal({ detail, onClose }: { detail: StockDetailPayload; onClose: 
           </div>
         ) : null}
         <div className="mb-3">
-          <div className="mb-1 text-[11px] text-muted">近 60 日收盘</div>
+          <div className="mb-1 text-[12px] text-muted">近 60 日收盘</div>
           <Spark data={detail.kline} />
         </div>
         {detail.limitUps.length > 0 ? (
           <div className="mb-3">
-            <div className="mb-1 text-[11px] text-muted">近 10 次涨停</div>
+            <div className="mb-1 text-[12px] text-muted">近 10 次涨停</div>
             <div className="flex flex-wrap gap-1">
               {detail.limitUps.map((d) => (
                 <span key={d} className="num rounded bg-up-soft px-1 text-[10px] text-up">{d.slice(5)}</span>
@@ -100,7 +100,7 @@ function StockModal({ detail, onClose }: { detail: StockDetailPayload; onClose: 
           </div>
         ) : null}
         {detail.reason ? (
-          <div className="border-t border-line pt-2 text-[11px] leading-relaxed text-muted">{detail.reason.slice(0, 200)}</div>
+          <div className="border-t border-line pt-2 text-[12px] leading-relaxed text-muted">{detail.reason.slice(0, 200)}</div>
         ) : null}
       </div>
     </div>
@@ -147,7 +147,7 @@ function WatchHistoryPage() {
       <SectionTabs ariaLabel="盯盘" tabs={WATCH_TABS} />
       <div className="flex flex-col gap-3">
         <Panel title="三日板位演变" note={dates.join(" / ")}>
-          <div className="px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="px-3 py-2 text-[12px] leading-relaxed text-muted">
             最新在左 · 横看一行即该板位 3 日演变 · 点股名弹 K 线/涨停史，点行高亮它在 3 天出现的位置。
             <span className="text-fg">今天那一列只列名字</span>——封单额、开板次数、题材标签在{" "}
             <Link to="/watch" className="text-brand hover:underline">今日梯队</Link>，同一批数不摆两遍。
@@ -180,7 +180,7 @@ function WatchHistoryPage() {
                         const isToday = d === today;
                         return (
                           <td key={d} className="px-2 py-1.5">
-                            <div className="mb-0.5 text-[11px] text-muted">
+                            <div className="mb-0.5 text-[12px] text-muted">
                               共{rows.length}只{promo ? ` · ${lv}进${lv + 1} ${((promo.promoted / Math.max(1, promo.total)) * 100).toFixed(0)}%` : ""}
                             </div>
                             {/* 今天这列：紧凑名单（不带封单/开板/题材），明细在今日梯队 */}
@@ -195,7 +195,7 @@ function WatchHistoryPage() {
                                       key={r.id}
                                       type="button"
                                       onClick={() => setHl((v) => (v === r.id ? null : r.id))}
-                                      className={`rounded px-1 text-[11px] leading-snug ${active ? "bg-up-soft text-up" : "text-fg hover:bg-surface-2"}`}
+                                      className={`rounded px-1 text-[12px] leading-snug ${active ? "bg-up-soft text-up" : "text-fg hover:bg-surface-2"}`}
                                     >
                                       {r.name}
                                     </button>
@@ -235,7 +235,7 @@ function WatchHistoryPage() {
               {expandFirst ? "收起首板名单 ▴" : "展开首板名单 ▾"}
             </button>
           </div>
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             晋级率 = 昨日该档晋级到下一板的比例（历史频率，不是预测）。涨停家数→次日 +0.4%~0.77%（已验证），追高连板 −3.71%（已证伪）。
           </div>
         </Panel>

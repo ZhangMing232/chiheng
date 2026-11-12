@@ -96,7 +96,7 @@ function StyleRow({ item }: { item: StyleLossSummary }) {
         </span>
       </div>
       <Prog value={item.share} className="mt-1.5" />
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-muted">
         {item.byCause.map((c) => (
           <span key={c.cause} className="tabular-nums">
             {CAUSE_LABEL[c.cause]} ×{c.count}
@@ -168,7 +168,7 @@ function AutopsyPage() {
                     </div>
                     <p className="mt-1 leading-relaxed text-muted">{c.causal}</p>
                     {c.examples.length > 0 ? (
-                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-muted">
                         <span>样例：</span>
                         {c.examples.map((e) => (
                           <span key={e.id} className="tabular-nums">
@@ -184,7 +184,7 @@ function AutopsyPage() {
           )}
 
           {summary.missing.length > 0 ? (
-            <div className="rounded border border-warn bg-warn-soft px-3 py-2 text-[11px] text-warn">
+            <div className="rounded border border-warn bg-warn-soft px-3 py-2 text-[12px] text-warn">
               读不到的数据（不是没有）：{summary.missing.join("；")}
             </div>
           ) : null}

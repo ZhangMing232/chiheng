@@ -139,8 +139,8 @@ function TestControls({ defaults }: { defaults: { n: number; buckets: number } }
       >
         {busy ? "检验运行中…（约 2-5 分钟）" : "按此参数重跑检验"}
       </button>
-      {msg ? <span className="w-full whitespace-pre-wrap text-[11px] text-muted">{msg}</span> : null}
-      <span className="w-full text-[11px] leading-relaxed text-muted">
+      {msg ? <span className="w-full whitespace-pre-wrap text-[12px] text-muted">{msg}</span> : null}
+      <span className="w-full text-[12px] leading-relaxed text-muted">
         只调采样参数；6 关判据和因子注册表预登记在代码里，这里碰不到。跑完自动追加为最新一批，批次选择器里能和老批次对比。
       </span>
     </div>
@@ -217,9 +217,9 @@ function FactorToStrategy({
                     <div key={r.id} className="rounded border border-line bg-surface px-2.5 py-1.5 text-xs">
                       <div className="font-medium">
                         {r.name}
-                        <span className="ml-1.5 text-[11px] text-muted">{r.id}</span>
+                        <span className="ml-1.5 text-[12px] text-muted">{r.id}</span>
                       </div>
-                      <div className="mt-0.5 text-[11px] text-muted">
+                      <div className="mt-0.5 text-[12px] text-muted">
                         {specs.length === 0 ? (
                           <span>还没长成策略（AI 可以拿它当选股条件）</span>
                         ) : (
@@ -358,7 +358,7 @@ function FactorLabCard({ summary, tombstones, batchIndex }: { summary: BatchSumm
               {tombstones.slice(0, 3).map((r) => (
                 <li key={`${r.id}-${r.diedAt}`} className="rounded border border-line bg-surface px-2 py-1.5">
                   <div className="text-xs font-medium">{r.name}</div>
-                  <div className="text-[11px] text-muted">
+                  <div className="text-[12px] text-muted">
                     {r.diedAt.slice(0, 10)}
                     {r.failedGates.length ? ` · 败于 ${r.failedGates.join("/")}` : " · 衰退休退"}
                   </div>
@@ -368,7 +368,7 @@ function FactorLabCard({ summary, tombstones, batchIndex }: { summary: BatchSumm
           ) : (
             <p className="text-xs text-muted">还没有被淘汰的因子。</p>
           )}
-          <p className="mt-2 text-[11px] text-muted">完整死因档案见下方「决策者记分牌」。</p>
+          <p className="mt-2 text-[12px] text-muted">完整死因档案见下方「决策者记分牌」。</p>
         </div>
       </div>
     </Panel>
@@ -396,11 +396,11 @@ function FactorsIndexPage() {
       }}
       ornamentContent={
         summary.strongest ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             最强 {summary.strongest.name} · t {summary.strongest.t.toFixed(2)}
           </span>
         ) : (
-          <span className="text-[11px]">这批没有因子通过全部六关</span>
+          <span className="text-[12px]">这批没有因子通过全部六关</span>
         )
       }
     >
@@ -490,7 +490,7 @@ function FactorsIndexPage() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                <p className="mt-2 text-[12px] leading-relaxed text-muted">
                   这是注册表层的近似检查，不是收益序列相关；它回答「是不是一个概念」，真共线由 G1-G6 判。
                 </p>
               </div>
@@ -514,7 +514,7 @@ function FactorsIndexPage() {
         )}
       </Section>
 
-      <p className="px-1 text-[11px] leading-relaxed text-warn">
+      <p className="px-1 text-[12px] leading-relaxed text-warn">
         超额 ≠ 收益；|t| &lt; 2 等于没测出来；两段翻脸 = 不能用；禁调参过关。
       </p>
 

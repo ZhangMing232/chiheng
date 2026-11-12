@@ -182,12 +182,12 @@ function ResearchPage() {
       }}
       ornamentContent={
         report ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             {report.stages.length} 个阶段 · {report.gaps.length} 处缺口
             {report.numbersReplaced > 0 ? ` · 换掉 ${report.numbersReplaced} 个数字` : ""}
           </span>
         ) : (
-          <span className="text-[11px]">还没有研判结果</span>
+          <span className="text-[12px]">还没有研判结果</span>
         )
       }
     >
@@ -394,7 +394,7 @@ function LinkifiedText({ text, knownIds }: { text: string; knownIds: ReadonlySet
             key={i}
             type="button"
             onClick={() => scrollToEvidence(seg.id)}
-            className="rounded border border-line bg-surface px-1 py-px font-mono text-[11px] text-accent transition hover:border-accent hover:bg-brand-soft"
+            className="rounded border border-line bg-surface px-1 py-px font-mono text-[12px] text-accent transition hover:border-accent hover:bg-brand-soft"
             title="跳到这条证据"
           >
             {seg.id}
@@ -537,11 +537,11 @@ function RawInfo({ articles }: { articles: StockArticle[] }) {
           const t = TONE[a.tone] ?? TONE.flat;
           return (
             <li key={a.id} className="flex items-baseline gap-2 px-3 py-2">
-              <span className="w-28 shrink-0 text-[11px] tabular-nums text-muted">{a.time.slice(0, 16)}</span>
+              <span className="w-28 shrink-0 text-[12px] tabular-nums text-muted">{a.time.slice(0, 16)}</span>
               <Tag tone={t.tone}>{t.label}</Tag>
               <span className="min-w-0 flex-1 text-sm">{a.title}</span>
               {a.url ? (
-                <a href={a.url} target="_blank" rel="noreferrer" className="shrink-0 text-[11px] text-accent hover:underline">原文</a>
+                <a href={a.url} target="_blank" rel="noreferrer" className="shrink-0 text-[12px] text-accent hover:underline">原文</a>
               ) : null}
             </li>
           );
@@ -732,7 +732,7 @@ function StepFlow({ stages, onSelect }: { stages: StageResult[]; onSelect?: () =
             >
               <Icon className="size-3.5" aria-hidden />
             </span>
-            <span className={"max-w-full truncate text-[11px] leading-tight " + (isActive ? "font-medium text-fg" : "text-muted")}>
+            <span className={"max-w-full truncate text-[12px] leading-tight " + (isActive ? "font-medium text-fg" : "text-muted")}>
               {s.title}
             </span>
             <span className={"text-[10px] leading-none " + (isActive ? "text-brand-text" : "text-muted")}>{label[st]}</span>

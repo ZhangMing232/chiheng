@@ -115,11 +115,11 @@ function OverviewPage() {
       }}
       ornamentContent={
         flow && flow.stocksIn.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             第一名 {flow.stocksIn[0]!.name} {fmtYi(flow.stocksIn[0]!.inflow)}
           </span>
         ) : (
-          <span className="text-[11px]">资金榜暂不可用</span>
+          <span className="text-[12px]">资金榜暂不可用</span>
         )
       }
     >
@@ -246,8 +246,8 @@ function OverviewPage() {
           <ul className="divide-y divide-line/60 px-1">
             {news.slice(0, 10).map((n: NewsItem) => (
               <li key={n.id} className="flex items-start gap-2 px-2.5 py-2">
-                <span className="shrink-0 text-[11px] tabular-nums text-muted">{n.time.slice(11, 16)}</span>
-                <span className={"shrink-0 text-[11px] " + (n.tone === "good" ? "text-up" : n.tone === "bad" ? "text-down" : "text-muted")}>
+                <span className="shrink-0 text-[12px] tabular-nums text-muted">{n.time.slice(11, 16)}</span>
+                <span className={"shrink-0 text-[12px] " + (n.tone === "good" ? "text-up" : n.tone === "bad" ? "text-down" : "text-muted")}>
                   {n.tone === "good" ? "利好" : n.tone === "bad" ? "利空" : "中性"}
                 </span>
                 <span className="min-w-0 flex-1 text-[13px] leading-snug text-fg">{n.title}</span>
@@ -258,7 +258,7 @@ function OverviewPage() {
       </Panel>
 
       {/* 页脚（效果图签名件）：数据源 + 免责 */}
-      <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line px-1 pt-3 text-[11px] text-muted">
+      <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line px-1 pt-3 text-[12px] text-muted">
         <span>数据来源：</span>
         {["上交所 · 深交所", "腾讯行情", "新浪（备源）", "东财"].map((s) => (
           <span key={s} className="rounded border border-line bg-surface px-2 py-0.5">

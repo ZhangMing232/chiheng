@@ -294,11 +294,11 @@ function WatchTodayPage() {
               <span>封住 <b className="num text-up">{up.length}</b></span>
               <span>炸板 <b className="num text-muted">{broken.length}</b></span>
               {isToday ? (
-                <span className="text-[11px]">
+                <span className="text-[12px]">
                   采集于 <b className="num text-fg">{at}</b>{ageText} · {snapshot.sealed ? "已收盘定格" : "盘中数据未定，收盘前还会变"}
                 </span>
               ) : (
-                <span className="text-[11px]">
+                <span className="text-[12px]">
                   这是 {snapshot.date} 的定盘快照，按日回补于 {at ?? "未知时刻"}；数据是那天收盘后的，不是补档当天。
                 </span>
               )}
@@ -310,11 +310,11 @@ function WatchTodayPage() {
                     <div className={"px-num text-2xl font-bold leading-none " + (tier.broken ? "text-muted" : "text-brand")}>
                       {tier.broken ? "×" : tier.streak}
                     </div>
-                    <div className="px-num mt-0.5 text-[11px] text-muted">{tier.broken ? "炸板" : "板"}</div>
+                    <div className="px-num mt-0.5 text-[12px] text-muted">{tier.broken ? "炸板" : "板"}</div>
                     <div className="mt-1 h-1.5 w-full bg-line">
                       <span className="block h-full bg-brand" style={{ width: `${Math.min(100, tier.rows.length * 8)}%` }} />
                     </div>
-                    <div className="px-num mt-0.5 text-[11px] text-muted">{tier.rows.length} 只</div>
+                    <div className="px-num mt-0.5 text-[12px] text-muted">{tier.rows.length} 只</div>
                   </div>
                   <div className="grid flex-1 grid-cols-2 content-start gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
                     {tier.rows.map((r, i) => {
@@ -352,7 +352,7 @@ function WatchTodayPage() {
               ))}
               {tiers.length === 0 ? <div className="px-2 py-6 text-sm text-muted">这份快照里三池都是空的。</div> : null}
             </div>
-            <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+            <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
               红实框=封住，灰虚框=炸板。点格子看涨停原因（带出处）。上面那个数是<b className="text-fg">封单金额</b>；
               「开 N 次」= 当天涨停被打开 N 次。
               {broken.length ? " 炸板票没有封单可算，所以显示 —。" : ""}
@@ -407,7 +407,7 @@ function ReasonPopover({
       >
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <span className="text-sm font-medium">{r.name}</span>
-          <span className="num text-[11px] text-muted">
+          <span className="num text-[12px] text-muted">
             {r.code} · {(r.streak ?? 1)}板
             {pick.card.broken ? " · 已炸板" : ""}
           </span>
@@ -422,7 +422,7 @@ function ReasonPopover({
           <>
             <div className="mb-1 flex flex-wrap items-center gap-1.5">
               {info.primary_concept ? <Tag tone="muted">{info.primary_concept}</Tag> : null}
-              {info.theme ? <span className="text-[11px] text-muted">{info.theme}</span> : null}
+              {info.theme ? <span className="text-[12px] text-muted">{info.theme}</span> : null}
             </div>
             <div className="text-[12px] leading-relaxed whitespace-pre-line">
               {info.reason.length > 320 ? `${info.reason.slice(0, 320)}…` : info.reason}
@@ -452,7 +452,7 @@ function ReasonPopover({
         <button
           type="button"
           onClick={onClose}
-          className="mt-2 w-full rounded border border-line py-1 text-[11px] text-muted hover:bg-surface-2"
+          className="mt-2 w-full rounded border border-line py-1 text-[12px] text-muted hover:bg-surface-2"
         >
           关闭（Esc）
         </button>

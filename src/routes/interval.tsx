@@ -65,7 +65,7 @@ function IntervalPage() {
         <Panel
           title="选区间"
           note={
-            <span className="flex items-center gap-1.5 text-[11px]">
+            <span className="flex items-center gap-1.5 text-[12px]">
               <button type="button" className="rounded border border-line px-1.5 py-0.5 text-muted hover:border-brand hover:text-brand-text" onClick={() => go(p.dates[Math.max(0, p.dates.length - 6)], p.dates[p.dates.length - 1])}>近 5 日</button>
               <button type="button" className="rounded border border-line px-1.5 py-0.5 text-muted hover:border-brand hover:text-brand-text" onClick={() => go(p.dates[Math.max(0, p.dates.length - 21)], p.dates[p.dates.length - 1])}>近 20 日</button>
               <button type="button" className="rounded border border-line px-1.5 py-0.5 text-muted hover:border-brand hover:text-brand-text" onClick={() => go(p.dates[Math.max(0, p.dates.length - 61)], p.dates[p.dates.length - 1])}>近 60 日</button>
@@ -94,15 +94,15 @@ function IntervalPage() {
                 <option key={d} value={d}>{d}</option>
               ))}
             </select>
-            <span className="text-[11px] text-muted">
+            <span className="text-[12px] text-muted">
               {search.from || search.to ? "" : "默认给最近 20 个交易日"}
             </span>
           </div>
         </Panel>
 
         <div className="grid gap-3 lg:grid-cols-2">
-          <Panel title="个股区间涨幅" note={<span className="text-[11px]">前 200 名 · 共 {p.covered} 只有价</span>}>
-            <div className="border-b border-line px-3 py-1.5 text-[11px] text-muted">
+          <Panel title="个股区间涨幅" note={<span className="text-[12px]">前 200 名 · 共 {p.covered} 只有价</span>}>
+            <div className="border-b border-line px-3 py-1.5 text-[12px] text-muted">
               这段里有 <b className="num text-up">{up}</b> 只上涨、
               <b className="num text-down">{p.covered - up}</b> 只下跌。
             </div>
@@ -135,8 +135,8 @@ function IntervalPage() {
           </Panel>
 
           <div className="flex flex-col gap-3">
-            <Panel title="题材区间涨幅" note={<span className="text-[11px]">成分股涨幅中位数 · {p.boards.length} 个题材</span>}>
-              <div className="border-b border-line px-3 py-1.5 text-[11px] text-muted">
+            <Panel title="题材区间涨幅" note={<span className="text-[12px]">成分股涨幅中位数 · {p.boards.length} 个题材</span>}>
+              <div className="border-b border-line px-3 py-1.5 text-[12px] text-muted">
                 {p.boards.length === 0
                   ? "题材分类没读到，这一栏空着。"
                   : <>这段里有 <b className="num text-up">{upBoards}</b> 个题材中位数为正、<b className="num text-down">{p.boards.length - upBoards}</b> 个为负。</>}
@@ -157,7 +157,7 @@ function IntervalPage() {
                         <td className="max-w-[150px] truncate">{b.name}</td>
                         <td className="num text-right text-muted">{b.covered}/{b.members}</td>
                         <td className={"num text-right " + (b.median >= 0 ? "text-up" : "text-down")}>{pct(b.median)}</td>
-                        <td className="max-w-[90px] truncate text-[11px] text-muted">{b.top}</td>
+                        <td className="max-w-[90px] truncate text-[12px] text-muted">{b.top}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -165,7 +165,7 @@ function IntervalPage() {
               </div>
             </Panel>
 
-            <Panel title="跌得最多的 50 只" note={<span className="text-[11px]">区间跌幅榜尾</span>}>
+            <Panel title="跌得最多的 50 只" note={<span className="text-[12px]">区间跌幅榜尾</span>}>
               <div className="overflow-x-auto px-3 py-2 scroll-slim">
                 <table className="data-table w-full min-w-[380px] text-xs">
                   <thead>
@@ -195,7 +195,7 @@ function IntervalPage() {
         </div>
 
         <Panel title="这一页缺什么（先说清楚）">
-          <div className="flex flex-col gap-1.5 px-3 py-3 text-[11px] leading-relaxed text-muted">
+          <div className="flex flex-col gap-1.5 px-3 py-3 text-[12px] leading-relaxed text-muted">
             <div>
               <Tag tone="warn">缺口</Tag>{" "}
               <b className="text-fg">没有区间资金净额。</b>本地资金流只覆盖 343 只 × 120 天，不够全市场，

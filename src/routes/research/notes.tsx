@@ -104,12 +104,12 @@ function NotesPage() {
         // **真实数据**：list[0] 是最新一条。relTimeOf 是本页已有的相对时间
         // （「3 小时前」），比绝对时间更适合页头。
         list.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             最新 {now == null ? list[0]!.at : relTimeOf(list[0]!.at, now)}
             {list[0]!.symbol ? ` · ${list[0]!.name ?? list[0]!.symbol}` : ""}
           </span>
         ) : (
-          <span className="text-[11px]">还没有笔记</span>
+          <span className="text-[12px]">还没有笔记</span>
         )
       }
     >
@@ -145,9 +145,9 @@ function NotesPage() {
             >
               存下来
             </button>
-            <span className="text-[11px] text-muted">代码填 sh600519 这种带市场前缀的；认不出来就当散记存。</span>
+            <span className="text-[12px] text-muted">代码填 sh600519 这种带市场前缀的；认不出来就当散记存。</span>
           </div>
-          {why ? <p className="text-[11px] text-warn">没存上：{why}</p> : null}
+          {why ? <p className="text-[12px] text-warn">没存上：{why}</p> : null}
         </div>
       </Panel>
 
@@ -164,7 +164,7 @@ function NotesPage() {
               清除
             </button>
           ) : null}
-          <span className="text-[11px] text-muted">笔记是你自己记的，不是核实过的事实。研判页不引用它。</span>
+          <span className="text-[12px] text-muted">笔记是你自己记的，不是核实过的事实。研判页不引用它。</span>
         </div>
 
         {shown.length === 0 ? (
@@ -198,7 +198,7 @@ function NotesPage() {
                     {note.symbol ? (
                       <span>
                         <span className="text-fg">{note.name ?? note.symbol}</span>
-                        <span className="ml-1 text-[11px] text-muted">{note.symbol}</span>
+                        <span className="ml-1 text-[12px] text-muted">{note.symbol}</span>
                       </span>
                     ) : (
                       <span className="text-muted">散记</span>
@@ -214,10 +214,10 @@ function NotesPage() {
                           className="w-full resize-y rounded border border-line bg-transparent px-2 py-1.5 text-sm text-fg"
                         />
                         <div className="flex gap-1.5">
-                          <button type="button" onClick={() => saveEdit(note.id)} disabled={busy} className="rounded border border-brand px-2 py-0.5 text-[11px] text-fg">
+                          <button type="button" onClick={() => saveEdit(note.id)} disabled={busy} className="rounded border border-brand px-2 py-0.5 text-[12px] text-fg">
                             存
                           </button>
-                          <button type="button" onClick={() => setEditing(null)} className="rounded border border-line px-2 py-0.5 text-[11px] text-muted">
+                          <button type="button" onClick={() => setEditing(null)} className="rounded border border-line px-2 py-0.5 text-[12px] text-muted">
                             算了
                           </button>
                         </div>
@@ -235,7 +235,7 @@ function NotesPage() {
                             setEditing(note.id);
                             setDraft(note.text);
                           }}
-                          className="rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:text-fg"
+                          className="rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:text-fg"
                         >
                           改
                         </button>
@@ -243,7 +243,7 @@ function NotesPage() {
                           type="button"
                           onClick={() => remove(note.id)}
                           disabled={busy}
-                          className="rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:text-warn disabled:opacity-40"
+                          className="rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:text-warn disabled:opacity-40"
                         >
                           删
                         </button>

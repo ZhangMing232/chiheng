@@ -272,7 +272,7 @@ function SymbolPanel({ id }: { id: string }) {
                   </dd>
                 </div>
               </dl>
-              <div className="mt-2 text-[11px] text-muted">
+              <div className="mt-2 text-[12px] text-muted">
                 建仓于 {book.trade.day}
                 {book.alsoIn.length > 0 ? ` · 别的策略里也记过：${book.alsoIn.join("、")}` : ""}
               </div>
@@ -334,7 +334,7 @@ function SymbolPanel({ id }: { id: string }) {
                     ))}
                   </ul>
                 ) : null}
-                <p className="mt-1.5 text-[11px] text-muted">户数上升 = 筹码发散，下降 = 集中</p>
+                <p className="mt-1.5 text-[12px] text-muted">户数上升 = 筹码发散，下降 = 集中</p>
               </>
             )}
             <div className="my-2 border-t border-line" />
@@ -360,10 +360,10 @@ function SymbolPanel({ id }: { id: string }) {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1.5 text-[11px] text-muted">解禁占总股本比例是未来的抛压，数字越大越要当心</p>
+                <p className="mt-1.5 text-[12px] text-muted">解禁占总股本比例是未来的抛压，数字越大越要当心</p>
               </>
             )}
-            <p className="mt-1.5 text-[11px] text-muted">来源：东财 datacenter，季度披露/已实测</p>
+            <p className="mt-1.5 text-[12px] text-muted">来源：东财 datacenter，季度披露/已实测</p>
           </div>
         </Block>
         ) : null}
@@ -429,7 +429,7 @@ function SymbolPanel({ id }: { id: string }) {
                 </dd>
               </div>
             </dl>
-            <div className="mt-1.5 text-[11px] text-muted">
+            <div className="mt-1.5 text-[12px] text-muted">
               {data?.inflowRank ? `今天个股资金榜第 ${data.inflowRank} 名` : "今天没进个股资金榜"}
               {data?.asOf
                 ? ` · 数据 ${new Date(data.asOf).toLocaleTimeString("zh-CN", { hour12: false })}`
@@ -455,7 +455,7 @@ function SymbolPanel({ id }: { id: string }) {
                     {article.title}
                   </a>
                   {article.time ? (
-                    <div className="mt-0.5 text-[11px] text-muted">{article.time}</div>
+                    <div className="mt-0.5 text-[12px] text-muted">{article.time}</div>
                   ) : null}
                 </li>
               ))}
@@ -467,7 +467,7 @@ function SymbolPanel({ id }: { id: string }) {
         ) : null}
 
         {data?.why ? (
-          <p className="text-[11px] leading-relaxed text-muted">说明：{data.why}</p>
+          <p className="text-[12px] leading-relaxed text-muted">说明：{data.why}</p>
         ) : null}
 
         <div className="flex flex-col gap-2">

@@ -170,14 +170,14 @@ function MailForm({ status, deliveryLine }: { status: CardStatus; deliveryLine: 
   return (
     <Panel title="每日复盘日报" note={channelLabel}>
       <div className="flex flex-col gap-3 px-3.5 py-3">
-        <p className="text-[11px] leading-relaxed text-muted">
+        <p className="text-[12px] leading-relaxed text-muted">
           每个交易日收盘封印后自动发一份：今日诊断、挑战者战况、明日验证。
           {status.pushConfigured
             ? "当前走微信推送（已配好，不需要邮箱、不需要授权码），你什么都不用填。"
             : "当前没有生效通道：可在铃铛抽屉「通知设置」填 PushPlus token，或展开下面填邮箱。"}
         </p>
 
-        <p className={deliveryLine?.includes("失败") ? "text-[11px] text-warn" : "text-[11px] text-muted"}>
+        <p className={deliveryLine?.includes("失败") ? "text-[12px] text-warn" : "text-[12px] text-muted"}>
           {deliveryLine
             ? `发送状态：${deliveryLine}`
             : "还没发过正式日报：每个交易日收盘封印后自动发第一封，发完这里会显示时间和通道。"}
@@ -187,10 +187,10 @@ function MailForm({ status, deliveryLine }: { status: CardStatus; deliveryLine: 
           <button type="button" onClick={() => void test()} disabled={busy !== null || !anyChannel} className={PRIMARY_CLS}>
             {busy === "test" ? "发送中…" : "发测试日报"}
           </button>
-          {message ? <span className="text-[11px] text-fg">{message}</span> : null}
+          {message ? <span className="text-[12px] text-fg">{message}</span> : null}
         </div>
 
-        <details className="text-[11px] text-muted">
+        <details className="text-[12px] text-muted">
           <summary className="cursor-pointer select-none">
             {status.configured ? "可选：邮箱通道已配置（点开修改）" : "可选：改用 / 追加邮箱接收（需要 SMTP 授权码）"}
           </summary>
@@ -216,7 +216,7 @@ function MailForm({ status, deliveryLine }: { status: CardStatus; deliveryLine: 
               <span>收件人（多个用逗号分隔）</span>
               <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@qq.com" className={INPUT_CLS} />
             </label>
-            <details className="text-[11px] text-muted">
+            <details className="text-[12px] text-muted">
               <summary className="cursor-pointer select-none">服务器设置（QQ 邮箱一般不用改）</summary>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <label className="flex flex-col gap-1">

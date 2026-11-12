@@ -50,25 +50,25 @@ function RsPage() {
   return (
     <Frame wide aside={<span className="num text-xs text-muted">{rs.date} · 参与排名 {rs.universe} 只 · 上榜 {rows.length} 只</span>}>
       <div className="flex flex-col gap-3">
-        <Panel title="趋势中军" note={<span className="text-[11px]">强度是多周期加权，不是今天的涨幅</span>}>
+        <Panel title="趋势中军" note={<span className="text-[12px]">强度是多周期加权，不是今天的涨幅</span>}>
           <div className="grid grid-cols-2 gap-px overflow-hidden border-b border-line bg-line sm:grid-cols-4">
             <div className="bg-surface px-3 py-2">
-              <div className="text-[11px] text-muted">中位强度</div>
+              <div className="text-[12px] text-muted">中位强度</div>
               <div className={"num text-lg font-medium " + (rs.medianRaw >= 0 ? "text-up" : "text-down")}>{pct(rs.medianRaw, 1)}</div>
               <div className="num text-[10px] text-muted">全市场一半的票在这条线以下</div>
             </div>
             <div className="bg-surface px-3 py-2">
-              <div className="text-[11px] text-muted">贴近 250 日高</div>
+              <div className="text-[12px] text-muted">贴近 250 日高</div>
               <div className="num text-lg font-medium">{strong}</div>
               <div className="num text-[10px] text-muted">距高点 5% 以内的上榜票</div>
             </div>
             <div className="bg-surface px-3 py-2">
-              <div className="text-[11px] text-muted">剔除停牌</div>
+              <div className="text-[12px] text-muted">剔除停牌</div>
               <div className="num text-lg font-medium">{rs.stale}</div>
               <div className="num text-[10px] text-muted">最后一根不是最新交易日的</div>
             </div>
             <div className="bg-surface px-3 py-2">
-              <div className="text-[11px] text-muted">成交额门槛</div>
+              <div className="text-[12px] text-muted">成交额门槛</div>
               <div className="num text-lg font-medium">{yi(rs.minAmountWan)}</div>
               <div className="num text-[10px] text-muted">低于这条不上榜</div>
             </div>
@@ -100,7 +100,7 @@ function RsPage() {
                       </Link>
                       <span className="num ml-1.5 text-[10px] text-muted">{r.id}</span>
                     </td>
-                    <td className="max-w-[130px] truncate text-[11px] text-muted">{r.industry || "—"}</td>
+                    <td className="max-w-[130px] truncate text-[12px] text-muted">{r.industry || "—"}</td>
                     <td className="num text-right font-medium">{r.rs.toFixed(1)}</td>
                     <td className={"num text-right " + (r.r20 >= 0 ? "text-up" : "text-down")}>{pct(r.r20)}</td>
                     <td className={"num text-right " + (r.r60 >= 0 ? "text-up" : "text-down")}>{pct(r.r60)}</td>
@@ -113,14 +113,14 @@ function RsPage() {
               </tbody>
             </table>
           </div>
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             原始强度 = 0.4×20日 + 0.3×60日 + 0.2×120日 + 0.1×250日 涨幅；RS 是全市场截面中位秩。
             距高点是负值，0% 表示正贴着 250 日最高价。
           </div>
         </Panel>
 
         <Panel title="这一榜不能干什么">
-          <div className="flex flex-col gap-1.5 px-3 py-3 text-[11px] leading-relaxed text-muted">
+          <div className="flex flex-col gap-1.5 px-3 py-3 text-[12px] leading-relaxed text-muted">
             <div>· 它不预测。强度高只说明过去这段它在赢，不说明明天还赢——回测里「追强势」是最容易过拟合的一类。</div>
             <div>· 它不含资金和龙虎榜。要那两样去 /hotmoney 和 /seats。</div>
             <div>· 全市场一半的票强度为负是常态（今天 {pct(rs.medianRaw, 1)}），榜单前 200 名都是正强度并不稀奇，看的是相对位置。</div>

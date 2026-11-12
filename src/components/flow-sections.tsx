@@ -56,7 +56,7 @@ export function FlowSectionTabs() {
 /** 方向页的页内切换：实时行业榜（分钟级）↔ 月度温度计（东财三级行业）。 */
 export function FlowDirectionTabs({ live }: { live: boolean }) {
   return (
-    <div className="flex items-center gap-1 text-[11px]">
+    <div className="flex items-center gap-1 text-[12px]">
       <a
         href="/flow/sectors?view=live"
         aria-current={live ? "page" : undefined}
@@ -89,7 +89,7 @@ export function FlowDerivedTabs({ active }: { active: "north" | "margin" | "futu
     { to: "/flow/futures", label: "期指", key: "futures" },
   ] as const;
   return (
-    <div className="flex items-center gap-1 text-[11px]">
+    <div className="flex items-center gap-1 text-[12px]">
       {items.map((it) => (
         <a
           key={it.key}
@@ -487,7 +487,7 @@ export function Margin({ data }: { data: MarginPayload }) {
         ))}
       </ul>
       <div className="px-3.5 pb-3">
-        <p className="text-[11px] text-muted">
+        <p className="text-[12px] text-muted">
           取于 {data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("zh-CN", { hour12: false }) : "—"}（本机时区）· 来源：东财
           datacenter 两融明细，原名原样 · 快照 data/risk/margin-latest.json
         </p>

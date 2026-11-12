@@ -87,11 +87,11 @@ function InboxPage() {
       }}
       ornamentContent={
         rows.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             最新 {new Date(rows[0]!.at).toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
           </span>
         ) : (
-          <span className="text-[11px]">没有提醒</span>
+          <span className="text-[12px]">没有提醒</span>
         )
       }
     >
@@ -113,7 +113,7 @@ function InboxPage() {
               全部标为已读
             </button>
           ) : null}
-          <span className="min-w-0 flex-1 text-[11px] leading-snug text-muted">
+          <span className="min-w-0 flex-1 text-[12px] leading-snug text-muted">
             只在服务运行时更新：电脑关机、服务没开就不会有新提醒；行情拉不到的那天会收到「没跑成」说明，不会收到猜的告警。
           </span>
         </div>

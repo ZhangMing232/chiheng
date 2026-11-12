@@ -110,11 +110,11 @@ function Review() {
       }}
       ornamentContent={
         indices && indices.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             {indices[0]!.name} {indices[0]!.pct != null ? `${indices[0]!.pct > 0 ? "+" : ""}${indices[0]!.pct.toFixed(2)}%` : "—"}
           </span>
         ) : (
-          <span className="text-[11px]">指数快照暂不可用</span>
+          <span className="text-[12px]">指数快照暂不可用</span>
         )
       }
       aside={
@@ -376,7 +376,7 @@ function MacroPanel({
           </span>
         ))}
       </div>
-      <p className="px-3.5 pb-2 text-[11px] text-muted">
+      <p className="px-3.5 pb-2 text-[12px] text-muted">
         只摆数字不下判断——收益率往下走常被读成「钱变便宜」，那是对未来的预期，不是已经发生的事。
         中债不公布债券市场交易日历，所以数据截至日不一定是今天（节假日正常）。
       </p>
@@ -419,7 +419,7 @@ function PmiPanel({ pmi }: { pmi: Awaited<ReturnType<typeof getPmi>> | null }) {
           className="bg-surface"
         />
       </div>
-      <p className="px-3.5 pb-2 text-[11px] text-muted">
+      <p className="px-3.5 pb-2 text-[12px] text-muted">
         50 是荣枯线，制造业 PMI 在它上方叫扩张、下方叫收缩。**月频数据，月末发布**，
         比财报早一个季度反映景气。分档字段（大小企业）统计局改过措辞，认不出就显示「—」。
       </p>
@@ -450,7 +450,7 @@ function LprPanel({ lpr }: { lpr: Awaited<ReturnType<typeof getLpr>> | null }) {
           className="bg-surface"
         />
       </div>
-      <p className="px-3.5 pb-2 text-[11px] text-muted">
+      <p className="px-3.5 pb-2 text-[12px] text-muted">
         月频，2019-08 改革后每月 20 日报价。**直接相关的是银行和地产**——降息先压银行息差、
         再影响地产融资成本。历史上还有旧贷款基准利率（1991-2015），那些不是 LPR，已经剔掉。
       </p>
@@ -503,7 +503,7 @@ function SocialFinancingPanel({ social }: { social: Awaited<ReturnType<typeof ge
         <span>未贴现银票 {fmt(last.bankersAcceptance)}</span>
         <span>股票融资 {fmt(last.equityFinancing)}</span>
       </div>
-      <p className="px-3.5 pb-2 text-[11px] text-muted">
+      <p className="px-3.5 pb-2 text-[12px] text-muted">
         社融是<strong>增量</strong>（当月新投放的规模），单月数字噪声大，所以更该看 12 个月累计。
         单位亿元人民币，按源原样没做换算。<strong>月频，次月中旬发布</strong>——
         它比 PMI 更前瞻，也比财报早一个季度。数据由脚本从人民银行官网抓（零依赖手写

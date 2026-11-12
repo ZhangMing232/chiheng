@@ -36,11 +36,11 @@ export function BucketShape({ means }: { means: number[] }) {
                 style={{ height: `${(Math.abs(v) / scale) * 100}%`, minHeight: 2 }}
               />
             </span>
-            <span className="text-[11px] text-muted">档{i + 1}</span>
+            <span className="text-[12px] text-muted">档{i + 1}</span>
           </div>
         ))}
       </div>
-      <p className="mt-1 text-[11px] text-muted">
+      <p className="mt-1 text-[12px] text-muted">
         柱高按本行最大绝对值归一，只能看这一行内部的形状，不能跨因子比高低。
       </p>
     </div>
@@ -98,7 +98,7 @@ function GateRow({
             {isOpen ? "▾ " : "▸ "}
             {row.name}
           </button>
-          <div className="text-[11px] text-muted">
+          <div className="text-[12px] text-muted">
             {row.measured ? (
               <>
                 {row.passed}/{row.total} 关
@@ -148,13 +148,13 @@ function GateRow({
                 );
               })}
             </dl>
-            <p className="mt-3 text-[11px] text-muted">
+            <p className="mt-3 text-[12px] text-muted">
               预注册理由（跑之前写下的，跑完不许改）：
               {row.rationaleMissing
                 ? " factors.ts 里查不到这个因子，说明它是旧批次跑的，理由没留下来。"
                 : ` ${row.rationale}`}
             </p>
-            <p className="mt-1 text-[11px] text-muted">有效交易日 {row.nDays} 天。</p>
+            <p className="mt-1 text-[12px] text-muted">有效交易日 {row.nDays} 天。</p>
           </td>
         </tr>
       ) : null}
@@ -239,7 +239,7 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
               <span className="ml-1 tabular-nums text-warn">{unmeasured.length}</span> 个
             </span>
           </div>
-          <p className="px-3 pb-2 text-[11px] leading-relaxed text-muted">
+          <p className="px-3 pb-2 text-[12px] leading-relaxed text-muted">
             这些因子这一轮没拿到有效样本（nDays = 0），所以是没测过——不是「测了没效果」。
             它们不计入本轮检验族，真实因子的及格线不受它们影响。
             说明：这是所选批次当时的状态；后来接上数据的因子看最新批次，
@@ -265,7 +265,7 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
               <span className="ml-1 tabular-nums text-warn">{RETIRED_FACTORS.length}</span> 个
             </span>
           </div>
-          <p className="px-3 pb-2 text-[11px] leading-relaxed text-muted">
+          <p className="px-3 pb-2 text-[12px] leading-relaxed text-muted">
             定义还留在注册表里、随时能摘回来，只是不再每轮占一个「未测」位。
             「拿不到 ≠ 没有」——这里记的是为什么拿不到，不是这个思路没用。
           </p>
@@ -274,7 +274,7 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
               <li key={r.id} className="px-3 py-2.5 text-xs leading-relaxed">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="font-medium text-fg">{r.name}</span>
-                  <code className="text-[11px] text-muted">{r.id}</code>
+                  <code className="text-[12px] text-muted">{r.id}</code>
                   <span className="rounded border border-line px-1.5 py-0.5 text-[10px] text-muted">
                     {r.kind === "no-source" ? "无数据源" : "结构性测不了"}
                   </span>

@@ -166,7 +166,7 @@ function RotationPage() {
               </div>
             </div>
           )}
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             题材涨停家数 → 次日 +0.4%~0.77%（单调，已验证）；但追高连板 −3.71%（已证伪）。
             加速是「资金在进」的事实，不是买入信号。风格/资金标签（融资融券、小盘股等）已过滤。
           </div>
@@ -195,7 +195,7 @@ function RotationPage() {
                 </div>
               ))}
             </div>
-            {members.total > 60 ? <div className="mt-2 text-[11px] text-muted">只显示前 60 只</div> : null}
+            {members.total > 60 ? <div className="mt-2 text-[12px] text-muted">只显示前 60 只</div> : null}
           </div>
         </div>
       ) : null}

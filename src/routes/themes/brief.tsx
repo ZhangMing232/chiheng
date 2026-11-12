@@ -68,7 +68,7 @@ function BriefPage() {
             </span>
           }
         >
-          <div className="flex flex-col gap-2 px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="flex flex-col gap-2 px-3 py-2 text-[12px] leading-relaxed text-muted">
             <div>
               入选规则：题材涨停家数 ≥5，且「涨停密度 ≥ 全市场 1.8 倍」或「今天有催化原文」。
               密度 = 该题材涨停数 ÷ 成分股数；按密度而不是绝对家数，是为了不让「成分股几千只」的
@@ -87,7 +87,7 @@ function BriefPage() {
         </Panel>
 
         {/* 12 个题材堆下来很长，先给一排锚点能跳；不占地方，只在上一屏以后有用 */}
-        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[11px]">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[12px]">
           <span className="text-muted">跳到</span>
           {brief.themes.map((t, i) => (
             <a
@@ -128,7 +128,7 @@ function BriefPage() {
                   <>
                     <div className="text-[12px] leading-snug">{t.catalyst.title}</div>
                     {t.catalyst.reason && t.catalyst.reason !== t.catalyst.title ? (
-                      <div className="mt-1 text-[11px] leading-relaxed text-muted">
+                      <div className="mt-1 text-[12px] leading-relaxed text-muted">
                         {t.catalyst.reason.length > 200 ? `${t.catalyst.reason.slice(0, 200)}…` : t.catalyst.reason}
                       </div>
                     ) : null}
@@ -137,14 +137,14 @@ function BriefPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-[11px] leading-relaxed text-muted">
+                  <div className="text-[12px] leading-relaxed text-muted">
                     今天这个题材没有采到催化原文——不是「没有消息」，是我们没拿到。留空不编。
                   </div>
                 )}
               </div>
 
               {/* ② 结构事实 */}
-              <div className="text-[11px] leading-relaxed text-muted">{t.note}</div>
+              <div className="text-[12px] leading-relaxed text-muted">{t.note}</div>
 
               {/* ③ 个股 + 分数 + 论据 */}
               <div className="mt-0.5 border-b border-line pb-1 text-[10px] text-muted">
@@ -187,7 +187,7 @@ function BriefPage() {
         ))}
 
         <Panel title="怎么用这一页">
-          <div className="flex flex-col gap-1.5 px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="flex flex-col gap-1.5 px-3 py-2 text-[12px] leading-relaxed text-muted">
             <div>· 先看催化是不是新事实（日期就是它的新鲜度），再看结构事实（几家涨停、密度几倍）。</div>
             <div>· 分数高只代表今天资金在这只票上的相对强度，不代表明天还能涨。历史同景见 /cycle。</div>
             <div>· 任何一只票能不能买，仍要走 /decision 的闸门与 /strategies/positions 的持仓检查。</div>

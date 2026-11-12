@@ -127,7 +127,7 @@ export function BatchPicker({
           </option>
         ))}
       </select>
-      <span className="text-[11px]">同一因子换持有期可能是两个结论，来回切着看</span>
+      <span className="text-[12px]">同一因子换持有期可能是两个结论，来回切着看</span>
     </div>
   );
 }

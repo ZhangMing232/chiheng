@@ -36,7 +36,7 @@ export function SourceLine({
   refreshBusy?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] leading-5 text-muted">
+    <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] leading-5 text-muted">
       <p>
         取于 {at ?? "—"} · {cached == null ? "是否缓存未知" : cached ? "用的是缓存" : "实时取数"} · 来源：{origin ?? "—"}
       </p>
@@ -46,7 +46,7 @@ export function SourceLine({
           onClick={onRefresh}
           disabled={refreshBusy}
           title={refreshTitle ?? "重新取数"}
-          className="rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:bg-surface-2 disabled:opacity-50"
+          className="rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:bg-surface-2 disabled:opacity-50"
         >
           {refreshBusy ? "正在取…" : "重新取"}
         </button>

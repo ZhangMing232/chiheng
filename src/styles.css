@@ -210,6 +210,19 @@ html:not([data-theme="light"]) body {
   background: color-mix(in srgb, var(--color-bg) 88%, transparent); backdrop-filter: blur(4px);
 }
 
+
+/* ── 全站面板像素化（2026-11-12）────────────────────────────────────
+ * 还有 40 多个页面没逐页重排，但它们的卡片都用 Panel（src/components/terminal.tsx）。
+ * 在这里统一改 Panel 的观感，一处覆盖全站：
+ *   ① 标题前的竖条从「圆头 3px 朱砂」换成「直角 2px 荧光」——像素风不要圆头
+ *   ② 标题用等宽 + 字距，卡片标题和页面标题拉开层次
+ *   ③ 表头统一等宽小字，和数字列对齐
+ * 不改结构、不改数据，纯观感；页面自己写了 px-mod4 的仍然是像素面板（更完整）。
+ */
+section[id] > header > h2 { letter-spacing: 0.02em; }
+section[id] > header > h2 > span:first-child { border-radius: 0 !important; width: 2px !important; }
+table thead th { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; letter-spacing: 0.06em; }
+
 /* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
  * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
  * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。

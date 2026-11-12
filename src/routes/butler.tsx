@@ -143,7 +143,7 @@ function ButlerPage() {
           type="button"
           onClick={() => void clearAll()}
           disabled={busy}
-          className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-muted transition hover:border-ai-line hover:text-ai disabled:opacity-40"
+          className="rounded-lg border border-line px-2.5 py-1 text-[12px] text-muted transition hover:border-ai-line hover:text-ai disabled:opacity-40"
         >
           清空对话
         </button>
@@ -177,7 +177,7 @@ function ButlerPage() {
                       >
                         <s.icon size={16} className="text-ai" />
                         <p className="mt-1.5 text-xs leading-relaxed text-fg">{s.q}</p>
-                        <span className="mt-1 inline-block text-[11px] text-muted transition group-hover:translate-x-0.5 group-hover:text-ai">→</span>
+                        <span className="mt-1 inline-block text-[12px] text-muted transition group-hover:translate-x-0.5 group-hover:text-ai">→</span>
                       </button>
                     ))}
                   </div>
@@ -223,14 +223,14 @@ function ButlerPage() {
                 </button>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-muted">快速提问：</span>
+                <span className="text-[12px] text-muted">快速提问：</span>
                 {QUICK_QUESTIONS.map((q) => (
                   <button
                     key={q}
                     type="button"
                     onClick={() => void send(q)}
                     disabled={busy}
-                    className="rounded-full border border-line px-2.5 py-0.5 text-[11px] text-muted transition hover:border-ai-line hover:text-ai disabled:opacity-40"
+                    className="rounded-full border border-line px-2.5 py-0.5 text-[12px] text-muted transition hover:border-ai-line hover:text-ai disabled:opacity-40"
                   >
                     {q}
                   </button>
@@ -246,15 +246,15 @@ function ButlerPage() {
             <h2 className="flex items-center gap-1.5 text-sm font-medium text-fg">
               <Database size={14} className="text-ai" /> 当前上下文
             </h2>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">每次回答前读一遍项目状态，并把你之前的提问作为上下文；对话按用户存档，刷新不丢：</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-muted">每次回答前读一遍项目状态，并把你之前的提问作为上下文；对话按用户存档，刷新不丢：</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {["指数行情", "涨跌分布", "账本持仓", "策略闸门", "挑战者池", "因子队列", "对话记忆"].map((c) => (
-                <span key={c} className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">
+                <span key={c} className="rounded-full border border-line px-2 py-0.5 text-[12px] text-muted">
                   {c}
                 </span>
               ))}
             </div>
-            <p className="mt-2 text-[11px] text-muted tabular-nums">
+            <p className="mt-2 text-[12px] text-muted tabular-nums">
               上次记账 {d.recorder.at ? `${Math.round((d.serverNow - d.recorder.at) / 60_000)} 分钟前` : "还没跑"} · 行情{" "}
               {d.indices.find((i) => i.time)?.time ?? "还没拉到"}
             </p>
@@ -305,7 +305,7 @@ function ButlerPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-1.5 text-[11px] text-muted">挑战者已判决 {d.judgedChallengers} 个 · 在跑 {d.runningChallengers} 个</p>
+            <p className="mt-1.5 text-[12px] text-muted">挑战者已判决 {d.judgedChallengers} 个 · 在跑 {d.runningChallengers} 个</p>
           </section>
 
           <section className="rounded-lg border border-line bg-surface px-3.5 py-3">
@@ -316,7 +316,7 @@ function ButlerPage() {
               <li className="flex justify-between gap-2"><span>东财</span><span>港美 · 财报</span></li>
               <li className="flex justify-between gap-2"><span>baostock</span><span>日线（回测）</span></li>
             </ul>
-            <p className="mt-1.5 text-[11px] text-muted">全部免费公开接口，零鉴权；不接付费数据商。</p>
+            <p className="mt-1.5 text-[12px] text-muted">全部免费公开接口，零鉴权；不接付费数据商。</p>
           </section>
         </div>
       </div>

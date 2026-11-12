@@ -178,12 +178,12 @@ function NewsPage() {
       }}
       ornamentContent={
         news.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             利好 {good.boards.length + good.stocks.length} · 利空{" "}
             {bad.boards.length + bad.stocks.length}
           </span>
         ) : (
-          <span className="text-[11px]">今天还没抓到快讯</span>
+          <span className="text-[12px]">今天还没抓到快讯</span>
         )
       }
     >

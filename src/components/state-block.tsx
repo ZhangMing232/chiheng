@@ -115,15 +115,15 @@ export function StaleBadge({ at, staleMs = 10 * 60_000 }: { at: number | null; s
   // 挂载后再判断要不要追加「已 N 分钟未动」，避免两处时刻差触发 #418。
   const now = useMountedNow();
   if (at == null) {
-    return <span className="text-[11px] text-warn">时间未知，数据可能过期</span>;
+    return <span className="text-[12px] text-warn">时间未知，数据可能过期</span>;
   }
   const clock = new Date(at).toTimeString().slice(0, 5);
   const age = now == null ? 0 : now - at;
   if (age < staleMs) {
-    return <span className="num text-[11px] text-muted">更新于 {clock}</span>;
+    return <span className="num text-[12px] text-muted">更新于 {clock}</span>;
   }
   return (
-    <span className="num text-[11px] text-warn">
+    <span className="num text-[12px] text-warn">
       更新于 {clock}（已 {Math.round(age / 60_000)} 分钟未动，可能过期）
     </span>
   );

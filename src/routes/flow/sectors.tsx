@@ -90,7 +90,7 @@ function SectorsPage() {
         <FlowSectionTabs />
         <div className="mb-2 flex items-center justify-between gap-2">
           <FlowDirectionTabs live />
-          <span className="text-[11px] text-muted">腾讯资金榜，盘中约一分钟更新</span>
+          <span className="text-[12px] text-muted">腾讯资金榜，盘中约一分钟更新</span>
         </div>
         {book ? (
           <div className="flex flex-col gap-3">
@@ -127,12 +127,12 @@ function SectorsPage() {
       ornamentContent={
         // **真实数据**：板块行按主力净流入排，mainNet 单位万元。
         table.rows.length === 0 ? (
-          <span className="text-[11px]">今天没有板块资金数据</span>
+          <span className="text-[12px]">今天没有板块资金数据</span>
         ) : table.rows[0]!.mainNet == null ? (
           // 有板块行但没披露主力净额——「没披露」和「0」不是一回事
-          <span className="text-[11px]">板块资金口径未披露</span>
+          <span className="text-[12px]">板块资金口径未披露</span>
         ) : (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             净流入第一 {table.rows[0]!.name} {flowAmount(table.rows[0]!.mainNet)}
           </span>
         )
@@ -172,7 +172,7 @@ function SectorsPage() {
               </button>
             ))}
           </div>
-          <span className="text-[11px] text-muted">
+          <span className="text-[12px] text-muted">
             数字来自落盘缓存，不是实时行情。月度涨跌以上月月末收盘为基准；当月没走完的月份标「进行中」。
             「当月」是最新一个完整月，「温度计」看的是近三个完整月——两者可以相反（鼠标停在方向上看依据）。
           </span>
@@ -199,7 +199,7 @@ function SectorsPage() {
               >
                 <td className={tdClass("text-left")}>
                   <span className="text-fg">{r.name}</span>
-                  <span className="ml-1.5 text-[11px] text-muted">{r.code}</span>
+                  <span className="ml-1.5 text-[12px] text-muted">{r.code}</span>
                 </td>
                 <td className={tdClass()}>{r.members}</td>
                 <td className={tdClass("whitespace-nowrap text-muted")}>{r.latestMonth ?? "—"}</td>
@@ -237,9 +237,9 @@ function BoardDetailPanel({ detail }: { detail: BoardDetail }) {
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
         <Tag tone={tag.tone}>温度计 {tag.text}</Tag>
-        <span className="text-[11px] text-muted">{detail.thermo.basis}</span>
+        <span className="text-[12px] text-muted">{detail.thermo.basis}</span>
       </div>
-      <p className="px-3.5 py-2 text-[11px] text-muted">
+      <p className="px-3.5 py-2 text-[12px] text-muted">
         这是量价与资金维度的读数，不等于行业景气度。板块自身的数据，不含上下游链条——赤轨没有产业链映射表，不编。
       </p>
 
@@ -262,7 +262,7 @@ function BoardDetailPanel({ detail }: { detail: BoardDetail }) {
               <tr key={m.month} className="border-b border-line/60">
                 <td className={tdClass("text-left")}>
                   {m.month}
-                  {m.partial ? <span className="ml-1.5 text-[11px] text-muted">进行中</span> : null}
+                  {m.partial ? <span className="ml-1.5 text-[12px] text-muted">进行中</span> : null}
                 </td>
                 <td className={tdClass("text-right " + toneClass(m.chgPct))}>{m.chgPct == null ? "—" : signedPct(m.chgPct)}</td>
                 <td className={tdClass("text-right " + toneClass(m.mainNet))}>
@@ -280,15 +280,15 @@ function BoardDetailPanel({ detail }: { detail: BoardDetail }) {
 
       {detail.members.length > 0 ? (
         <div className="border-t border-line px-3.5 py-2">
-          <div className="mb-1 text-[11px] text-muted">成分股（内部代码，点「个股查询」可查单只）</div>
+          <div className="mb-1 text-[12px] text-muted">成分股（内部代码，点「个股查询」可查单只）</div>
           <div className="flex flex-wrap gap-1.5">
             {detail.members.slice(0, 60).map((id) => (
-              <span key={id} className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">
+              <span key={id} className="rounded border border-line px-1.5 py-0.5 text-[12px] text-muted">
                 {id}
               </span>
             ))}
             {detail.members.length > 60 ? (
-              <span className="text-[11px] text-muted">…还有 {detail.members.length - 60} 只</span>
+              <span className="text-[12px] text-muted">…还有 {detail.members.length - 60} 只</span>
             ) : null}
           </div>
         </div>

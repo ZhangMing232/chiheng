@@ -69,11 +69,11 @@ function FlowOverviewPage() {
         // **真实数据**：book.stocksIn 是东财给的主力净流入榜（已去新股/ST）。
         // 只报第一名——「第一是谁 + 多少钱」比「前 N 合计」更直观。
         book && book.stocksIn.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             净流入第一 {book.stocksIn[0]!.name} {flowAmount(book.stocksIn[0]!.inflow)}
           </span>
         ) : (
-          <span className="text-[11px]">资金榜暂不可用</span>
+          <span className="text-[12px]">资金榜暂不可用</span>
         )
       }
     >

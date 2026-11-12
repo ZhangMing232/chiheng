@@ -261,9 +261,9 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         // 池子是全市场快照，不是「选出来的候选」——所以文案写「在池」不写「候选」，
         // 后者会让人以为已经筛过一遍。
         quotes.length > 0 ? (
-          <span className="text-[11px] tabular-nums">在池 {quotes.length} 只</span>
+          <span className="text-[12px] tabular-nums">在池 {quotes.length} 只</span>
         ) : (
-          <span className="text-[11px]">池子还没拉到</span>
+          <span className="text-[12px]">池子还没拉到</span>
         )
       }
       extra={
@@ -366,7 +366,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
                     </div>
                     {/* 假释中仍在建仓，但为什么被盯着要写清，别让人以为它跟正常在跑一样。 */}
                     {gate ? (
-                      <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                      <p className="mt-1 text-[12px] leading-relaxed text-muted">
                         {gate.since} 起 · {gate.reason}
                       </p>
                     ) : null}
@@ -446,7 +446,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
                     header={
                       <>
                         <h3 className="text-xs font-medium">停用 / 已下线（{parked.length}）</h3>
-                        <p className="text-[11px] text-muted">不参与建仓，只留查看；停用原因见「策略管理」</p>
+                        <p className="text-[12px] text-muted">不参与建仓，只留查看；停用原因见「策略管理」</p>
                       </>
                     }
                   >

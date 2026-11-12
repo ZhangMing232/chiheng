@@ -138,13 +138,13 @@ function DebatePage() {
       }}
       ornamentContent={
         data.sides ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             {data.sides
               .map((side) => `${side.label} ${side.status === "ok" ? "已出" : side.status === "refused" ? "拒答" : side.status === "skipped" ? "跳过" : "失败"}`)
               .join(" · ")}
           </span>
         ) : (
-          <span className="text-[11px]">还没有辩论结果</span>
+          <span className="text-[12px]">还没有辩论结果</span>
         )
       }
     >

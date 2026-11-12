@@ -89,7 +89,7 @@ function OverseasPage() {
         // **真实数据**：indices[0] 是当前 tab 关注的那组指数里的第一个。
         // pct 可能为 null（休市/没拿到）——那就只说名字，不编 0%。
         indices && indices.quotes.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             {indices.quotes[0]!.name}
             {/* 用 chg（涨跌幅）不用 price：涨跌幅始终是现价和昨收算的比例，
                 与点位的缩放口径无关（见 overseas-index-batch.ts 的口径纪律）。 */}
@@ -98,7 +98,7 @@ function OverseasPage() {
               : " 涨跌未取到"}
           </span>
         ) : (
-          <span className="text-[11px]">指数快照暂不可用</span>
+          <span className="text-[12px]">指数快照暂不可用</span>
         )
       }
     >
@@ -117,7 +117,7 @@ function OverseasPage() {
               {tab.label}
             </button>
           ))}
-          <span className="ml-2 text-[11px] text-muted">
+          <span className="ml-2 text-[12px] text-muted">
             港股和美股都只做行情查看。涨跌停、换手率闸、ST 这些 A 股特有的东西在美股没有，
             所以这里没有选股也没有策略评分。
           </span>
@@ -158,7 +158,7 @@ function OverseasPage() {
                 placeholder={`在本页里筛（${list?.size ?? 100} 只）`}
                 className="w-44 rounded border border-line bg-transparent px-2 py-1 text-xs text-fg placeholder:text-muted"
               />
-              <span className="text-[11px] text-muted">
+              <span className="text-[12px] text-muted">
                 本页只有 {list?.size ?? 100} 只，筛不出来的就是不在这一页。要找特定的票去「个股查询」搜（联想接口搜全市场）。
               </span>
             </div>
@@ -176,7 +176,7 @@ function OverseasPage() {
                 <button type="button" onClick={() => go({ page: Math.max(1, search.page - 1) })} disabled={search.page <= 1} className="rounded border border-line px-2 py-1 text-xs text-muted disabled:opacity-40">
                   上一页
                 </button>
-                <span className="text-[11px] text-muted">
+                <span className="text-[12px] text-muted">
                   第 {search.page} 页 / 共 {Math.ceil(list.total / list.size)} 页（{search.market === "hk" ? "港股" : "美股"}共 {list.total} 只，含仙股和权证）
                 </span>
                 <button type="button" onClick={() => go({ page: search.page + 1 })} disabled={search.page * list.size >= list.total} className="rounded border border-line px-2 py-1 text-xs text-muted disabled:opacity-40">
@@ -212,7 +212,7 @@ function OverseasPage() {
                   />
                 ))}
               </div>
-              <p className="px-3.5 pb-2 text-[11px] text-muted">
+              <p className="px-3.5 pb-2 text-[12px] text-muted">
                 点位是东财原始值 ÷100 还原的（实测：道指 51670.10、恒生 24282.25 都是真实点位）；涨跌幅用现价和昨收算比例，
                 不受这个缩放影响。东财对指数不给日内走势（K 线返回空），所以这里只有现价和涨跌，想看走势图得另找源。
                 休市时不更新，显示的是昨收。
@@ -252,7 +252,7 @@ function OverseasPage() {
                     <td className={tdClass("text-left text-muted")}>{r.id}</td>
                     <td className={tdClass("text-right " + toneClass(r.chg))}>
                       {fmtPrice(r.price)}
-                      <span className="ml-1 text-[11px] text-muted">{r.currency}</span>
+                      <span className="ml-1 text-[12px] text-muted">{r.currency}</span>
                     </td>
                     <td className={tdClass("text-right " + toneClass(r.chg))}>{r.chg == null ? "—" : `${r.chg >= 0 ? "+" : ""}${r.chg.toFixed(2)}%`}</td>
                     <td className={tdClass("text-left text-muted")}>{r.asOf}</td>
@@ -290,7 +290,7 @@ function MarketTable({ rows, market }: { rows: ReturnType<typeof sortOverseas>; 
             </td>
             <td className={tdClass("text-right " + toneClass(r.chg))}>
               {r.price == null ? "—" : r.price}
-              <span className="ml-1 text-[11px] text-muted">{r.currency}</span>
+              <span className="ml-1 text-[12px] text-muted">{r.currency}</span>
             </td>
             <td className={tdClass("text-right " + toneClass(r.chg))}>{r.chg == null ? "—" : `${r.chg >= 0 ? "+" : ""}${r.chg.toFixed(2)}%`}</td>
             <td className={tdClass("text-right text-muted")}>{r.chgAmt == null ? "—" : r.chgAmt.toFixed(3)}</td>

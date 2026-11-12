@@ -280,7 +280,7 @@ function AIUsagePage() {
             <option value="ok">成功</option>
             <option value="fail">失败</option>
           </select>
-          <span className="ml-auto self-center text-[11px] text-muted tabular-nums">共 {filtered.length} 条</span>
+          <span className="ml-auto self-center text-[12px] text-muted tabular-nums">共 {filtered.length} 条</span>
         </div>
         <div className="px-3.5 py-3">
           {pageRows.length > 0 ? (
@@ -300,29 +300,29 @@ function AIUsagePage() {
               <tbody>
                 {pageRows.map((e, i) => (
                   <tr key={`${e.at}-${i}`} className="border-b border-line last:border-b-0">
-                    <td data-l="时间" className="px-2.5 py-1.5 whitespace-nowrap text-[11px] text-muted">
+                    <td data-l="时间" className="px-2.5 py-1.5 whitespace-nowrap text-[12px] text-muted">
                       {e.at.slice(5, 16).replace("T", " ")}
                     </td>
-                    <td data-l="链路" className="px-2.5 py-1.5 text-[11px] text-muted">
+                    <td data-l="链路" className="px-2.5 py-1.5 text-[12px] text-muted">
                       {layerName(e.layer)}
                       {e.trigger === "auto" ? "·自动" : ""}
                     </td>
-                    <td data-l="模型" className="max-w-[16ch] truncate px-2.5 py-1.5 font-mono text-[11px] text-muted" title={e.model}>
+                    <td data-l="模型" className="max-w-[16ch] truncate px-2.5 py-1.5 font-mono text-[12px] text-muted" title={e.model}>
                       {e.model}
                     </td>
-                    <td data-l="输入" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums">
+                    <td data-l="输入" className="px-2.5 py-1.5 text-right text-[12px] tabular-nums">
                       {e.promptTokens.toLocaleString()}
                     </td>
-                    <td data-l="输出" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums">
+                    <td data-l="输出" className="px-2.5 py-1.5 text-right text-[12px] tabular-nums">
                       {e.completionTokens.toLocaleString()}
                     </td>
-                    <td data-l="费用" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums">
+                    <td data-l="费用" className="px-2.5 py-1.5 text-right text-[12px] tabular-nums">
                       {e.cost > 0 ? fmtC(e.cost) : "—"}
                     </td>
-                    <td data-l="耗时" className="px-2.5 py-1.5 text-right text-[11px] tabular-nums text-muted">
+                    <td data-l="耗时" className="px-2.5 py-1.5 text-right text-[12px] tabular-nums text-muted">
                       {(e.ms / 1000).toFixed(1)}s
                     </td>
-                    <td data-l="结果" className={`px-2.5 py-1.5 text-[11px] ${e.ok ? "text-up" : "text-down"}`} title={e.error}>
+                    <td data-l="结果" className={`px-2.5 py-1.5 text-[12px] ${e.ok ? "text-up" : "text-down"}`} title={e.error}>
                       {e.ok ? "成功" : e.error ? `失败：${e.error.length > 36 ? `${e.error.slice(0, 36)}…` : e.error}` : "失败"}
                     </td>
                   </tr>
@@ -345,7 +345,7 @@ function AIUsagePage() {
               </button>
             </div>
           ) : null}
-          <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+          <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
             已计价 = 调用时档案里的单价快照 × 实际 tokens，历史账永不改口径；估算 = 没快照的历史账按现行参考价补算，仅供参考。
             DeepSeek 高峰时段（北京时间工作日 09:00-12:00、14:00-18:00）实付为估算的 2 倍，命中缓存会更便宜——表按保守口径计。
           </p>

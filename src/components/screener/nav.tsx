@@ -304,7 +304,7 @@ function SideNav() {
         {narrow ? null : (
           <span className="leading-tight">
             <span className="block text-[15px] font-bold tracking-wide text-fg">赤轨</span>
-            <span className="block text-[11px] text-muted">策略实验台</span>
+            <span className="block text-[12px] text-muted">策略实验台</span>
           </span>
         )}
       </Link>
@@ -376,7 +376,7 @@ function SideNav() {
         aria-label={narrow ? "展开侧栏" : "收起侧栏"}
         title={narrow ? "展开侧栏" : "收起侧栏"}
         className={
-          "border-t border-sidebar-line py-2 text-[11px] text-muted transition hover:text-fg " +
+          "border-t border-sidebar-line py-2 text-[12px] text-muted transition hover:text-fg " +
           (narrow ? "text-center" : "px-4 text-left")
         }
       >
@@ -506,7 +506,7 @@ function StatusBar() {
       role="contentinfo"
       aria-label="系统状态条"
     >
-      <div className="flex h-8 items-center gap-5 px-4 text-[11px] text-muted">
+      <div className="flex h-8 items-center gap-5 px-4 text-[12px] text-muted">
         <span className="flex items-center gap-1.5">
           <span className={"h-1.5 w-1.5 rounded-full " + s.dotClass + " " + dotGlow(s.dotClass)} aria-hidden />
           系统状态
@@ -1246,7 +1246,7 @@ function AlertBell() {
               <PushConfig />
               {/* 邮件配置和微信推送放一起：用户本来就在通知抽屉里找配置，不用再跳 /settings */}
               <details className="mt-2 border-t border-line/60 pt-2">
-                <summary className="cursor-pointer text-[11px] text-muted hover:text-fg">
+                <summary className="cursor-pointer text-[12px] text-muted hover:text-fg">
                   每日复盘日报 · {mailChannelLabel}
                 </summary>
                 <div className="mt-2">

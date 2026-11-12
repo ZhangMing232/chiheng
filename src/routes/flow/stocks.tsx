@@ -34,17 +34,17 @@ function FlowStocksPage() {
         // **真实数据**：净流入榜第一名。流入榜空就看流出榜——
         // 不拿空榜凑一句话，也不显示「0」冒充有数据。
         book == null ? (
-          <span className="text-[11px]">资金榜没拉到</span>
+          <span className="text-[12px]">资金榜没拉到</span>
         ) : book.stocksIn.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             流入第一 {book.stocksIn[0]!.name} {flowAmount(book.stocksIn[0]!.inflow)}
           </span>
         ) : book.stocksOut.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             流出第一 {book.stocksOut[0]!.name} {flowAmount(book.stocksOut[0]!.inflow)}
           </span>
         ) : (
-          <span className="text-[11px]">今天没有个股资金榜</span>
+          <span className="text-[12px]">今天没有个股资金榜</span>
         )
       }
     >

@@ -78,7 +78,7 @@ function HotMoneyPage() {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {s.stocks.slice(0, 6).map((st) => (
-                            <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[11px] hover:underline ${toneClass(st.netWan)}`}>
+                            <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[12px] hover:underline ${toneClass(st.netWan)}`}>
                               {st.name} {st.netWan > 0 ? "净买" : "净卖"}{fmtWan(Math.abs(st.netWan))}
                             </button>
                           ))}
@@ -104,7 +104,7 @@ function HotMoneyPage() {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {s.stocks.slice(0, 6).map((st) => (
-                            <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[11px] hover:underline ${toneClass(st.netWan)}`}>
+                            <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[12px] hover:underline ${toneClass(st.netWan)}`}>
                               {st.name} {st.netWan > 0 ? "净买" : "净卖"}{fmtWan(Math.abs(st.netWan))}
                             </button>
                           ))}
@@ -116,7 +116,7 @@ function HotMoneyPage() {
               </div>
             </div>
           )}
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             席位≠游资本人：营业部是席位、名号是市场惯称，同一席位可能有多个资金方。净买入/卖出是事实，不构成买卖建议。分级：顶级（章盟主/赵老哥/方新侠/炒股养家/孙哥）＞一线（桑田路/荣超/拉萨天团/机构）＞知名（其余）。
           </div>
         </Panel>

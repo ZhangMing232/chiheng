@@ -129,7 +129,7 @@ export function DecorHeader({
         {pill ? (
           <span
             className={
-              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] " +
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] " +
               toneClass(pill.tone)
             }
           >
@@ -178,9 +178,9 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <ArrowUpRight className="size-3.5 text-up" />
-          <span className="text-[11px]">流入</span>
+          <span className="text-[12px]">流入</span>
           <ArrowDownRight className="size-3.5 text-down" />
-          <span className="text-[11px]">流出</span>
+          <span className="text-[12px]">流出</span>
           <ChevronRight className="size-3" />
           {children}
         </span>
@@ -189,7 +189,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <GitBranch className="size-3.5" />
-          <span className="text-[11px]">六关判决</span>
+          <span className="text-[12px]">六关判决</span>
           {children}
         </span>
       );
@@ -197,7 +197,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <Sparkles className="size-3.5" />
-          <span className="text-[11px]">证据链</span>
+          <span className="text-[12px]">证据链</span>
           {children}
         </span>
       );
@@ -205,7 +205,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <Scale className="size-3.5" />
-          <span className="text-[11px]">多空对照</span>
+          <span className="text-[12px]">多空对照</span>
           {children}
         </span>
       );
@@ -213,7 +213,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <Zap className="size-3.5" />
-          <span className="text-[11px]">连板梯队</span>
+          <span className="text-[12px]">连板梯队</span>
           {children}
         </span>
       );
@@ -221,7 +221,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <Circle className="size-3.5" />
-          <span className="text-[11px]">风格预览</span>
+          <span className="text-[12px]">风格预览</span>
           {children}
         </span>
       );
@@ -229,7 +229,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <ArrowUpRight className="size-3.5" />
-          <span className="text-[11px]">走势</span>
+          <span className="text-[12px]">走势</span>
           {children}
         </span>
       );
@@ -237,7 +237,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <CheckCircle2 className="size-3.5" />
-          <span className="text-[11px]">实时</span>
+          <span className="text-[12px]">实时</span>
           {children}
         </span>
       );
@@ -245,7 +245,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <Zap className="size-3.5" />
-          <span className="text-[11px]">今天节奏</span>
+          <span className="text-[12px]">今天节奏</span>
           {children}
         </span>
       );
@@ -253,7 +253,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <Trophy className="size-3.5" />
-          <span className="text-[11px]">谁在领跑</span>
+          <span className="text-[12px]">谁在领跑</span>
           {children}
         </span>
       );
@@ -261,7 +261,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <Circle className="size-3.5" />
-          <span className="text-[11px]">此刻</span>
+          <span className="text-[12px]">此刻</span>
           {children}
         </span>
       );
@@ -269,7 +269,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <BellRing className="size-3.5" />
-          <span className="text-[11px]">时间线</span>
+          <span className="text-[12px]">时间线</span>
           {children}
         </span>
       );
@@ -277,7 +277,7 @@ function OrnamentBody({ kind, children }: { kind: OrnamentKind; children?: React
       return (
         <span className="flex items-center gap-1.5 text-muted">
           <GitBranch className="size-3.5" />
-          <span className="text-[11px]">档位</span>
+          <span className="text-[12px]">档位</span>
           {children}
         </span>
       );

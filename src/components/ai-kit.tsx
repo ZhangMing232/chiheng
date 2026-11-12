@@ -64,7 +64,7 @@ export function AiStat({
       <div className="min-w-0 flex-1">
         <div className="text-xs text-muted">{label}</div>
         <div className="mt-0.5 text-xl font-semibold tabular-nums text-fg">{value}</div>
-        {sub ? <div className="mt-0.5 truncate text-[11px] text-muted">{sub}</div> : null}
+        {sub ? <div className="mt-0.5 truncate text-[12px] text-muted">{sub}</div> : null}
       </div>
       {bars ? <MiniBars values={bars} className="mt-1 shrink-0" /> : null}
     </div>
@@ -209,7 +209,7 @@ export function StackedArea({
           ) : null,
         )}
       </svg>
-      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted">
         {series.map((s, i) => (
           <span key={s.name} className="flex items-center gap-1.5">
             <i aria-hidden className="inline-block size-2 rounded-full" style={{ background: areaColors[i % 3] }} />

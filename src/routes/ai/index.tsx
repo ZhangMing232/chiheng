@@ -260,7 +260,7 @@ function AIConsolePage() {
                 <span
                   key={c.label}
                   title={c.detail}
-                  className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+                  className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] ${
                     c.ok ? "border-ai-line text-ai" : "border-warn/50 text-warn"
                   }`}
                 >
@@ -274,12 +274,12 @@ function AIConsolePage() {
             <div className="text-center">
               <div className="text-xs text-muted">今日提议</div>
               <div className="text-3xl font-semibold tabular-nums text-ai">{todayProposed}</div>
-              <div className="text-[11px] text-muted">累计 {totalProposed}</div>
+              <div className="text-[12px] text-muted">累计 {totalProposed}</div>
             </div>
             <div className="text-center">
               <div className="text-xs text-muted">待我确认</div>
               <div className={`text-3xl font-semibold tabular-nums ${pending > 0 ? "text-warn" : "text-fg"}`}>{pending}</div>
-              <div className="text-[11px] text-muted">核心阈值变更</div>
+              <div className="text-[12px] text-muted">核心阈值变更</div>
             </div>
           </div>
         </div>
@@ -324,7 +324,7 @@ function AIConsolePage() {
       >
         <div className="px-3.5 py-3">
           <Pipeline stages={stages} />
-          <p className="mt-2 text-[11px] text-muted">
+          <p className="mt-2 text-[12px] text-muted">
             {pending > 0
               ? `进化卡在第 5 步：${pending} 条核心阈值变更等你批准（见下方「待确认规则变更」）。`
               : `已完成 ${doneCount}/6 个阶段。`}
@@ -341,7 +341,7 @@ function AIConsolePage() {
                 <li key={`${p.at}-${p.name}-${i}`} className="flex items-center gap-2.5 px-3.5 py-2">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium text-fg">{p.name}</span>
-                    <span className="text-[11px] text-muted">{p.at.slice(5, 16).replace("T", " ")}</span>
+                    <span className="text-[12px] text-muted">{p.at.slice(5, 16).replace("T", " ")}</span>
                   </span>
                   <Tag tone={p.layer === "factor" ? "brand" : "muted"}>{layerName(p.layer)}</Tag>
                 </li>
@@ -386,30 +386,30 @@ function AIConsolePage() {
               <tbody>
                 {[...d.log].reverse().slice(0, 20).map((e, i) => (
                   <tr key={`${e.at}-${i}`} className="border-b border-line last:border-b-0">
-                    <td data-l="时间" className="px-2.5 py-1.5 whitespace-nowrap text-[11px] text-muted">
+                    <td data-l="时间" className="px-2.5 py-1.5 whitespace-nowrap text-[12px] text-muted">
                       {e.at.slice(0, 16).replace("T", " ")}
                     </td>
                     <td data-l="层" className="px-2.5 py-1.5">
                       <Tag tone={e.ok ? "muted" : "warn"}>{layerName(e.layer)}</Tag>
                     </td>
-                    <td data-l="触发" className="px-2.5 py-1.5 text-[11px] text-muted">
+                    <td data-l="触发" className="px-2.5 py-1.5 text-[12px] text-muted">
                       {e.trigger === "auto" ? "自动" : "手动"}
                     </td>
-                    <td data-l="结果" className={`px-2.5 py-1.5 text-[11px] ${e.ok ? "text-up" : "text-down"}`}>
+                    <td data-l="结果" className={`px-2.5 py-1.5 text-[12px] ${e.ok ? "text-up" : "text-down"}`}>
                       {e.ok ? `进 ${e.proposed.length}` : "失败"}
                     </td>
-                    <td data-l="提议" className="max-w-[28ch] px-2.5 py-1.5 text-[11px] text-muted">
+                    <td data-l="提议" className="max-w-[28ch] px-2.5 py-1.5 text-[12px] text-muted">
                       {e.proposed.length > 0 ? e.proposed.map((p) => p.name).join("、") : "—"}
                     </td>
-                    <td data-l="被拒" className="max-w-[32ch] px-2.5 py-1.5 text-[11px] text-muted">
+                    <td data-l="被拒" className="max-w-[32ch] px-2.5 py-1.5 text-[12px] text-muted">
                       {e.error ?? (e.rejected.length > 0 ? e.rejected.slice(0, 2).join("；") : "—")}
                     </td>
                     {e.note ? (
-                      <td data-l="备注" className="max-w-[36ch] truncate px-2.5 py-1.5 text-[11px] text-warn" title={e.note}>
+                      <td data-l="备注" className="max-w-[36ch] truncate px-2.5 py-1.5 text-[12px] text-warn" title={e.note}>
                         {e.note}
                       </td>
                     ) : (
-                      <td data-l="备注" className="px-2.5 py-1.5 text-[11px] text-muted">—</td>
+                      <td data-l="备注" className="px-2.5 py-1.5 text-[12px] text-muted">—</td>
                     )}
                   </tr>
                 ))}
@@ -452,7 +452,7 @@ function AIConsolePage() {
                         type="button"
                         disabled={ruleBusy === p.id}
                         onClick={() => void decideRule(p.id, "apply")}
-                        className="rounded-full border border-line bg-brand px-2.5 py-1 text-[11px] text-white disabled:opacity-40"
+                        className="rounded-full border border-line bg-brand px-2.5 py-1 text-[12px] text-white disabled:opacity-40"
                       >
                         批准
                       </button>
@@ -460,7 +460,7 @@ function AIConsolePage() {
                         type="button"
                         disabled={ruleBusy === p.id}
                         onClick={() => void decideRule(p.id, "reject")}
-                        className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] text-muted disabled:opacity-40"
+                        className="rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] text-muted disabled:opacity-40"
                       >
                         驳回
                       </button>
@@ -472,8 +472,8 @@ function AIConsolePage() {
 
           {d.rules.log.length > 0 ? (
             <div className="mt-3 border-t border-line pt-2">
-              <p className="mb-1 text-[11px] font-medium text-muted">最近规则变更审计</p>
-              <ul className="flex flex-col gap-0.5 text-[11px] text-muted">
+              <p className="mb-1 text-[12px] font-medium text-muted">最近规则变更审计</p>
+              <ul className="flex flex-col gap-0.5 text-[12px] text-muted">
                 {d.rules.log.slice(0, 8).map((a, i) => (
                   <li key={`${a.at}-${a.key}-${i}`} className="tabular-nums">
                     {a.at.slice(0, 16).replace("T", " ")} · {a.mode === "auto" ? "自动" : a.mode === "approved" ? "人工批准" : "驳回"} · {a.key} {a.from}→{a.to}
@@ -494,7 +494,7 @@ function AIConsolePage() {
         <div className="px-3.5 py-3">
           {d.diagnosis ? (
             <div className="space-y-2.5 text-xs leading-relaxed">
-              <p className="text-[11px] text-muted">诊断时间：{d.diagnosis.at.slice(0, 16).replace("T", " ")}</p>
+              <p className="text-[12px] text-muted">诊断时间：{d.diagnosis.at.slice(0, 16).replace("T", " ")}</p>
               <div>
                 <p className="mb-0.5 font-medium text-up">总评</p>
                 <p>{d.diagnosis.summary || "—"}</p>
@@ -539,7 +539,7 @@ function AIConsolePage() {
                     </p>
                   </div>
                 ) : (
-                  <p className="text-[11px] text-muted">数字核验通过：报告引用的数字全部能在本轮账本快照里找到出处。</p>
+                  <p className="text-[12px] text-muted">数字核验通过：报告引用的数字全部能在本轮账本快照里找到出处。</p>
                 )
               ) : null}
             </div>
@@ -571,13 +571,13 @@ function AIConsolePage() {
                 <p className="mb-2 text-xs text-muted">Vibe-Trading 的 MCP server（stdio 子进程随用随起），检测于 {d.vt.checkedAt.slice(11, 19)}。</p>
                 <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
                   {d.vt.tools.slice(0, 24).map((t: { name: string; description?: string }) => (
-                    <p key={t.name} className="truncate text-[11px] text-muted" title={t.description}>
+                    <p key={t.name} className="truncate text-[12px] text-muted" title={t.description}>
                       <span className="font-mono text-foreground">{t.name}</span>
                       {t.description ? ` — ${t.description.slice(0, 40)}` : ""}
                     </p>
                   ))}
                 </div>
-                {d.vt.toolCount > 24 ? <p className="mt-1 text-[11px] text-muted">… 共 {d.vt.toolCount} 个，其余略</p> : null}
+                {d.vt.toolCount > 24 ? <p className="mt-1 text-[12px] text-muted">… 共 {d.vt.toolCount} 个，其余略</p> : null}
               </div>
             ) : (
               <StateBlock kind="empty" title="VT 工具离线" hint={`${d.vt.error ?? "未知原因"}。venv 路径可用 CHIHENG_VT_MCP_HOME 环境变量改。`} />
@@ -590,7 +590,7 @@ function AIConsolePage() {
         </div>
       )}
 
-      <p className="mt-3 px-1 text-[11px] leading-relaxed text-warn">
+      <p className="mt-3 px-1 text-[12px] leading-relaxed text-warn">
         AI 提议 ≠ 生效：因子要过 6 关，挑战者要过 30 笔 Welch 判决；两个判决函数都预先登记在代码里，AI 无权修改。
       </p>
     </Frame>

@@ -291,14 +291,14 @@ function ChallengerPanel({
               PBO {Math.round(rb.pbo * 100)}%
             </span>
           ) : null}
-          {c.note ? <span className="w-full text-[11px] text-muted">{c.note}</span> : null}
+          {c.note ? <span className="w-full text-[12px] text-muted">{c.note}</span> : null}
         </div>
         {/* 挑战者进化进度条：用真实样本数 / 目标数，和上面「样本 n/target」同一口径。
             没攒到样本的挑战者不画条（样本本身就是空，画 0 条是假进度）。 */}
         {sample ? (
           <div className="mt-1.5 flex items-center gap-2">
             <Prog value={sample.n / sample.target} />
-            <span className="num shrink-0 text-[11px] text-muted">样本 {sample.n}/{sample.target} · 冠军 {sample.champN}/{sample.target}</span>
+            <span className="num shrink-0 text-[12px] text-muted">样本 {sample.n}/{sample.target} · 冠军 {sample.champN}/{sample.target}</span>
           </div>
         ) : null}
       </li>
@@ -324,7 +324,7 @@ function ChallengerPanel({
           header={
             <>
               <h2 className="text-xs font-medium">已出结果（不再在跑）</h2>
-              <p className="text-[11px] text-muted">{dead.length} 个 · 淘汰或停跑，记录保留</p>
+              <p className="text-[12px] text-muted">{dead.length} 个 · 淘汰或停跑，记录保留</p>
             </>
           }
         >
@@ -482,7 +482,7 @@ function HealthPanel({
           </li>
         ))}
       </ul>
-      <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
+      <p className="mt-2 border-t border-line pt-2 text-[12px] leading-relaxed text-muted">
         占比用的是名义金额：这套模拟盘不记仓位大小，每笔按一手（100 股）折算，不是投入的钱。
         「连亏」按开仓日算，不是日历日。规则只摆事实，不给买卖建议。
       </p>
@@ -967,7 +967,7 @@ function Positions() {
                 header={
                   <>
                     <h2 className="text-xs font-medium">已下线策略的历史归因</h2>
-                    <p className="text-[11px] text-muted">{retiredAttr.length} 套 · 不再开新仓，战绩保留备查</p>
+                    <p className="text-[12px] text-muted">{retiredAttr.length} 套 · 不再开新仓，战绩保留备查</p>
                   </>
                 }
               >
@@ -1014,7 +1014,7 @@ function Positions() {
                     <td data-l="策略" className={`sticky left-0 bg-surface px-2.5 py-1.5 text-left${row.kind === "variant" || row.kind === "retired" ? "" : " font-medium"}`}>
                       {row.kind === "variant" ? `▸ ${row.name}` : row.name}
                       {row.kind === "retired" ? <Tag tone="muted">已淘汰</Tag> : null}
-                      {row.note ? <span className="ml-1.5 text-[11px] text-muted">（{row.note}）</span> : null}
+                      {row.note ? <span className="ml-1.5 text-[12px] text-muted">（{row.note}）</span> : null}
                     </td>
                     <td data-l="样本" className={tdClass("tabular-nums")}>{row.count ? `${row.count} 笔` : "—"}</td>
                     <td data-l="超额" className={tdClass(row.alpha == null ? "" : pctClass(row.alpha))}>
@@ -1056,12 +1056,12 @@ function Positions() {
         // **真实数据**：在跑的挑战者数量 + 它们挑战哪套策略。
         // 没挑战者就是"现在没有在跑的挑战"——不是"0 场对决"。
         runningChals.length > 0 ? (
-          <span className="text-[11px] tabular-nums">
+          <span className="text-[12px] tabular-nums">
             {runningChals.length} 个挑战者在跑 ·{" "}
             {[...new Set(runningChals.map((c) => c.style))].join(" / ")}
           </span>
         ) : (
-          <span className="text-[11px]">现在没有在跑的挑战者</span>
+          <span className="text-[12px]">现在没有在跑的挑战者</span>
         )
       }
       aside={

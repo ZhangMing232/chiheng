@@ -114,7 +114,7 @@ function ArenaStrategies() {
                   {s.stopPct != null && <span>止损 -{s.stopPct}%</span>}
                   {s.targetPct != null && <span>止盈 +{s.targetPct}%</span>}
                   <span>{s.createdAt}</span>
-                  {s.note && <span className="w-full text-[11px] opacity-70">📝 {s.note}</span>}
+                  {s.note && <span className="w-full text-[12px] opacity-70">📝 {s.note}</span>}
                 </div>
               </div>
             ))}
