@@ -385,7 +385,7 @@ function finishSettle(p: Period, outcomes: Outcome[], all: Map<string, Bar[]>): 
   };
 }
 
-function logToday() {
+async function logToday() {
   const poolFile = "data/signals/limit-pools-today.json";
   if (!existsSync(poolFile)) {
     console.log("[forecast] 今天的涨停池还没采，先不落档。");
@@ -427,6 +427,42 @@ function logToday() {
   writeFileSync(target, JSON.stringify(period, null, 2));
   console.log(`[forecast] ${pool.date} 落档 ${picks.length} 只（lockedAt ${period.lockedAt}）`);
   for (const p of picks) console.log(`   ${p.name} ${p.code} · ${p.rule} · ${p.basis.streak}板 · 封单 ${(p.basis.volRatio / 1e8).toFixed(2)}亿`);
+  await pushTomorrow(picks, pool.date);
+}
+
+/**
+ * 落档之后立刻推一条「明天开盘买这 3 只」——这才是「提前收到买入通知」：
+ * 收盘后盘面定了才挑得出来，盘中推就是拍脑袋。
+ *
+ * 通知里必须写死两件事，否则等于骗人去接一字板：
+ *   ① 开盘就在涨停价、当天没低过涨停价 = 一字板，挂单排不进 → 放弃，不要追
+ *   ② 这套规则 60 天里 8.3% 的笔数根本买不进，命中 49.1% 对基准 46.0%
+ * 用 --no-push 可以只打印不推送（排障用）。
+ */
+async function pushTomorrow(picks: Pick[], day: string) {
+  const lines: string[] = [];
+  lines.push(`选股日 ${day} 收盘 · 下一个交易日开盘买入、当日收盘结算`);
+  lines.push("──────────────────");
+  for (const p of picks) {
+    lines.push(`${p.rule}｜${p.name} ${p.code}｜选股价 ${p.basis.close}｜${p.basis.streak}板`);
+  }
+  lines.push("──────────────────");
+  lines.push("怎么买：开盘价买。开盘就在涨停价、且当天没低过涨停价＝一字板，挂单排不进，直接放弃，不要追。");
+  lines.push("怎么卖：当日收盘卖（这套是隔日口径，不留过夜）。");
+  lines.push("诚实提示：60 天 180 笔里 15 笔（8.3%）买不进；方向命中 49.1%，全市场基准 46.0%；追买 87.9% 跑输基准 94.4%。买不到的最强，能买到的更弱。");
+  const body = lines.join("\n");
+  if (process.argv.includes("--no-push")) {
+    console.log("[forecast] --no-push，只打印不推送：");
+    console.log(body);
+    return;
+  }
+  try {
+    const { sendPushPlus } = await import("../src/lib/market/push.ts");
+    const sent = await sendPushPlus(`📌 明日买入单 · 选股日 ${day}`, body, "txt");
+    console.log(sent ? "明日买入单已推送微信" : "明日买入单没推出去（没配 token 或被接口拒绝）");
+  } catch (e) {
+    console.log(`明日买入单推送失败: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 function backtest(all: Map<string, Bar[]>) {
@@ -531,7 +567,7 @@ async function main() {
   if (mode === "--backtest") {
     backtest(all);
   } else {
-    logToday();
+    await logToday();
     await verify(all);
   }
 }
