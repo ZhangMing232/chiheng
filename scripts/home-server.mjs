@@ -453,6 +453,28 @@ function runAfterSnapshot() {
 // scripts/push-decision.ts 留着，手动补发/排障时用：
 //   node --experimental-strip-types --import ./scripts/alias.mjs scripts/push-decision.ts --push
 
+// ── 早上「今天买这 3 只」推送：9:20–9:30 发（昨晚落档的清单）──
+// 用户 2026-11-12 定：只要早上这条，收盘后不推。晚上收到容易被刷掉，
+// 早上看的时候正好要下单。过了 9:30 就不发了——发出来也来不及下单。
+let forecastMorningDay = "";
+function runForecastMorning() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (forecastMorningDay === day) return;
+  if (!isMarketOpen(day)) return;
+  const now = new Date();
+  const hm = now.getHours() * 60 + now.getMinutes();
+  if (hm < 9 * 60 + 20 || hm > 9 * 60 + 30) return;
+  forecastMorningDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/forecast.ts", "--push-morning"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("早上买入单没推出去，/huiyan 上还能看");
+  });
+}
+
 // ── 前瞻回验「买入日实况」：9:35–15:05 每 10 分钟抓一次 ──
 // 落档文件不动（落档之后不许改）。这里只写 data/history/forecast/live/<落档日>.json：
 // 今天的开盘买入价（开盘开出就不再变）+ 盘中现价，/huiyan 据此显示「今日已开盘买入」。
@@ -684,6 +706,7 @@ runSeatsArchive();
 runMarketIntel();
 runThemeRotation();
 runForecastLive();
+runForecastMorning();
 runStrategyVerdict();
 runSignalGen();
 runSignalReview();
@@ -705,6 +728,7 @@ const hotmoneyTimer = setInterval(runHotmoneyFetch, 60_000);
 const marketIntelTimer = setInterval(runMarketIntel, 60_000);
 const rotationTimer = setInterval(runThemeRotation, 60_000);
 const forecastLiveTimer = setInterval(runForecastLive, 60_000);
+const forecastMorningTimer = setInterval(runForecastMorning, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);

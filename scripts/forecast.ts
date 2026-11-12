@@ -427,7 +427,7 @@ async function logToday() {
   writeFileSync(target, JSON.stringify(period, null, 2));
   console.log(`[forecast] ${pool.date} 落档 ${picks.length} 只（lockedAt ${period.lockedAt}）`);
   for (const p of picks) console.log(`   ${p.name} ${p.code} · ${p.rule} · ${p.basis.streak}板 · 封单 ${(p.basis.volRatio / 1e8).toFixed(2)}亿`);
-  await pushTomorrow(picks, pool.date);
+  if (process.argv.includes("--push-on-lock")) await pushTomorrow(picks, pool.date);
 }
 
 /**
@@ -561,10 +561,55 @@ async function verify(all: Map<string, Bar[]>) {
   console.log(`[forecast] 回验 ${settled} 期 · 待结算 ${pending} 期`);
 }
 
+/**
+ * 早上那条推送：开盘前把「今天要买哪 3 只」发出去。
+ *
+ * 为什么放早上而不是收盘后（用户 2026-11-12 定）：晚上收到容易被刷掉，
+ * 早上看的时候正好要下单。消息内容一样，只把「下一个交易日」改成「今天」。
+ */
+async function pushMorning() {
+  const files = readdirSync(OUT).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+  const latest = files.at(-1);
+  if (!latest) {
+    console.log("[forecast] 还没有落档，早上没东西可推");
+    return;
+  }
+  const p = JSON.parse(readFileSync(join(OUT, latest), "utf8")) as Period;
+  const today = new Date().toLocaleDateString("sv-SE");
+  if (p.date >= today) {
+    console.log(`[forecast] 最新落档就是今天（${p.date}），早上不用推昨天的`);
+    return;
+  }
+  const lines: string[] = [];
+  lines.push(`选股日 ${p.date} 收盘 · 今天开盘买入、今天收盘结算`);
+  lines.push("──────────────────");
+  for (const k of p.picks) {
+    lines.push(`${k.rule}｜${k.name} ${k.code}｜选股价 ${k.basis.close}｜${k.basis.streak}板`);
+  }
+  lines.push("──────────────────");
+  lines.push("怎么买：9:30 开盘价买。开盘就在涨停价、且今天没低过涨停价＝一字板，挂单排不进，放弃别追。");
+  lines.push("怎么卖：今天收盘卖（这套是隔日口径，不留过夜）。");
+  lines.push("诚实提示：60 天 180 笔里 15 笔（8.3%）买不进；方向命中 49.1%，全市场基准 46.0%；追买 87.9% 跑输基准 94.4%。买不到的最强，能买到的更弱。");
+  const body = lines.join("\n");
+  if (process.argv.includes("--no-push")) {
+    console.log(body);
+    return;
+  }
+  try {
+    const { sendPushPlus } = await import("../src/lib/market/push.ts");
+    const sent = await sendPushPlus("📌 今天开盘买入 · 3 只", body, "txt");
+    console.log(sent ? "早上买入单已推送微信" : "早上买入单没推出去（没配 token 或被接口拒绝）");
+  } catch (e) {
+    console.log(`早上买入单推送失败: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 async function main() {
   const all = loadAllKlines();
   const mode = process.argv[2] ?? "--log";
-  if (mode === "--backtest") {
+  if (mode === "--push-morning") {
+    await pushMorning();
+  } else if (mode === "--backtest") {
     backtest(all);
   } else {
     await logToday();
