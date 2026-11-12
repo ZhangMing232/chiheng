@@ -27,6 +27,7 @@ import type { FlowBook } from "@/lib/market/flow";
 import type { NewsItem } from "@/lib/market/news";
 import { BarChart3, Coins, Flame, LineChart, TrendingUp } from "lucide-react";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 /** 万元 → 亿/万，带符号（净流出是负的）。装饰件只显示真实的数。 */
 function fmtYi(wan: number): string {
@@ -126,6 +127,15 @@ function OverviewPage() {
     >
       <SectionTabs ariaLabel="复盘" tabs={REVIEW_TABS} />
       <PixelHeader label="REVIEW // BREADTH" meta="涨跌分布 · 广度回答的是『多数票在涨还是多数在跌』" />
+      <PixelSummary
+        label="BREADTH // NOW"
+        note={breadth ? `样本 ${breadth.total} 只` : "没数据"}
+        stats={[
+          { label: "上涨", value: breadth?.up ?? null, tone: "up", hero: true, hint: breadth ? `${upPct.toFixed(1)}%` : undefined },
+          { label: "下跌", value: breadth?.down ?? null, tone: "down", hint: breadth ? `${downPct.toFixed(1)}%` : undefined },
+          { label: "平盘", value: breadth?.flat ?? null, tone: "muted" },
+        ]}
+      />
       <h1 className="font-display text-xl font-medium tracking-wide">市场总览</h1>
       <p className="-mt-1 max-w-[70ch] text-sm leading-relaxed text-muted">{marketLine}</p>
 

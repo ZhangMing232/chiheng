@@ -25,6 +25,7 @@ import { getSignals } from "@/lib/market/limit-up.functions";
 import { type LimitUpRow } from "@/lib/market/limit-up";
 import { toneClass } from "@/lib/market/format";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/review/signals")({
   // date 缺的时候**不写这个键**：写了空串，TanStack 会认为 URL 和归一化后的
@@ -61,10 +62,23 @@ function SignalsPage() {
   }
 
   const { summary } = data;
+  const summaryBlock = summary ? (
+    <PixelSummary
+      label="SIGNALS // NOW"
+      note={`盘中口径 ${summary.breakRate == null ? "" : "已收盘"}`.trim()}
+      stats={[
+        { label: "涨停", value: summary.limitUp, tone: "up", hero: true, hint: "只" },
+        { label: "炸板", value: summary.broken, tone: "warn", hint: "涨停后开板" },
+        { label: "跌停", value: summary.limitDown, tone: "down", hint: "只" },
+        { label: "炸板率", value: summary.breakRate == null ? null : `${(summary.breakRate * 100).toFixed(1)}%`, hint: "炸 ÷ 曾涨停" },
+      ]}
+    />
+  ) : null;
 
   return (
     <Frame wide aside="信号">
       {tabs}
+      {summaryBlock}
       <Panel title="今日信号" note={`${data.date}${data.sealed ? " · 已收盘，数据已定" : " · 盘中，数据未定"}`}>
         {!data.sealed ? (
           <p className="border-b border-line px-3.5 py-2 text-[12px] text-muted">
