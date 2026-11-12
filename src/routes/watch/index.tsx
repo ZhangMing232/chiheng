@@ -201,6 +201,16 @@ function WatchTodayPage() {
     >
       <SectionTabs ariaLabel="盯盘" tabs={WATCH_TABS} />
 
+      {/* 像素终端标题块：盯盘是第二大页，给它和 /today 同一套语言 */}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <span className="px-slash">WATCH // LADDER</span>
+        <span className="h-px flex-1 bg-line" />
+        <span className="px-num text-[12px] text-muted">
+          {isToday ? "盘中每 3 分钟采一次 · 收盘定格才算数" : `${date} 收盘归档 · 不会再变`}
+        </span>
+      </div>
+      <div className="px-hazard mt-2" aria-hidden="true" />
+
       {/* 日期条：今天实时 / 选历史交易日回看。days 来自归档目录，不是写死的清单。 */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded border border-line bg-surface px-3 py-2 text-xs">
         <label htmlFor="watch-date" className="text-muted">看哪天</label>
