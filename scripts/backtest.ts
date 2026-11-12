@@ -2154,7 +2154,7 @@ async function main() {
   function runPass(stopPct?: number, fee: number = roundTripFee()): Record<string, Trade[]> {
   const results: Record<string, Trade[]> = {};
   for (const key of Object.keys(STRATEGIES)) results[key] = [];
-  const stats = { gap: 0, belowStop: 0, atClose: 0 };
+  const stats = { gap: 0, belowStop: 0, atClose: 0, missed: 0, missByStyle: {} as Record<string, number> };
 
   // 样本外验证：把区间劈成前后两段分别跑，看参数是不是只在这段数据上好看
   const half = process.env.BT_HALF;
@@ -2271,7 +2271,13 @@ async function main() {
           // fillMode c：当天价格确实在 buy 这个价位成交过（盘中穿越）
           if (bar.l <= pick.sig.buy && bar.h >= pick.sig.buy) entry = pick.sig.buy;
         }
-        if (entry == null) continue;
+        if (entry == null) {
+          // 挂价没被碰到 = 这张单根本成交不了。以前这里静默跳过，于是报告里
+          // 只有「成交后的收益」，看不到「有多少信号其实是废单」。
+          stats.missed += 1;
+          stats.missByStyle[key] = (stats.missByStyle[key] ?? 0) + 1;
+          continue;
+        }
         // 跳空把价格直接开到止损下方：买是买到了，但拿到手的价已经在止损下面，
         // 这不是策略设想的那笔交易（止损会立刻被打掉，价格没法确定），干脆不算。
         if (entry <= pick.sig.stop) {
@@ -3255,7 +3261,10 @@ async function main() {
     for (const key of Object.keys(STRATEGIES)) breakdown(results, key);
     console.log("");
     console.log(
-      `入场撮合（口径 ${fillMode}）：跳空成交 ${fillStats.gap} 笔，开在止损下方不算 ${fillStats.belowStop} 笔`,
+      `入场撮合（口径 ${fillMode}）：跳空成交 ${fillStats.gap} 笔，开在止损下方不算 ${fillStats.belowStop} 笔，挂价没碰到 ${fillStats.missed} 笔`,
+      ...Object.entries(fillStats.missByStyle ?? {})
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `  未成交：${STRATEGIES[k]?.label ?? k} ${v} 笔`),
     );
     // 费用 drag 对照（学 Vibe-Research 的 cost_compare）：同一套交易费用清零再跑一遍。
     // drag = 有费均值 − 免费均值；只看有费收益会把策略的实际盈利能力高估 drag 那么多。

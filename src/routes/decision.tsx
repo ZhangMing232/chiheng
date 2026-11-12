@@ -37,6 +37,105 @@ export const Route = createFileRoute("/decision")({
 });
 
 /** 情绪五档 → 动作建议（数据：沸点次日+0.38%，冰点次日−0.04%，动量市不是反转市）。 */
+
+/**
+ * 挂单成交状态。给出挂单价 ≠ 买到——短线腿的挂价是昨收，当天最低没碰到它就是废单。
+ * 这里必须让「没买到」和「买到了」一眼分得开，否则记账全是假的。
+ */
+
+/**
+ * 一腿的清单：把「竞价已经高过挂价、今天根本等不到」的和「够得着」的分开摆。
+ *
+ * 为什么必须分开（2026-11-12 实测）：短线挂价＝昨收（跌回昨收才买，不追高）。
+ * 回看 20 笔真实挂单，只有 9 笔成交（45%），另一半全天没碰到——题材继续烧，
+ * 开盘就高开 3~13%，昨收那个价根本摸不着。把这些和能买的混在一列里，
+ * 等于给你一堆废单。所以「等不到」单独一组、灰掉、写明差多少。
+ */
+function SignalRows({
+  list,
+  tone,
+  label,
+  openDetail,
+}: {
+  list: SignalReviewed[];
+  tone: "up" | "muted";
+  label: string;
+  openDetail: (id: string, name?: string) => Promise<void>;
+}) {
+  const reachable = list.filter((s) => !(s.auctionPrice != null && s.auctionPrice > s.buyPrice));
+  const outOfReach = list.filter((s) => s.auctionPrice != null && s.auctionPrice > s.buyPrice);
+  return (
+    <>
+      {reachable.map((s) => (
+        <div key={s.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <Tag tone={tone}>{label}</Tag>
+            <button type="button" onClick={() => void openDetail(s.id)} className="truncate text-left hover:underline">
+              {s.name}
+            </button>
+            <span className="num text-[10px] text-muted">{s.code}</span>
+          </span>
+          <span className="flex shrink-0 items-baseline gap-1.5">
+            <span className="num text-xs text-muted">挂 {s.buyPrice}</span>
+            <FillTag s={s} />
+          </span>
+        </div>
+      ))}
+      {outOfReach.length > 0 ? (
+        <div className="mt-1 rounded border border-line bg-surface2 px-2 py-1.5">
+          <div className="text-[11px] font-medium text-warn">
+            今天等不到（竞价已高过挂价）：{outOfReach.length} 只 —— 不参与，别按挂价挂
+          </div>
+          {outOfReach.map((s) => (
+            <div key={s.code} className="flex items-baseline justify-between gap-2 py-0.5 text-[11px] text-muted">
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <span className="truncate">{s.name}</span>
+                <span className="num">{s.code}</span>
+              </span>
+              <span className="num shrink-0">
+                挂 {s.buyPrice} · 竞价 {s.auctionPrice}
+                {s.auctionPrice != null ? `（高 ${(((s.auctionPrice - s.buyPrice) / s.buyPrice) * 100).toFixed(1)}%）` : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function FillTag({ s }: { s: SignalReviewed }) {
+  const f = s.fill;
+  if (!f || f.status === "pending") return <span className="text-[10px] text-muted">待判定</span>;
+  if (f.status === "filled")
+    return (
+      <span className="num text-[10px] text-up" title={f.note}>
+        成交 {f.fillPrice}
+      </span>
+    );
+  return (
+    <span className="num text-[10px] text-warn" title={f.note}>
+      未成交·最低{f.low}
+    </span>
+  );
+}
+
+/** 一屏之内的成交率，一句话说完：给了几条、真成交几条。 */
+function FillSummary({ list }: { list: SignalReviewed[] }) {
+  if (list.length === 0) return null;
+  const filled = list.filter((x) => x.fill?.status === "filled").length;
+  const missed = list.filter((x) => x.fill?.status === "missed").length;
+  const pending = list.filter((x) => !x.fill || x.fill.status === "pending").length;
+  return (
+    <div className="mt-1">
+      今日挂单 {list.length} 条：<b className="text-up">成交 {filled}</b> ·{" "}
+      <b className="text-warn">未触价 {missed}</b>
+      {pending > 0 ? <> · 待判定 {pending}</> : null}
+      {missed > 0 ? <span>（没成交就是没买到，别按挂价记账）</span> : null}
+    </div>
+  );
+}
+
 function moodOf(p: { breakRate: number | null; maxStreak: number; ladderCount: number }): {
   band: string;
   tone: "up" | "warn" | "muted" | "down";
@@ -169,20 +268,14 @@ function DecisionPage() {
               <div className="px-3 py-6 text-sm text-muted">今天没有短线信号（题材补涨腿没触发）。</div>
             ) : (
               <div className="flex flex-col gap-1 p-2">
-                {shortSignals.map((s) => (
-                  <div key={s.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
-                    <span className="flex min-w-0 items-baseline gap-1.5">
-                      <Tag tone="up">短线</Tag>
-                      <button type="button" onClick={() => void openDetail(s.id)} className="truncate text-left hover:underline">{s.name}</button>
-                      <span className="num text-[10px] text-muted">{s.code}</span>
-                    </span>
-                    <span className="num shrink-0 text-xs text-muted">挂 {s.buyPrice}</span>
-                  </div>
-                ))}
+                <SignalRows list={shortSignals} tone="up" label="短线" openDetail={openDetail} />
               </div>
             )}
-            <div className="border-t border-line px-2 py-2 text-[11px] text-muted">
-              口径：热门题材的次强/补涨股（题材补涨腿）。买点看竞价，卖点=断板或情绪退潮。
+            <div className="border-t border-line px-2 py-2 text-[11px] leading-relaxed text-muted">
+              口径：热门题材的次强/补涨股（题材补涨腿）。挂单价＝昨收（跌回昨收才买，不追高）。
+              实测：过去 20 笔挂单只有 9 笔成交（<b className="text-warn">45%</b>）——这套是「等回踩」的限价单，
+              不是市价单，等到才算有这笔。
+              <FillSummary list={shortSignals} />
             </div>
           </Panel>
 
@@ -191,20 +284,12 @@ function DecisionPage() {
               <div className="px-3 py-6 text-sm text-muted">今天没有低估值候选。</div>
             ) : (
               <div className="flex flex-col gap-1 p-2">
-                {longSignals.map((s) => (
-                  <div key={s.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
-                    <span className="flex min-w-0 items-baseline gap-1.5">
-                      <Tag tone="muted">低估值</Tag>
-                      <button type="button" onClick={() => void openDetail(s.id)} className="truncate text-left hover:underline">{s.name}</button>
-                      <span className="num text-[10px] text-muted">{s.code}</span>
-                    </span>
-                    <span className="num shrink-0 text-xs text-muted">挂 {s.buyPrice}</span>
-                  </div>
-                ))}
+                <SignalRows list={longSignals} tone="muted" label="低估值" openDetail={openDetail} />
               </div>
             )}
-            <div className="border-t border-line px-2 py-2 text-[11px] text-muted">
+            <div className="border-t border-line px-2 py-2 text-[11px] leading-relaxed text-muted">
               口径：PE≤18 / PB≤2（唯一实盘为正的策略，+0.5%，但本质是银行 beta，不承诺超额）。
+              <FillSummary list={longSignals} />
             </div>
           </Panel>
         </div>

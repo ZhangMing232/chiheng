@@ -1401,6 +1401,19 @@ export interface SignalCandidate {
   buyPrice: number; score: number; reason: string;
 }
 
+/**
+ * 挂单到底成交了没有。
+ * 「给了挂单价」不等于「买到了」——挂价是限价（短线腿＝昨收），
+ * 当天最低价没碰到它，就是一张废单。页面必须说清楚，不能让人以为已经持有。
+ */
+export interface SignalFill {
+  status: "filled" | "missed" | "pending";
+  /** 实际成交价：限价买单＝开盘更低就按开盘，否则按挂单价 */
+  fillPrice: number | null;
+  /** 当日最低价（判定触价的依据，写出来让人能自己核） */
+  low: number | null;
+  note: string;
+}
 export interface SignalReviewed extends SignalCandidate {
   auctionPrice: number | null; auctionGap: number | null;
   verdict: "ok" | "warn" | "skip"; verdictReason: string;
@@ -1409,6 +1422,8 @@ export interface SignalReviewed extends SignalCandidate {
   holdDays?: number;
   stop?: number;
   target?: number;
+  /** 由当日 K 线判定：成交 / 未触价 / K 线还没更新 */
+  fill?: SignalFill;
 }
 
 /** 收盘初筛候选信号。 */
@@ -1841,7 +1856,35 @@ export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async
     const p = dataPath("data", "signals", "reviewed.json");
     const raw = await readFile(p, "utf8");
     const parsed = JSON.parse(raw) as { date: string; ok: number; warn: number; skip: number; signals: SignalReviewed[] };
-    return { date: parsed.date, ok: parsed.ok ?? 0, warn: parsed.warn ?? 0, skip: parsed.skip ?? 0, signals: parsed.signals ?? [] };
+    // 成交判定：拿当天这根日 K 判「挂价有没有被碰到」。
+    //   开盘价 ≤ 挂价 → 按开盘价成交（限价买单买到更便宜的）
+    //   最低价 ≤ 挂价 → 按挂单价成交
+    //   否则 → 未成交，附上全天最低价让人自己核
+    const { readFile: rf } = await import("node:fs/promises");
+    const signals = await Promise.all(
+      (parsed.signals ?? []).map(async (sig): Promise<SignalReviewed> => {
+        try {
+          const barsRaw = JSON.parse(await rf(dataPath("data", "backtest", "kline", `${sig.id}.json`), "utf8")) as
+            | { date: string; o: number; c: number; h: number; l: number }[]
+            | { bars: { date: string; o: number; c: number; h: number; l: number }[] };
+          const bars = Array.isArray(barsRaw) ? barsRaw : barsRaw.bars;
+          const bar = bars.find((b) => b.date === parsed.date);
+          if (!bar) {
+            return { ...sig, fill: { status: "pending", fillPrice: null, low: null, note: "当天的 K 线还没更新（15:10 之后才有），暂时判不了" } };
+          }
+          if (bar.o <= sig.buyPrice) {
+            return { ...sig, fill: { status: "filled", fillPrice: bar.o, low: bar.l, note: `开盘 ${bar.o} 已低于挂价，按开盘价成交` } };
+          }
+          if (bar.l <= sig.buyPrice) {
+            return { ...sig, fill: { status: "filled", fillPrice: sig.buyPrice, low: bar.l, note: `盘中最低 ${bar.l} 触到挂价，按挂单价成交` } };
+          }
+          return { ...sig, fill: { status: "missed", fillPrice: null, low: bar.l, note: `全天最低 ${bar.l}，没碰到挂价 ${sig.buyPrice}，这张单没成交` } };
+        } catch {
+          return { ...sig, fill: { status: "pending", fillPrice: null, low: null, note: "K 线缺失，判不了成交" } };
+        }
+      }),
+    );
+    return { date: parsed.date, ok: parsed.ok ?? 0, warn: parsed.warn ?? 0, skip: parsed.skip ?? 0, signals };
   } catch (e) {
     // reviewed.json 由竞价审核脚本生成，当天还没跑时读不到（ENOENT）是预期内，不刷日志
     if ((e as NodeJS.ErrnoException)?.code !== "ENOENT")
