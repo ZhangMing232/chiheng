@@ -17,6 +17,7 @@ import type { FactorBaselinePayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
 import { PixelHeader } from "@/components/pixel-header";
 import { batchSummary } from "@/lib/market/factors-view";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/factors/baseline")({
   loader: async () => {
@@ -34,6 +35,13 @@ function FactorBaselinePage() {
     <Frame wide aside="因子发掘 · 基线原文">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <PixelHeader label="FACTORS // BASELINE" meta="基线证据 · 对照组本身是什么" />
+      <PixelSummary
+        label="FACTORS // BASELINE"
+        note="对照组原文 · 没跑过回测就没有"
+        stats={[
+          { label: "基线文件", value: baseline?.text ? `${(baseline.bytes / 1024).toFixed(1)} KB` : null, tone: baseline?.text ? "brand" : "muted", hero: true, hint: baseline?.name ?? undefined },
+        ]}
+      />
       <FactorSectionTabs />
       <Section
         title="回测基线原文"

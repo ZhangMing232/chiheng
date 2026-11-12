@@ -18,6 +18,7 @@ import type { FactorDiagPayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
 import { PixelHeader } from "@/components/pixel-header";
 import { batchSummary } from "@/lib/market/factors-view";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/factors/attrib")({
   loader: async () => {
@@ -41,6 +42,14 @@ function FactorAttribPage() {
     <Frame wide aside="因子发掘 · 缩量归因">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <PixelHeader label="FACTORS // ATTRIBUTION" meta="失败归因 · 没过的话坏在哪" />
+      <PixelSummary
+        label="FACTORS // ATTRIB"
+        note="缩量归因 · 有对照才给结论"
+        stats={[
+          { label: "缩量翻转", value: diag?.shrinkFlip ? "有" : "无", tone: diag?.shrinkFlip ? "up" : "muted", hero: true },
+          { label: "缩量牛市对照", value: diag?.shrinkBull ? "有" : "无", tone: diag?.shrinkBull ? "up" : "muted" },
+        ]}
+      />
       <FactorSectionTabs />
       <Section
         title="缩量天数归因"
