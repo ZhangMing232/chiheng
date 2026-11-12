@@ -14,6 +14,7 @@ import { Frame } from "@/components/screener/nav";
 import { StateBlock } from "@/components/state-block";
 import { getSystemRules } from "@/lib/market/quotes.functions";
 import { AISectionTabs, RulesSection } from "@/components/ai-panels";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/ai/rules")({
   loader: async () => {
@@ -27,6 +28,7 @@ function AIRulesPage() {
   const { rules } = Route.useLoaderData();
   return (
     <Frame wide aside="AI 管理 · 闸门与判据">
+    <PixelHeader label="AI // RULES" meta="系统规则 · 谁能改、改了记在哪" />
       <AISectionTabs />
       {rules ? <RulesSection groups={rules.groups} /> : <StateBlock kind="empty" title="闸门规则没读到" />}
     </Frame>

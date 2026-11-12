@@ -21,6 +21,7 @@ import { isAdmin, isPaidPlan, planLabel } from "@/lib/auth/plan";
 import { getAIQuotaStatus } from "@/lib/auth/quota.functions";
 import { GRANT_FLOW_LINES, PAYMENT_CHANNEL_NOTE, TIERS, tierOf } from "@/lib/auth/pricing";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/membership")({
   component: MembershipPage,
@@ -48,6 +49,7 @@ function MembershipPage() {
 
   return (
     <Frame wide aside="会员">
+    <PixelHeader label="MY // PLAN" meta="档位与配额 · 只影响 AI 用量，不影响数据" />
       {/* 当前档位 */}
       <Panel title="当前档位" bodyClassName="px-3.5 py-3">
         {user ? (

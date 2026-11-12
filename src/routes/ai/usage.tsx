@@ -20,6 +20,7 @@ import { AiStat, StackedArea } from "@/components/ai-kit";
 import { getAIUsage } from "@/lib/market/quotes.functions";
 import { AISectionTabs, Section, type UsagePayload } from "@/components/ai-panels";
 import type { AIUsageEntry } from "@/lib/market/ai-usage";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/ai/usage")({
   loader: async () => {
@@ -138,6 +139,7 @@ function AIUsagePage() {
 
   return (
     <Frame wide aside="AI 管理 · Token 用量">
+    <PixelHeader label="AI // USAGE" meta="调用与花费 · 每轮多少 token、多少钱" />
       <AISectionTabs />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>

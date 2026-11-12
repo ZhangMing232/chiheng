@@ -26,6 +26,7 @@ import {
   setActiveAIProfile,
 } from "@/lib/market/quotes.functions";
 import { AISectionTabs, ProfileModal, messageOf, type AIStatusPayload, type UsagePayload } from "@/components/ai-panels";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/ai/config")({
   loader: async () => {
@@ -94,6 +95,7 @@ function AIConfigPage() {
 
   return (
     <Frame wide aside="AI 管理 · 接口配置">
+    <PixelHeader label="AI // CONFIG" meta="模型与额度 · 改的是研究层，不动实盘" />
       <AISectionTabs />
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="font-display text-xl font-medium tracking-wide">AI 接口与模型</h1>

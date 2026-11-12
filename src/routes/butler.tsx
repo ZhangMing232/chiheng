@@ -19,6 +19,7 @@ import { askButler, clearButlerHistory, getButlerHistory, getChallengers, getInd
 import { ACTIVE_STYLES, STYLES } from "@/lib/market/strategies";
 import { Bot, Send, ChartLine, Wallet, FlaskConical, Database } from "lucide-react";
 import type { IndexQuote } from "@/lib/market/types";
+import { PixelHeader } from "@/components/pixel-header";
 
 type Msg = { role: "user" | "butler"; text: string };
 
@@ -129,6 +130,7 @@ function ButlerPage() {
 
   return (
     <Frame wide aside="AI · 大管家">
+    <PixelHeader label="SYS // BUTLER" meta="服务与数据状态 · 心跳、任务、延迟" />
       {/* 页头 */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="flex size-11 items-center justify-center rounded-xl border border-ai-line bg-ai-soft text-ai">
