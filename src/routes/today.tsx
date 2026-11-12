@@ -206,6 +206,55 @@ function DecisionPage() {
           ))}
         </div>
 
+
+        {/* ── 当日主线 + 题材强度（2026-11-12 从总览 / 搬回：合并时漏了这两块）── */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="px-slash">THEMES // STRENGTH</span>
+          <span className="h-px flex-1 bg-line" />
+          <span className="px-num text-[12px] text-muted">涨停家数多的在前 · 龙头 = 板内涨幅最高且没涨停的那只</span>
+        </div>
+
+        <div className="px-mod4 grid gap-0 border border-line bg-surface md:grid-cols-[minmax(0,240px)_1fr]">
+          {/* 当日主线：只写一个答案，不给备选 */}
+          <div className="border-b border-line px-4 py-3 md:border-b-0 md:border-r">
+            <div className="px-num text-[12px] tracking-widest text-brand">MAIN_LINE</div>
+            {hotThemes[0] ? (
+              <>
+                <div className="mt-1 text-xl font-bold leading-tight">{hotThemes[0].name}</div>
+                <div className="px-num mt-1 text-3xl font-bold text-brand">{hotThemes[0].limitUp}<span className="ml-1 text-[12px] font-normal text-muted">涨停</span></div>
+                <div className="mt-1 text-[12px] text-muted">
+                  均涨 {hotThemes[0].avg >= 0 ? "+" : ""}{hotThemes[0].avg.toFixed(1)}% · 成员 {hotThemes[0].n}
+                  {hotThemes[0].leader ? <> · 龙头 <b className="text-fg">{hotThemes[0].leader.name}</b> {hotThemes[0].leader.chg >= 0 ? "+" : ""}{hotThemes[0].leader.chg.toFixed(1)}%</> : null}
+                </div>
+              </>
+            ) : (
+              <div className="mt-2 text-[13px] text-muted">今天没有烧起来的题材。</div>
+            )}
+          </div>
+
+          {/* 题材强度：一格一只涨停，横条按最强题材归一化 */}
+          <div className="px-4 py-3">
+            <div className="px-num mb-1 text-[12px] tracking-widest text-brand">STRENGTH</div>
+            {hotThemes.length === 0 ? (
+              <div className="py-2 text-[13px] text-muted">题材热度还没算（theme-heat 收盘后跑）。</div>
+            ) : (
+              hotThemes.map((t) => {
+                const max = Math.max(1, ...hotThemes.map((x) => x.limitUp));
+                return (
+                  <div key={t.name} className="flex items-center gap-3 border-b border-dashed border-line py-1.5 last:border-0">
+                    <span className="w-28 shrink-0 truncate text-[13px]">{t.name}</span>
+                    <span className="h-2 min-w-0 flex-1 bg-line">
+                      <span className="block h-full bg-brand" style={{ width: `${(t.limitUp / max) * 100}%` }} />
+                    </span>
+                    <span className="px-num w-8 shrink-0 text-right text-[13px] text-fg">{t.limitUp}</span>
+                    <span className="px-num w-24 shrink-0 truncate text-right text-[12px] text-muted">{t.leader?.name ?? "—"}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
         {/* ── 买入矩阵 ── */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="px-slash">BUY_MATRIX</span>
