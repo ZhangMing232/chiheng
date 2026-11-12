@@ -46,6 +46,28 @@ export type ForecastOutcome = {
   hit: boolean;
   chase: boolean;
 };
+export type ForecastLiveRow = {
+  code: string;
+  name: string;
+  rule: string;
+  buyPrice: number | null;
+  last: number | null;
+  high: number | null;
+  low: number | null;
+  pctFromBuy: number | null;
+};
+/**
+ * 「今天正是买入日、还没收盘结算」这一段。
+ * 来源 scripts/forecast-live.ts 写的 data/history/forecast/live/<落档日>.json，
+ * **不回写落档文件**——落档是凭据，落档之后不许改。
+ */
+export type ForecastLive = {
+  date: string;
+  nextDate: string | null;
+  asOf: string;
+  final: boolean;
+  rows: ForecastLiveRow[];
+};
 export type ForecastPeriod = {
   date: string;
   nextDate: string | null;
@@ -54,6 +76,8 @@ export type ForecastPeriod = {
   picks: ForecastPick[];
   outcomes?: ForecastOutcome[];
   summary?: { hits: number; chases: number; n: number; limitUps: number };
+  /** 未结算的期才有：买入日已经开盘，买入价是真实成交价，现价是盘中值 */
+  live?: ForecastLive;
 };
 export type ForecastPayload = {
   locked: ForecastPeriod[];
@@ -78,6 +102,28 @@ export const getForecast = createServerFn({ method: "GET" }).handler(async (): P
     locked = rows.filter((r): r is ForecastPeriod => Boolean(r)).reverse();
   } catch {
     locked = [];
+  }
+  // 「买入日已经开盘、还没收盘结算」的实况：只给还没结算的期补，已结算的期不许两套口径打架
+  try {
+    const liveFiles = (await readdir(`${dir}/live`)).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f));
+    const liveRows = await Promise.all(
+      liveFiles.map(async (f) => {
+        try {
+          return JSON.parse(await readFile(`${dir}/live/${f}`, "utf8")) as ForecastLive;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const byDate = new Map<string, ForecastLive>();
+    for (const l of liveRows) if (l && l.date) byDate.set(l.date, l);
+    locked = locked.map((p) => {
+      if (p.summary && p.summary.n > 0) return p;
+      const l = byDate.get(p.date);
+      return l ? { ...p, live: l, nextDate: p.nextDate ?? l.nextDate } : p;
+    });
+  } catch {
+    // 没有 live 目录就照旧——盘中没有实况比编一个数好
   }
   let backtest: ForecastPayload["backtest"] = null;
   try {

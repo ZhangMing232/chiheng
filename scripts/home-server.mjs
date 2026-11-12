@@ -453,6 +453,33 @@ function runAfterSnapshot() {
 // scripts/push-decision.ts 留着，手动补发/排障时用：
 //   node --experimental-strip-types --import ./scripts/alias.mjs scripts/push-decision.ts --push
 
+// ── 前瞻回验「买入日实况」：9:35–15:05 每 10 分钟抓一次 ──
+// 落档文件不动（落档之后不许改）。这里只写 data/history/forecast/live/<落档日>.json：
+// 今天的开盘买入价（开盘开出就不再变）+ 盘中现价，/huiyan 据此显示「今日已开盘买入」。
+// 补的洞：原来从开盘到收盘这段时间，页面显示的是「买入 — / 待定 / 待结算」，
+// 明明 9:30 就该买了、价也已经有了，页面却说不知道。
+let forecastLiveStamp = "";
+function runForecastLive() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (!isMarketOpen(day)) return;
+  const now = new Date();
+  const hm = now.getHours() * 60 + now.getMinutes();
+  if (hm < 9 * 60 + 35) return; // 开盘前拿不到今日开盘价
+  if (hm > 15 * 60 + 5) return; // 收盘后交给 forecast.ts 真结算
+  if (now.getMinutes() % 10 !== 0) return; // 每 10 分钟一次
+  const stamp = `${day} ${now.getHours()}:${now.getMinutes()}`;
+  if (forecastLiveStamp === stamp) return;
+  forecastLiveStamp = stamp;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/forecast-live.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("前瞻回验实况没抓到，/huiyan 停在上一份（不影响收盘结算）");
+  });
+}
+
 // ── 题材轮动：收盘后 15:15 算（快照 15:12 之后）——从 K 线算题材动量+轮动方向，自算零外部源──
 let rotationRanDay = "";
 function runThemeRotation() {
@@ -656,6 +683,7 @@ runHotmoneyFetch();
 runSeatsArchive();
 runMarketIntel();
 runThemeRotation();
+runForecastLive();
 runStrategyVerdict();
 runSignalGen();
 runSignalReview();
@@ -676,6 +704,7 @@ const regulatoryTimer = setInterval(runRegulatoryRadar, 60_000);
 const hotmoneyTimer = setInterval(runHotmoneyFetch, 60_000);
 const marketIntelTimer = setInterval(runMarketIntel, 60_000);
 const rotationTimer = setInterval(runThemeRotation, 60_000);
+const forecastLiveTimer = setInterval(runForecastLive, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
