@@ -55,6 +55,8 @@ const SKIP_WITH_REASON = {
   "/strategies": "空白布局壳（只透 Outlet 不渲染），两个子页面都已覆盖",
   "/themes": "空白布局壳（只透 Outlet 不渲染），索引直接跳 /themes/intel",
   "/youzi": "空白布局壳（只透 Outlet 不渲染），索引直接跳 /youzi/track",
+  "/flow/industries": "2026-11-12 并入 /flow/sectors?view=live，这里只剩 307",
+  "/flow/close": "2026-11-12 并入 /flow（收盘快照是同一时间轴的另一个时点），这里只剩 307",
 };
 
 /** 每个合并动作留一个重定向代表，验旧书签不断链。 */
