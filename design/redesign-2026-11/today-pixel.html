@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>方向 D · 像素赛博 · 今天</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  /* 本屏专用：只有「指标带里的分段血条」和「矩阵列宽」两处 */
+  .kpis .ticks { position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: repeating-linear-gradient(90deg, var(--line-2) 0 3px, transparent 3px 7px); }
+  .kpi { position: relative; }
+  .matrix col.c-path { width: 76px; }
+  .matrix col.c-px { width: 132px; }
+  .matrix col.c-st { width: 116px; }
+  .matrix col.c-exit { width: 84px; }
+</style>
+</head>
+<body>
+<div class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="ruler" aria-hidden="true"></div>
+
+<div class="wrap noise">
+
+  <nav class="rail" aria-label="主导航">
+    <div class="logo">
+      <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <b>赤轨</b><span>v2</span>
+    </div>
+    <div class="leds" aria-hidden="true">
+      <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+      <div class="led"><i class="c"></i>KLINE 5225</div>
+      <div class="led"><i class="w"></i>BREAK 50%</div>
+    </div>
+    <div class="nav-g">
+      <h3>// TODAY</h3>
+      <a href="today-pixel.html" aria-current="page">今天该干什么</a>
+      <a href="huiyan.html">前瞻回验</a>
+    </div>
+    <div class="nav-g">
+      <h3>// REVIEW</h3>
+      <a href="review.html">连板天梯</a>
+      <a href="themes.html">题材轮动</a>
+      <a href="youzi.html">游资席位</a>
+      <a href="intel.html">市场情报</a>
+    </div>
+    <div class="nav-g">
+      <h3>// POSITION</h3>
+      <a href="positions.html">持仓与卖出</a>
+    </div>
+    <div class="nav-g">
+      <h3>// LAB</h3>
+      <a href="strategies.html">策略与判决</a>
+      <a href="mobile.html">手机版</a>
+    </div>
+    <div class="pxart" aria-hidden="true">
+      <i></i><i class="c"></i><i></i><i class="c"></i><i></i><i class="c"></i><i></i>
+      <i class="c"></i><i class="m"></i><i class="c"></i><i class="m"></i><i class="c"></i><i class="m"></i><i class="c"></i>
+      <i></i><i class="c"></i><i class="m"></i><i></i><i class="m"></i><i class="c"></i><i></i>
+      <i></i><i></i><i class="c"></i><i class="m"></i><i class="c"></i><i></i><i></i>
+      <i></i><i></i><i></i><i class="c"></i><i></i><i></i><i></i>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- ① 顶栏：阶段 + 结论，一行说完 -->
+    <div class="hud pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="left">
+        <span class="field">SYS//TODAY</span>
+        <span class="pxi" aria-hidden="true" style="color:var(--cyan);align-self:center"><i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i></span><h1 class="glitch chroma">今天<b>·</b>买什么<span class="cursor" aria-hidden="true"></span></h1>
+        <span class="field">2026-11-12 · 15:12 SEALED</span>
+      </div>
+      <div class="badges">
+        <span class="rec"><i></i>REC 15:12:04</span>
+        <span class="badge m">情绪 退潮</span>
+        <span class="badge c">可买 11</span>
+        <span class="badge dim">放弃 5</span>
+      </div>
+    </div>
+    <div class="hazard" aria-hidden="true"></div>
+
+    <!-- ② 指标带：六个数字，情绪占一格荧光底 -->
+    <div class="kpis">
+      <div class="kpi jitter"><span class="ticks" aria-hidden="true"></span>
+        <div class="k">涨停</div><div class="v chroma slot reel">36</div>
+        <div class="d">较前值 <span class="mono" style="color:var(--down)">−31</span></div></div>
+      <div class="kpi jitter"><span class="ticks" aria-hidden="true"></span>
+        <div class="k">连板</div><div class="v chroma slot reel">11</div>
+        <div class="d">较前值 <span class="mono" style="color:var(--down)">−2</span></div></div>
+      <div class="kpi c-cyan jitter"><span class="ticks" aria-hidden="true"></span>
+        <div class="k">最高板</div><div class="v chroma slot reel">5</div>
+        <div class="d">较前值 <span class="mono" style="color:var(--up)">+2</span></div></div>
+      <div class="kpi c-mag jitter"><span class="ticks" aria-hidden="true"></span>
+        <div class="k">炸板率</div><div class="v chroma slot reel">50<span style="font-size:20px">%</span></div>
+        <div class="d"><span class="seg" aria-hidden="true"><i class="on"></i><i class="warn"></i><i class="warn"></i><i class="warn"></i><i class="warn"></i><i></i><i></i><i></i><i></i><i></i></span></div></div>
+      <div class="kpi jitter"><span class="ticks" aria-hidden="true"></span>
+        <div class="k">封板率</div><div class="v">50<span style="font-size:20px">%</span></div>
+        <div class="d">36 封 / 36 炸</div></div>
+      <div class="kpi c-amber caution jitter"><span class="ticks" aria-hidden="true"></span>
+        <div class="k">情绪</div><div class="v" style="font-size:20px">退潮</div>
+        <div class="d">短线少动</div></div>
+    </div>
+
+    <!-- ③ 买入矩阵：三路合成一张表，不再三张卡 -->
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2 class="slashbg">BUY_MATRIX</h2>
+      <span class="line"></span>
+      <span class="meta">买价 = 能成交的价 · 高开超过自身振幅即放弃</span>
+    </div>
+
+    <section class="mod pxframe neon pixshadow">
+      <b></b><b></b><b></b><b></b>
+      <div class="matrix-wrap">
+      <table class="matrix">
+        <colgroup>
+          <col class="c-path"><col><col class="c-px"><col><col class="c-st"><col class="c-exit">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>路</th><th>标的</th><th style="text-align:right">买价</th><th>依据</th><th>状态</th><th>走</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="path fc"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#93a3b0"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/></svg> 前瞻</td>
+            <td><span class="nm">日出东方</span><span class="cd">603366</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">12.60<small>今开 · 现 13.17</small></td>
+            <td class="why">最高板 5 板 · 开盘即成交，盘中最高 +4.5%</td>
+            <td><span class="st ok">开盘即成交</span></td>
+            <td class="why">当日收盘</td>
+          </tr>
+          <tr class="dead">
+            <td class="path fc"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#ff6ea4"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/></svg> 前瞻</td>
+            <td><span class="nm">亚玛顿</span><span class="cd">002623</span></td>
+            <td class="px">一字板·买不进</td>
+            <td class="why">次高板 4 板 · 涨停价 25.66 就是全天最低价，挂单排不进</td>
+            <td><span class="st no">排不进</span></td>
+            <td class="why">—</td>
+          </tr>
+          <tr>
+            <td class="path fc"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#93a3b0"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/></svg> 前瞻</td>
+            <td><span class="nm">粤宏远Ａ</span><span class="cd">000573</span></td>
+            <td class="px">4.35<small>选股价 · 待开盘</small></td>
+            <td class="why">首板放量王 · 今天还没有成交数据</td>
+            <td><span class="st wait">待开盘</span></td>
+            <td class="why">当日收盘</td>
+          </tr>
+
+          <tr>
+            <td class="path sh"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="0" y="7" width="1" height="1"/></svg> 短线</td>
+            <td><span class="nm">宁德时代</span><span class="cd">300750</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">244.80<small>成交 · 第 5 日走</small></td>
+            <td class="why">近 5 日振幅 4.4% → 容忍高开 2.2%</td>
+            <td><span class="st ok">成交</span></td>
+            <td class="why">第 5 日</td>
+          </tr>
+          <tr>
+            <td class="path sh"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="0" y="7" width="1" height="1"/></svg> 短线</td>
+            <td><span class="nm">北方华创</span><span class="cd">002371</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">543.01<small>成交 · 第 5 日走</small></td>
+            <td class="why">近 5 日振幅 5.8% → 容忍高开 2.9%</td>
+            <td><span class="st ok">成交</span></td>
+            <td class="why">第 5 日</td>
+          </tr>
+          <tr>
+            <td class="path sh"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="0" y="7" width="1" height="1"/></svg> 短线</td>
+            <td><span class="nm">华勤技术</span><span class="cd">603296</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">69.50<small>成交 · 第 5 日走</small></td>
+            <td class="why">近 5 日振幅 3.8% → 容忍高开 1.9%</td>
+            <td><span class="st ok">成交</span></td>
+            <td class="why">第 5 日</td>
+          </tr>
+          <tr class="dead">
+            <td class="path sh"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#ff6ea4"><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="0" y="7" width="1" height="1"/></svg> 短线</td>
+            <td><span class="nm">中际旭创</span><span class="cd">300308</span></td>
+            <td class="px">不追高·放弃</td>
+            <td class="why">高开 13.1%，自身振幅 8.6% 只容忍 4.3%</td>
+            <td><span class="st no">放弃</span></td>
+            <td class="why">—</td>
+          </tr>
+
+          <tr>
+            <td class="path lg"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#a6ff3d"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/></svg> 中长线</td>
+            <td><span class="nm">华夏银行</span><span class="cd">600015</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">6.55<small>成交 · 第 8 日走</small></td>
+            <td class="why">低估值 · PE 4.4 / PB 0.32</td>
+            <td><span class="st ok">成交</span></td>
+            <td class="why">第 8 日</td>
+          </tr>
+          <tr>
+            <td class="path lg"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#a6ff3d"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/></svg> 中长线</td>
+            <td><span class="nm">贵阳银行</span><span class="cd">601997</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">5.90<small>成交 · 第 8 日走</small></td>
+            <td class="why">低估值 · PE 4.8 / PB 0.36</td>
+            <td><span class="st ok">成交</span></td>
+            <td class="why">第 8 日</td>
+          </tr>
+          <tr>
+            <td class="path lg"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#a6ff3d"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/></svg> 中长线</td>
+            <td><span class="nm">上峰材料</span><span class="cd">000672</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">13.17<small>成交 · 第 8 日走</small></td>
+            <td class="why">低估值 · PE 12.1 / PB 1.10</td>
+            <td><span class="st ok">成交</span></td>
+            <td class="why">第 8 日</td>
+          </tr>
+          <tr>
+            <td class="path lg"><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#a6ff3d"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/></svg> 中长线</td>
+            <td><span class="nm">平安银行</span><span class="cd">000001</span></td>
+            <td class="px lit reel" style="color:var(--cyan)">11.69<small>成交 · 第 8 日走</small></td>
+            <td class="why">低估值 · PE 5.2 / PB 0.55</td>
+            <td><span class="st ok">成交</span></td>
+            <td class="why">第 8 日</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note">
+        前瞻命中 49.1%（基准 46.0%）· 追买 87.9% 跑输 94.4% · 8.3% 一字板买不进 ·
+        低估值线上 20 笔 +3.33pp 但从未回测验证 · 题材补涨 +0.06% 无超额。
+        <b style="color:var(--ink-3)">能买到 ≠ 更能赚。</b>
+      </div>
+    </section>
+
+    <!-- ④ 作战块：卖出纪律 + 盯什么，合成一块 -->
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2 class="slashbg">OPS // EXIT · WATCH</h2>
+      <span class="line"></span>
+      <span class="meta">纪律写死，盘中不改</span>
+    </div>
+
+    <section class="mod pxframe cmd neon">
+      <b></b><b></b><b></b><b></b>
+      <div>
+        <h4><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#ffb020"><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="4" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="2" y="7" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/></svg> Exit / 什么时候卖</h4>
+        <div class="ln2"><span class="k">SHORT</span><span>断板，或炸板率升到 40% 以上 → 走。<span style="color:var(--magenta)">今天 50%，已在该走区间。</span></span></div>
+        <div class="ln2"><span class="k">LONG</span><span>跌破止损 −8% / 到目标 +10% / 20 日线拐头破位 → 走，先到先走。</span></div>
+        <div class="ln2"><span class="k">T+1</span><span>买入当天不卖；第 N 个交易日收盘卖（短线 5 日 / 中长线 8 日）。</span></div>
+      </div>
+      <div>
+        <h4><svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/></svg> Watch / 盯什么</h4>
+        <div class="ln2"><span class="k">监管</span><span>已达异动线 <b class="num" style="color:var(--magenta)">3 只</b>：天普股份 · 惠发食品 · 日出东方</span></div>
+        <div class="ln2"><span class="k">题材</span><span>西部大开发 <b class="num">8</b> 涨停 · 参股银行 6 · 预制菜 5</span></div>
+        <div class="ln2"><span class="k">梯队</span><span class="num">5板 1 · 4板 2 · 3板 3 · 1→2 晋级 45%</span></div>
+      </div>
+    </section>
+
+    <div class="foot">
+      // 买价＝竞价价（能成交）。高开超出该股近 5 日振幅的一半就放弃，不给买不到的挂单价。<br>
+      // 前瞻 3 只为自证记录，落档之后不改。本页只陈述已测到的数字，不构成投资建议。
+    </div>
+    <div class="pixdiv" aria-hidden="true"><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i></div>
+    <div class="ticks-x" aria-hidden="true"></div>
+    <div class="barcode" aria-hidden="true"></div>
+    <div class="hatch" aria-hidden="true"></div>
+
+  </main>
+</div>
+</body>
+</html>

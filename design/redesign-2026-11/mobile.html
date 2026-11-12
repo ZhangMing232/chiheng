@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>手机版 · 今天 · 赤轨</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  /* 手机版：一屏一结论。没有侧栏，行为三段：
+   * ① 今天能不能做 → ② 买什么（一行一笔，价格最大）→ ③ 什么时候卖 */
+  body { max-width: 430px; margin: 0 auto; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  .vf { display: none; }
+  .ruler { display: none; }
+  main { padding: 12px 14px 40px; }
+
+  .mhud { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .mhud h1 { margin: 0; font-size: 19px; }
+  .mhud h1 b { color: var(--cyan); }
+  .mstage { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; }
+
+  /* 情绪：整块，不用六个小格 */
+  .mood { margin-top: 10px; border: 1px solid var(--line); background: var(--panel); padding: 12px 14px; position: relative; }
+  .mood .k { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; color: var(--ink-3); }
+  .mood .v { font-family: var(--mono); font-size: 34px; line-height: 1.05; color: var(--amber); margin-top: 2px; }
+  .mood .d { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+  .mood .nums { display: flex; gap: 14px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .mood .nums div { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+  .mood .nums b { display: block; font-size: 20px; color: var(--ink); }
+
+  .msec { display: flex; align-items: center; gap: 8px; margin: 16px 0 6px; }
+  .msec h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; color: var(--cyan); text-transform: uppercase; }
+  .msec .ln { flex: 1; height: 1px; background: repeating-linear-gradient(90deg, var(--line-2) 0 5px, transparent 5px 9px); }
+
+  /* 买入行：名称 + 大价格 + 状态，三列 */
+  .mrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .mrow:last-of-type { border-bottom: 0; }
+  .mrow .nm { font-size: 14px; font-weight: 600; }
+  .mrow .nm i { font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-left: 6px; font-weight: 400; }
+  .mrow .px { font-family: var(--mono); font-size: 20px; font-weight: 700; text-align: right; color: var(--cyan); }
+  .mrow .px small { display: block; font-family: var(--font); font-size: 12px; font-weight: 400; color: var(--ink-3); }
+  .mrow .meta2 { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); }
+  .mrow.dead .nm { color: var(--ink-3); text-decoration: line-through; }
+  .mrow.dead .px { font-size: 12px; color: var(--magenta); }
+
+  .mnote { font-size: 12px; line-height: 1.6; color: var(--ink-3); padding: 8px 0 0; }
+
+  /* 底部固定条：一句话结论 + 一个动作 */
+  .mbar { position: sticky; bottom: 0; margin: 18px -14px -40px; padding: 10px 14px;
+    background: linear-gradient(180deg, transparent, var(--bg) 30%); }
+  .mbar .in { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    border: 1px solid var(--line-2); background: var(--panel); padding: 10px 12px; }
+  .mbar .t { font-size: 12px; color: var(--ink-2); }
+  .mbar .t b { color: var(--magenta); }
+  .mbar .btn { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; padding: 6px 10px;
+    background: var(--cyan); color: #06222a; font-weight: 700; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap" style="display:block">
+  <main>
+    <div class="mhud">
+      <h1 class="glitch">今天<b>·</b>买什么</h1>
+      <span class="mstage">11-12 · 盘后</span>
+    </div>
+
+    <div class="mood pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="k">MOOD</div>
+      <div class="v">退潮</div>
+      <div class="d">炸板率高，短线少动；中长线照纪律走。</div>
+      <div class="nums">
+        <div>涨停<b>36</b></div>
+        <div>连板<b>11</b></div>
+        <div>最高<b>5</b></div>
+        <div>炸板率<b style="color:var(--magenta)">50%</b></div>
+      </div>
+    </div>
+
+    <div class="msec"><h2>BUY</h2><span class="ln"></span><span class="mstage">可买 11</span></div>
+
+    <div class="mrow">
+      <div><span class="nm">宁德时代<i>300750</i></span></div>
+      <div class="px">244.80<small>成交 · 第 5 日</small></div>
+      <div class="meta2">短线 · 振幅 4.4% → 容忍高开 2.2%</div>
+    </div>
+    <div class="mrow">
+      <div><span class="nm">北方华创<i>002371</i></span></div>
+      <div class="px">543.01<small>成交 · 第 5 日</small></div>
+      <div class="meta2">短线 · 振幅 5.8% → 容忍高开 2.9%</div>
+    </div>
+    <div class="mrow">
+      <div><span class="nm">华夏银行<i>600015</i></span></div>
+      <div class="px">6.55<small>成交 · 第 8 日</small></div>
+      <div class="meta2">中长线 · PE 4.4 / PB 0.32</div>
+    </div>
+    <div class="mrow dead">
+      <div><span class="nm">亚玛顿<i>002623</i></span></div>
+      <div class="px">一字板·买不进</div>
+      <div class="meta2">前瞻 · 涨停价 25.66 就是全天最低价</div>
+    </div>
+    <div class="mrow dead">
+      <div><span class="nm">中际旭创<i>300308</i></span></div>
+      <div class="px">不追高·放弃</div>
+      <div class="meta2">短线 · 高开 13.1%，只容忍 4.3%</div>
+    </div>
+
+    <div class="mnote">
+      买价＝竞价价（能成交）。高开超出该股振幅的一半就放弃，不给买不到的挂单价。
+    </div>
+
+    <div class="msec"><h2>EXIT</h2><span class="ln"></span></div>
+    <div class="mrow" style="grid-template-columns:1fr">
+      <div class="meta2">短线：断板或炸板率 ≥40% → 走（今天 50%，已在该走区间）</div>
+    </div>
+    <div class="mrow" style="grid-template-columns:1fr">
+      <div class="meta2">中长线：止损 −8% / 目标 +10% / 20 日线破位 → 走，先到先走</div>
+    </div>
+
+    <div class="mbar">
+      <div class="in">
+        <div class="t">情绪退潮 · 今天只有 <b>11 笔</b>可买，其余放弃</div>
+        <span class="btn">看详情 ▸</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>

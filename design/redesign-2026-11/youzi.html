@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>游资与席位 · 赤轨</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  .seat { display: grid; grid-template-columns: 1fr 92px 56px 84px 116px; gap: 10px; align-items: baseline;
+    padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .seat:last-child { border-bottom: 0; }
+  .seat .nm { font-size: 14px; font-weight: 600; }
+  .seat .nm span { display: block; font-family: var(--mono); font-size: 12px; color: var(--ink-3); font-weight: 400; }
+  .seat .n { font-family: var(--mono); font-size: 15px; text-align: right; }
+  .seat .n small { display: block; font-family: var(--font); font-size: 12px; color: var(--ink-3); }
+  .tag-b { font-family: var(--mono); font-size: 12px; padding: 2px 6px; border: 1px solid var(--line-2); color: var(--ink-2); white-space: nowrap; }
+  .tag-b.hot { color: var(--cyan); border-color: rgba(34, 230, 255, .45); background: rgba(34, 230, 255, .08); }
+  .tag-b.warn { color: var(--magenta); border-color: rgba(255, 46, 138, .45); background: rgba(255, 46, 138, .08); }
+
+  @media (max-width: 760px) {
+    .seat { grid-template-columns: 1fr auto !important; row-gap: 4px; }
+    .seat .nm { grid-column: 1 / -1; }
+    .seat .nm span { display: inline; margin-left: 6px; }
+    .seat .n { text-align: left; }
+    .seat .n small { display: inline; margin-left: 4px; }
+    .seat .tag-b { justify-self: start; grid-column: 1 / -1; }
+    .seat .n:last-of-type { text-align: right; }
+  }
+</style>
+</head>
+<body>
+<div class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="ruler" aria-hidden="true"></div>
+
+<div class="wrap noise">
+<nav class="rail" aria-label="主导航">
+      <div class="logo">
+        <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <b>赤轨</b><span>v2</span>
+      </div>
+      <div class="leds" aria-hidden="true">
+        <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+        <div class="led"><i class="c"></i>KLINE 5225</div>
+        <div class="led"><i class="w"></i>BREAK 50%</div>
+      </div>
+      <div class="nav-g">
+        <h3>// TODAY</h3>
+        <a href="today-pixel.html">今天该干什么</a>
+        <a href="huiyan.html">前瞻回验</a>
+      </div>
+      <div class="nav-g">
+        <h3>// REVIEW</h3>
+        <a href="review.html">连板天梯</a>
+        <a href="themes.html">题材轮动</a>
+        <a href="youzi.html" aria-current="page">游资席位</a>
+        <a href="intel.html">市场情报</a>
+      </div>
+      <div class="nav-g">
+        <h3>// POSITION</h3>
+        <a href="positions.html">持仓与卖出</a>
+      </div>
+      <div class="nav-g">
+        <h3>// LAB</h3>
+        <a href="strategies.html">策略与判决</a>
+        <a href="mobile.html">手机版</a>
+      </div>
+    </nav>
+
+  <main>
+    <div class="hud pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="left">
+        <span class="field">SYS//HOTMONEY</span>
+        <h1 class="glitch chroma">游资<b>·</b>席位<span class="cursor" aria-hidden="true"></span></h1>
+        <span class="field">2026-11-12 · 龙虎榜</span>
+      </div>
+      <div class="badges">
+        <span class="badge c">席位 7776</span>
+        <span class="badge dim">可结算 336</span>
+        <span class="badge m">跟买 5 日</span>
+      </div>
+    </div>
+    <div class="hazard" aria-hidden="true"></div>
+
+    <div class="role">
+      <b>这一步在选股里：</b>看钱是谁在推。同一个题材，机构席位买和一线游资买，次日走势完全不同——
+      所以这里不算“谁赚得多”，只看<b>这个席位跟进去历史上到底赚不赚</b>，跟不跟它。
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2>SEAT_RANK · 5 日跟买</h2>
+      <span class="line"></span>
+      <span class="meta">样本 ≥20 笔才上榜 · 名字对不上代码的 14387 笔已剔除</span>
+    </div>
+
+    <section class="mod pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div style="padding:4px 12px 10px">
+        <div class="seat">
+          <div class="nm">财通证券宁波江安路<span>一线游资 · 宁波系</span></div>
+          <div class="n" style="color:var(--cyan)">2.6 亿<small>净额</small></div>
+          <div class="n">23<small>笔</small></div>
+          <div class="n" style="color:var(--up)">+15.40%<small>均收益</small></div>
+          <div class="tag-b hot">胜率 57% · 跟</div>
+        </div>
+        <div class="seat">
+          <div class="nm">华鑫证券北京分公司<span>机构席位</span></div>
+          <div class="n" style="color:var(--cyan)">0.3 亿<small>净额</small></div>
+          <div class="n">25<small>笔</small></div>
+          <div class="n" style="color:var(--up)">+15.25%<small>均收益</small></div>
+          <div class="tag-b hot">胜率 64% · 跟</div>
+        </div>
+        <div class="seat">
+          <div class="nm">国泰君安合肥创新大道<span>一线游资</span></div>
+          <div class="n" style="color:var(--cyan)">1.2 亿<small>净额</small></div>
+          <div class="n">20<small>笔</small></div>
+          <div class="n" style="color:var(--up)">+11.93%<small>均收益</small></div>
+          <div class="tag-b hot">胜率 65% · 跟</div>
+        </div>
+        <div class="seat">
+          <div class="nm">东方财富拉萨天团<span>散户聚集</span></div>
+          <div class="n" style="color:var(--cyan)">3.4 亿<small>净额</small></div>
+          <div class="n">21<small>笔</small></div>
+          <div class="n" style="color:var(--up)">+9.24%<small>均收益</small></div>
+          <div class="tag-b warn">胜率 52% · 观望</div>
+        </div>
+        <div class="seat">
+          <div class="nm">中信证券上海分公司<span>一线游资</span></div>
+          <div class="n" style="color:var(--cyan)">1.4 亿<small>净额</small></div>
+          <div class="n">22<small>笔</small></div>
+          <div class="n" style="color:var(--up)">+7.17%<small>均收益</small></div>
+          <div class="tag-b hot">胜率 59% · 跟</div>
+        </div>
+      </div>
+      <div class="note">
+        净额是席位在该股上的净买入，不是它的总资产。均收益按「上榜次日开盘买、持 5 日收盘卖」算，
+        <span style="color:var(--ink-3)">过去表现不保证下一次</span>；拉萨天团这种散户席位胜率 52% ≈ 抛硬币，别当信号。
+      </div>
+    </section>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/></svg><h2 class="slashbg">WHO_BOUGHT</h2>
+      <span class="line"></span>
+      <span class="meta">今天龙虎榜上的票与买方席位</span>
+    </div>
+
+    <section class="mod pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div style="padding:4px 12px 10px">
+        <div class="seat" style="grid-template-columns:1fr 120px 96px 88px 72px">
+          <div class="nm">日出东方<span>最高板 5 板 · 东方系</span></div>
+          <div class="n">财通宁波江安路<small>买一 1.2 亿</small></div>
+          <div class="n" style="color:var(--up)">+10.0%<small>当日</small></div>
+          <div class="n">2 家<small>游资</small></div>
+          <div class="tag-b hot">跟</div>
+        </div>
+        <div class="seat" style="grid-template-columns:1fr 120px 96px 88px 72px">
+          <div class="nm">惠发食品<span>预制菜 3 板</span></div>
+          <div class="n">华鑫北京分<small>买一 0.3 亿</small></div>
+          <div class="n" style="color:var(--up)">+9.98%<small>当日</small></div>
+          <div class="n">1 家<small>机构</small></div>
+          <div class="tag-b hot">跟</div>
+        </div>
+        <div class="seat" style="grid-template-columns:1fr 120px 96px 88px 72px">
+          <div class="nm">天普股份<span>已达异动线</span></div>
+          <div class="n">拉萨天团<small>买一 0.8 亿</small></div>
+          <div class="n" style="color:var(--up)">+6.2%<small>当日</small></div>
+          <div class="n">3 家<small>散户</small></div>
+          <div class="tag-b warn">观望</div>
+        </div>
+      </div>
+      <div class="note">机构席位和一线游资买一，才值得跟；全是散户席位的榜，说明是接力盘。</div>
+    </section>
+
+    <div class="foot">
+      // 席位名做了简称处理（原始名带“证券股份有限公司”）；同一营业部改名会算成两个席位。<br>
+      // 净额单位统一亿元，均收益是算术平均、不是按金额加权——大资金那笔权重更高，这里没做。
+    </div>
+    <div class="pixdiv" aria-hidden="true"><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i></div>
+    <div class="ticks-x" aria-hidden="true"></div>
+    <div class="barcode" aria-hidden="true"></div>
+  </main>
+</div>
+</body>
+</html>

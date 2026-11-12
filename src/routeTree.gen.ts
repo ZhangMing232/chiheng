@@ -50,6 +50,7 @@ import { Route as StrategiesRouteImport } from './routes/strategies'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as SymbolRouteImport } from './routes/symbol'
 import { Route as ThemesRouteImport } from './routes/themes'
+import { Route as TodayRouteImport } from './routes/today'
 import { Route as WatchRouteImport } from './routes/watch'
 import { Route as YouziRouteImport } from './routes/youzi'
 import { Route as AiIndexRouteImport } from './routes/ai/index'
@@ -303,6 +304,11 @@ const SymbolRoute = SymbolRouteImport.update({
 const ThemesRoute = ThemesRouteImport.update({
   id: '/themes',
   path: '/themes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TodayRoute = TodayRouteImport.update({
+  id: '/today',
+  path: '/today',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WatchRoute = WatchRouteImport.update({
@@ -593,6 +599,7 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/themes': typeof ThemesRouteWithChildren
+  '/today': typeof TodayRoute
   '/watch': typeof WatchRouteWithChildren
   '/youzi': typeof YouziRouteWithChildren
   '/ai/config': typeof AiConfigRoute
@@ -680,6 +687,7 @@ export interface FileRoutesByTo {
   '/strategies': typeof StrategiesRouteWithChildren
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
+  '/today': typeof TodayRoute
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
@@ -771,6 +779,7 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/themes': typeof ThemesRouteWithChildren
+  '/today': typeof TodayRoute
   '/watch': typeof WatchRouteWithChildren
   '/youzi': typeof YouziRouteWithChildren
   '/ai/config': typeof AiConfigRoute
@@ -865,6 +874,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/symbol'
     | '/themes'
+    | '/today'
     | '/watch'
     | '/youzi'
     | '/ai/config'
@@ -952,6 +962,7 @@ export interface FileRouteTypes {
     | '/strategies'
     | '/studio'
     | '/symbol'
+    | '/today'
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
@@ -1042,6 +1053,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/symbol'
     | '/themes'
+    | '/today'
     | '/watch'
     | '/youzi'
     | '/ai/config'
@@ -1135,6 +1147,7 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   SymbolRoute: typeof SymbolRoute
   ThemesRoute: typeof ThemesRouteWithChildren
+  TodayRoute: typeof TodayRoute
   WatchRoute: typeof WatchRouteWithChildren
   YouziRoute: typeof YouziRouteWithChildren
   ArenaSplatRoute: typeof ArenaSplatRoute
@@ -1433,6 +1446,13 @@ declare module '@tanstack/react-router' {
       path: '/themes'
       fullPath: '/themes'
       preLoaderRoute: typeof ThemesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/today': {
+      id: '/today'
+      path: '/today'
+      fullPath: '/today'
+      preLoaderRoute: typeof TodayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/watch': {
@@ -1983,6 +2003,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   SymbolRoute: SymbolRoute,
   ThemesRoute: ThemesRouteWithChildren,
+  TodayRoute: TodayRoute,
   WatchRoute: WatchRouteWithChildren,
   YouziRoute: YouziRouteWithChildren,
   ArenaSplatRoute: ArenaSplatRoute,

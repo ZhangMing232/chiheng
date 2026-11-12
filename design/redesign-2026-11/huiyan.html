@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>前瞻回验 · 赤轨</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  /* ── 本屏专用：回验 ─────────────────────────── */
+  .pick { display: grid; grid-template-columns: 1fr 96px 96px 96px 88px; gap: 10px; align-items: baseline;
+          padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .pick:last-child { border-bottom: 0; }
+  .pick .who b { font-size: 14px; }
+  .pick .who span { font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-left: 6px; }
+  .pick .p { font-family: var(--mono); font-size: 15px; text-align: right; }
+  .pick .p small { display: block; font-family: var(--font); font-size: 12px; color: var(--ink-3); }
+  .pick.dead .who b { color: var(--ink-3); text-decoration: line-through; }
+  .pick .fate { font-size: 12px; text-align: right; }
+  .pick .fate.ok { color: var(--lime); }
+  .pick .fate.no { color: var(--magenta); }
+  .pick .fate.wait { color: var(--ink-3); }
+
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .cell { background: var(--panel); padding: 12px 14px; }
+  .cell .k { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; color: var(--ink-3); text-transform: uppercase; }
+  .cell .v { font-family: var(--mono); font-size: 30px; line-height: 1.1; margin-top: 4px; }
+  .cell .d { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+  .cell.bad .v { color: var(--magenta); }
+  .cell.good .v { color: var(--lime); }
+  .vs { display: inline-block; font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="scanbeam" aria-hidden="true"></div>
+<div class="ruler" aria-hidden="true"></div>
+
+<div class="wrap noise">
+<nav class="rail" aria-label="主导航">
+    <div class="logo">
+      <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <b>赤轨</b><span>v2</span>
+    </div>
+    <div class="leds" aria-hidden="true">
+      <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+      <div class="led"><i class="c"></i>KLINE 5225</div>
+      <div class="led"><i class="w"></i>BREAK 50%</div>
+    </div>
+    <div class="nav-g">
+      <h3>// TODAY</h3>
+      <a href="today-pixel.html">今天该干什么</a>
+      <a href="huiyan.html" aria-current="page">前瞻回验</a>
+    </div>
+    <div class="nav-g">
+      <h3>// REVIEW</h3>
+      <a href="review.html">连板天梯</a>
+      <a href="themes.html">题材轮动</a>
+      <a href="youzi.html">游资席位</a>
+      <a href="intel.html">市场情报</a>
+    </div>
+    <div class="nav-g">
+      <h3>// POSITION</h3>
+      <a href="positions.html">持仓与卖出</a>
+    </div>
+    <div class="nav-g">
+      <h3>// LAB</h3>
+      <a href="strategies.html">策略与判决</a>
+      <a href="mobile.html">手机版</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="hud">
+      <div class="left">
+        <span class="field">SYS//FORWARD_TEST</span>
+        <h1 class="glitch chroma">前瞻<b>·</b>回验<span class="cursor" aria-hidden="true"></span></h1>
+        <span class="field">11-11 落档 → 11-12 兑现</span>
+      </div>
+      <div class="badges">
+        <span class="badge m">8.3% 买不进</span>
+        <span class="badge dim">49.1% 命中</span>
+        <span class="badge c">落档不改</span>
+      </div>
+    </div>
+
+    <div class="steps" aria-label="选股流程">
+      <div class="s done"><span class="n">01</span><span class="t">能不能做</span></div>
+      <div class="s"><span class="n">02</span><span class="t">钱在哪</span></div>
+      <div class="s"><span class="n">03</span><span class="t">题材轮动</span></div>
+      <div class="s" class="s done"><span class="n">04</span><span class="t">定票与价位</span></div>
+      <div class="s" class="s on"><span class="n">05</span><span class="t">盘后验证</span></div>
+    </div>
+
+    <div class="role">
+      <b>这一步在选股里：</b>检查昨天挑的票今天到底中没中。落档之后不许改，所以这一屏是凭据不是宣传——
+      买不进的、卖不出的都照实写，赚钱的才叫命中。
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2>LAST_CALL · 11-11</h2>
+      <span class="line"></span>
+      <span class="meta">选股 11-11 收盘 → 买入 11-12 开盘 → 结算 11-12 收盘</span>
+    </div>
+
+    <section class="mod">
+      <div style="padding:4px 12px 10px">
+        <div class="pick">
+          <div class="who"><b>日出东方</b><span>603366 · 最高板 4板</span></div>
+          <div class="p">11.97<small>选股</small></div>
+          <div class="p">12.60<small>今开</small></div>
+          <div class="p" style="color:var(--up)">13.17<small>现价 +4.5%</small></div>
+          <div class="fate ok">命中</div>
+        </div>
+        <div class="pick dead">
+          <div class="who"><b>亚玛顿</b><span>002623 · 次高板 3板</span></div>
+          <div class="p">23.33<small>选股</small></div>
+          <div class="p">25.66<small>涨停价</small></div>
+          <div class="p">25.66<small>全天最低</small></div>
+          <div class="fate no">一字板·买不进</div>
+        </div>
+        <div class="pick">
+          <div class="who"><b>东山精密</b><span>002384 · 首板放量王</span></div>
+          <div class="p">92.06<small>选股</small></div>
+          <div class="p">94.10<small>今开</small></div>
+          <div class="p" style="color:var(--down)">93.44<small>现价 −0.7%</small></div>
+          <div class="fate ok">成交</div>
+        </div>
+      </div>
+      <div class="note">亚玛顿开盘就在涨停价、全天最低也是涨停价：没有低于涨停价的成交，挂单排不进——这一笔不算，也不许算成盈利。</div>
+    </section>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2>RECORD · 60 期口径回算</h2>
+      <span class="line"></span>
+      <span class="meta">事后重算，不是当时发出的清单</span>
+    </div>
+
+    <div class="grid4">
+      <div class="cell jitter"><div class="k">可成交笔数</div><div class="v">165</div><div class="d">180 笔里剔掉 15 笔一字板</div></div>
+      <div class="cell jitter"><div class="k">方向命中</div><div class="v">49.1<span style="font-size:16px">%</span></div><div class="d">全市场基准 46.0%</div></div>
+      <div class="cell bad"><div class="k">追买成立</div><div class="v">87.9<span style="font-size:16px">%</span></div><div class="d">基准 94.4% · 跑输</div></div>
+      <div class="cell bad"><div class="k">买不进</div><div class="v">8.3<span style="font-size:16px">%</span></div><div class="d">15 / 180 笔</div></div>
+    </div>
+
+    <div class="grid2" style="margin-top:10px">
+      <div class="term">
+        <div class="ln"><span class="p">&gt;</span><span class="k">VERDICT</span><span>这套规则只比基准多 3.1 个百分点，追买还跑输 5.5 个点——不能当荐股用。</span></div>
+        <div class="ln"><span class="p">&gt;</span><span class="k">BIAS</span><span>买不到的恰好是最强那批（一字板），能买到的更弱，真实成绩只会更差。</span></div>
+        <div class="ln"><span class="p">&gt;</span><span class="k">RULE</span><span>落档文件写死不覆盖；盘中不落档，盘中落等于不知道结局先写答案。</span></div>
+      </div>
+      <div class="term hudlist">
+        <div class="row"><span class="l">落档期数</span><span class="r2">1 期</span></div>
+        <div class="row"><span class="l">可结算</span><span class="r2">0 期（今日收盘后）</span></div>
+        <div class="row"><span class="l">口径回算</span><span class="r2">60 期 / 180 笔</span></div>
+        <div class="row"><span class="l">一字跌停卖不出</span><span class="r2 hot">1 笔</span></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      // 结算口径：T 日收盘选股 → T+1 开盘买入（最早能成交的价）→ T+1 收盘结算。<br>
+      // 三个价都是盘后才知道的，不含未来函数。<br>
+      // 胜率只统计「真的买得进」的笔；一字涨停排不进的单列，不混进命中率。
+    </div>
+    <div class="pixdiv" aria-hidden="true"><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i></div>
+    <div class="ticks-x" aria-hidden="true"></div>
+    <div class="barcode" aria-hidden="true"></div>
+  </main>
+</div>
+</body>
+</html>

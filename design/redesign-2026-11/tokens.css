@@ -1,0 +1,126 @@
+/* 赤轨重设计 · 设计变量
+ * 风格：运动能量（黑底荧光绿、粗斜体、大数字）
+ * 一改这里，所有屏一起变。
+ */
+:root {
+  /* 底色与表面 */
+  --color-bg: #0e0f11;
+  --color-surface: #1a1c20;
+  --color-surface-2: #22252a;
+  --color-line: #2b2e35;
+
+  /* 文字 */
+  --color-fg: #f4f5f6;
+  --color-muted: #a1a5ad;
+
+  /* 品牌 */
+  --color-primary: #c8ff2e;
+  --color-primary-ink: #0e0f11; /* 荧光绿上的字 */
+  --color-accent: #ff5a1f; /* 只做警示与次要强调 */
+
+  /* A 股语义色：红涨绿跌是铁律，不能拿品牌绿当涨 */
+  --color-up: #ff4d4f;
+  --color-up-soft: #2a1517;
+  --color-down: #2ecc71;
+  --color-down-soft: #12261a;
+  --color-warn: #ff5a1f;
+  --color-warn-soft: #2a1811;
+
+  /* 形状 */
+  --radius: 6px;
+  --radius-sm: 4px;
+  --shadow: none;
+
+  /* 间距（4 的倍数） */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s6: 24px;
+  --s8: 32px;
+  --s12: 48px;
+
+  /* 字号阶梯 */
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-base: 15px;
+  --t-lg: 18px;
+  --t-xl: 22px;
+  --t-2xl: 28px;
+  --t-3xl: 40px;
+  --t-4xl: 56px;
+
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-num: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--t-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 大数字：等宽、字距收紧、超粗 */
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+/* 拉丁小标签：全大写、超粗、斜切（中文不用斜体，只有拉丁字母走这个） */
+.tag-label {
+  display: inline-block;
+  font-size: var(--t-xs);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: skewX(-8deg);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* 斜切色块：只给「当前段/主按钮」这类需要冲一下的地方 */
+.slash {
+  transform: skewX(-8deg);
+}
+.slash > * {
+  display: inline-block;
+  transform: skewX(8deg);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+}
+
+.up {
+  color: var(--color-up);
+}
+.down {
+  color: var(--color-down);
+}
+.muted {
+  color: var(--color-muted);
+}
+.primary {
+  color: var(--color-primary);
+}
+.warn {
+  color: var(--color-warn);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}

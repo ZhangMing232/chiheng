@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>持仓与卖出 · 赤轨</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  .pos { display: grid; grid-template-columns: 1fr 92px 92px 92px 96px 88px; gap: 10px; align-items: baseline;
+    padding: 11px 0; border-bottom: 1px dashed var(--line); }
+  .pos:last-child { border-bottom: 0; }
+  .pos .nm { font-size: 14px; font-weight: 600; }
+  .pos .nm span { display: block; font-family: var(--mono); font-size: 12px; color: var(--ink-3); font-weight: 400; }
+  .pos .n { font-family: var(--mono); font-size: 15px; text-align: right; }
+  .pos .n small { display: block; font-family: var(--font); font-size: 12px; color: var(--ink-3); }
+  .bar-r { height: 6px; background: var(--line); position: relative; overflow: hidden; margin-top: 4px; }
+  .bar-r i { position: absolute; inset: 0 auto 0 0; background: var(--cyan); }
+  .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 34px 16px; text-align: center; }
+  .empty .pxe { display: grid; grid-template-columns: repeat(5, 6px); gap: 3px; opacity: .5; }
+  .empty .pxe i { width: 6px; height: 6px; background: var(--line-2); }
+  .empty b { font-family: var(--mono); font-size: 14px; letter-spacing: 0.1em; color: var(--ink-2); }
+  .empty span { font-size: 12px; color: var(--ink-3); max-width: 34em; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="ruler" aria-hidden="true"></div>
+
+<div class="wrap noise">
+<nav class="rail" aria-label="主导航">
+      <div class="logo">
+        <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <b>赤轨</b><span>v2</span>
+      </div>
+      <div class="leds" aria-hidden="true">
+        <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+        <div class="led"><i class="c"></i>KLINE 5225</div>
+        <div class="led"><i class="w"></i>BREAK 50%</div>
+      </div>
+      <div class="nav-g">
+        <h3>// TODAY</h3>
+        <a href="today-pixel.html">今天该干什么</a>
+        <a href="huiyan.html">前瞻回验</a>
+      </div>
+      <div class="nav-g">
+        <h3>// REVIEW</h3>
+        <a href="review.html">连板天梯</a>
+        <a href="themes.html">题材轮动</a>
+        <a href="youzi.html">游资席位</a>
+        <a href="intel.html">市场情报</a>
+      </div>
+      <div class="nav-g">
+        <h3>// POSITION</h3>
+        <a href="positions.html" aria-current="page">持仓与卖出</a>
+      </div>
+      <div class="nav-g">
+        <h3>// LAB</h3>
+        <a href="strategies.html">策略与判决</a>
+        <a href="mobile.html">手机版</a>
+      </div>
+    </nav>
+
+  <main>
+    <div class="hud pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="left">
+        <span class="field">SYS//POSITION</span>
+        <h1 class="glitch chroma">持仓<b>·</b>卖出<span class="cursor" aria-hidden="true"></span></h1>
+        <span class="field">2026-11-12 · 账本 dev-user</span>
+      </div>
+      <div class="badges">
+        <span class="badge dim">持仓 0</span>
+        <span class="badge c">今日已买 1</span>
+        <span class="badge m">达上限</span>
+      </div>
+    </div>
+    <div class="hazard" aria-hidden="true"></div>
+
+    <div class="role">
+      <b>这一步在选股里：</b>买完就归这里管。这一屏只回答三件事——<b>哪笔到止损了、哪笔到期该卖、哪笔还没到点</b>。
+      持仓明细不放第二份在首页，首页只给摘要。
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/></svg><h2 class="slashbg">OPEN_POSITIONS</h2>
+      <span class="line"></span>
+      <span class="meta">按到期日排序 · 距止损 / 距目标实时算</span>
+    </div>
+
+    <section class="mod pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="empty">
+        <span class="pxe" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i>
+        </span>
+        <b>NO OPEN POSITION</b>
+        <span>
+          账本今天 0 笔在持仓。这不是「没数据」——是<b>真的没持仓</b>：
+          今天早盘的 1 笔买入已经结算完，之后的两套挑战者被「每日上限 1 只」拦住，日志里记的是
+          <code style="color:var(--cyan)">challenger-skip dev-user value-stop8：今天已买 1 只</code>。
+        </span>
+      </div>
+      <div class="note">
+        为什么这里不做「示例持仓」：拿假数据填一张持仓表，你会记错成本价，最后账是假的。空就写空。
+      </div>
+    </section>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2 class="slashbg">SELL_RULES</h2>
+      <span class="line"></span>
+      <span class="meta">三条，写死，盘中不改</span>
+    </div>
+
+    <section class="mod pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div style="padding:4px 12px 10px">
+        <div class="pos" style="grid-template-columns:1fr 1.6fr 120px">
+          <div class="nm">止损<span>先到先走</span></div>
+          <div style="font-size:13px;color:var(--ink-2)">跌破买入价 −8%（短线）/ 策略自带止损价（中长线）→ 无条件走</div>
+          <div class="n" style="color:var(--magenta)">-8%</div>
+        </div>
+        <div class="pos" style="grid-template-columns:1fr 1.6fr 120px">
+          <div class="nm">目标<span>到就走</span></div>
+          <div style="font-size:13px;color:var(--ink-2)">到买入价 +10%（短线）/ 到策略目标价（中长线）→ 走，不等更多</div>
+          <div class="n" style="color:var(--lime)">+10%</div>
+        </div>
+        <div class="pos" style="grid-template-columns:1fr 1.6fr 120px">
+          <div class="nm">到期<span>持有日历</span></div>
+          <div style="font-size:13px;color:var(--ink-2)">短线第 5 个交易日收盘、中长线第 8 个交易日收盘 → 走，买入当天不卖（T+1）</div>
+          <div class="n">5 / 8 日</div>
+        </div>
+      </div>
+      <div class="note">
+        三条冲突时按「止损 → 目标 → 到期」的顺序判：止损优先，因为止损是保命，目标只是少赚。
+      </div>
+    </section>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2>TODAY_ACTIONS</h2>
+      <span class="line"></span>
+      <span class="meta">今天发生的事，按时间</span>
+    </div>
+
+    <section class="mod pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div style="padding:4px 12px 10px">
+        <div class="pos" style="grid-template-columns:76px 1fr 140px">
+          <div class="n" style="text-align:left;color:var(--cyan)">09:26</div>
+          <div style="font-size:13px;color:var(--ink-2)">竞价审核完成：12 笔可执行 / 8 笔观望，落盘 reviewed.json</div>
+          <div class="n" style="font-size:12px;color:var(--ink-3)">已记录</div>
+        </div>
+        <div class="pos" style="grid-template-columns:76px 1fr 140px">
+          <div class="n" style="text-align:left;color:var(--cyan)">09:31</div>
+          <div style="font-size:13px;color:var(--ink-2)">买入 1 笔（每日上限 1 只），其余挑战者被闸门拦住</div>
+          <div class="n" style="font-size:12px;color:var(--ink-3)">challenger-skip</div>
+        </div>
+        <div class="pos" style="grid-template-columns:76px 1fr 140px">
+          <div class="n" style="text-align:left;color:var(--cyan)">15:12</div>
+          <div style="font-size:13px;color:var(--ink-2)">收盘封印：K 线刷新 5225 只，当日结算</div>
+          <div class="n" style="font-size:12px;color:var(--ink-3)">已结算</div>
+        </div>
+      </div>
+      <div class="note">到期提醒和止损提醒走微信推送，不在页面上「响」——页面上只有状态，不制造焦虑。</div>
+    </section>
+
+    <div class="foot">
+      // 成本价取「竞价价」而不是挂单价：挂单价可能没成交（实测 45% 成交率），按挂价记成本会虚高。<br>
+      // 现在账本这本书是 paper book（模拟盘），不是券商真实委托；页面上不出现「已下单」这种字样。
+    </div>
+    <div class="pixdiv" aria-hidden="true"><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i></div>
+    <div class="ticks-x" aria-hidden="true"></div>
+    <div class="barcode" aria-hidden="true"></div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>今天 · 赤轨</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ── 骨架 ───────────────────────────────────────────── */
+  body { display: grid; grid-template-columns: 216px 1fr; min-height: 100vh; }
+
+  /* 侧栏：四组，跟推送和页面一一对应 */
+  .rail { border-right: 1px solid var(--color-line); padding: var(--s4) var(--s3); display: flex; flex-direction: column; gap: var(--s6); position: sticky; top: 0; height: 100vh; }
+  .brand { display: flex; align-items: baseline; gap: var(--s2); padding: 0 var(--s2); }
+  .brand b { font-size: var(--t-xl); font-weight: 900; letter-spacing: -0.04em; }
+  .brand span { font-size: var(--t-xs); font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; transform: skewX(-8deg); color: var(--color-primary); }
+  .group { display: flex; flex-direction: column; gap: 2px; }
+  .group > h3 { margin: 0 0 var(--s2); padding: 0 var(--s2); font-size: var(--t-xs); font-weight: 700; letter-spacing: 0.14em; color: var(--color-muted); }
+  .group a { display: flex; align-items: center; gap: var(--s2); padding: 7px var(--s2); border-radius: var(--radius-sm); color: var(--color-fg); text-decoration: none; font-size: var(--t-sm); }
+  .group a:hover { background: var(--color-surface); }
+  .group a[aria-current] { background: var(--color-primary); color: var(--color-primary-ink); font-weight: 700; }
+  .group a i { width: 3px; height: 14px; background: var(--color-line); border-radius: 2px; flex: none; }
+  .group a[aria-current] i { background: var(--color-primary-ink); }
+
+  /* ── 主区 ───────────────────────────────────────────── */
+  main { padding: var(--s6) var(--s8) var(--s12); max-width: 1180px; }
+
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s6); flex-wrap: wrap; }
+  .head h1 { margin: 0; font-size: var(--t-3xl); font-weight: 900; letter-spacing: -0.045em; line-height: 1.05; }
+  .head h1 em { font-style: normal; color: var(--color-primary); }
+  .head .meta { display: flex; align-items: center; gap: var(--s3); font-size: var(--t-sm); color: var(--color-muted); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--color-line); font-size: var(--t-xs); letter-spacing: 0.06em; }
+  .pill.hot { border-color: var(--color-accent); color: var(--color-accent); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* KPI 带：一格一个斜切块，数字最大 */
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--color-line); border: 1px solid var(--color-line); border-radius: var(--radius); overflow: hidden; margin-top: var(--s6); }
+  .kpi { background: var(--color-surface); padding: var(--s3) var(--s4) var(--s4); position: relative; }
+  .kpi .k { font-size: var(--t-xs); color: var(--color-muted); letter-spacing: 0.1em; }
+  .kpi .v { font-size: var(--t-3xl); line-height: 1.1; margin-top: 2px; }
+  .kpi .d { font-size: var(--t-xs); margin-top: 2px; }
+  .kpi.hero { background: var(--color-primary); }
+  .kpi.hero .k, .kpi.hero .d { color: #3d4a12; }
+  .kpi.hero .v { color: var(--color-primary-ink); }
+
+  /* 段落标题 */
+  .sec { margin-top: var(--s8); }
+  .sec > header { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s3); }
+  .sec > header h2 { margin: 0; font-size: var(--t-lg); font-weight: 900; letter-spacing: -0.02em; }
+  .sec > header .hint { font-size: var(--t-xs); color: var(--color-muted); }
+  .sec > header .rule { flex: 1; height: 1px; background: var(--color-line); }
+
+  /* 买入卡：三路并排 */
+  .buys { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s3); }
+  .buy { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius); display: flex; flex-direction: column; }
+  .buy > .top { display: flex; align-items: center; justify-content: space-between; padding: var(--s3) var(--s3) 0; }
+  .buy > .top .name { font-size: var(--t-sm); font-weight: 700; }
+  .buy ul { list-style: none; margin: 0; padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+  .buy li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2); }
+  .buy li .who { display: flex; flex-direction: column; min-width: 0; }
+  .buy li .who b { font-size: var(--t-sm); font-weight: 700; }
+  .buy li .who span { font-size: var(--t-xs); color: var(--color-muted); }
+  .buy li .price { font-size: var(--t-xl); white-space: nowrap; }
+  .buy li .price small { display: block; font-size: var(--t-xs); font-weight: 400; font-family: var(--font-sans); color: var(--color-muted); text-align: right; letter-spacing: 0; }
+  .buy li.gone .who b { color: var(--color-muted); text-decoration: line-through; }
+  .buy li.gone .price { font-size: var(--t-sm); color: var(--color-accent); }
+  .buy .foot { margin-top: auto; padding: var(--s3); border-top: 1px solid var(--color-line); font-size: var(--t-xs); color: var(--color-muted); line-height: 1.5; }
+
+  /* 卖出 + 观察：两列 */
+  .cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--s3); }
+  .box { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius); padding: var(--s4); }
+  .box h3 { margin: 0 0 var(--s3); font-size: var(--t-sm); font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); }
+  .rule-line { display: flex; gap: var(--s3); padding: var(--s2) 0; border-bottom: 1px dashed var(--color-line); font-size: var(--t-sm); }
+  .rule-line:last-child { border-bottom: 0; }
+  .rule-line .k { flex: none; width: 52px; font-weight: 700; color: var(--color-primary); }
+  .rows { display: flex; flex-direction: column; gap: var(--s2); }
+  .row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); font-size: var(--t-sm); }
+  .row .l { color: var(--color-muted); }
+  .bar { height: 4px; border-radius: 2px; background: var(--color-surface-2); overflow: hidden; flex: 1; }
+  .bar i { display: block; height: 100%; background: var(--color-primary); }
+  .bar.o i { background: var(--color-accent); }
+
+  @media (max-width: 1080px) {
+    body { grid-template-columns: 1fr; }
+    .rail { display: none; }
+    main { padding: var(--s4); }
+    .kpis { grid-template-columns: repeat(3, 1fr); }
+    .buys, .cols { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="rail" aria-label="主导航">
+  <div class="brand"><b>赤轨</b><span>CHIHENG</span></div>
+
+  <div class="group">
+    <h3>今天</h3>
+    <a href="today.html" aria-current="page"><i></i>今天该干什么</a>
+    <a href="#"><i></i>前瞻回验</a>
+  </div>
+
+  <div class="group">
+    <h3>复盘</h3>
+    <a href="#"><i></i>连板天梯</a>
+    <a href="#"><i></i>题材轮动</a>
+    <a href="#"><i></i>游资席位</a>
+    <a href="#"><i></i>资金流向</a>
+  </div>
+
+  <div class="group">
+    <h3>情报</h3>
+    <a href="#"><i></i>市场情报</a>
+    <a href="#"><i></i>快讯</a>
+  </div>
+
+  <div class="group">
+    <h3>研究</h3>
+    <a href="#"><i></i>策略与判决</a>
+    <a href="#"><i></i>因子实验室</a>
+  </div>
+</nav>
+
+<main>
+
+  <div class="head">
+    <div>
+      <h1>今天<em>·</em>买什么</h1>
+      <div class="meta">
+        <span class="num">2026-11-12</span>
+        <span class="tag-label" style="background:var(--color-surface-2);color:var(--color-muted)">盘后</span>
+        <span class="pill hot"><span class="dot"></span>情绪 退潮</span>
+      </div>
+    </div>
+    <div class="meta">
+      <span>数据 15:12 收盘封印</span>
+      <span class="tag-label" style="background:var(--color-primary);color:var(--color-primary-ink)">LIVE</span>
+    </div>
+  </div>
+
+  <!-- KPI：数字做大，一格一个结论 -->
+  <div class="kpis">
+    <div class="kpi"><div class="k">涨停</div><div class="v num">36</div><div class="d down num">−31</div></div>
+    <div class="kpi"><div class="k">连板</div><div class="v num">11</div><div class="d down num">−2</div></div>
+    <div class="kpi"><div class="k">最高板</div><div class="v num">5</div><div class="d up num">+2</div></div>
+    <div class="kpi"><div class="k">炸板率</div><div class="v num warn">50<small style="font-size:16px">%</small></div><div class="d muted">36 只炸</div></div>
+    <div class="kpi"><div class="k">封板率</div><div class="v num">50<small style="font-size:16px">%</small></div><div class="d muted">一半没封住</div></div>
+    <div class="kpi hero"><div class="k">情绪</div><div class="v">退潮</div><div class="d">炸板率高，少动</div></div>
+  </div>
+
+  <!-- 买什么 -->
+  <section class="sec">
+    <header>
+      <h2>买什么</h2>
+      <span class="hint">三路信号 · 都是能成交的价</span>
+      <span class="rule"></span>
+      <span class="tag-label" style="background:var(--color-surface-2);color:var(--color-muted)">3 路 / 15 只</span>
+    </header>
+
+    <div class="buys">
+      <!-- 前瞻 -->
+      <div class="buy">
+        <div class="top">
+          <span class="name">前瞻 · 今日 3 只</span>
+          <span class="tag-label" style="background:var(--color-surface-2);color:var(--color-muted)">自证</span>
+        </div>
+        <ul>
+          <li>
+            <span class="who"><b>日出东方</b><span>最高板 · 5 板</span></span>
+            <span class="price num">12.60<small>今开 · 现 13.17</small></span>
+          </li>
+          <li class="gone">
+            <span class="who"><b>亚玛顿</b><span>次高板 · 4 板</span></span>
+            <span class="price">一字板 · 买不进</span>
+          </li>
+          <li>
+            <span class="who"><b>粤宏远Ａ</b><span>首板放量王</span></span>
+            <span class="price num">4.35<small>选股价</small></span>
+          </li>
+        </ul>
+        <div class="foot">命中 49.1% 对基准 46.0%，追买 87.9% 跑输 94.4%，8.3% 买不进。这是自证，不是荐股。</div>
+      </div>
+
+      <!-- 短线 -->
+      <div class="buy">
+        <div class="top">
+          <span class="name">短线 · 题材补涨</span>
+          <span class="tag-label" style="background:var(--color-primary);color:var(--color-primary-ink)">可买 3</span>
+        </div>
+        <ul>
+          <li>
+            <span class="who"><b>宁德时代</b><span>振幅 4.4% · 容忍 2.2%</span></span>
+            <span class="price num">244.80<small>成交 244.80</small></span>
+          </li>
+          <li>
+            <span class="who"><b>北方华创</b><span>振幅 5.8% · 容忍 2.9%</span></span>
+            <span class="price num">543.01<small>成交 543.01</small></span>
+          </li>
+          <li>
+            <span class="who"><b>华勤技术</b><span>振幅 3.8% · 容忍 1.9%</span></span>
+            <span class="price num">69.50<small>成交 69.50</small></span>
+          </li>
+          <li class="gone">
+            <span class="who"><b>中际旭创</b><span>高开 13.1% · 容忍 4.3%</span></span>
+            <span class="price">不追高 · 放弃</span>
+          </li>
+        </ul>
+        <div class="foot">放弃 5 只（胜宏 +7.1%、中际旭创 +13.1%、新易盛 +15.6%…）。高开超出该股振幅能忍的幅度就不买，绝不给买不到的价。</div>
+      </div>
+
+      <!-- 中长线 -->
+      <div class="buy">
+        <div class="top">
+          <span class="name">中长线 · 低估值</span>
+          <span class="tag-label" style="background:var(--color-primary);color:var(--color-primary-ink)">可买 8</span>
+        </div>
+        <ul>
+          <li>
+            <span class="who"><b>华夏银行</b><span>PE 4.4 · PB 0.32</span></span>
+            <span class="price num">6.55<small>成交 6.55 · 第8日走</small></span>
+          </li>
+          <li>
+            <span class="who"><b>贵阳银行</b><span>PE 4.8 · PB 0.36</span></span>
+            <span class="price num">5.90<small>成交 5.90 · 第8日走</small></span>
+          </li>
+          <li>
+            <span class="who"><b>上峰材料</b><span>PE 12.1 · PB 1.10</span></span>
+            <span class="price num">13.17<small>成交 13.17 · 第8日走</small></span>
+          </li>
+          <li>
+            <span class="who"><b>平安银行</b><span>PE 5.2 · PB 0.55</span></span>
+            <span class="price num">11.69<small>成交 11.69 · 第8日走</small></span>
+          </li>
+        </ul>
+        <div class="foot">唯一现役风格，但从未回测验证过（缺历史 PE/PB 序列），线上 20 笔 +3.33pp 可能只是单月运气。本质银行 beta。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 什么时候卖 + 盯什么 -->
+  <section class="sec">
+    <header>
+      <h2>什么时候卖</h2>
+      <span class="hint">纪律写死，盘中不改</span>
+      <span class="rule"></span>
+    </header>
+
+    <div class="cols">
+      <div class="box">
+        <h3>Exit rules</h3>
+        <div class="rule-line"><span class="k">短线</span><span>断板、或炸板率升到 40% 以上 → 走。今天炸板率 50%，已经在该走的区间。</span></div>
+        <div class="rule-line"><span class="k">中长线</span><span>跌破止损（−8%）/ 到目标（+10%）/ 趋势破位（20 日线拐头）→ 走，先到先走。</span></div>
+        <div class="rule-line"><span class="k">T+1</span><span>买入当天不卖。持有第 N 个交易日收盘卖（短线 5 日 / 中长线 8 日）。</span></div>
+      </div>
+
+      <div class="box">
+        <h3>Watch</h3>
+        <div class="rows">
+          <div class="row"><span class="l">监管异动 · 已达线</span><span class="num warn">3 只</span></div>
+          <div class="row"><span class="l">　天普股份 · 惠发食品 · 日出东方</span><span class="tag-label" style="background:var(--color-warn-soft);color:var(--color-accent)">达标</span></div>
+          <div class="row"><span class="l">题材热度</span><span class="num">西部大开发 8 涨停</span></div>
+          <div class="row"><span class="l">　</span><span class="bar"><i style="width:80%"></i></span></div>
+          <div class="row"><span class="l">　</span><span class="num muted">高市净率 7 · 破发股 7 · 新材料 7</span></div>
+          <div class="row"><span class="l">3 日梯队</span><span class="num">5板 1 · 4板 2 · 3板 3</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>

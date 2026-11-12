@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>方向 B · 专业科技 · 今天</title>
+<style>
+  /* 方向 B：专业科技 —— 冷灰蓝、信息密、数字清楚
+   * 和 A 的区别不只是配色：A 是「一屏给你结论」，B 是「一张表给你全部」。
+   * 所有信号进同一张表，按路排序，价格/依据/状态四列对齐，密度拉满。 */
+  :root {
+    --bg: #eef2f7;
+    --panel: #ffffff;
+    --panel-2: #f5f8fb;
+    --line: #d8e0ea;
+    --line-strong: #b9c5d4;
+    --ink: #131b26;
+    --ink-2: #4a5766;
+    --ink-3: #5f6b7a;
+    --blue: #1d4ed8;
+    --blue-soft: #e6ecfd;
+    --red: #cf2d34;
+    --red-soft: #fdeaea;
+    --green: #0d7a4d;
+    --green-soft: #e4f5ec;
+    --amber: #8a5200;
+    --amber-soft: #fdf3dd;
+    --radius: 4px;
+    --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.55; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+  .shell { display: grid; grid-template-columns: 188px 1fr; min-height: 100vh; }
+
+  /* 侧栏：细、密、字小但清楚 */
+  .rail { background: #0f1720; color: #c3ccd8; padding: 14px 10px; display: flex; flex-direction: column; gap: 18px; }
+  .rail .brand { display: flex; align-items: baseline; gap: 6px; padding: 0 8px; }
+  .rail .brand b { color: #fff; font-size: 19px; letter-spacing: -0.02em; }
+  .rail .brand span { font-size: 12px; letter-spacing: 0.14em; color: #93a3b5; }
+  .rail .g { display: flex; flex-direction: column; gap: 1px; }
+  .rail .g > h3 { margin: 0 0 6px; padding: 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; color: #8b9aab; }
+  .rail a { padding: 6px 8px; border-radius: 3px; color: #c3ccd8; text-decoration: none; font-size: 13px; }
+  .rail a:hover { background: #1a2533; color: #fff; }
+  .rail a[aria-current] { background: var(--blue); color: #fff; font-weight: 600; }
+
+  main { padding: 20px 24px 40px; min-width: 0; }
+
+  /* 顶栏：一行标题 + 状态徽标，不做大字 */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 2px solid var(--line-strong); }
+  .top h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
+  .top .date { font-size: 12px; color: var(--ink-2); margin-left: 8px; }
+  .chips { display: flex; gap: 6px; align-items: center; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--ink-2); background: var(--panel); }
+  .chip.ebb { border-color: #e2b3b3; background: var(--red-soft); color: #b32027; font-weight: 600; }
+
+  /* 指标：六格细条，不做大数字（数字在表里看） */
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 14px 0 18px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+  .kpi .k { font-size: 12px; color: var(--ink-2); letter-spacing: 0.04em; }
+  .kpi .v { font-size: 22px; font-weight: 600; margin-top: 1px; }
+  .kpi .d { font-size: 12px; color: var(--ink-2); }
+  .kpi .d i { font-style: normal; }
+  .kpi.is-ebb { border-left: 3px solid var(--red); }
+  .kpi.is-ebb .v { color: var(--red); }
+
+  /* 主表：这一屏的主角 */
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  caption { text-align: left; padding: 10px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  caption em { font-style: normal; font-weight: 400; color: var(--ink-3); margin-left: 8px; font-size: 12px; }
+  th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-3); letter-spacing: 0.06em; padding: 7px 12px; background: var(--panel-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid #edf1f6; vertical-align: baseline; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: #f9fbfd; }
+  .leg { font-size: 12px; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .leg.fc { background: #eef1f5; color: var(--ink-2); }
+  .leg.sh { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+  .leg.lg { background: var(--green-soft); color: var(--green); font-weight: 600; }
+  .nm { font-weight: 600; }
+  .cd { font-size: 12px; color: var(--ink-2); margin-left: 4px; }
+  .px { font-size: 15px; font-weight: 600; white-space: nowrap; }
+  .why { font-size: 12px; color: var(--ink-2); }
+  .st { font-size: 12px; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .st.ok { background: var(--green-soft); color: var(--green); }
+  .st.no { background: var(--amber-soft); color: var(--amber); }
+  .st.done { background: #eef1f5; color: var(--ink-2); }
+  tr.skip td { color: var(--ink-3); }
+  tr.skip .nm { text-decoration: line-through; }
+
+  /* 下面两块：左纪律右观察，窄 */
+  .bottom { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; margin-top: 14px; }
+  .pane { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .pane > h3 { margin: 0; padding: 9px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  .pane .body { padding: 8px 12px 12px; }
+  .kv { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #e6ecf3; font-size: 13px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { width: 56px; flex: none; color: var(--blue); font-weight: 600; font-size: 12px; }
+  .bar { height: 6px; background: #e6ecf3; border-radius: 3px; overflow: hidden; margin: 2px 0 6px; }
+  .bar i { display: block; height: 100%; background: var(--blue); }
+  .tiny { font-size: 12px; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <nav class="rail" aria-label="主导航">
+    <div class="brand"><b>赤轨</b><span>CHIHENG</span></div>
+    <div class="g">
+      <h3>今天</h3>
+      <a href="today-b.html" aria-current="page">今天该干什么</a>
+      <a href="#">前瞻回验</a>
+    </div>
+    <div class="g">
+      <h3>复盘</h3>
+      <a href="#">连板天梯</a>
+      <a href="#">题材轮动</a>
+      <a href="#">游资席位</a>
+      <a href="#">资金流向</a>
+    </div>
+    <div class="g">
+      <h3>情报</h3>
+      <a href="#">市场情报</a>
+      <a href="#">快讯</a>
+    </div>
+    <div class="g">
+      <h3>研究</h3>
+      <a href="#">策略与判决</a>
+      <a href="#">因子实验室</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="top">
+      <div>
+        <h1>今天该干什么<span class="date num">2026-11-12 · 盘后 15:12 封印</span></h1>
+      </div>
+      <div class="chips">
+        <span class="chip ebb">情绪 退潮</span>
+        <span class="chip">炸板率 50%</span>
+        <span class="chip">数据就绪</span>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">涨停</div><div class="v num">36</div><div class="d">较前值 <i class="num" style="color:var(--green)">−31</i></div></div>
+      <div class="kpi"><div class="k">连板</div><div class="v num">11</div><div class="d">较前值 <i class="num" style="color:var(--green)">−2</i></div></div>
+      <div class="kpi"><div class="k">最高板</div><div class="v num">5</div><div class="d">较前值 <i class="num" style="color:var(--red)">+2</i></div></div>
+      <div class="kpi"><div class="k">炸板</div><div class="v num">36</div><div class="d">炸板率 50%</div></div>
+      <div class="kpi"><div class="k">封板率</div><div class="v num">50%</div><div class="d">一半没封住</div></div>
+      <div class="kpi is-ebb"><div class="k">情绪</div><div class="v">退潮</div><div class="d">短线少动</div></div>
+    </div>
+
+    <table>
+      <caption>今日全部买入信号<em>按路排序 · 价格是能成交的价，不是挂不上的价</em></caption>
+      <thead>
+        <tr>
+          <th style="width:64px">路</th>
+          <th>名称</th>
+          <th style="width:112px">买价</th>
+          <th>依据</th>
+          <th style="width:120px">状态</th>
+          <th style="width:96px">走</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="leg fc">前瞻</span></td>
+          <td><span class="nm">日出东方</span><span class="cd num">603366</span></td>
+          <td class="px num">12.60</td>
+          <td class="why">最高板 · 5 板 · 今开 12.60（现 13.17）</td>
+          <td><span class="st ok">开盘即成交</span></td>
+          <td class="tiny">当日收盘</td>
+        </tr>
+        <tr class="skip">
+          <td><span class="leg fc">前瞻</span></td>
+          <td><span class="nm">亚玛顿</span><span class="cd num">002623</span></td>
+          <td class="px num">25.66</td>
+          <td class="why">次高板 · 4 板 · 涨停价 25.66，全天最低就是涨停价</td>
+          <td><span class="st no">一字板 · 排不进</span></td>
+          <td class="tiny">—</td>
+        </tr>
+        <tr>
+          <td><span class="leg fc">前瞻</span></td>
+          <td><span class="nm">粤宏远Ａ</span><span class="cd num">000573</span></td>
+          <td class="px num">4.35</td>
+          <td class="why">首板放量王 · 选股价（尚无今日成交）</td>
+          <td><span class="st done">待开盘</span></td>
+          <td class="tiny">当日收盘</td>
+        </tr>
+
+        <tr>
+          <td><span class="leg sh">短线</span></td>
+          <td><span class="nm">宁德时代</span><span class="cd num">300750</span></td>
+          <td class="px num">244.80</td>
+          <td class="why">题材补涨 · 近 5 日振幅 4.4%，容忍 2.2%</td>
+          <td><span class="st ok">成交 244.80</span></td>
+          <td class="tiny">第 5 日</td>
+        </tr>
+        <tr>
+          <td><span class="leg sh">短线</span></td>
+          <td><span class="nm">北方华创</span><span class="cd num">002371</span></td>
+          <td class="px num">543.01</td>
+          <td class="why">题材补涨 · 近 5 日振幅 5.8%，容忍 2.9%</td>
+          <td><span class="st ok">成交 543.01</span></td>
+          <td class="tiny">第 5 日</td>
+        </tr>
+        <tr>
+          <td><span class="leg sh">短线</span></td>
+          <td><span class="nm">华勤技术</span><span class="cd num">603296</span></td>
+          <td class="px num">69.50</td>
+          <td class="why">题材补涨 · 近 5 日振幅 3.8%，容忍 1.9%</td>
+          <td><span class="st ok">成交 69.50</span></td>
+          <td class="tiny">第 5 日</td>
+        </tr>
+        <tr class="skip">
+          <td><span class="leg sh">短线</span></td>
+          <td><span class="nm">中际旭创</span><span class="cd num">300308</span></td>
+          <td class="px num">—</td>
+          <td class="why">竞价 532.74 比昨收 471.02 高 13.1%，振幅 8.6% 只容忍 4.3%</td>
+          <td><span class="st no">不追高 · 放弃</span></td>
+          <td class="tiny">—</td>
+        </tr>
+        <tr class="skip">
+          <td><span class="leg sh">短线</span></td>
+          <td><span class="nm">新易盛</span><span class="cd num">300502</span></td>
+          <td class="px num">—</td>
+          <td class="why">竞价高开 15.6%，振幅 8.9% 只容忍 4.4%</td>
+          <td><span class="st no">不追高 · 放弃</span></td>
+          <td class="tiny">—</td>
+        </tr>
+
+        <tr>
+          <td><span class="leg lg">中长线</span></td>
+          <td><span class="nm">华夏银行</span><span class="cd num">600015</span></td>
+          <td class="px num">6.55</td>
+          <td class="why">低估值 · PE 4.4 / PB 0.32</td>
+          <td><span class="st ok">成交 6.55</span></td>
+          <td class="tiny">第 8 日</td>
+        </tr>
+        <tr>
+          <td><span class="leg lg">中长线</span></td>
+          <td><span class="nm">贵阳银行</span><span class="cd num">601997</span></td>
+          <td class="px num">5.90</td>
+          <td class="why">低估值 · PE 4.8 / PB 0.36</td>
+          <td><span class="st ok">成交 5.90</span></td>
+          <td class="tiny">第 8 日</td>
+        </tr>
+        <tr>
+          <td><span class="leg lg">中长线</span></td>
+          <td><span class="nm">上峰材料</span><span class="cd num">000672</span></td>
+          <td class="px num">13.17</td>
+          <td class="why">低估值 · PE 12.1 / PB 1.10</td>
+          <td><span class="st ok">成交 13.17</span></td>
+          <td class="tiny">第 8 日</td>
+        </tr>
+        <tr>
+          <td><span class="leg lg">中长线</span></td>
+          <td><span class="nm">平安银行</span><span class="cd num">000001</span></td>
+          <td class="px num">11.69</td>
+          <td class="why">低估值 · PE 5.2 / PB 0.55</td>
+          <td><span class="st ok">成交 11.69</span></td>
+          <td class="tiny">第 8 日</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="tiny" style="margin-top:8px">
+      证据口径：前瞻这套 165 笔命中 49.1%（基准 46.0%）、追买 87.9% 跑输 94.4%；低估值线上 20 笔 +3.33pp 但从未回测验证；题材补涨 +0.06% 无超额。本页只陈述已测到的数，不承诺收益。
+    </div>
+
+    <div class="bottom">
+      <div class="pane">
+        <h3>什么时候卖</h3>
+        <div class="body">
+          <div class="kv"><span class="k">短线</span><span>断板、或炸板率升到 40% 以上 → 走。<b style="color:var(--red)">今天 50%，已在该走区间。</b></span></div>
+          <div class="kv"><span class="k">中长线</span><span>跌破止损 −8% / 到目标 +10% / 20 日线拐头破位 → 走，先到先走。</span></div>
+          <div class="kv"><span class="k">T+1</span><span>买入当天不卖；第 N 个交易日收盘卖（短线 5 / 中长线 8）。</span></div>
+        </div>
+      </div>
+      <div class="pane">
+        <h3>盯什么</h3>
+        <div class="body">
+          <div class="kv"><span class="k">监管</span><span>已达异动线 <b class="num" style="color:var(--red)">3 只</b>：天普股份 · 惠发食品 · 日出东方</span></div>
+          <div class="kv"><span class="k">题材</span><span>西部大开发 <b class="num">8</b> 涨停</span></div>
+          <div style="padding:0 0 6px 66px"><span class="bar"><i style="width:80%"></i></span></div>
+          <div class="kv"><span class="k">次热</span><span>高市净率 7 · 破发股 7 · 新材料 7</span></div>
+          <div class="kv"><span class="k">梯队</span><span class="num">5板 1 · 4板 2 · 3板 3</span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

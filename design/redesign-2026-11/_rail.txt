@@ -1,0 +1,32 @@
+<nav class="rail" aria-label="主导航">
+    <div class="logo">
+      <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <b>赤轨</b><span>v2</span>
+    </div>
+    <div class="leds" aria-hidden="true">
+      <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+      <div class="led"><i class="c"></i>KLINE 5225</div>
+      <div class="led"><i class="w"></i>BREAK 50%</div>
+    </div>
+    <div class="nav-g">
+      <h3>// TODAY</h3>
+      <a href="today-pixel.html"@TODAY@>今天该干什么</a>
+      <a href="huiyan.html"@HY@>前瞻回验</a>
+    </div>
+    <div class="nav-g">
+      <h3>// REVIEW</h3>
+      <a href="review.html"@RV@>连板天梯</a>
+      <a href="themes.html"@TH@>题材轮动</a>
+      <a href="youzi.html"@YZ@>游资席位</a>
+      <a href="intel.html"@IN@>市场情报</a>
+    </div>
+    <div class="nav-g">
+      <h3>// POSITION</h3>
+      <a href="positions.html"@PS@>持仓与卖出</a>
+    </div>
+    <div class="nav-g">
+      <h3>// LAB</h3>
+      <a href="strategies.html"@ST@>策略与判决</a>
+      <a href="mobile.html">手机版</a>
+    </div>
+  </nav>

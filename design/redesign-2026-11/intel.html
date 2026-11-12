@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>情报映射 · 赤轨</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  .news { display: grid; grid-template-columns: 56px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
+  .news:last-child { border-bottom: 0; }
+  .imp { text-align: center; }
+  .imp b { display: block; font-family: var(--mono); font-size: 22px; line-height: 1; color: var(--cyan); }
+  .imp span { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; }
+  .news h4 { margin: 0 0 4px; font-size: 14px; font-weight: 600; line-height: 1.45; }
+  .news p { margin: 0 0 8px; font-size: 12px; line-height: 1.6; color: var(--ink-2); }
+  .map { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; }
+  .map .arrow { color: var(--ink-3); }
+  .map .theme { color: var(--cyan); border: 1px solid rgba(34, 230, 255, .4); background: rgba(34, 230, 255, .08); padding: 1px 6px; }
+  .map .stock { color: var(--ink); border: 1px solid var(--line-2); padding: 1px 6px; }
+  .map .stock.hot { color: var(--lime); border-color: rgba(166, 255, 61, .4); background: rgba(166, 255, 61, .08); }
+  .hours { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .hour { background: var(--panel); padding: 10px 12px; }
+  .hour .h { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+  .hour .n { font-family: var(--mono); font-size: 22px; color: var(--ink); }
+  .hour .l { font-size: 12px; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="ruler" aria-hidden="true"></div>
+
+<div class="wrap noise">
+<nav class="rail" aria-label="主导航">
+      <div class="logo">
+        <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <b>赤轨</b><span>v2</span>
+      </div>
+      <div class="leds" aria-hidden="true">
+        <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+        <div class="led"><i class="c"></i>KLINE 5225</div>
+        <div class="led"><i class="w"></i>BREAK 50%</div>
+      </div>
+      <div class="nav-g">
+        <h3>// TODAY</h3>
+        <a href="today-pixel.html">今天该干什么</a>
+        <a href="huiyan.html">前瞻回验</a>
+      </div>
+      <div class="nav-g">
+        <h3>// REVIEW</h3>
+        <a href="review.html">连板天梯</a>
+        <a href="themes.html">题材轮动</a>
+        <a href="youzi.html">游资席位</a>
+        <a href="intel.html" aria-current="page">市场情报</a>
+      </div>
+      <div class="nav-g">
+        <h3>// POSITION</h3>
+        <a href="positions.html">持仓与卖出</a>
+      </div>
+      <div class="nav-g">
+        <h3>// LAB</h3>
+        <a href="strategies.html">策略与判决</a>
+        <a href="mobile.html">手机版</a>
+      </div>
+    </nav>
+
+  <main>
+    <div class="hud pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="left">
+        <span class="field">SYS//INTEL</span>
+        <h1 class="glitch chroma">情报<b>·</b>映射<span class="cursor" aria-hidden="true"></span></h1>
+        <span class="field">2026-11-12 · 7 条重要情报</span>
+      </div>
+      <div class="badges">
+        <span class="badge c">题材命中 5</span>
+        <span class="badge dim">公告 14112</span>
+        <span class="badge m">待验证 2</span>
+      </div>
+    </div>
+    <div class="hazard" aria-hidden="true"></div>
+
+    <div class="role">
+      <b>这一步在选股里：</b>新闻本身不选股，它只回答「今天这个题材为什么烧」。一条情报要能落到
+      <b>具体题材 → 具体个股</b>才算有用；落不下去的，就只是新闻，别拿它当买入理由。
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2>NEWS → THEME → STOCK</h2>
+      <span class="line"></span>
+      <span class="meta">按重要度排 · 重要度是模型打分，不是涨幅预测</span>
+    </div>
+
+    <section class="mod pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div style="padding:4px 12px 10px">
+
+        <div class="news">
+          <div class="imp"><b>78</b><span>IMP</span></div>
+          <div>
+            <h4>长鑫 DDR5 产品最新进展：32Gb 颗粒落地，MRDIMM 速率最高 12800Mbps</h4>
+            <p>DDR5 颗粒完成 24Gb→32Gb 迭代，RDIMM 覆盖 32–128GB、5600–8000Mbps；MRDIMM 覆盖 128/192GB。</p>
+            <div class="map">
+              <span class="arrow">▸</span><span class="theme">芯片 · 自主可控</span>
+              <span class="arrow">▸</span><span class="stock hot">兆易创新</span><span class="stock">北方华创</span><span class="stock">长电科技</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="news">
+          <div class="imp"><b>78</b><span>IMP</span></div>
+          <div>
+            <h4>国内首个口服 GLP-1 类减肥药「奥氟格列隆」获批上市</h4>
+            <p>首个口服剂型，替代注射的想象空间；减肥药链条今天没有涨停，属于“次日才反应”的类型。</p>
+            <div class="map">
+              <span class="arrow">▸</span><span class="theme">医药 · 减肥药</span>
+              <span class="arrow">▸</span><span class="stock">九安医疗</span><span class="stock">华东医药</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="news">
+          <div class="imp"><b>75</b><span>IMP</span></div>
+          <div>
+            <h4>天赐材料：子公司拟投资不超 50 亿元建年产 50 万吨电解液及配套材料</h4>
+            <p>扩产公告，对电解液链条是产能扩张信号，同时也是价格战的伏笔——两条解读方向相反。</p>
+            <div class="map">
+              <span class="arrow">▸</span><span class="theme">锂电 · 电解液</span>
+              <span class="arrow">▸</span><span class="stock hot">天赐材料</span><span class="stock">新宙邦</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="news">
+          <div class="imp"><b>72</b><span>IMP</span></div>
+          <div>
+            <h4>嘉友国际：联合体拟与刚果（金）国家运输局签约，推进西部运输走廊多式联运</h4>
+            <p>一带一路 + 物流，和今天西部大开发 8 家涨停是同一条线，属于“事后解释”，不是先手。</p>
+            <div class="map">
+              <span class="arrow">▸</span><span class="theme">物流 · 一带一路</span>
+              <span class="arrow">▸</span><span class="stock hot">嘉友国际</span><span class="stock">西部创业</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="note">
+        重要度 78 的两条并列第一：芯片是“已有涨停兑现”，医药是“还没反应”。前者是解释，后者才可能是先手——
+        但“还没反应”也可能是市场压根不认，所以两条都是待验证，不是买入理由。
+      </div>
+    </section>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/></svg><h2 class="slashbg">ANNOUNCEMENT_FLOW</h2>
+      <span class="line"></span>
+      <span class="meta">今日公告总量 14112 条 · 只挑结构化的</span>
+    </div>
+
+    <div class="hours">
+      <div class="hour"><div class="h">07–09</div><div class="n">1,204</div><div class="l">早间披露</div></div>
+      <div class="hour"><div class="h">12–13</div><div class="n">2,860</div><div class="l">午间披露</div></div>
+      <div class="hour"><div class="h">16–18</div><div class="n">6,377</div><div class="l">盘后为主</div></div>
+      <div class="hour"><div class="h">18–24</div><div class="n">3,671</div><div class="l">晚间补充</div></div>
+    </div>
+
+    <div class="foot">
+      // 情报 → 题材的映射是模型给的，会错。<br>
+      
+      // 点题材能看今天的涨停家数与成分股。<br>
+      // 对不上就是映射错了。<br>
+      // 公告 14112 条里只有结构化的（增减持/回购/中标/停牌）进了映射。<br>
+      // 其余只是文本，没做解读。
+    </div>
+    <div class="pixdiv" aria-hidden="true"><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i></div>
+    <div class="ticks-x" aria-hidden="true"></div>
+    <div class="barcode" aria-hidden="true"></div>
+  </main>
+</div>
+</body>
+</html>

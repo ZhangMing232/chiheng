@@ -1,0 +1,7 @@
+    <div class="steps" aria-label="选股流程">
+      <div class="s done"><span class="n">01</span><span class="t">能不能做</span></div>
+      <div class="s"%RV%><span class="n">02</span><span class="t">钱在哪</span></div>
+      <div class="s"%TH%><span class="n">03</span><span class="t">题材轮动</span></div>
+      <div class="s"%TD%><span class="n">04</span><span class="t">定票与价位</span></div>
+      <div class="s"%HY%><span class="n">05</span><span class="t">盘后验证</span></div>
+    </div>

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>策略与判决 · 赤轨</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  .strat { border: 1px solid var(--line); background: var(--panel); margin-bottom: 8px; position: relative; }
+  .strat > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  .strat h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .strat h3 em { font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--ink-2); margin-left: 8px; }
+  .strat .body { padding: 10px 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .strat .f { }
+  .strat .f .k { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-2); }
+  .strat .f .v { font-family: var(--mono); font-size: 20px; }
+  .strat .f .v small { font-family: var(--font); font-size: 12px; color: var(--ink-2); }
+  .strat .verdict { margin: 0 12px 10px; padding: 9px 11px; border-left: 2px solid var(--line-2);
+    font-size: 12px; line-height: 1.65; color: var(--ink-2); background: rgba(255,255,255,.014); }
+  .strat.live { box-shadow: inset 3px 0 0 var(--lime); }
+  .strat.dead { border-color: #262b33; }
+  .strat.dead .verdict { border-left-color: var(--magenta); }
+  .state { font-family: var(--mono); font-size: 12px; padding: 2px 7px; border: 1px solid; white-space: nowrap; }
+  .state.on { color: var(--lime); border-color: rgba(166, 255, 61, .45); background: rgba(166, 255, 61, .08); }
+  .state.off { color: #ff6ea4; border-color: rgba(255, 46, 138, .4); background: rgba(255, 46, 138, .07); }
+</style>
+</head>
+<body>
+<div class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="ruler" aria-hidden="true"></div>
+
+<div class="wrap noise">
+<nav class="rail" aria-label="主导航">
+      <div class="logo">
+        <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <b>赤轨</b><span>v2</span>
+      </div>
+      <div class="leds" aria-hidden="true">
+        <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+        <div class="led"><i class="c"></i>KLINE 5225</div>
+        <div class="led"><i class="w"></i>BREAK 50%</div>
+      </div>
+      <div class="nav-g">
+        <h3>// TODAY</h3>
+        <a href="today-pixel.html">今天该干什么</a>
+        <a href="huiyan.html">前瞻回验</a>
+      </div>
+      <div class="nav-g">
+        <h3>// REVIEW</h3>
+        <a href="review.html">连板天梯</a>
+        <a href="themes.html">题材轮动</a>
+        <a href="youzi.html">游资席位</a>
+        <a href="intel.html">市场情报</a>
+      </div>
+      <div class="nav-g">
+        <h3>// POSITION</h3>
+        <a href="positions.html">持仓与卖出</a>
+      </div>
+      <div class="nav-g">
+        <h3>// LAB</h3>
+        <a href="strategies.html" aria-current="page">策略与判决</a>
+        <a href="mobile.html">手机版</a>
+      </div>
+    </nav>
+
+  <main>
+    <div class="hud pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="left">
+        <span class="field">SYS//STRATEGY</span>
+        <h1 class="glitch chroma">策略<b>·</b>判决<span class="cursor" aria-hidden="true"></span></h1>
+        <span class="field">现役 1 · 退役 5 · 墓碑 40</span>
+      </div>
+      <div class="badges">
+        <span class="badge c">现役 低估值</span>
+        <span class="badge m">无已验证超额</span>
+        <span class="badge dim">证据门槛 |t|≥2</span>
+      </div>
+    </div>
+    <div class="hazard" aria-hidden="true"></div>
+
+    <div class="role">
+      <b>这一步在选股里：</b>回答「凭什么相信它」。每套规则都要有回测数字、样本量和判决；
+      没有 |t|≥2 的，不许进实盘。这一屏是给自己看的，不是对外宣传——所以失败的也留着。
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/></svg><h2 class="slashbg">LIVE</h2>
+      <span class="line"></span>
+      <span class="meta">能开新仓的只有这些</span>
+    </div>
+
+    <div class="strat live">
+      <header>
+        <h3>低估值<em>value · PE≤18 / PB≤2</em></h3>
+        <span class="state on">现役</span>
+      </header>
+      <div class="body">
+        <div class="f"><div class="k">线上样本</div><div class="v">20 <small>笔</small></div></div>
+        <div class="f"><div class="k">线上超额</div><div class="v" style="color:var(--lime)">+3.33 <small>pp</small></div></div>
+        <div class="f"><div class="k">回测验证</div><div class="v" style="color:#ff6ea4">无</div></div>
+        <div class="f"><div class="k">本质</div><div class="v" style="font-size:14px">银行 beta</div></div>
+      </div>
+      <div class="verdict">
+        <b style="color:var(--ink)">最大的证据缺口就是它。</b>回测侧缺历史 PE/PB 日序列，所以这套从来没被完整验证过；
+        线上 20 笔 +3.33pp 可能是单月运气。别把「唯一在跑」当成「已验证」。
+      </div>
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2 class="slashbg">RETIRED</h2>
+      <span class="line"></span>
+      <span class="meta">不建新仓，只结算历史仓</span>
+    </div>
+
+    <div class="strat dead">
+      <header><h3>放量突破<em>breakout</em></h3><span class="state off">已下线</span></header>
+      <div class="body">
+        <div class="f"><div class="k">样本</div><div class="v">580 <small>笔</small></div></div>
+        <div class="f"><div class="k">超额</div><div class="v" style="color:#ff6ea4">−0.18 <small>pp</small></div></div>
+        <div class="f"><div class="k">信噪比</div><div class="v" style="color:#ff6ea4">−0.52</div></div>
+        <div class="f"><div class="k">判决</div><div class="v" style="font-size:14px">触发回滚</div></div>
+      </div>
+      <div class="verdict">白皮书 §4 自定 |t|≥2 即回滚。一代口径（−2% 止损）信噪比 −2.00，参数救不回来。</div>
+    </div>
+
+    <div class="strat dead">
+      <header><h3>反转<em>rebound</em></h3><span class="state off">已下线</span></header>
+      <div class="body">
+        <div class="f"><div class="k">全池样本</div><div class="v">2136 <small>笔</small></div></div>
+        <div class="f"><div class="k">超额</div><div class="v" style="color:#ff6ea4">−0.28 <small>pp</small></div></div>
+        <div class="f"><div class="k">信噪比</div><div class="v" style="color:#ff6ea4">−1.92</div></div>
+        <div class="f"><div class="k">真账本</div><div class="v" style="color:#ff6ea4">17 笔 −13%</div></div>
+      </div>
+      <div class="verdict">
+        2026-09-29 之后 136 笔 −4.28pp（t=−11.27，胜率 4%）。它亏的正是「跌多了该反弹」这句话，白皮书 §3.4 明文封禁。
+      </div>
+    </div>
+
+    <div class="strat dead">
+      <header><h3>趋势回踩 / 启动前期 / 连板接力<em>trend · early · relay</em></h3><span class="state off">已下线</span></header>
+      <div class="body">
+        <div class="f"><div class="k">共同点</div><div class="v" style="font-size:14px">信噪比 &lt; 1</div></div>
+        <div class="f"><div class="k">追高</div><div class="v" style="color:#ff6ea4">−3.71 <small>%</small></div></div>
+        <div class="f"><div class="k">追高 t</div><div class="v" style="color:#ff6ea4">−10.19</div></div>
+        <div class="f"><div class="k">墓碑</div><div class="v">40 <small>个因子</small></div></div>
+      </div>
+      <div class="verdict">「追三连板」全项目最强反向证据（t=−10.19）：板越高，次日越亏。墓碑留着当疤，不删。</div>
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2>GATE</h2>
+      <span class="line"></span>
+      <span class="meta">重开一个策略要过什么</span>
+    </div>
+
+    <section class="mod pxframe">
+      <b></b><b></b><b></b><b></b>
+      <div class="cmd">
+        <div>
+          <h4>进门条件</h4>
+          <div class="ln2"><span class="k">|t|</span><span>≥ 2，且新窗口、新持有期、新选股条件各自独立跑过三批互换</span></div>
+          <div class="ln2"><span class="k">样本</span><span>≥ 300 笔；样本不足只给计数，不给胜率评价</span></div>
+          <div class="ln2"><span class="k">基准</span><span>必须报同期全池超额，只报绝对收益不算数</span></div>
+        </div>
+        <div>
+          <h4>不能用的理由</h4>
+          <div class="ln2"><span class="k">叙事</span><span>「跌多了该反弹」「这个题材会火」——都不是证据</span></div>
+          <div class="ln2"><span class="k">单窗口</span><span>只在某一段好看，前后半段翻脸一律判没过</span></div>
+          <div class="ln2"><span class="k">漏闸</span><span>线上有、回测没写的闸（换手率等）补上后重跑，正收益经常消失</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">
+      // 判决只认数据：所有数字来自 data/backtest 下的运行记录，不是手填。<br>
+      // 「现役」不等于「能赚」；本页结论是：目前没有任何一套策略有统计显著的正超额。
+    </div>
+    <div class="pixdiv" aria-hidden="true"><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i></div>
+    <div class="ticks-x" aria-hidden="true"></div>
+    <div class="barcode" aria-hidden="true"></div>
+  </main>
+</div>
+</body>
+</html>

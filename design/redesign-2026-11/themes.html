@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>题材轮动 · 赤轨</title>
+<link rel="stylesheet" href="pixel.css">
+<style>
+  /* ── 本屏专用：题材热力格 + 轮动表 ───────────────── */
+  /* 热力格：一个涨停一颗方块，越长越热；不用渐变色，硬边方块更像素 */
+  .heat { display: flex; flex-direction: column; gap: 8px; }
+  .heat .t { display: grid; grid-template-columns: 132px 1fr 92px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .heat .t:last-child { border-bottom: 0; }
+  .heat .nm { font-size: 13px; }
+  .heat .nm em { font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-left: 6px; }
+  .blocks { display: flex; gap: 3px; }
+  .blocks i { width: 11px; height: 16px; background: var(--line); }
+  .blocks i.on { background: var(--cyan); }
+  .blocks i.hot { background: var(--magenta); }
+  .heat .num { font-family: var(--mono); font-size: 13px; text-align: right; color: var(--ink-2); }
+  .heat .num b { color: var(--cyan); font-size: 16px; }
+
+  /* 轮动表：加速/减速用硬标签 */
+  .rot { font-family: var(--mono); font-size: 12px; padding: 2px 7px; border: 1px solid; letter-spacing: 0.06em; }
+  .rot.up { color: var(--lime); border-color: rgba(166, 255, 61, .45); background: rgba(166, 255, 61, .08); }
+  .rot.flat { color: var(--ink-2); border-color: var(--line-2); }
+  .rot.down { color: var(--magenta); border-color: rgba(255, 46, 138, .45); background: rgba(255, 46, 138, .08); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-family: var(--mono); font-size: 12px; font-weight: 400; letter-spacing: 0.1em; color: var(--ink-3); padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-transform: uppercase; }
+  td { padding: 9px 10px; border-bottom: 1px dashed var(--line); font-size: 13px; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: rgba(34, 230, 255, .04); }
+  td.n { font-family: var(--mono); text-align: right; }
+  .lead { color: var(--cyan); }
+</style>
+</head>
+<body>
+<div class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="scanbeam" aria-hidden="true"></div>
+<div class="ruler" aria-hidden="true"></div>
+
+<div class="wrap noise">
+<nav class="rail" aria-label="主导航">
+    <div class="logo">
+      <span class="px-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <b>赤轨</b><span>v2</span>
+    </div>
+    <div class="leds" aria-hidden="true">
+      <div class="led"><i class="g"></i>SNAPSHOT OK</div>
+      <div class="led"><i class="c"></i>KLINE 5225</div>
+      <div class="led"><i class="w"></i>BREAK 50%</div>
+    </div>
+    <div class="nav-g">
+      <h3>// TODAY</h3>
+      <a href="today-pixel.html">今天该干什么</a>
+      <a href="huiyan.html">前瞻回验</a>
+    </div>
+    <div class="nav-g">
+      <h3>// REVIEW</h3>
+      <a href="review.html">连板天梯</a>
+      <a href="themes.html" aria-current="page">题材轮动</a>
+      <a href="youzi.html">游资席位</a>
+      <a href="intel.html">市场情报</a>
+    </div>
+    <div class="nav-g">
+      <h3>// POSITION</h3>
+      <a href="positions.html">持仓与卖出</a>
+    </div>
+    <div class="nav-g">
+      <h3>// LAB</h3>
+      <a href="strategies.html">策略与判决</a>
+      <a href="mobile.html">手机版</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="hud">
+      <div class="left">
+        <span class="field">SYS//THEMES</span>
+        <h1 class="glitch chroma">题材<b>·</b>轮动<span class="cursor" aria-hidden="true"></span></h1>
+        <span class="field">2026-11-12 · 收盘</span>
+      </div>
+      <div class="badges">
+        <span class="badge c">加速 9 个</span>
+        <span class="badge dim">在烧 12 个</span>
+        <span class="badge m">退潮 3 个</span>
+      </div>
+    </div>
+
+    <div class="steps" aria-label="选股流程">
+      <div class="s done"><span class="n">01</span><span class="t">能不能做</span></div>
+      <div class="s"><span class="n">02</span><span class="t">钱在哪</span></div>
+      <div class="s" class="s on"><span class="n">03</span><span class="t">题材轮动</span></div>
+      <div class="s"><span class="n">04</span><span class="t">定票与价位</span></div>
+      <div class="s"><span class="n">05</span><span class="t">盘后验证</span></div>
+    </div>
+
+    <div class="role">
+      <b>这一步在选股里：</b>找「还在扩散」的题材，不找已经打到高潮的。判据只有两条——
+      今天涨停家数比昨天多（加速）、而且龙头还没断板。两条都满足，里面没动的票才是补涨候选；
+      只满足一条就是尾声，进去接力。
+    </div>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <svg class="icon-px" viewBox="0 0 8 8" aria-hidden="true" fill="#22e6ff"><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/></svg><h2 class="slashbg">HEAT_MAP</h2>
+      <span class="line"></span>
+      <span class="meta">一格 = 一只涨停</span>
+    </div>
+
+    <section class="mod">
+      <div class="heat" style="padding:8px 12px 10px">
+        <div class="t">
+          <div class="nm">西部大开发<em>8</em></div>
+          <div class="blocks"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
+          <div class="num"><b>+3</b> 涨停</div>
+        </div>
+        <div class="t">
+          <div class="nm">参股银行<em>6</em></div>
+          <div class="blocks"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="num"><b>+2</b> 涨停</div>
+        </div>
+        <div class="t">
+          <div class="nm">预制菜<em>5</em></div>
+          <div class="blocks"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="num"><b>+1</b> 涨停</div>
+        </div>
+        <div class="t">
+          <div class="nm">装配建筑<em>4</em></div>
+          <div class="blocks"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="num"><b>+1</b> 涨停</div>
+        </div>
+        <div class="t">
+          <div class="nm">CPO<em>3</em></div>
+          <div class="blocks"><i class="hot"></i><i class="hot"></i><i class="hot"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="num" style="color:var(--magenta)"><b style="color:var(--magenta)">−4</b> 涨停</div>
+        </div>
+      </div>
+      <div class="note">品红 = 家数在减少（退潮中的题材）。青 = 还在扩散。一格一只，满 12 格就说明这个题材已经烧到极致。</div>
+    </section>
+
+    <div class="modhead">
+      <span class="px3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h2 class="slashbg">ROTATION</h2>
+      <span class="line"></span>
+      <span class="meta">涨停家数 / 均涨幅 / 5 日趋势 / 龙头 / 还能不能进</span>
+    </div>
+
+    <section class="mod" style="padding:2px 4px 6px">
+      <table>
+        <thead>
+          <tr><th>题材</th><th style="text-align:right">涨停</th><th style="text-align:right">5日</th><th>方向</th><th>龙头</th><th>能不能进</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>西部大开发</td><td class="n">8</td><td class="n" style="color:var(--up)">+6.2%</td><td><span class="rot up">加速</span></td><td class="lead">西部创业 2板</td><td>可跟，挑没动的</td></tr>
+          <tr><td>参股银行</td><td class="n">6</td><td class="n" style="color:var(--up)">+3.4%</td><td><span class="rot up">加速</span></td><td class="lead">华夏银行 —</td><td>可跟，但弹性小</td></tr>
+          <tr><td>预制菜</td><td class="n">5</td><td class="n" style="color:var(--up)">+2.8%</td><td><span class="rot up">加速</span></td><td class="lead">惠发食品 3板</td><td>可跟，龙头已高</td></tr>
+          <tr><td>装配建筑</td><td class="n">4</td><td class="n" style="color:var(--up)">+1.9%</td><td><span class="rot flat">平稳</span></td><td class="lead">东易日盛 1板</td><td>观察，缺龙头</td></tr>
+          <tr><td>新材料</td><td class="n">7</td><td class="n" style="color:var(--up)">+1.2%</td><td><span class="rot flat">平稳</span></td><td class="lead">—</td><td>太散，不跟</td></tr>
+          <tr><td>高市净率</td><td class="n">7</td><td class="n">—</td><td><span class="rot flat">统计标签</span></td><td>—</td><td>不是题材，剔掉</td></tr>
+          <tr><td>CPO</td><td class="n">3</td><td class="n" style="color:var(--down)">−2.1%</td><td><span class="rot down">减速</span></td><td class="lead">中际旭创 —</td><td>别碰，尾声</td></tr>
+          <tr><td>军工</td><td class="n">3</td><td class="n" style="color:var(--down)">−3.4%</td><td><span class="rot down">减速</span></td><td class="lead">—</td><td>别碰，家数在掉</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="grid2" style="margin-top:10px">
+      <div class="term">
+        <div class="ln"><span class="p">&gt;</span><span class="k">PICK</span><span>今天值得跟的只有 3 个：西部大开发、参股银行、预制菜——家数在加、龙头还在。</span></div>
+        <div class="ln"><span class="p">&gt;</span><span class="k">SKIP</span><span>CPO、军工家数在掉，中际旭创还在高位——这就是今天它被「不追高」挡掉的原因。</span></div>
+        <div class="ln"><span class="p">&gt;</span><span class="k">TAG</span><span>「高市净率」「破发股」这类是统计标签不是题材，选股时直接剔除，别当热点跟。</span></div>
+      </div>
+      <div class="term hudlist">
+        <div class="row"><span class="l">在烧的题材</span><span class="r2">12 个</span></div>
+        <div class="row"><span class="l">加速 / 减速</span><span class="r2">9 / 3</span></div>
+        <div class="row"><span class="l">可跟</span><span class="r2" style="color:var(--lime)">3 个</span></div>
+        <div class="row"><span class="l">剔除的统计标签</span><span class="r2">2 个</span></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      // 涨停家数按每只票自己的涨跌停幅度判定（主板 10% / 双创 20% / 北交所 30% / ST 5%）。<br>
+      // 加速＝今天涨停家数 > 昨天；减速＝今天 &lt; 昨天。均涨幅是题材成分股的算术平均，不是市值加权。
+    </div>
+    <div class="pixdiv" aria-hidden="true"><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i></div>
+    <div class="ticks-x" aria-hidden="true"></div>
+    <div class="barcode" aria-hidden="true"></div>
+  </main>
+</div>
+</body>
+</html>

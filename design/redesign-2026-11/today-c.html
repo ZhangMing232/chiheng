@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dsh-design" content="web">
+<title>方向 C · 瑞士网格 · 今天</title>
+<style>
+  /* 方向 C：瑞士网格 —— 白底黑字红色块、严格网格、超大排版。
+   * 和 A/B 的区别：A 是深色作战台，B 是密集数据表，C 是一张“今天”的版面：
+   * 数字当版面元素用，靠网格线和留白分区，不安卡片、不加底色块。 */
+  :root {
+    --paper: #ffffff;
+    --ink: #111111;
+    --ink-2: #5c5c5c;
+    --ink-3: #6e6e6e;
+    --rule: #dcdcdc;
+    --rule-strong: #111111;
+    --red: #c92a24;
+    --red-ink: #ffffff;
+    --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font); }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+
+  .page { max-width: 1240px; margin: 0 auto; padding: 28px 32px 56px; }
+
+  /* 页眉：品牌在左，日期在右，一条黑粗线压下 */
+  .masthead { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 10px; border-bottom: 3px solid var(--rule-strong); }
+  .masthead .l { display: flex; align-items: baseline; gap: 10px; }
+  .masthead b { font-size: 15px; letter-spacing: 0.2em; }
+  .masthead span { font-size: 12px; letter-spacing: 0.16em; color: var(--ink-2); text-transform: uppercase; }
+  .masthead .r { font-size: 12px; color: var(--ink-2); }
+
+  /* 标题区：一句结论 + 超大数字 */
+  .lead { display: grid; grid-template-columns: 1fr 220px; gap: 32px; padding: 26px 0 22px; border-bottom: 1px solid var(--rule); }
+  .lead h1 { margin: 0; font-size: 42px; line-height: 1.04; letter-spacing: -0.03em; font-weight: 700; }
+  .lead h1 em { font-style: normal; color: var(--red); }
+  .lead p { margin: 14px 0 0; max-width: 34em; font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+  .stamp { background: var(--red); color: var(--red-ink); padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; min-height: 132px; }
+  .stamp .k { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 1; }
+  .stamp .v { font-size: 30px; line-height: 1; font-weight: 700; letter-spacing: -0.03em; }
+  .stamp .d { font-size: 12px; line-height: 1.5; opacity: 1; }
+
+  /* KPI：一行超大数字，靠竖线分隔，像报表头 */
+  .figures { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--rule); }
+  .fig { padding: 18px 16px 16px; border-left: 1px solid var(--rule); }
+  .fig:first-child { border-left: 0; padding-left: 0; }
+  .fig .k { font-size: 12px; letter-spacing: 0.14em; color: var(--ink-2); text-transform: uppercase; }
+  .fig .v { font-size: 46px; line-height: 1; font-weight: 700; margin-top: 6px; }
+  .fig .d { font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+  .fig .d b { font-weight: 700; }
+  .fig .d .neg { color: #0d7a4d; }
+  .fig .d .pos { color: #c92a24; }
+
+  /* 三栏信号：栏与栏之间一条竖线，标题小字大写 */
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-bottom: 1px solid var(--rule); }
+  .col { padding: 20px 20px 22px; border-left: 1px solid var(--rule); }
+  .col:first-child { border-left: 0; padding-left: 0; }
+  .col > h2 { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  .col > .sub { font-size: 12px; color: var(--ink-2); margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+  .item { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 11px 0; border-bottom: 1px solid var(--rule); }
+  .item:last-child { border-bottom: 0; }
+  .item .nm { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .item .cd { font-size: 12px; color: var(--ink-2); margin-left: 5px; letter-spacing: 0.04em; }
+  .item .px { font-size: 22px; font-weight: 700; text-align: right; }
+  .item .px small { display: block; font-size: 12px; font-weight: 400; color: var(--ink-2); letter-spacing: 0; font-family: var(--font); }
+  .item .why { font-size: 12px; color: var(--ink-2); grid-column: 1 / -1; }
+  .item.dead .nm { color: var(--ink-3); text-decoration: line-through; }
+  .item.dead .px { font-size: 12px; color: var(--red); font-weight: 600; letter-spacing: 0; font-family: var(--font); }
+  .col .note { margin-top: 14px; font-size: 12px; line-height: 1.65; color: var(--ink-2); }
+
+  /* 底部：编号纪律 + 观察，双栏 */
+  .foot { display: grid; grid-template-columns: 1fr 300px; gap: 0; }
+  .rules { padding: 22px 20px 0 0; }
+  .rules h2 { margin: 0 0 14px; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+  .rule { display: grid; grid-template-columns: 34px 1fr; gap: 10px; padding: 13px 0; border-top: 1px solid var(--rule); font-size: 14px; line-height: 1.6; }
+  .rule .n { font-size: 12px; color: var(--red); font-weight: 700; letter-spacing: 0.06em; }
+  .watch { border-left: 1px solid var(--rule); padding: 22px 0 0 20px; }
+  .watch h2 { margin: 0 0 14px; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+  .w { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 12px; }
+  .w .l { color: var(--ink-2); }
+  .w .r { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .w .r.hot { color: var(--red); font-weight: 700; }
+
+  .disclaimer { margin-top: 30px; padding-top: 14px; border-top: 3px solid var(--rule-strong); font-size: 12px; line-height: 1.75; color: var(--ink-2); max-width: 34em; }
+
+  @media (max-width: 1000px) {
+    .page { padding: 18px; }
+    .lead { grid-template-columns: 1fr; }
+    .lead h1 { font-size: 36px; }
+    .figures { grid-template-columns: repeat(2, 1fr); }
+    .fig:nth-child(odd) { border-left: 0; padding-left: 0; }
+    .cols { grid-template-columns: 1fr; }
+    .col { border-left: 0; padding-left: 0; }
+    .foot { grid-template-columns: 1fr; }
+    .watch { border-left: 0; padding-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="masthead">
+    <div class="l"><b>赤轨</b><span>Chiheng / Today</span></div>
+    <div class="r num">2026-11-12 · 盘后 15:12 收盘封印</div>
+  </div>
+
+  <div class="lead">
+    <div>
+      <h1>今天买什么<em>，</em><br>先看情绪能不能做</h1>
+      <p>涨停 36 家、连板 11 家、最高 5 板，但炸板 36 只、炸板率 50%——热度在退。今天三路信号合计可买 11 只，其中前瞻那 3 只属于自证清单，不是荐股。</p>
+    </div>
+    <div class="stamp">
+      <div class="k">Mood</div>
+      <div class="v">退潮</div>
+      <div class="d">炸板率高，短线少动。<br>中长线照纪律走。</div>
+    </div>
+  </div>
+
+  <div class="figures">
+    <div class="fig"><div class="k">涨停</div><div class="v num">36</div><div class="d">较前值 <b class="num neg">−31</b></div></div>
+    <div class="fig"><div class="k">连板</div><div class="v num">11</div><div class="d">较前值 <b class="num neg">−2</b></div></div>
+    <div class="fig"><div class="k">最高板</div><div class="v num">5</div><div class="d">较前值 <b class="num pos">+2</b></div></div>
+    <div class="fig"><div class="k">炸板率</div><div class="v num">50<span style="font-size:22px">%</span></div><div class="d">36 只炸 / 36 只封</div></div>
+    <div class="fig"><div class="k">封板率</div><div class="v num">50<span style="font-size:22px">%</span></div><div class="d">一半没封住</div></div>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <h2>前瞻 / 今日 3 只</h2>
+      <div class="sub">昨收落档 · 今开买入 · 当日收盘结算</div>
+
+      <div class="item">
+        <div><span class="nm">日出东方</span><span class="cd num">603366</span></div>
+        <div class="px num">12.60<small>今开 · 现 13.17</small></div>
+        <div class="why">最高板 5 板。开盘即成交，盘中最高触及 +4.5%。</div>
+      </div>
+      <div class="item dead">
+        <div><span class="nm">亚玛顿</span><span class="cd num">002623</span></div>
+        <div class="px">一字板·买不进</div>
+        <div class="why">次高板 4 板。涨停价 25.66 就是全天最低价，挂单排不进。</div>
+      </div>
+      <div class="item">
+        <div><span class="nm">粤宏远Ａ</span><span class="cd num">000573</span></div>
+        <div class="px num">4.35<small>选股价</small></div>
+        <div class="why">首板放量王。今天还没有成交数据，等开盘。</div>
+      </div>
+
+      <div class="note">命中 49.1% 对基准 46.0%；追买 87.9% 跑输 94.4%；8.3% 一字板买不进。买不到的最强，能买到的更弱——这是自证，不是荐股。</div>
+    </div>
+
+    <div class="col">
+      <h2>短线 / 题材补涨</h2>
+      <div class="sub">买价＝竞价价（能成交）· 高开超出自身振幅就放弃</div>
+
+      <div class="item">
+        <div><span class="nm">宁德时代</span><span class="cd num">300750</span></div>
+        <div class="px num">244.80<small>成交 244.80 · 第 5 日走</small></div>
+        <div class="why">近 5 日振幅 4.4%，容忍高开 2.2%。</div>
+      </div>
+      <div class="item">
+        <div><span class="nm">北方华创</span><span class="cd num">002371</span></div>
+        <div class="px num">543.01<small>成交 543.01 · 第 5 日走</small></div>
+        <div class="why">近 5 日振幅 5.8%，容忍高开 2.9%。</div>
+      </div>
+      <div class="item">
+        <div><span class="nm">华勤技术</span><span class="cd num">603296</span></div>
+        <div class="px num">69.50<small>成交 69.50 · 第 5 日走</small></div>
+        <div class="why">近 5 日振幅 3.8%，容忍高开 1.9%。</div>
+      </div>
+      <div class="item dead">
+        <div><span class="nm">中际旭创</span><span class="cd num">300308</span></div>
+        <div class="px">不追高·放弃</div>
+        <div class="why">竞价高开 13.1%，自身振幅 8.6% 只容忍 4.3%。另有 4 只同样放弃。</div>
+      </div>
+
+      <div class="note">这套回测成交样本 +0.06%，本来就没有超额。改成能成交的价不等于更能赚——小仓试错，30 笔一批算期望。</div>
+    </div>
+
+    <div class="col">
+      <h2>中长线 / 低估值</h2>
+      <div class="sub">买价＝竞价价 · 第 8 个交易日收盘走</div>
+
+      <div class="item">
+        <div><span class="nm">华夏银行</span><span class="cd num">600015</span></div>
+        <div class="px num">6.55<small>成交 6.55</small></div>
+        <div class="why">PE 4.4 / PB 0.32</div>
+      </div>
+      <div class="item">
+        <div><span class="nm">贵阳银行</span><span class="cd num">601997</span></div>
+        <div class="px num">5.90<small>成交 5.90</small></div>
+        <div class="why">PE 4.8 / PB 0.36</div>
+      </div>
+      <div class="item">
+        <div><span class="nm">上峰材料</span><span class="cd num">000672</span></div>
+        <div class="px num">13.17<small>成交 13.17</small></div>
+        <div class="why">PE 12.1 / PB 1.10</div>
+      </div>
+      <div class="item">
+        <div><span class="nm">平安银行</span><span class="cd num">000001</span></div>
+        <div class="px num">11.69<small>成交 11.69</small></div>
+        <div class="why">PE 5.2 / PB 0.55</div>
+      </div>
+
+      <div class="note">唯一现役风格，但从未回测验证（缺历史 PE/PB 序列）；线上 20 笔 +3.33pp 可能只是单月运气。本质银行 beta，不承诺超额。</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="rules">
+      <h2>Exit / 什么时候卖</h2>
+      <div class="rule"><span class="n">01</span><span>短线：断板，或炸板率升到 40% 以上 → 走。<b>今天 50%，已经在该走的区间。</b></span></div>
+      <div class="rule"><span class="n">02</span><span>中长线：跌破止损（−8%）/ 到目标（+10%）/ 20 日线拐头破位 → 走，先到先走。</span></div>
+      <div class="rule"><span class="n">03</span><span>T+1 铁律：买入当天不卖；持有到第 N 个交易日收盘（短线 5 日 / 中长线 8 日）。</span></div>
+    </div>
+
+    <div class="watch">
+      <h2>Watch / 盯什么</h2>
+      <div class="w"><span class="l">监管异动 · 已达线</span><span class="r hot">3 只</span></div>
+      <div class="w"><span class="l">天普股份 · 惠发食品 · 日出东方</span><span class="r">达标</span></div>
+      <div class="w"><span class="l">题材 · 西部大开发</span><span class="r">8 涨停</span></div>
+      <div class="w"><span class="l">高市净率 / 破发股 / 新材料</span><span class="r">7 / 7 / 7</span></div>
+      <div class="w"><span class="l">3 日梯队</span><span class="r">5板1 · 4板2 · 3板3</span></div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    口径：所有买价都是能成交的价（竞价价），高开超出该股近 5 日振幅的一半就放弃，不报买不到的挂单价。前瞻 3 只为自证记录，落档之后不改。本页只陈述已测到的数字，不构成投资建议。
+  </div>
+
+</div>
+</body>
+</html>
