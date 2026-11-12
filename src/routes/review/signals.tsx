@@ -15,7 +15,7 @@
  * 5. 非交易日东财返回空 → 页面说"这天不是交易日"，不显示全 0。
  */
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { SectionTabs, REVIEW_TABS } from "@/components/section-tabs";
 import { Panel, Stat, Tag, thClass, tdClass } from "@/components/terminal";
@@ -98,6 +98,10 @@ function SignalsPage() {
                     {rung.streak} 连板 {rung.count} 只
                   </Tag>
                 ))}
+                {/* 2026-11-11 晚：连板的位置图与三日演变都在 /watch，这里只给分布计数。
+                    下面三张池子表是「盘后按列查数」用的（现价/涨跌/行业），
+                    和盯盘的视觉格子不是一回事，所以留着不合并。 */}
+                <Link to="/watch" className="text-xs text-accent hover:underline">看板位位置 →</Link>
               </div>
             ) : null}
 

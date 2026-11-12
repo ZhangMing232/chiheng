@@ -74,3 +74,16 @@ export const YOUZI_TABS: SectionTab[] = [
   { to: "/youzi/track", label: "游资追踪" },
   { to: "/youzi/seats", label: "席位档案" },
 ];
+
+/**
+ * 「盯盘」区（2026-11-11 晚合并）：多股同屏 /grid + 连板天梯 /ladder → 一页两个视角。
+ *
+ * 为什么合：两页读同一份三池快照、同一套板位分档、同一份涨停原因，只是格子 vs 表格。
+ * 用户原话「这俩玩意做的东西不是一样的吗，只有名字不一样」。
+ * 合完的分工：今天的位置与封单看「今日梯队」，三天怎么变与晋级率看「三日演变」，
+ * 今天那列的明细只在今日梯队出现一次。
+ */
+export const WATCH_TABS: SectionTab[] = [
+  { to: "/watch/", label: "今日梯队" },
+  { to: "/watch/history", label: "三日演变" },
+];

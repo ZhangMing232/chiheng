@@ -22,8 +22,7 @@ import { Activity, Coins, LineChart, Wallet } from "lucide-react";
 import { CollapsibleSection } from "@/components/collapsible";
 import { StateBlock } from "@/components/state-block";
 import { Panel, Stat, pctClass } from "@/components/terminal";
-import { signedPct, fmtWan } from "@/lib/market/format";
-import { readMarket } from "@/lib/market/flow";
+import { signedPct } from "@/lib/market/format";
 import { journalTradeIds, marketBreadth, slimUniverse } from "@/lib/market/slim-universe";
 import { shanghaiDate } from "@/lib/market/session";
 import { getFlow, getIndices, getNews, getServerJournal, getUniverse } from "@/lib/market/quotes.functions";
@@ -90,7 +89,6 @@ function Review() {
 
   const hs300 = indices.find((index) => index.name.includes("沪深300")) ?? null;
   const shIdx = indices.find((index) => index.name.includes("上证")) ?? null;
-  const marketLines = flow ? readMarket(flow.market) : [];
   // 今日结论（效果图）：四张卡全部现算。历史对照（较昨日）没有存档口径，
   // 不编——拿不到就是拿不到，副行写口径不写增量。
   const netUp = known > 0 ? up - down : null;
@@ -199,50 +197,20 @@ function Review() {
           </div>
         ) : null}
 
-        {indices.length > 0 ? (
-          <Panel title="指数" bodyClassName="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
-            {indices.map((index) => (
-              <Stat
-                key={index.id}
-                label={index.name}
-                value={signedPct(index.pct)}
-                tone={pctClass(index.pct)}
-                className="bg-surface"
-              />
-            ))}
-          </Panel>
-        ) : (
-          <Panel title="指数">
-            <StateBlock kind="empty" title="指数暂时拉不到" hint="刷新重试；不复盘指数也要看家数。" />
-          </Panel>
-        )}
-
-        {flow ? (
-          <Panel
-            title="资金"
-            note={
-              <span>
-                主力净额 · {new Date(flow.asOf).toLocaleTimeString("zh-CN", { hour12: false })}
-              </span>
-            }
-            bodyClassName="grid grid-cols-2 gap-px bg-line"
-          >
-            {flow.market.map((part) => (
-              <Stat
-                key={part.name}
-                label={`${part.name}主力`}
-                value={fmtWan(part.main)}
-                tone={part.main > 0 ? "text-up" : part.main < 0 ? "text-down" : undefined}
-                className="bg-surface"
-                hint={`超大 ${fmtWan(part.super)} · 大单 ${fmtWan(part.big)}`}
-              />
-            ))}
-          </Panel>
-        ) : (
-          <Panel title="资金">
-            <StateBlock kind="empty" title="资金数据暂时拉不到" hint="东财资金接口超时或限流，刷新重试。" />
-          </Panel>
-        )}
+        {/* 2026-11-11 晚去重：这里原本还有「指数」和「资金」两个 Panel，
+            指数四格和首页/资金流向页是同一份行情、资金六格是 /flow 概览
+            「大盘资金」的缩小版——同一批数在一页里摆三遍（HeroStat 的
+            「两市资金」已经给了全市场主力净额）。复盘页只留结论数字，
+            明细交给各自的专页。 */}
+        <Link
+          to="/flow"
+          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded border border-line bg-surface px-3.5 py-2 text-xs hover:bg-surface-2"
+        >
+          <span className="text-muted">
+            资金：分市场主力净额、北向、行业与个股榜单、两融、期指
+          </span>
+          <span className="text-brand">去资金流向 →</span>
+        </Link>
         {/* 宏观是月频慢数据，和每日复盘节奏不同——默认折起来，要看出处再点开。
             2026-10-16 页面整理：慢数据不和每日数据混在同一屏。 */}
         <CollapsibleSection
@@ -260,14 +228,6 @@ function Review() {
             <MacroPanel macro={macro} pmi={pmi} lpr={lpr} social={social} />
           </div>
         </CollapsibleSection>
-
-        {marketLines.length > 0 ? (
-          <ul className="flex flex-col gap-1 rounded border border-line bg-surface px-3.5 py-2 text-xs leading-relaxed text-muted">
-            {marketLines.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        ) : null}
 
         <Panel
           title="快讯要点"
@@ -336,6 +296,7 @@ function Review() {
         <p className="px-1 text-xs leading-relaxed text-muted">
           这一页是规则拼装的盘面事实：家数来自行情快照、资金来自东财、快讯按标题用词分态度。
           赤轨没有接入复盘大模型，写不出「AI 综合点评」——摆出事实，判断留给你。
+          指数明细在首页与资金流向页，资金分项也在那边，这里不摆第二遍。
         </p>
       </div>
     </Frame>

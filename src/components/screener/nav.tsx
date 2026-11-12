@@ -40,7 +40,6 @@ import {
   Search,
   Settings,
   Sparkles,
-  TrendingUp,
   Star,
   Users,
   type LucideIcon,
@@ -129,7 +128,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/decision" | "/huiyan" | "/grid" | "/ladder" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/decision" | "/huiyan" | "/watch" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   // 2026-11-11 大重排：从「按功能类型分组」改成「按一天的节奏分组」。
   // 原因：原来「市场」组 7 项挤成一坨、「研究」组只剩「自选」一项名不符实，
@@ -147,8 +146,11 @@ const SIDEBAR: {
   {
     label: "盯盘",
     items: [
-      { to: "/grid", label: "多股同屏", icon: Grid3x3 },
-      { to: "/ladder", label: "连板天梯", icon: TrendingUp },
+      // 2026-11-11 晚：多股同屏 + 连板天梯合成一页。两页读的是同一份三池快照、
+      // 同一套板位分档、同一份涨停原因，只是格子 vs 表格——留着两个入口等于让人
+      // 在同一份数据里二选一。合并后今天的位置/封单在「今日梯队」，三天演变与
+      // 晋级率在「三日演变」，都在这一页的 tab 里，不再各占一个侧栏位。
+      { to: "/watch", label: "盯盘", icon: Grid3x3 },
     ],
   },
   {
@@ -566,7 +568,7 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "策略管理", keywords: "arena 竞技场 策略管理", to: "/strategies/manage" },
   { label: "跟单与持仓", keywords: "signals 竞技场 信号 持仓 跟踪", to: "/strategies/positions" },
   { label: "失败归因", keywords: "autopsy 归因 亏损", to: "/strategies/autopsy" },
-  { label: "多股同屏", keywords: "grid 同屏 盯盘 位置", to: "/grid" },
+  { label: "盯盘", keywords: "watch 盯盘 同屏 grid 位置 封单 连板 天梯 ladder 晋级率", to: "/watch" },
   { label: "情绪周期", keywords: "cycle 周期 阶段 冰点 高潮 转移", to: "/cycle" },
   { label: "题材", keywords: "themes 题材 催化 前瞻 简报 brief 轮动 rotation 情报 intel", to: "/themes" },
   { label: "游资与席位", keywords: "youzi hotmoney seats 游资 席位 龙虎榜 营业部", to: "/youzi" },

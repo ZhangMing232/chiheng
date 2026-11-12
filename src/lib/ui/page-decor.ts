@@ -31,7 +31,6 @@ import {
   Flame,
   FlaskConical,
   Gauge,
-  GitBranch,
   Globe,
   History,
   Image,
@@ -181,18 +180,15 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     hue: "blue",
     ornament: "gate-badges",
   },
-  "/ladder": {
-    title: "连板天梯",
-    icon: GitBranch,
-    purpose: "按板位排梯队，看接力有没有人接",
+  // 2026-11-11 晚：多股同屏（/grid）+ 连板天梯（/ladder）合成一个盯盘（/watch）。
+  // 两页原本读同一份三池快照、同一套板位分档、同一份涨停原因，只是格子 vs 表格。
+  // 合成后 tab 分工：今日梯队=位置与封单，三日演变=三天怎么变与晋级率。
+  "/watch": {
+    title: "盯盘",
+    icon: LayoutGrid,
+    purpose: "今天的板位位置，和三天怎么变过来的",
     hue: "blue",
     ornament: "ladder-rungs",
-  },
-  "/grid": {
-    title: "多股同屏",
-    icon: LayoutGrid,
-    purpose: "所有涨停压进一屏，位置整天不动",
-    hue: "blue",
   },
   "/cycle": {
     title: "情绪周期",

@@ -1,6 +1,7 @@
 node_modules
 dist
 .output
+.output.*
 .vercel
 # TanStack Start 的构建临时目录（vite build / dev 会往里写）
 .tanstack

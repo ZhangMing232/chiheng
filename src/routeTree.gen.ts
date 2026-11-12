@@ -50,6 +50,7 @@ import { Route as StrategiesRouteImport } from './routes/strategies'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as SymbolRouteImport } from './routes/symbol'
 import { Route as ThemesRouteImport } from './routes/themes'
+import { Route as WatchRouteImport } from './routes/watch'
 import { Route as YouziRouteImport } from './routes/youzi'
 import { Route as AiIndexRouteImport } from './routes/ai/index'
 import { Route as AiConfigRouteImport } from './routes/ai/config'
@@ -92,6 +93,8 @@ import { Route as ThemesIndexRouteImport } from './routes/themes/index'
 import { Route as ThemesBriefRouteImport } from './routes/themes/brief'
 import { Route as ThemesIntelRouteImport } from './routes/themes/intel'
 import { Route as ThemesRotationRouteImport } from './routes/themes/rotation'
+import { Route as WatchIndexRouteImport } from './routes/watch/index'
+import { Route as WatchHistoryRouteImport } from './routes/watch/history'
 import { Route as YouziIndexRouteImport } from './routes/youzi/index'
 import { Route as YouziSeatsRouteImport } from './routes/youzi/seats'
 import { Route as YouziTrackRouteImport } from './routes/youzi/track'
@@ -300,6 +303,11 @@ const SymbolRoute = SymbolRouteImport.update({
 const ThemesRoute = ThemesRouteImport.update({
   id: '/themes',
   path: '/themes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WatchRoute = WatchRouteImport.update({
+  id: '/watch',
+  path: '/watch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const YouziRoute = YouziRouteImport.update({
@@ -512,6 +520,16 @@ const ThemesRotationRoute = ThemesRotationRouteImport.update({
   path: '/rotation',
   getParentRoute: () => ThemesRoute,
 } as any)
+const WatchIndexRoute = WatchIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => WatchRoute,
+} as any)
+const WatchHistoryRoute = WatchHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => WatchRoute,
+} as any)
 const YouziIndexRoute = YouziIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -575,6 +593,7 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/themes': typeof ThemesRouteWithChildren
+  '/watch': typeof WatchRouteWithChildren
   '/youzi': typeof YouziRouteWithChildren
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
@@ -611,6 +630,7 @@ export interface FileRoutesByFullPath {
   '/themes/brief': typeof ThemesBriefRoute
   '/themes/intel': typeof ThemesIntelRoute
   '/themes/rotation': typeof ThemesRotationRoute
+  '/watch/history': typeof WatchHistoryRoute
   '/youzi/seats': typeof YouziSeatsRoute
   '/youzi/track': typeof YouziTrackRoute
   '/ai/': typeof AiIndexRoute
@@ -619,6 +639,7 @@ export interface FileRoutesByFullPath {
   '/research/': typeof ResearchIndexRoute
   '/review/': typeof ReviewIndexRoute
   '/themes/': typeof ThemesIndexRoute
+  '/watch/': typeof WatchIndexRoute
   '/youzi/': typeof YouziIndexRoute
   '/review/flow/$': typeof ReviewFlowSplatRoute
 }
@@ -694,6 +715,7 @@ export interface FileRoutesByTo {
   '/themes/brief': typeof ThemesBriefRoute
   '/themes/intel': typeof ThemesIntelRoute
   '/themes/rotation': typeof ThemesRotationRoute
+  '/watch/history': typeof WatchHistoryRoute
   '/youzi/seats': typeof YouziSeatsRoute
   '/youzi/track': typeof YouziTrackRoute
   '/ai': typeof AiIndexRoute
@@ -702,6 +724,7 @@ export interface FileRoutesByTo {
   '/research': typeof ResearchIndexRoute
   '/review': typeof ReviewIndexRoute
   '/themes': typeof ThemesIndexRoute
+  '/watch': typeof WatchIndexRoute
   '/youzi': typeof YouziIndexRoute
   '/review/flow/$': typeof ReviewFlowSplatRoute
 }
@@ -748,6 +771,7 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/themes': typeof ThemesRouteWithChildren
+  '/watch': typeof WatchRouteWithChildren
   '/youzi': typeof YouziRouteWithChildren
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
@@ -784,6 +808,7 @@ export interface FileRoutesById {
   '/themes/brief': typeof ThemesBriefRoute
   '/themes/intel': typeof ThemesIntelRoute
   '/themes/rotation': typeof ThemesRotationRoute
+  '/watch/history': typeof WatchHistoryRoute
   '/youzi/seats': typeof YouziSeatsRoute
   '/youzi/track': typeof YouziTrackRoute
   '/ai/': typeof AiIndexRoute
@@ -792,6 +817,7 @@ export interface FileRoutesById {
   '/research/': typeof ResearchIndexRoute
   '/review/': typeof ReviewIndexRoute
   '/themes/': typeof ThemesIndexRoute
+  '/watch/': typeof WatchIndexRoute
   '/youzi/': typeof YouziIndexRoute
   '/review/flow/$': typeof ReviewFlowSplatRoute
 }
@@ -839,6 +865,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/symbol'
     | '/themes'
+    | '/watch'
     | '/youzi'
     | '/ai/config'
     | '/ai/rules'
@@ -875,6 +902,7 @@ export interface FileRouteTypes {
     | '/themes/brief'
     | '/themes/intel'
     | '/themes/rotation'
+    | '/watch/history'
     | '/youzi/seats'
     | '/youzi/track'
     | '/ai/'
@@ -883,6 +911,7 @@ export interface FileRouteTypes {
     | '/research/'
     | '/review/'
     | '/themes/'
+    | '/watch/'
     | '/youzi/'
     | '/review/flow/$'
   fileRoutesByTo: FileRoutesByTo
@@ -958,6 +987,7 @@ export interface FileRouteTypes {
     | '/themes/brief'
     | '/themes/intel'
     | '/themes/rotation'
+    | '/watch/history'
     | '/youzi/seats'
     | '/youzi/track'
     | '/ai'
@@ -966,6 +996,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/review'
     | '/themes'
+    | '/watch'
     | '/youzi'
     | '/review/flow/$'
   id:
@@ -1011,6 +1042,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/symbol'
     | '/themes'
+    | '/watch'
     | '/youzi'
     | '/ai/config'
     | '/ai/rules'
@@ -1047,6 +1079,7 @@ export interface FileRouteTypes {
     | '/themes/brief'
     | '/themes/intel'
     | '/themes/rotation'
+    | '/watch/history'
     | '/youzi/seats'
     | '/youzi/track'
     | '/ai/'
@@ -1055,6 +1088,7 @@ export interface FileRouteTypes {
     | '/research/'
     | '/review/'
     | '/themes/'
+    | '/watch/'
     | '/youzi/'
     | '/review/flow/$'
   fileRoutesById: FileRoutesById
@@ -1101,6 +1135,7 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   SymbolRoute: typeof SymbolRoute
   ThemesRoute: typeof ThemesRouteWithChildren
+  WatchRoute: typeof WatchRouteWithChildren
   YouziRoute: typeof YouziRouteWithChildren
   ArenaSplatRoute: typeof ArenaSplatRoute
   FactorsAttribRoute: typeof FactorsAttribRoute
@@ -1400,6 +1435,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThemesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/watch': {
+      id: '/watch'
+      path: '/watch'
+      fullPath: '/watch'
+      preLoaderRoute: typeof WatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/youzi': {
       id: '/youzi'
       path: '/youzi'
@@ -1694,6 +1736,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThemesRotationRouteImport
       parentRoute: typeof ThemesRoute
     }
+    '/watch/': {
+      id: '/watch/'
+      path: '/'
+      fullPath: '/watch/'
+      preLoaderRoute: typeof WatchIndexRouteImport
+      parentRoute: typeof WatchRoute
+    }
+    '/watch/history': {
+      id: '/watch/history'
+      path: '/history'
+      fullPath: '/watch/history'
+      preLoaderRoute: typeof WatchHistoryRouteImport
+      parentRoute: typeof WatchRoute
+    }
     '/youzi/': {
       id: '/youzi/'
       path: '/'
@@ -1859,6 +1915,18 @@ const ThemesRouteChildren: ThemesRouteChildren = {
 const ThemesRouteWithChildren =
   ThemesRoute._addFileChildren(ThemesRouteChildren)
 
+interface WatchRouteChildren {
+  WatchHistoryRoute: typeof WatchHistoryRoute
+  WatchIndexRoute: typeof WatchIndexRoute
+}
+
+const WatchRouteChildren: WatchRouteChildren = {
+  WatchHistoryRoute: WatchHistoryRoute,
+  WatchIndexRoute: WatchIndexRoute,
+}
+
+const WatchRouteWithChildren = WatchRoute._addFileChildren(WatchRouteChildren)
+
 interface YouziRouteChildren {
   YouziSeatsRoute: typeof YouziSeatsRoute
   YouziTrackRoute: typeof YouziTrackRoute
@@ -1915,6 +1983,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   SymbolRoute: SymbolRoute,
   ThemesRoute: ThemesRouteWithChildren,
+  WatchRoute: WatchRouteWithChildren,
   YouziRoute: YouziRouteWithChildren,
   ArenaSplatRoute: ArenaSplatRoute,
   FactorsAttribRoute: FactorsAttribRoute,

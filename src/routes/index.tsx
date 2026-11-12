@@ -5,7 +5,7 @@
  *
  * 分区（2026-11-11 用户拍板重排，按「先判断位置 → 盘面 → 个股 → 状态」）：
  * - 第一行 决策：情绪温度计 + 冰点沸点时机判定（标证据等级）+ 各种指数
- * - 第二行 盘面：大盘分时 + 具体个股连板/涨停 + 热门概念 + 下一个可能热门
+ * - 第二行 盘面：大盘分时 + 板位分布（明细在盯盘）+ 下一个可能热门
  * - 第三行 个股：今日盘前候选（预登记策略筛出）+ 今日模拟盘成交
  * - 第四行 状态：项目情况 + 资金/全球对照 + 热点快讯
  *
@@ -20,7 +20,7 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router";
-import { getLimitUpReasons, getLadder3Day, type LimitUpReasonsPayload, type LadderRow } from "@/lib/market/quotes.functions";
+import { getLadder3Day, type LadderRow } from "@/lib/market/quotes.functions";
 import { Link } from "@tanstack/react-router";
 import { useStockDetail } from "@/components/stock-detail-modal";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -62,7 +62,7 @@ import { getOverseasIndices } from "@/lib/market/overseas-list.functions";
 export const Route = createFileRoute("/")({
   loader: async () => {
     const phase = sessionPhase();
-    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, gatesData, pools, themes, reviewed, reasonsData, ladder3] =
+    const [indices, journal, universe, recorder, flow, breadth, challengers, samples, overseas, news, gatesData, pools, themes, reviewed, ladder3] =
       await Promise.all([
         getIndices().catch(() => [] as IndexQuote[]),
         getServerJournal().catch(() => ({ days: [] as PaperDay[], personal: false, why: "账本暂时读不到" })),
@@ -80,8 +80,6 @@ export const Route = createFileRoute("/")({
         getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
         getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
         getSignalReviewed().catch(() => ({ date: "", ok: 0, warn: 0, skip: 0, signals: [] as SignalReviewed[] })),
-        // 涨停原因（fetch-limit-up-reason.ts 收盘后采，转发韭研/开盘啦）
-        getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
         // 3 日梯队（算较前值）
         getLadder3Day().catch(() => ({ dates: [] as string[], ladder: {} as Record<string, Record<string, LadderRow[]>>, promotion: {} })),
       ]);
@@ -121,8 +119,6 @@ export const Route = createFileRoute("/")({
       overseas: overseas.quotes.slice(0, 6),
       overseasGaps: overseas.gaps,
       news: news.slice(0, 6),
-      reasons: reasonsData.reasons,
-      sectors: reasonsData.sectors,
       ladder3,
       gates: gatesData.gates,
     };
@@ -146,7 +142,7 @@ function Dashboard() {
     phase, indices, journal, universe, recorder, trend, flow,
     breadth, sentiment, stamp, serverNow, pools, themes, reviewed,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
-    gates, reasons, ladder3,
+    gates, ladder3,
   } = Route.useLoaderData();
   const { openDetail, modal } = useStockDetail();
   const date = todayStr(phase);
@@ -207,14 +203,10 @@ function Dashboard() {
     }
     return [...m.entries()].sort((a, b) => b[0] - a[0]).map(([streak, rows]) => ({ streak, rows }));
   })();
-  const brokenRows = poolSnap?.broken ?? [];
   const hotThemes = themes.hot.slice(0, 4);
   const shortSignals = reviewed.signals.filter((s) => s.leg === "short").slice(0, 5);
   const longSignals = reviewed.signals.filter((s) => s.leg === "long").slice(0, 5);
   const candidateCount = reviewed.signals.length;
-  const poolFresh = poolSnap
-    ? `${poolSnap.date} ${poolSnap.sealed ? "收盘后" : "盘中未定"}`
-    : null;
   // 关键指标条：复盘第一眼（对标连板网/弈盘顶部一排数字）
   const limitUpCount = poolSnap?.limitUp.length ?? 0;
   const ladderCount = poolSnap?.summary?.ladder?.reduce((n, l) => n + (l.streak >= 2 ? l.count : 0), 0) ?? 0;
@@ -284,38 +276,38 @@ function Dashboard() {
       </div>
 
       {/* ── 当日主线：总龙头 + 板块 + 涨停家数（对标连板网当日主线）── */}
-      <div id="s-main" className="grid gap-2 lg:grid-cols-3">
-        <Panel title="当日主线" note="题材涨停家数排序 · 龙头" className="lg:col-span-2">
+      <div id="s-main" className="grid gap-2">
+        <Panel
+          title="当日主线"
+          note={<Link to="/themes/rotation" className="text-accent hover:underline">完整题材榜 →</Link>}
+        >
           <div className="flex flex-col gap-1 p-2">
-            {themes.hot.slice(0, 8).map((r) => (
-              <div key={r.name} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
-                <span className="flex min-w-0 items-baseline gap-1.5">
-                  <span className="truncate font-medium">{r.name}</span>
-                  <span className="num shrink-0 text-xs text-up">{r.limitUp}涨停</span>
-                </span>
-                <span className="num shrink-0 text-[11px] text-muted">
-                  均{(r.avg > 0 ? "+" : "")}{r.avg.toFixed(1)}% · 龙头 {r.leader?.name ?? "—"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-        <Panel title="主线强度" note="条长=相对强度">
-          <div className="flex flex-col gap-1.5 p-2">
             {themes.hot.slice(0, 8).map((r) => {
-              const max = Math.max(1, ...themes.hot.map((x) => x.limitUp));
+              // 延续性（已验证/噪声级/待验证）原来挂在「热门概念」那格里，
+              // 两格列的是同一批题材，Tag 挪到这里跟数据待在一起。
+              const c = continuationOf(r);
               return (
-                <div key={r.name} className="flex items-center gap-2">
-                  <span className="w-20 truncate text-xs text-muted">{r.name}</span>
-                  <span className="h-2 flex-1 rounded bg-surface2">
-                    <span className="block h-2 rounded bg-up" style={{ width: `${(r.limitUp / max) * 100}%` }} />
+                <div key={r.name} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="truncate font-medium">{r.name}</span>
+                    <span className="num shrink-0 text-xs text-up">{r.limitUp}涨停</span>
+                    <Tag
+                      tone={c.evidence === "已验证" ? "up" : c.evidence === "噪声级" ? "warn" : "muted"}
+                    >
+                      {c.evidence}
+                    </Tag>
                   </span>
-                  <span className="num w-8 shrink-0 text-right text-xs">{r.limitUp}</span>
+                  <span className="num shrink-0 text-[11px] text-muted">
+                    均{(r.avg > 0 ? "+" : "")}{r.avg.toFixed(1)}% · 龙头 {r.leader?.name ?? "—"}
+                  </span>
                 </div>
               );
             })}
           </div>
         </Panel>
+        {/* 2026-11-11 晚删掉「主线强度」：它就是左边「当日主线」那份 themes.hot
+            换了个条形图画法，同一屏同一批题材摆两遍。条长信息并进左列表：
+            「N涨停」那个数字本身就是强度。 */}
       </div>
 
       {/* ── 主力资金动向：板块/个股流入流出 Top8（对标连板网）── */}
@@ -458,102 +450,65 @@ function Dashboard() {
         </aside>
       </div>
 
-      {/* ── 第二行 盘面：具体个股连板 / 热门概念 / 下一个可能热门 ── */}
-      <div className="grid gap-2 lg:grid-cols-3">
-        <Panel title="连板梯队" note={poolFresh ?? "今天还没采集"}>
+      {/* ── 第二行 盘面：板位分布（明细在 /watch）+ 下一个可能热门 ── */}
+      <div className="grid gap-2 lg:grid-cols-2">
+        {/* 2026-11-11 晚去掉重复：这里原来把今天每一只涨停票按板位全量列了一遍
+            （名称/封单/开板/题材/炸板），和盯盘页（/watch）是同一份数据同一个排法。
+            首页是总览，明细属于专页——现在只留「几板几只」的分布 + 最高板那只，
+            下面的数字条（涨停/连板/最高板）上面已经有了，不重复算第二遍。 */}
+        <Panel
+          title="板位分布"
+          note={<Link to="/watch" className="text-accent hover:underline">进盯盘看位置 →</Link>}
+        >
           {!poolSnap ? (
             <div className="px-3 py-6 text-sm text-muted">{pools.why ?? "三池快照还没落盘，收盘后 15:12 采集"}</div>
           ) : (
-            <div className="flex max-h-[460px] flex-col gap-1.5 overflow-y-auto scroll-slim p-2">
-              {/* 梯队汇总：几板有几只，一眼看清 */}
+            <div className="flex flex-col gap-2 p-2">
               <div className="flex flex-wrap gap-1">
                 {ladderGroups.map((g) => (
                   <Tag key={g.streak} tone={g.streak >= 3 ? "up" : "muted"}>
                     {g.streak === 1 ? "首板" : `${g.streak}连板`} {g.rows.length}
                   </Tag>
                 ))}
+                {brokenCount > 0 ? <Tag tone="warn">炸板 {brokenCount}</Tag> : null}
               </div>
-              {/* 分组明细：按连板数从高到低，全量不截断 */}
-              {ladderGroups.map((g) => (
-                <div key={g.streak} className="flex flex-col gap-0.5">
-                  <div className="px-2 text-[11px] text-muted">
-                    {g.streak === 1 ? "首板" : `${g.streak} 连板`}（{g.rows.length}）
-                  </div>
-                  {g.rows.map((r) => {
-                    const concept = reasons[r.code]?.primary_concept ?? r.industry ?? "";
-                    const isPureStreak = r.stat === `${r.streak}天${r.streak}板`;
-                    return (
-                      <div key={r.id} className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-2">
-                        <span className="flex min-w-0 items-baseline gap-1.5">
-                          <button type="button" onClick={() => void openDetail(r.id)} className="truncate text-left font-medium hover:underline">{r.name}</button>
-                          {r.stat && !isPureStreak ? (
-                            <span className="num shrink-0 rounded bg-surface2 px-1 text-[10px] text-warn">{r.stat}</span>
-                          ) : null}
-                        </span>
-                        <span className="num shrink-0 text-[11px] text-muted">
-                          {r.sealFund ? `${(r.sealFund / 10000).toFixed(0)}万` : "—"} · 开板{r.breaks ?? 0}
-                        </span>
-                        {concept ? (
-                          <span className="shrink-0 rounded bg-brand-soft px-1 text-[10px] text-brand-text">{concept}</span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-              {/* 炸板：全量 */}
-              {brokenRows.length > 0 ? (
-                <div className="flex flex-col gap-0.5">
-                  <div className="px-2 text-[11px] text-muted">炸板（{brokenRows.length}）</div>
-                  {brokenRows.map((r) => (
-                    <div key={`b-${r.id}`} className="flex items-baseline justify-between gap-2 rounded px-2 py-0.5 text-sm hover:bg-surface-2">
-                      <span className="truncate">{r.name}</span>
-                      <span className={"num shrink-0 text-xs " + pctClass(r.pct)}>{r.pct > 0 ? "+" : ""}{r.pct.toFixed(1)}%</span>
-                    </div>
-                  ))}
+              {ladderGroups[0] ? (
+                <div className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-sm">
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="shrink-0 text-[11px] text-muted">最高板</span>
+                    <button
+                      type="button"
+                      onClick={() => void openDetail(ladderGroups[0]!.rows[0]!.id)}
+                      className="truncate font-medium hover:underline"
+                    >
+                      {ladderGroups[0].rows[0]!.name}
+                    </button>
+                    <span className="num shrink-0 text-up">{ladderGroups[0].streak}板</span>
+                  </span>
+                  <span className="num shrink-0 text-[11px] text-muted">
+                    {ladderGroups[0].rows[0]!.sealFund ? `${(ladderGroups[0].rows[0]!.sealFund! / 10000).toFixed(0)}万` : "—"}
+                    {" · 开板"}
+                    {ladderGroups[0].rows[0]!.breaks ?? 0}
+                  </span>
                 </div>
               ) : null}
-              {ladderGroups.length === 0 && brokenRows.length === 0 ? (
-                <div className="px-2 py-5 text-center text-sm text-muted">
+              {ladderGroups.length === 0 ? (
+                <div className="px-2 py-4 text-center text-sm text-muted">
                   {poolSnap.why ?? "快照里没有个股明细，不拿全 0 冒充「今天没涨停」"}
                 </div>
               ) : null}
-              <div className="border-t border-line px-2 pt-2 text-[11px] leading-snug text-muted">
-                {poolSnap.limitUp.length} 只涨停 · {poolSnap.broken.length} 只炸板 · {poolSnap.limitDown.length} 只跌停 ·
-                炸板率 {poolSnap.summary?.breakRate != null ? `${(poolSnap.summary.breakRate * 100).toFixed(0)}%` : "—"}
+              <p className="border-t border-line px-1 pt-2 text-[11px] leading-snug text-muted">
+                炸板率 {breakRateVal != null ? `${(breakRateVal * 100).toFixed(0)}%` : "—"}
                 {poolSnap.sealed ? "" : " · 盘中未定"}
-              </div>
+                。谁封了多少单、开板几次、涨停原因带出处，都在盯盘页，这里不摆第二遍。
+              </p>
             </div>
           )}
         </Panel>
 
-        <Panel title="热门概念" note={themes.date ? `${themes.date} 收盘后` : "今天还没生成"}>
-          {hotThemes.length === 0 ? (
-            <div className="px-3 py-6 text-sm text-muted">题材热度榜还没生成，theme-heat.ts 每天 15:10 跑。</div>
-          ) : (
-            <div className="flex flex-col gap-1 p-2">
-              {hotThemes.map((r) => {
-                const c = continuationOf(r);
-                return (
-                  <div key={r.name} className="rounded px-2 py-1.5 hover:bg-surface-2">
-                    <div className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="truncate">{r.name}</span>
-                      <span className="num shrink-0 text-up">{r.limitUp} 只涨停</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted">
-                      <span className="truncate">均 {r.avg > 0 ? "+" : ""}{r.avg.toFixed(1)}% · 龙头 {r.leader?.name ?? "—"}</span>
-                      <Tag tone={c.evidence === "已验证" ? "up" : c.evidence === "噪声级" ? "warn" : "muted"}>{c.evidence}</Tag>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <div className="border-t border-line px-2 py-2 text-right text-xs">
-            <Link to="/review/theme" className="text-accent hover:underline">完整题材榜 →</Link>
-          </div>
-        </Panel>
-
+        {/* 2026-11-11 晚删掉「热门概念」：它列的就是上面「当日主线」那批题材
+            （名字/涨停数/均涨/龙头一字不差），只多一个延续性 Tag。Tag 挪回
+            当日主线每行，这一格省下来。 */}
         <Panel title="下一个可能热门" note="前瞻观察 · 情景概率 · 非买入信号">
           <div className="flex flex-col gap-1.5 p-2">
             <div className="text-[11px] text-muted">概念延续性（每条标证据等级）</div>
@@ -632,7 +587,7 @@ function Dashboard() {
       </div>
 
       {/* ── Zone B 资金与结构 ── */}
-      <div className="grid gap-2 lg:grid-cols-2">
+      <div className="grid gap-2">
         <Panel title="资金快照" note={flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂不可用"}>
           <div className="grid grid-cols-1 gap-x-3 p-3 sm:grid-cols-3">
             <KeyNum
@@ -654,31 +609,9 @@ function Dashboard() {
           </div>
         </Panel>
 
-        <Panel title="行业主力净流入 TOP5" note={<Link to="/review/flow" className="text-accent hover:underline">资金流向 →</Link>}>
-          <div className="flex flex-col gap-1 p-2">
-            {flow
-              ? [...flow.sectorsIn.slice(0, 5).map((row) => ({ row, side: 1 as const })),
-                 ...flow.sectorsOut.slice(0, 5).map((row) => ({ row, side: -1 as const }))]
-                  .sort((a, b) => Math.abs(b.row.inflow) - Math.abs(a.row.inflow))
-                  .slice(0, 8)
-                  .map(({ row, side }) => (
-                    <div key={row.id + side} className="flex items-center gap-2 text-sm">
-                      <span className="min-w-0 flex-1 truncate">{row.name}</span>
-                      <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-surface-2">
-                        <div
-                          className={side > 0 ? "h-full bg-up" : "h-full bg-down"}
-                          style={{ width: `${Math.min(100, (Math.abs(row.inflow) / 10_000 / Math.max(1, ...flow.sectorsIn.slice(0, 5).map((r) => Math.abs(r.inflow) / 10_000))) * 100).toFixed(0)}%` }}
-                        />
-                      </div>
-                      <span className={"num w-20 shrink-0 text-right " + (side > 0 ? "text-up" : "text-down")}>
-                        {side > 0 ? "+" : ""}{(row.inflow / 10_000).toFixed(1)} 亿
-                      </span>
-                    </div>
-                  ))
-              : <div className="py-6 text-center text-sm text-muted">资金流向暂时拉不下来</div>}
-            {flow && flow.sectorsIn.length === 0 ? <div className="py-6 text-center text-sm text-muted">今天没有行业资金数据</div> : null}
-          </div>
-        </Panel>
+        {/* 2026-11-11 晚删掉「行业主力净流入 TOP5」：上面「主力资金动向」的
+            板块流入/流出两列就是同一份 flow.sectorsIn/sectorsOut，这里再排一次
+            只是换了排序和条形图。要看分行业明细去 /flow/industries。 */}
       </div>
 
       {/* ── Zone C 全球对照 + 产品状态 ── */}
