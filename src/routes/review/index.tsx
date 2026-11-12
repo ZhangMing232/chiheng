@@ -301,6 +301,11 @@ function Review() {
           指数明细在首页与资金流向页，资金分项也在那边，这里不摆第二遍。
         </p>
       </div>
+      <div className="px-mobile-bar">
+        <div className="px-num text-[12px] text-muted">复盘 · 收后核对</div>
+        <div className="px-num text-[12px] text-brand">看明细 ▾</div>
+      </div>
+
     </Frame>
   );
 }

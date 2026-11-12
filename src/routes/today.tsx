@@ -176,7 +176,7 @@ function DecisionPage() {
         <div className="px-mod4 flex flex-wrap items-center justify-between gap-3 border border-line bg-surface px-4 py-3">
           <div className="flex flex-wrap items-baseline gap-3">
             <span className="px-num text-xs tracking-widest text-muted">SYS//TODAY</span>
-            <span className="text-lg font-bold tracking-tight">今天<b className="text-brand">·</b>买什么</span>
+            <span className="text-xl font-bold tracking-tight">今天<b className="text-brand">·</b>买什么</span>
             <span className="px-num text-xs text-muted">{pool?.date ?? "—"} · 收盘封印</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -228,7 +228,7 @@ function DecisionPage() {
                 </div>
               </>
             ) : (
-              <div className="mt-2 text-[13px] text-muted">今天没有烧起来的题材。</div>
+              <div className="mt-2 text-sm text-muted">今天没有烧起来的题材。</div>
             )}
           </div>
 
@@ -236,17 +236,17 @@ function DecisionPage() {
           <div className="px-4 py-3">
             <div className="px-num mb-1 text-[12px] tracking-widest text-brand">STRENGTH</div>
             {hotThemes.length === 0 ? (
-              <div className="py-2 text-[13px] text-muted">题材热度还没算（theme-heat 收盘后跑）。</div>
+              <div className="py-2 text-sm text-muted">题材热度还没算（theme-heat 收盘后跑）。</div>
             ) : (
               hotThemes.map((t) => {
                 const max = Math.max(1, ...hotThemes.map((x) => x.limitUp));
                 return (
                   <div key={t.name} className="flex items-center gap-3 border-b border-dashed border-line py-1.5 last:border-0">
-                    <span className="w-28 shrink-0 truncate text-[13px]">{t.name}</span>
+                    <span className="w-28 shrink-0 truncate text-sm">{t.name}</span>
                     <span className="h-2 min-w-0 flex-1 bg-line">
                       <span className="block h-full bg-brand" style={{ width: `${(t.limitUp / max) * 100}%` }} />
                     </span>
-                    <span className="px-num w-8 shrink-0 text-right text-[13px] text-fg">{t.limitUp}</span>
+                    <span className="px-num w-8 shrink-0 text-right text-sm text-fg">{t.limitUp}</span>
                     <span className="px-num w-24 shrink-0 truncate text-right text-[12px] text-muted">{t.leader?.name ?? "—"}</span>
                   </div>
                 );
@@ -314,15 +314,15 @@ function DecisionPage() {
         <div className="px-mod4 grid gap-0 border border-line bg-surface sm:grid-cols-2">
           <div className="px-4 py-3">
             <div className="px-num mb-2 text-[12px] tracking-widest text-brand">EXIT / 什么时候卖</div>
-            <div className="flex gap-2 border-b border-dashed border-line py-1.5 text-[13px]"><span className="px-num w-16 shrink-0 text-[12px] text-muted">SHORT</span><span>断板，或炸板率升到 40% 以上 → 走。<b className="text-warn">今天 {breakRate != null ? (breakRate * 100).toFixed(0) : "—"}%</b></span></div>
-            <div className="flex gap-2 border-b border-dashed border-line py-1.5 text-[13px]"><span className="px-num w-16 shrink-0 text-[12px] text-muted">LONG</span><span>跌破止损 −8% / 到目标 +10% / 20 日线破位 → 走，先到先走。</span></div>
-            <div className="flex gap-2 py-1.5 text-[13px]"><span className="px-num w-16 shrink-0 text-[12px] text-muted">T+1</span><span>买入当天不卖；第 N 个交易日收盘卖（短线 5 / 中长线 8）。</span></div>
+            <div className="flex gap-2 border-b border-dashed border-line py-1.5 text-sm"><span className="px-num w-16 shrink-0 text-[12px] text-muted">SHORT</span><span>断板，或炸板率升到 40% 以上 → 走。<b className="text-warn">今天 {breakRate != null ? (breakRate * 100).toFixed(0) : "—"}%</b></span></div>
+            <div className="flex gap-2 border-b border-dashed border-line py-1.5 text-sm"><span className="px-num w-16 shrink-0 text-[12px] text-muted">LONG</span><span>跌破止损 −8% / 到目标 +10% / 20 日线破位 → 走，先到先走。</span></div>
+            <div className="flex gap-2 py-1.5 text-sm"><span className="px-num w-16 shrink-0 text-[12px] text-muted">T+1</span><span>买入当天不卖；第 N 个交易日收盘卖（短线 5 / 中长线 8）。</span></div>
           </div>
           <div className="border-t border-line px-4 py-3 sm:border-l sm:border-t-0">
             <div className="px-num mb-2 text-[12px] tracking-widest text-brand">WATCH / 盯什么</div>
-            <div className="flex justify-between gap-3 border-b border-dashed border-line py-1.5 text-[13px]"><span className="text-muted">监管异动 · 已达线</span><span className="px-num text-warn">{reg.rows.filter((r) => r.level === "已达").length} 只</span></div>
-            <div className="flex justify-between gap-3 border-b border-dashed border-line py-1.5 text-[13px]"><span className="text-muted">题材 · 最热</span><span className="px-num">{hotThemes[0] ? `${hotThemes[0].name} ${hotThemes[0].limitUp}` : "—"}</span></div>
-            <div className="flex justify-between gap-3 py-1.5 text-[13px]"><span className="text-muted">1→2 晋级率</span><span className="px-num">{promo1}</span></div>
+            <div className="flex justify-between gap-3 border-b border-dashed border-line py-1.5 text-sm"><span className="text-muted">监管异动 · 已达线</span><span className="px-num text-warn">{reg.rows.filter((r) => r.level === "已达").length} 只</span></div>
+            <div className="flex justify-between gap-3 border-b border-dashed border-line py-1.5 text-sm"><span className="text-muted">题材 · 最热</span><span className="px-num">{hotThemes[0] ? `${hotThemes[0].name} ${hotThemes[0].limitUp}` : "—"}</span></div>
+            <div className="flex justify-between gap-3 py-1.5 text-sm"><span className="text-muted">1→2 晋级率</span><span className="px-num">{promo1}</span></div>
           </div>
         </div>
 

@@ -199,6 +199,11 @@ function RotationPage() {
           </div>
         </div>
       ) : null}
+      <div className="px-mobile-bar">
+        <div className="px-num text-[12px] text-muted">题材 · 在扩散 </div>
+        <div className="px-num text-[12px] text-brand">看轮动 ▾</div>
+      </div>
+
     </Frame>
   );
 }

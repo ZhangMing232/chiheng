@@ -308,7 +308,7 @@ function SideNav() {
           </span>
         )}
       </Link>
-      <nav className="flex-1 overflow-y-auto scroll-slim px-2 pb-4" aria-label="主导航">
+      <nav className="min-h-0 flex-1 overflow-y-auto scroll-slim px-2 pb-4" aria-label="主导航">
         {SIDEBAR.map((group) => {
           const open = !closed.includes(group.label);
           return (
@@ -499,7 +499,7 @@ function SystemStatus() {
  */
 function StatusBar() {
   const s = useSysStatus();
-  const linkCls = "inline-flex items-center gap-1 text-muted transition-colors hover:text-fg";
+  const linkCls = "inline-flex min-h-6 items-center gap-1 py-1 text-muted transition-colors hover:text-fg";
   return (
     <footer
       className="sticky bottom-0 z-20 hidden border-t border-sidebar-line bg-sidebar/95 backdrop-blur-md md:block"
@@ -1397,7 +1397,7 @@ export function Frame({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-line bg-bg/95 backdrop-blur-md">
           <div className="flex h-12 items-center gap-3 px-3 md:px-4">
-            <Link to="/" className="flex shrink-0 items-center gap-1.5 md:hidden">
+            <Link to="/" className="flex h-full min-h-6 shrink-0 items-center gap-1.5 md:hidden">
               <span className="h-4 w-[3px] rounded-full bg-brand" aria-hidden />
               <span className="text-[15px] font-medium tracking-widest">赤轨</span>
             </Link>
@@ -1415,7 +1415,7 @@ export function Frame({
                 <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
                 <span className="hidden sm:inline">刷新</span>
               </button>
-              <details className="relative shrink-0">
+              <details className="relative hidden shrink-0 sm:block">
                 <summary className="cursor-pointer list-none rounded border border-line bg-surface px-2.5 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden">显示</summary>
                 <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded border border-line bg-surface p-2">
                   <ThemeMode />

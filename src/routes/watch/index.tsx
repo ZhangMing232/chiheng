@@ -337,11 +337,11 @@ function WatchTodayPage() {
                         >
                           <span className="flex items-baseline justify-between gap-1">
                             <span className="truncate text-xs font-medium">{r.name}</span>
-                            <span className={"num shrink-0 text-[10px] " + (tier.broken ? "text-muted" : "text-up")}>
+                            <span className={"num shrink-0 text-[12px] " + (tier.broken ? "text-muted" : "text-up")}>
                               {r.sealFund != null ? yi(r.sealFund) : "—"}
                             </span>
                           </span>
-                          <span className="num truncate text-[10px] text-muted">
+                          <span className="num truncate text-[12px] text-muted">
                             {r.breaks ? `开 ${r.breaks} 次` : tier.broken ? "已炸板" : "未开板"}
                           </span>
                         </button>
@@ -428,7 +428,7 @@ function ReasonPopover({
         {!reasons.date ? (
           <div className="text-[12px] leading-relaxed text-muted">
             这一天没采到涨停原因原文（原因文件按日落盘，不是每只票都有）。
-            <div className="mt-1 text-[10px]">这里留空，不拿别的日子的理由凑。</div>
+            <div className="mt-1 text-[12px]">这里留空，不拿别的日子的理由凑。</div>
           </div>
         ) : info ? (
           <>
@@ -439,7 +439,7 @@ function ReasonPopover({
             <div className="text-[12px] leading-relaxed whitespace-pre-line">
               {info.reason.length > 320 ? `${info.reason.slice(0, 320)}…` : info.reason}
             </div>
-            <div className="mt-2 rounded border border-line bg-surface-2 px-2 py-1.5 text-[10px] leading-relaxed text-muted">
+            <div className="mt-2 rounded border border-line bg-surface-2 px-2 py-1.5 text-[12px] leading-relaxed text-muted">
               <div>
                 <b className="text-fg">原记录</b> {ymd(reasons.date)}
                 <span className="float-right">{info.source || "来源未标"}</span>
@@ -457,7 +457,7 @@ function ReasonPopover({
         ) : (
           <div className="text-[12px] leading-relaxed text-muted">
             这只票这天没采到涨停原因原文——原因来自盘后第三方整理，不是每只票都有。
-            <div className="mt-1 text-[10px]">原记录 {ymd(reasons.date)}。这里留空，不编一条理由。</div>
+            <div className="mt-1 text-[12px]">原记录 {ymd(reasons.date)}。这里留空，不编一条理由。</div>
           </div>
         )}
 

@@ -1094,6 +1094,11 @@ function Positions() {
           { key: "record", label: "战绩", content: recordTab },
         ]}
       />
+      <div className="px-mobile-bar">
+        <div className="px-num text-[12px] text-muted">持仓 · 止损先走</div>
+        <div className="px-num text-[12px] text-brand">看持仓 ▾</div>
+      </div>
+
     </Frame>
   );
 }

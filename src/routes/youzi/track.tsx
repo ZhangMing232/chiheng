@@ -121,6 +121,11 @@ function HotMoneyPage() {
           </div>
         </Panel>
       </div>
+      <div className="px-mobile-bar">
+        <div className="px-num text-[12px] text-muted">游资 · 跟买 5 日</div>
+        <div className="px-num text-[12px] text-brand">看席位 ▾</div>
+      </div>
+
     </Frame>
     {modal}
     </>

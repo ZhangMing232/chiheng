@@ -129,7 +129,7 @@ html:not([data-theme="light"]) body {
 .px-tbl .px-path { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; }
 .px-tbl .px-name { font-weight: 600; white-space: nowrap; }
 .px-tbl .px-code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--color-muted); margin-left: 6px; font-weight: 400; }
-.px-tbl .px-price { font-family: ui-monospace, Menlo, monospace; font-size: 17px; font-weight: 700; text-align: right; white-space: nowrap; }
+.px-tbl .px-price { font-family: ui-monospace, Menlo, monospace; font-size: 20px; font-weight: 700; text-align: right; white-space: nowrap; }
 .px-tbl .px-why { font-size: 12px; color: var(--color-muted); }
 .px-tbl tr.is-dead .px-name { color: var(--color-muted); text-decoration: line-through; }
 .px-tbl tr.is-dead .px-price { color: #ff6ea4; font-size: 12px; font-weight: 600; }
@@ -204,10 +204,14 @@ html:not([data-theme="light"]) body {
 .px-active { box-shadow: inset 2px 0 0 var(--color-brand); }
 
 /* 手机端固定结论条：窄屏贴底，桌面隐藏（桌面上信息都在首屏） */
-.px-mobile-bar {
-  position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--color-line);
-  background: color-mix(in srgb, var(--color-bg) 88%, transparent); backdrop-filter: blur(4px);
+/* 默认隐藏，窄屏才显示——用媒体查询控制，不依赖 tailwind 类的先后顺序 */
+.px-mobile-bar { display: none; }
+@media (max-width: 640px) {
+  .px-mobile-bar {
+    position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--color-line);
+    background: color-mix(in srgb, var(--color-bg) 92%, transparent); backdrop-filter: blur(4px);
+  }
 }
 
 
@@ -235,6 +239,14 @@ table thead th { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-si
 .data-table tbody tr:hover { background: rgba(34, 230, 255, 0.045); }
 .data-table tbody tr:last-child td { border-bottom: 0; }
 
+/* 矩阵表窄屏：横向滚动，不压缩列（压了就断行，价格和状态读不出来） */
+@media (max-width: 760px) {
+  .px-tbl { min-width: 780px; }
+  .px-tbl .px-why, .px-tbl .px-path { white-space: nowrap; }
+}
+/* 表格里的股票名点击区：补到 24px 高（原来 20px，手机上不好点） */
+.px-tbl .px-name { padding: 3px 0; display: inline-block; }
+
 /* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
  * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
  * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。
@@ -257,7 +269,7 @@ table thead th { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-si
 /* 键帽。快捷键面板和文档里都用它，两处看起来必须是同一样东西。 */
 .kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
   color: var(--color-muted);
   background: var(--color-surface-2);
