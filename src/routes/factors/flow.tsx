@@ -19,6 +19,7 @@ import { FlowProbePanel } from "@/components/screener/factor-diag-panels";
 import type { FactorDiagPayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
 import { PixelHeader } from "@/components/pixel-header";
+import { batchSummary } from "@/lib/market/factors-view";
 
 export const Route = createFileRoute("/factors/flow")({
   loader: async () => {

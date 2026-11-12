@@ -16,6 +16,7 @@ import { getFactorBaseline } from "@/lib/market/quotes.functions";
 import type { FactorBaselinePayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
 import { PixelHeader } from "@/components/pixel-header";
+import { batchSummary } from "@/lib/market/factors-view";
 
 export const Route = createFileRoute("/factors/baseline")({
   loader: async () => {

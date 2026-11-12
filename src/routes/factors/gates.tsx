@@ -26,6 +26,8 @@ import {
   Section,
 } from "@/components/factor-sections";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
+import { batchSummary } from "@/lib/market/factors-view";
 
 export const Route = createFileRoute("/factors/gates")({
   validateSearch: (search: Record<string, unknown>) => ({ batch: parseBatch(search) }),
@@ -53,6 +55,19 @@ function FactorGatesPage() {
     <Frame wide aside="因子发掘 · 6 关判决">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <PixelHeader label="FACTORS // GATES" meta="六关门控 · 每道闸卡在哪" />
+      <PixelSummary
+        label="FACTORS // GATES"
+        note={`批次 ${runs.batchIndex + 1} / ${runs.batches?.length ?? 1}`}
+        stats={(() => {
+          const b = batchSummary(runs.batch?.rows ?? []);
+          return [
+            { label: "可测因子", value: b.total, tone: "brand", hero: true },
+            { label: "六关全过", value: b.passed, tone: b.passed > 0 ? "up" : "muted" },
+            { label: "接近过关", value: b.nearMiss.length, tone: "warn", hint: "只差一关" },
+            { label: "测不了", value: b.unmeasured, tone: "muted", hint: "数据缺口" },
+          ];
+        })()}
+      />
       <FactorSectionTabs />
       <BatchPicker runs={runs} current={runs.batchIndex} to="/factors/gates" />
       <Section
