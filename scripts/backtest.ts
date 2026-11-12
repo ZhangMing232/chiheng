@@ -2267,6 +2267,10 @@ async function main() {
             if (open != null && open <= pick.sig.buy) entry = open;
             else if (bar.l <= pick.sig.buy) entry = pick.sig.buy;
           }
+        } else if (fillMode === "d") {
+          // fillMode d：市价口径——次日开盘价成交，不要求价格回踩到 buy。
+          // 用来回答「挂价摸不到时，改成开盘价买会怎样」（2026-11-12 用户质疑挂单价离谱）。
+          entry = open;
         } else {
           // fillMode c：当天价格确实在 buy 这个价位成交过（盘中穿越）
           if (bar.l <= pick.sig.buy && bar.h >= pick.sig.buy) entry = pick.sig.buy;

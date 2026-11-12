@@ -62,39 +62,78 @@ function SignalRows({
   label: string;
   openDetail: (id: string, name?: string) => Promise<void>;
 }) {
-  const reachable = list.filter((s) => !(s.auctionPrice != null && s.auctionPrice > s.buyPrice));
-  const outOfReach = list.filter((s) => s.auctionPrice != null && s.auctionPrice > s.buyPrice);
+  /**
+   * 报给你的价必须是**你能成交的价**。
+   *
+   * 原来的毛病（2026-11-12 用户指出）：挂价＝昨收，等于要求今天跌回昨天的价。
+   * 实测过去 20 笔只有 9 笔成交（45%），今天 8 条只 2 条——报一个全天没出现过的价，
+   * 你照着挂根本买不到，那不是建议，是摆设。
+   *
+   * 现在：实际买价＝竞价价（9:26 竞价出清后的真实开盘参考价，挂它就能成交）。
+   * 昨收只当纪律线：竞价高出昨收 3% 以上就不追——追高这条在项目里已被证伪（连板 −3.71%）。
+   * 竞价还没出来（没跑审核）就只报挂价并标「待竞价」。
+   */
+  const execPrice = (x: SignalReviewed) => x.auctionPrice ?? x.buyPrice;
+  const chasePct = (x: SignalReviewed) =>
+    x.auctionPrice != null && x.buyPrice > 0 ? x.auctionPrice / x.buyPrice - 1 : null;
+  const isChase = (x: SignalReviewed) => {
+    const g = chasePct(x);
+    return g != null && g > 0.03;
+  };
+  const buyable = list.filter((x) => !isChase(x));
+  const giveUp = list.filter(isChase);
+
+  const Row = ({ x, dim }: { x: SignalReviewed; dim?: boolean }) => (
+    <div
+      className={
+        "flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2 " +
+        (dim ? "text-muted" : "")
+      }
+    >
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <Tag tone={dim ? "muted" : tone}>{label}</Tag>
+        <button type="button" onClick={() => void openDetail(x.id)} className="truncate text-left hover:underline">
+          {x.name}
+        </button>
+        <span className="num text-[10px] text-muted">{x.code}</span>
+      </span>
+      <span className="flex shrink-0 items-baseline gap-1.5">
+        <span className="num text-xs">
+          {x.auctionPrice != null ? (
+            <>
+              买 <b className={dim ? "text-muted" : "text-fg"}>{execPrice(x)}</b>
+              <span className="ml-1 text-[10px] text-muted">竞价</span>
+            </>
+          ) : (
+            <>挂 {x.buyPrice}</>
+          )}
+        </span>
+        <FillTag s={x} />
+      </span>
+    </div>
+  );
+
   return (
     <>
-      {reachable.map((s) => (
-        <div key={s.code} className="flex items-baseline justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface2">
-          <span className="flex min-w-0 items-baseline gap-1.5">
-            <Tag tone={tone}>{label}</Tag>
-            <button type="button" onClick={() => void openDetail(s.id)} className="truncate text-left hover:underline">
-              {s.name}
-            </button>
-            <span className="num text-[10px] text-muted">{s.code}</span>
-          </span>
-          <span className="flex shrink-0 items-baseline gap-1.5">
-            <span className="num text-xs text-muted">挂 {s.buyPrice}</span>
-            <FillTag s={s} />
-          </span>
-        </div>
+      {buyable.length === 0 && giveUp.length === 0 ? (
+        <div className="px-2 py-3 text-xs text-muted">今天这只腿没有候选。</div>
+      ) : null}
+      {buyable.map((x) => (
+        <Row key={x.code} x={x} />
       ))}
-      {outOfReach.length > 0 ? (
+      {giveUp.length > 0 ? (
         <div className="mt-1 rounded border border-line bg-surface2 px-2 py-1.5">
           <div className="text-[11px] font-medium text-warn">
-            今天等不到（竞价已高过挂价）：{outOfReach.length} 只 —— 不参与，别按挂价挂
+            不追高，今天不买：{giveUp.length} 只（竞价高出昨收 3% 以上）
           </div>
-          {outOfReach.map((s) => (
-            <div key={s.code} className="flex items-baseline justify-between gap-2 py-0.5 text-[11px] text-muted">
+          {giveUp.map((x) => (
+            <div key={x.code} className="flex items-baseline justify-between gap-2 py-0.5 text-[11px] text-muted">
               <span className="flex min-w-0 items-baseline gap-1.5">
-                <span className="truncate">{s.name}</span>
-                <span className="num">{s.code}</span>
+                <span className="truncate">{x.name}</span>
+                <span className="num">{x.code}</span>
               </span>
               <span className="num shrink-0">
-                挂 {s.buyPrice} · 竞价 {s.auctionPrice}
-                {s.auctionPrice != null ? `（高 ${(((s.auctionPrice - s.buyPrice) / s.buyPrice) * 100).toFixed(1)}%）` : ""}
+                昨收 {x.buyPrice} → 竞价 {x.auctionPrice}（高 {((chasePct(x) ?? 0) * 100).toFixed(1)}%）
               </span>
             </div>
           ))}
@@ -120,18 +159,25 @@ function FillTag({ s }: { s: SignalReviewed }) {
   );
 }
 
-/** 一屏之内的成交率，一句话说完：给了几条、真成交几条。 */
+/** 一屏之内的成交率，一句话说完：给了几条、能买几条、真成交几条、放弃几条。 */
 function FillSummary({ list }: { list: SignalReviewed[] }) {
   if (list.length === 0) return null;
-  const filled = list.filter((x) => x.fill?.status === "filled").length;
-  const missed = list.filter((x) => x.fill?.status === "missed").length;
-  const pending = list.filter((x) => !x.fill || x.fill.status === "pending").length;
+  const giveUp = list.filter((x) => x.auctionPrice != null && x.buyPrice > 0 && x.auctionPrice / x.buyPrice - 1 > 0.03);
+  const active = list.filter((x) => !giveUp.includes(x));
+  const filled = active.filter((x) => x.fill?.status === "filled").length;
+  const missed = active.filter((x) => x.fill?.status === "missed").length;
+  const pending = active.filter((x) => !x.fill || x.fill.status === "pending").length;
   return (
     <div className="mt-1">
-      今日挂单 {list.length} 条：<b className="text-up">成交 {filled}</b> ·{" "}
-      <b className="text-warn">未触价 {missed}</b>
-      {pending > 0 ? <> · 待判定 {pending}</> : null}
-      {missed > 0 ? <span>（没成交就是没买到，别按挂价记账）</span> : null}
+      今日信号 {list.length} 条：可买 <b className="text-fg">{active.length}</b>（
+      <b className="text-up">成交 {filled}</b> · <b className="text-warn">未成交 {missed}</b>
+      {pending > 0 ? <> · 待判定 {pending}</> : null}）
+      {giveUp.length > 0 ? (
+        <>
+          {" "}
+          · 不追高放弃 <b className="text-warn">{giveUp.length}</b>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -272,9 +318,10 @@ function DecisionPage() {
               </div>
             )}
             <div className="border-t border-line px-2 py-2 text-[11px] leading-relaxed text-muted">
-              口径：热门题材的次强/补涨股（题材补涨腿）。挂单价＝昨收（跌回昨收才买，不追高）。
-              实测：过去 20 笔挂单只有 9 笔成交（<b className="text-warn">45%</b>）——这套是「等回踩」的限价单，
-              不是市价单，等到才算有这笔。
+              口径：热门题材的次强/补涨股（题材补涨腿）。<b className="text-fg">买价＝竞价价</b>（挂它就能成交）；
+              昨收只当纪律线，竞价高出 3% 就不追。原来按昨收挂，过去 20 笔只成交 9 笔（
+              <b className="text-warn">45%</b>）——报个全天没出现过的价等于没给价。
+              改成能成交的价≠更能赚：这条腿回测成交样本 +0.06%，本来就没有超额。
               <FillSummary list={shortSignals} />
             </div>
           </Panel>

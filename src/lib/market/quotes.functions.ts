@@ -1872,13 +1872,16 @@ export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async
           if (!bar) {
             return { ...sig, fill: { status: "pending", fillPrice: null, low: null, note: "当天的 K 线还没更新（15:10 之后才有），暂时判不了" } };
           }
-          if (bar.o <= sig.buyPrice) {
-            return { ...sig, fill: { status: "filled", fillPrice: bar.o, low: bar.l, note: `开盘 ${bar.o} 已低于挂价，按开盘价成交` } };
+          // 判定用**实际报给你的下单价**：有竞价价就按竞价价（那是能成交的价），
+          // 没有才退回挂价。拿昨收限价去判「成交没有」会得出大量假未成交。
+          const order = sig.auctionPrice ?? sig.buyPrice;
+          if (bar.o <= order) {
+            return { ...sig, fill: { status: "filled", fillPrice: bar.o, low: bar.l, note: `开盘 ${bar.o} 已低于下单价 ${order}，按开盘价成交` } };
           }
-          if (bar.l <= sig.buyPrice) {
-            return { ...sig, fill: { status: "filled", fillPrice: sig.buyPrice, low: bar.l, note: `盘中最低 ${bar.l} 触到挂价，按挂单价成交` } };
+          if (bar.l <= order) {
+            return { ...sig, fill: { status: "filled", fillPrice: order, low: bar.l, note: `盘中最低 ${bar.l} 触到下单价 ${order}，按下单价成交` } };
           }
-          return { ...sig, fill: { status: "missed", fillPrice: null, low: bar.l, note: `全天最低 ${bar.l}，没碰到挂价 ${sig.buyPrice}，这张单没成交` } };
+          return { ...sig, fill: { status: "missed", fillPrice: null, low: bar.l, note: `全天最低 ${bar.l}，没碰到下单价 ${order}，这张单没成交` } };
         } catch {
           return { ...sig, fill: { status: "pending", fillPrice: null, low: null, note: "K 线缺失，判不了成交" } };
         }
