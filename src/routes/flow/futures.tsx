@@ -14,6 +14,7 @@ import { PosterButton } from "@/components/screener/poster-button";
 import { FlowDerivedTabs, FlowSectionTabs, Futures } from "@/components/flow-sections";
 import { drawFuturesPoster } from "@/lib/market/extra-posters";
 import { getIndexFutures } from "@/lib/market/quotes.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/flow/futures")({
   loader: async () => ({ futures: await getIndexFutures().catch(() => null) }),
@@ -25,6 +26,7 @@ function FlowFuturesPage() {
   return (
     <Frame wide aside="资金流向 · 期指">
       <FlowSectionTabs />
+      <PixelHeader label="FLOW // DERIVED · FUTURES" meta="期指基差看升贴水，别当方向信号" />
       <div className="mb-2"><FlowDerivedTabs active="futures" /></div>
       <PosterButton draw={() => drawFuturesPoster(futures ?? { date: "", rows: [] })} />
       <Futures book={futures} />

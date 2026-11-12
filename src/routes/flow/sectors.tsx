@@ -34,6 +34,7 @@ import { FlowDirectionTabs, List } from "@/components/flow-sections";
 import { searchBoards, sortBoards, type BoardDetail, type SortKey } from "@/lib/market/sectors-view";
 import { signedPct, toneClass } from "@/lib/market/format";
 import type { ThermometerDirection } from "@/lib/market/industry-monthly";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/flow/sectors")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -88,6 +89,7 @@ function SectorsPage() {
     return (
       <Frame wide aside="资金流向 · 方向 · 实时">
         <FlowSectionTabs />
+        <PixelHeader label="FLOW // DIRECTION" meta="实时行业榜（分钟级）与月度温度计是两种口径" />
         <div className="mb-2 flex items-center justify-between gap-2">
           <FlowDirectionTabs live />
           <span className="text-[12px] text-muted">腾讯资金榜，盘中约一分钟更新</span>
@@ -108,6 +110,7 @@ function SectorsPage() {
     return (
       <Frame wide aside="板块">
         <FlowSectionTabs />
+        <PixelHeader label="FLOW // DIRECTION" meta="月度温度计 · 东财三级行业" />
         <div className="mb-2"><FlowDirectionTabs live={false} /></div>
         <Panel title="板块" note="没有数据">
           <StateBlock
@@ -139,6 +142,8 @@ function SectorsPage() {
       }
     >
       <FlowSectionTabs />
+      <PixelHeader label="FLOW // DIRECTION" meta="月度温度计 · 东财三级行业 · 不是行业景气度" />
+      <div className="mb-2"><FlowDirectionTabs live={false} /></div>
       <Panel
         title="板块"
         note={`${table.rows.length} 个行业板块 · 分类 ${table.indexDate ?? "无"} · 月度 ${table.monthlyDate ?? "无"}`}

@@ -20,6 +20,7 @@ import { getFlow, getIndices, getTrend, getUniverse } from "@/lib/market/quotes.
 import { marketBreadth } from "@/lib/market/slim-universe";
 import type { IndexQuote } from "@/lib/market/types";
 import { cx, flowAmount, FlowSectionTabs, Market, Overview, TrendChart } from "@/components/flow-sections";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/flow/")({
   loader: async () => {
@@ -78,6 +79,7 @@ function FlowOverviewPage() {
       }
     >
       <FlowSectionTabs />
+      <PixelHeader label="FLOW // OVERVIEW" meta="主力 ≠ 机构 · 北向没有盘中净流入" />
       <p className="text-sm text-muted">这里只展示，看资金不会改变买入价。</p>
       {error ? <p className="text-sm text-up">{error}</p> : null}
       {book ? (

@@ -223,6 +223,18 @@ section[id] > header > h2 { letter-spacing: 0.02em; }
 section[id] > header > h2 > span:first-child { border-radius: 0 !important; width: 2px !important; }
 table thead th { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; letter-spacing: 0.06em; }
 
+
+/* ── 数据表像素化（2026-11-12）────────────────────────────────────
+ * positions / screener 的表格都走 components/terminal 的 Table + thClass/tdClass，
+ * 所以在这里统一改一次，两处一起变：虚线行分隔（像素风的分隔是短划，不是淡色实线）、
+ * 悬停用一层很淡的荧光线、表头零圆角。
+ */
+.data-table { border-collapse: collapse; }
+.data-table thead th { border-bottom: 1px solid var(--color-line); border-radius: 0; }
+.data-table tbody td { border-bottom: 1px dashed var(--color-line); }
+.data-table tbody tr:hover { background: rgba(34, 230, 255, 0.045); }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+
 /* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
  * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
  * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。

@@ -15,6 +15,7 @@ import { flowAmount, FlowSectionTabs, List } from "@/components/flow-sections";
 import { StockName } from "@/components/screener/stock-name";
 import { getFlow } from "@/lib/market/quotes.functions";
 import type { FlowRow } from "@/lib/market/flow";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/flow/stocks")({
   loader: async () => ({ book: await getFlow().catch(() => null) }),
@@ -49,6 +50,7 @@ function FlowStocksPage() {
       }
     >
       <FlowSectionTabs />
+      <PixelHeader label="FLOW // STOCKS" meta="个股主力净流入 · 腾讯资金榜，约一分钟更新" />
       {book ? (
         <div className="flex flex-col gap-3">
           <List title="个股净流入" rows={book.stocksIn} hint="已去掉新股和 ST。" renderName={renderStockName} />

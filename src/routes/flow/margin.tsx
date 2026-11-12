@@ -12,6 +12,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { FlowDerivedTabs, FlowSectionTabs, Margin } from "@/components/flow-sections";
 import { getMargin } from "@/lib/market/quotes.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/flow/margin")({
   loader: async () => ({ margin: await getMargin().catch(() => null) }),
@@ -23,6 +24,7 @@ function FlowMarginPage() {
   return (
     <Frame wide aside="资金流向 · 两融">
       <FlowSectionTabs />
+      <PixelHeader label="FLOW // DERIVED · MARGIN" meta="两融余额是 T-1 口径，不是实时" />
       <div className="mb-2"><FlowDerivedTabs active="margin" /></div>
       <Margin data={margin} />
     </Frame>
