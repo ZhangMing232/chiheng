@@ -21,6 +21,7 @@ import { marketBreadth } from "@/lib/market/slim-universe";
 import type { IndexQuote } from "@/lib/market/types";
 import { cx, flowAmount, FlowSectionTabs, Market, Overview, TrendChart } from "@/components/flow-sections";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/flow/")({
   loader: async () => {
@@ -80,6 +81,16 @@ function FlowOverviewPage() {
     >
       <FlowSectionTabs />
       <PixelHeader label="FLOW // OVERVIEW" meta="主力 ≠ 机构 · 北向没有盘中净流入" />
+      <PixelSummary
+        label="FLOW // OVERVIEW"
+        note="主力≠机构 · 北向无盘中净流入"
+        stats={[
+          { label: "行业流入", value: book?.sectorsIn?.length ?? null, tone: "up", hero: true, hint: book?.sectorsIn?.[0]?.name ?? undefined },
+          { label: "行业流出", value: book?.sectorsOut?.length ?? null, tone: "down", hint: book?.sectorsOut?.[0]?.name ?? undefined },
+          { label: "个股流入", value: book?.stocksIn?.length ?? null, tone: "up" },
+          { label: "个股流出", value: book?.stocksOut?.length ?? null, tone: "down" },
+        ]}
+      />
       <p className="text-sm text-muted">这里只展示，看资金不会改变买入价。</p>
       {error ? <p className="text-sm text-up">{error}</p> : null}
       {book ? (

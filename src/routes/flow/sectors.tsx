@@ -35,6 +35,7 @@ import { searchBoards, sortBoards, type BoardDetail, type SortKey } from "@/lib/
 import { signedPct, toneClass } from "@/lib/market/format";
 import type { ThermometerDirection } from "@/lib/market/industry-monthly";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/flow/sectors")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -143,6 +144,15 @@ function SectorsPage() {
     >
       <FlowSectionTabs />
       <PixelHeader label="FLOW // DIRECTION" meta="月度温度计 · 东财三级行业 · 不是行业景气度" />
+      <PixelSummary
+        label="FLOW // DIRECTION · MONTH"
+        note={`月度 ${table?.monthlyDate ?? "无"}`}
+        stats={[
+          { label: "板块数", value: table?.rows?.length ?? null, tone: "brand", hero: true },
+          { label: "分类日期", value: table?.indexDate ?? null },
+          { label: "缺口", value: table?.gaps?.length ?? 0, tone: "warn", hint: "分类或月度缺失" },
+        ]}
+      />
       <div className="mb-2"><FlowDirectionTabs live={false} /></div>
       <Panel
         title="板块"
