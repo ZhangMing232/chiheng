@@ -21,10 +21,11 @@ import { getMarketSnapshot } from "@/lib/market/limit-up.functions";
 import { getRegulatoryRadar, getLadder3Day, type RegulatoryRow, type LadderRow } from "@/lib/market/quotes.functions";
 import { getThemeHeat, getLimitUpReasons, getSignalReviewed, type ThemeHeatItem, type SignalReviewed, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
 import { getForecast, type ForecastPeriod } from "@/lib/market/archive.functions";
+import { getFlow } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/today")({
   loader: async () => {
-    const [snap, themes, reasons, reviewed, reg, ladder3, forecast] = await Promise.all([
+    const [snap, themes, reasons, reviewed, reg, ladder3, forecast, flow] = await Promise.all([
       getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
       getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
       getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
@@ -32,8 +33,9 @@ export const Route = createFileRoute("/today")({
       getRegulatoryRadar().catch(() => ({ date: "", rows: [] as RegulatoryRow[] })),
       getLadder3Day().catch(() => ({ dates: [] as string[], ladder: {} as Record<string, Record<string, LadderRow[]>>, promotion: {} })),
       getForecast().catch(() => ({ locked: [] as ForecastPeriod[], backtest: null })),
+      getFlow().catch(() => null),
     ]);
-    return { snap, themes, reasons, reviewed, reg, ladder3, forecast };
+    return { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow };
   },
   component: DecisionPage,
 });
@@ -191,7 +193,7 @@ function moodOf(p: { breakRate: number | null; maxStreak: number; ladderCount: n
 }
 
 function DecisionPage() {
-  const { snap, themes, reasons, reviewed, reg, ladder3, forecast } = Route.useLoaderData();
+  const { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow } = Route.useLoaderData();
   const { openDetail, modal } = useStockDetail();
   const pool = snap.snapshot;
 
@@ -411,6 +413,48 @@ function DecisionPage() {
             </div>
           </Panel>
         </div>
+
+        {/* ── 主力资金（2026-11-12 从总览 / 并进来：总览已不再单独存在）── */}
+        <Panel
+          id="s-money"
+          title="主力资金"
+          note={<span className="text-[11px]">腾讯资金榜 · 盘中约一分钟更新（主力 ≠ 机构）</span>}
+        >
+          {flow ? (
+            <div className="grid gap-2 p-2 sm:grid-cols-2">
+              {(
+                [
+                  ["行业流入", flow.sectorsIn, "up"],
+                  ["行业流出", flow.sectorsOut, "down"],
+                  ["个股流入", flow.stocksIn, "up"],
+                  ["个股流出", flow.stocksOut, "down"],
+                ] as const
+              ).map(([title, rows, tone]) => (
+                <div key={title} className="rounded border border-line">
+                  <div className="border-b border-line bg-surface2 px-2 py-1 text-[11px] text-muted">{title}</div>
+                  <div className="flex flex-col">
+                    {rows.slice(0, 5).map((r) => (
+                      <div key={r.id ?? r.name} className="flex items-baseline justify-between gap-2 px-2 py-1 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => void openDetail(r.id ?? "", r.name)}
+                          className="truncate text-left hover:underline"
+                        >
+                          {r.name}
+                        </button>
+                        <span className={"num " + (tone === "up" ? "text-up" : "text-down")}>
+                          {r.inflow != null ? (r.inflow / 1e8).toFixed(2) + "亿" : "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-3 py-4 text-sm text-muted">资金榜没拉到，刷新重试。</div>
+          )}
+        </Panel>
 
         {/* ── 监管异动 ── */}
         <Panel id="s-reg" title="监管异动雷达" note={`${reg.date || "—"} · 3日偏离值≥阈值触发`}>

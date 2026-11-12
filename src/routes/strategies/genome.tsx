@@ -27,7 +27,7 @@ import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Stat, Tag } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
-import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
+import { STRATEGY_TABS, BACKTEST_SUB_TABS } from "@/lib/ui/strategy-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getGenomeView } from "@/lib/market/quotes.functions";
 import type { GenomeCandidate } from "@/lib/market/strategy-genome";
@@ -64,6 +64,7 @@ function GenomePage() {
   return (
     <Frame wide>
       <SectionTabs tabs={STRATEGY_TABS} />
+      <SectionTabs tabs={BACKTEST_SUB_TABS} ariaLabel="回测审计" />
       <div className="flex flex-col gap-4">
         <Panel
           title="策略基因组"

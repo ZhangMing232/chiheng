@@ -19,6 +19,8 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
+import { SectionTabs } from "@/components/section-tabs";
+import { BACKTEST_SUB_TABS } from "@/lib/ui/strategy-tabs";
 import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
@@ -77,6 +79,7 @@ function BacktestPage() {
           tone: "neutral",
         }}
       >
+        <SectionTabs tabs={BACKTEST_SUB_TABS} ariaLabel="回测审计" />
         <Panel title="回测" note="还没有运行记录">
           <StateBlock
             kind="empty"

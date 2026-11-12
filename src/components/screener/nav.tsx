@@ -137,7 +137,6 @@ const SIDEBAR: {
   {
     label: "盘前",
     items: [
-      { to: "/", label: "总览", icon: LayoutDashboard },
       { to: "/today", label: "今天", icon: Compass },
       // 2026-11-11 新增：前瞻回验（每日落档 + 次日对照，赤轨的自证页）
       { to: "/huiyan", label: "前瞻回验", icon: CheckCircle2 },

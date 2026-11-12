@@ -22,7 +22,7 @@ import { Frame } from "@/components/screener/nav";
 import { ACTIVE_STYLES } from "@/lib/market/strategies";
 import { Panel, Prog, Stat, Tag} from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
-import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
+import { STRATEGY_TABS, BACKTEST_SUB_TABS } from "@/lib/ui/strategy-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getLossAttribution } from "@/lib/market/quotes.functions";
 import {
@@ -116,6 +116,7 @@ function AutopsyPage() {
       <Panel title="失败归因" note="亏在哪、为什么亏——按退出原因拆，用因果解释，不给买卖建议。">
         <div className="flex flex-col gap-4 px-4 py-3">
           <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
+          <SectionTabs tabs={BACKTEST_SUB_TABS} ariaLabel="回测审计" />
 
           <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
             <Stat label="已平仓亏损" value={String(summary.losses)} hint="笔（net<0）" className="bg-surface" />

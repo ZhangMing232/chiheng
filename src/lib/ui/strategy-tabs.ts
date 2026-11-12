@@ -12,11 +12,27 @@
  */
 export const STRATEGY_TABS: { to: string; label: string }[] = [
   { to: "/strategies/screener", label: "策略选股" },
-  // 2026-11-11 用户要求「策略追踪 + 跟单信号」合成一页：原来的「跟单信号」内容
-  // 并进这个页的「跟单」子 tab，标签从「策略追踪」改成「策略跟踪」，六个 tab → 五。
-  // /strategies/signals 保留为重定向，书签不断。
   { to: "/strategies/positions", label: "策略跟踪" },
-  { to: "/strategies/manage", label: "策略管理" },
+  { to: "/backtest", label: "回测审计" },
+];
+
+/**
+ * 2026-11-12 二次收口（用户：页面太多，来回都是那几个内容）。
+ *
+ * 五个 tab 收成三个工作台：
+ *   策略选股 ← 吸收「策略管理」（自己写策略/表达式只是选股的准备动作，不是第二件事）
+ *   策略跟踪 ← 已经吸收「跟单信号」（11-11 做的）
+ *   回测审计 ← 吸收「策略基因组」「失败归因」（都是"这套规则能不能信"的证据面）
+ *
+ * 被吸收的两块不删，改成工作台内的次级切换，页面少一层但能力不掉。
+ */
+export const SCREENER_SUB_TABS: { to: string; label: string }[] = [
+  { to: "/strategies/screener", label: "现役选股" },
+  { to: "/strategies/manage", label: "我的策略" },
+];
+
+export const BACKTEST_SUB_TABS: { to: string; label: string }[] = [
+  { to: "/backtest", label: "运行与比较" },
   { to: "/strategies/genome", label: "策略基因组" },
   { to: "/strategies/autopsy", label: "失败归因" },
 ];
