@@ -77,10 +77,17 @@ function WatchTodayPage() {
   const [date, setDate] = useState("");
   const [pick, setPick] = useState<{ card: Card; x: number; y: number } | null>(null);
   const [backfill, setBackfill] = useState<WatchDay | null>(null);
+  // mounted 仅客户端挂载后为 true。盘前/盘中快照每 3 分钟被 home-server 重写一份，
+  // 若查询在「水合首帧」就跑（enabled 只拦了服务端、没拦客户端首帧），会拉到比 SSR
+  // 更新的一份快取 → 页头 capturedAt 文本和水合文本对不上（#418 那类水合不一致）。
+  // 所以实时查询必须等到挂载后再开，首帧（水合）一律用 loader 下发的 initialData。
+  const [mounted, setMounted] = useState(false);
   const daysQ = useQuery({
     queryKey: ["watch", "days"],
     queryFn: () => getWatchDays(),
     initialData: days,
+    // 挂载前不跑：首帧（水合）用 loader 下发的 initialData，避免拉到更新的一份导致脱节。
+    enabled: mounted,
   });
   const [backfilling, setBackfilling] = useState(false);
   const [now, setNow] = useState<number | null>(null);
@@ -88,6 +95,7 @@ function WatchTodayPage() {
 
   // 当前时刻只能在挂载后取（SSR 里读 Date.now() 会造成 #418 水合不一致）。
   useEffect(() => setNow(Date.now()), []);
+  useEffect(() => setMounted(true), []);
   useVisibleInterval(() => setNow(Date.now()), 10_000);
 
   // 今天：每 30 秒重读一次本地快取。只读文件，不打东财；页面切到后台就停。
@@ -96,6 +104,7 @@ function WatchTodayPage() {
     queryFn: () => getMarketSnapshot(),
     initialData: snap,
     refetchInterval: visible && date === "" ? 30_000 : false,
+    enabled: mounted,
   });
   // 回看：只读归档，不联网。
   const dayQ = useQuery({
@@ -107,6 +116,7 @@ function WatchTodayPage() {
     queryKey: ["watch", "reasons", date],
     queryFn: () => (date ? getLimitUpReasonsForDay({ data: { date } }) : getLimitUpReasons()),
     ...(date === "" ? { initialData: reasons as Reasons } : {}),
+    enabled: mounted,
   });
 
   // 气泡在滚走 / 切后台 / 按 Esc / 切日期时关掉，别留固定定位的浮层挂在屏幕上
@@ -128,8 +138,12 @@ function WatchTodayPage() {
   }, [visible, date, backfill]);
 
   const isToday = date === "";
+  // 水合首帧（mounted=false）必须用 loader 下发的 snap，不能用 todayQ.data——
+  // 后者在客户端 hydration 期间已经被 createServerFn 实时拉到更新的一份快取，
+  // 和 SSR 渲染用的 snap 不是同一时刻，capturedAt（页头时间）会差几分钟 → #418 水合不一致。
+  // 挂载后 todayQ 才会去实时刷新，那时再切到 live 数据，已不在水合窗口内。
   const snapshot = isToday
-    ? (todayQ.data?.snapshot ?? null)
+    ? (mounted ? todayQ.data?.snapshot ?? null : snap.snapshot ?? null)
     : (dayQ.data?.snapshot ?? backfill?.snapshot ?? null);
   // 补拉失败的具体原因只放在按钮下面那行红字里，这里别再复述一遍（会同一句显示两次）。
   // 服务端盘中采集没跑（比如 serve 还没重启）时，快取文件可能还是前一天的。
@@ -139,7 +153,7 @@ function WatchTodayPage() {
   const why = snapshot
     ? null
     : isToday
-      ? (todayQ.data?.why ?? "快照还没采到")
+      ? (mounted ? todayQ.data?.why ?? "快照还没采到" : snap.why ?? "快照还没采到")
       : (dayQ.data?.why ?? (dayQ.isLoading ? "正在读这一天的归档…" : "这天没有归档"));
 
   async function doBackfill() {
@@ -156,7 +170,10 @@ function WatchTodayPage() {
   const up = snapshot ? fixedOrder(snapshot.limitUp) : [];
   const broken = snapshot ? fixedOrder(snapshot.broken) : [];
   const captured = snapshot ? new Date(snapshot.capturedAt) : null;
-  const at = captured ? captured.toTimeString().slice(0, 8) : null;
+  // capturedAt 是 epoch 毫秒，按 UTC 解析。这里统一加 8h 用 toISOString 取北京时间，
+  // 不能用 toTimeString()——它读运行时本地时区，node 服务端(UTC)和浏览器(北京)会差 8 小时，
+  // 导致 SSR 文本与水合文本对不上（#418 那类水合不一致）。
+  const at = captured ? new Date(captured.getTime() + 8 * 3600_000).toISOString().slice(11, 19) : null;
   const ageText = captured && now
     ? ` · ${Math.max(0, Math.floor((now - snapshot!.capturedAt) / 1000))} 秒前`
     : "";

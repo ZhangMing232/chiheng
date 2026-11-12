@@ -20,6 +20,25 @@ export type ForecastOutcome = {
   code: string;
   name: string;
   rule: string;
+  /**
+   * 结算用到的三个真实价（都是盘后才知道，不含未来函数）：
+   *   pickPrice = T 日收盘（选股当时看到的价格）
+   *   buyPrice  = T+1 开盘（最早能成交的买入价）
+   *   sellPrice = T+1 收盘（结算卖出的价）
+   *   highPrice = T+1 最高（判断「追买」用）
+   * 页面拿这三个价画时间线，不再自己算涨跌，避免口径漂移。
+   */
+  pickPrice: number | null;
+  buyPrice: number | null;
+  sellPrice: number | null;
+  highPrice: number | null;
+  /** 真实交易盈亏：T+1 开盘买入、T+1 收盘卖出 = sellPrice/buyPrice - 1 */
+  tradePct: number | null;
+  /** T 日收盘 → T+1 收盘：方向命中的基准口径，和全市场基准对齐 */
+  holdPct: number | null;
+  /** T+1 最高相对买入价：追买幅度 = highPrice/buyPrice - 1 */
+  highPct: number | null;
+  // —— 旧字段保留作别名，regenerate 后会写同样的值，避免旧 backtest.json 读出 undefined ——
   nextPct: number | null;
   nextHighPct: number | null;
   nextOpenToClose: number | null;

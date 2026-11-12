@@ -43,16 +43,20 @@ type Outcome = {
   code: string;
   name: string;
   rule: string;
-  /** 次日收盘涨跌幅（相对 T 日收盘） */
+  // 三个真实价（都是盘后才知道，不含未来函数）
+  pickPrice: number | null; // T 日收盘（选股时看到的价格）
+  buyPrice: number | null; // T+1 开盘（最早能成交的买入价）
+  sellPrice: number | null; // T+1 收盘（结算卖出价）
+  highPrice: number | null; // T+1 最高（追买判定）
+  tradePct: number | null; // 真实交易盈亏 = sellPrice/buyPrice - 1
+  holdPct: number | null; // T 日收盘→T+1 收盘（方向命中的基准口径）
+  highPct: number | null; // T+1 最高相对买入价（追买幅度）
+  // 旧字段保留作别名，regenerate 后值一致
   nextPct: number | null;
-  /** 次日最高价相对 T 日收盘 */
   nextHighPct: number | null;
-  /** 次日开盘买入、收盘卖出（真正能拿到的） */
   nextOpenToClose: number | null;
   limitUp: boolean;
-  /** 方向命中：次日收盘 > 0 */
   hit: boolean;
-  /** 追买成立：次日开盘买入后，盘中最高仍为正 */
   chase: boolean;
 };
 
@@ -146,47 +150,159 @@ function pickOf(rows: { code: string; name: string; streak: number; volRatio: nu
   return picks;
 }
 
-/** 用次日真实 K 线结算一期。 */
-function settle(all: Map<string, Bar[]>, p: Period): Period {
+const KLINE_HEADERS = { "user-agent": "Mozilla/5.0", referer: "https://gu.qq.com/" };
+const GTIMG_LOOKBACK = 40;
+
+/** 北京时间（实际即时）。返回 Date 的 getUTC* 反映的是北京时刻。 */
+function beijingNow(): Date {
+  return new Date(Date.now() + 8 * 3600_000);
+}
+
+/** 某根 K 线是否已收盘、可结算：
+ *  - 日期早于今天 → 一定收完了
+ *  - 等于今天 → 只有北京时 ≥15:00 才算收盘（盘中拉到的棒是半截，拿去结算会算错）
+ *  - 晚于今天 → 还没发生，跳过 */
+function isFinalBar(dateStr: string): boolean {
+  const bj = beijingNow();
+  const today = bj.toISOString().slice(0, 10);
+  if (dateStr < today) return true;
+  if (dateStr > today) return false;
+  return bj.getUTCHours() >= 15;
+}
+
+/** 从腾讯接口拉某只票最近 N 天日线（含可能未收盘的当天）。 */
+async function fetchBarsLive(code: string, lookback = GTIMG_LOOKBACK): Promise<Bar[]> {
+  const url = `https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=${code},day,,,${lookback}`;
+  try {
+    const res = await fetch(url, { headers: KLINE_HEADERS, signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { data?: Record<string, { day?: string[][] }> };
+    const rows = body.data?.[code]?.day ?? [];
+    const out: Bar[] = [];
+    for (const r of rows) {
+      if (!Array.isArray(r) || r.length < 6) continue;
+      const o = Number(r[1]);
+      const c = Number(r[2]);
+      const h = Number(r[3]);
+      const l = Number(r[4]);
+      const v = Number(r[5]);
+      if (![o, c, h, l].every(Number.isFinite)) continue;
+      out.push({ date: r[0], o, c, h, l, v: Number.isFinite(v) ? v : 0 });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** 拉远端、把本地缺的棒补进文件+内存（自修复，下次结算直接读本地）。只在确认要结算时才落盘。 */
+async function fetchMergeKline(code: string, all: Map<string, Bar[]>): Promise<void> {
+  const live = await fetchBarsLive(code);
+  if (live.length === 0) return;
+  const existing = all.get(code) ?? [];
+  const have = new Set(existing.map((b) => b.date));
+  const merged = [...existing];
+  for (const b of live) if (!have.has(b.date)) { merged.push(b); have.add(b.date); }
+  merged.sort((a, b) => (a.date < b.date ? -1 : 1));
+  all.set(code, merged);
+  try {
+    writeFileSync(`data/backtest/kline/${code}.json`, JSON.stringify(merged));
+  } catch {
+    // 写盘失败不致命，内存里这份本进程还能用
+  }
+}
+
+/** 纯函数：给定 T 日棒和 T+1 日棒，算一只票的结算结果。两者缺一不可。 */
+function computeOutcome(pick: Pick, t: Bar | null, nx: Bar | null): Outcome {
+  const base: Outcome = {
+    code: pick.code,
+    name: pick.name,
+    rule: pick.rule,
+    pickPrice: t?.c ?? null,
+    buyPrice: null,
+    sellPrice: null,
+    highPrice: null,
+    tradePct: null,
+    holdPct: null,
+    highPct: null,
+    nextPct: null,
+    nextHighPct: null,
+    nextOpenToClose: null,
+    limitUp: false,
+    hit: false,
+    chase: false,
+  };
+  if (!t || !nx) return base;
+  const pickPrice = t.c;
+  const buyPrice = nx.o;
+  const sellPrice = nx.c;
+  const highPrice = nx.h;
+  const tradePct = buyPrice > 0 ? sellPrice / buyPrice - 1 : null;
+  const holdPct = pickPrice > 0 ? sellPrice / pickPrice - 1 : null;
+  const highPct = buyPrice > 0 ? highPrice / buyPrice - 1 : null;
+  return {
+    ...base,
+    pickPrice,
+    buyPrice,
+    sellPrice,
+    highPrice,
+    tradePct,
+    holdPct,
+    highPct,
+    nextPct: holdPct,
+    nextHighPct: highPct,
+    nextOpenToClose: tradePct,
+    limitUp: holdPct != null && holdPct >= limitOf(pick.code),
+    // 方向命中：T 日收盘→T+1 收盘收涨，和全市场基准口径对齐
+    hit: (holdPct ?? 0) > 0,
+    // 追买：T+1 开盘买入后，盘中最高仍高于开盘价
+    chase: buyPrice > 0 && highPrice > buyPrice,
+  };
+}
+
+/** 结算一期：本地有的棒直接算（backtest 和已缓存的落档都走这）。 */
+function settleLocal(all: Map<string, Bar[]>, p: Period): Period {
+  const outcomes: Outcome[] = p.picks.map((pick) => {
+    const bars = all.get(pick.code) ?? [];
+    const t = bars.find((b) => b.date === p.date) ?? null;
+    const nx = barAfter(bars, p.date, 1);
+    return computeOutcome(pick, t, nx);
+  });
+  return finishSettle(p, outcomes, all);
+}
+
+/** 结算一期：本地缺 T+1 棒时先调腾讯补数（落档期次日可能还没进本地 kline）。 */
+async function settleLive(all: Map<string, Bar[]>, p: Period): Promise<Period> {
   const outcomes: Outcome[] = [];
   for (const pick of p.picks) {
-    const bars = all.get(pick.code);
-    const t = bars?.find((b) => b.date === p.date);
-    const nx = bars ? barAfter(bars, p.date, 1) : null;
-    if (!bars || !t || !nx) {
-      outcomes.push({
-        code: pick.code,
-        name: pick.name,
-        rule: pick.rule,
-        nextPct: null,
-        nextHighPct: null,
-        nextOpenToClose: null,
-        limitUp: false,
-        hit: false,
-        chase: false,
-      });
-      continue;
+    let bars = all.get(pick.code) ?? [];
+    let t = bars.find((b) => b.date === p.date) ?? null;
+    let nx = barAfter(bars, p.date, 1);
+    if (!t || !nx) {
+      await fetchMergeKline(pick.code, all); // 只在这里落盘（verify 已确认 T+1 收盘）
+      bars = all.get(pick.code) ?? [];
+      t = bars.find((b) => b.date === p.date) ?? null;
+      nx = barAfter(bars, p.date, 1);
     }
-    const nextPct = nx.c / t.c - 1;
-    const nextHighPct = nx.h / t.c - 1;
-    const openToClose = nx.o > 0 ? nx.c / nx.o - 1 : null;
-    outcomes.push({
-      code: pick.code,
-      name: pick.name,
-      rule: pick.rule,
-      nextPct,
-      nextHighPct,
-      nextOpenToClose: openToClose,
-      limitUp: nextPct >= limitOf(pick.code),
-      hit: nextPct > 0,
-      // 「追买」= 次日开盘买入，盘中最高仍高于开盘价。用最高价对开盘价比，不是对昨收。
-      chase: nx.o > 0 && nx.h > nx.o,
-    });
+    outcomes.push(computeOutcome(pick, t, nx));
   }
+  return finishSettle(p, outcomes, all);
+}
+
+/** 收尾：算 nextDate / summary，只把「真能结算」的写回。 */
+function finishSettle(p: Period, outcomes: Outcome[], all: Map<string, Bar[]>): Period {
   const valid = outcomes.filter((o) => o.nextPct != null);
+  // nextDate：T 日之后第一个交易日。优先从任意一只票的本地棒里找。
+  let nextDate: string | null = null;
+  for (const pick of p.picks) {
+    const bars = all.get(pick.code);
+    if (!bars) continue;
+    const nx = barAfter(bars, p.date, 1);
+    if (nx) { nextDate = nx.date; break; }
+  }
   return {
     ...p,
-    nextDate: p.picks.length ? (all.get(p.picks[0].code)?.find((b) => b.date > p.date)?.date ?? null) : null,
+    nextDate,
     outcomes,
     summary: {
       hits: valid.filter((o) => o.hit).length,
@@ -256,7 +372,7 @@ function backtest(all: Map<string, Bar[]>) {
     if (rows.length < 10) continue;
     const picks = pickOf(rows);
     if (picks.length === 0) continue;
-    periods.push(settle(all, { date: d, nextDate: null, source: "backtest", picks }));
+    periods.push(settleLocal(all, { date: d, nextDate: null, source: "backtest", picks }));
 
     // 同一天的全市场基准：所有当天有次日的票都算进去
     for (const [, bars] of all) {
@@ -298,25 +414,56 @@ function backtest(all: Map<string, Bar[]>) {
   );
 }
 
-function verify(all: Map<string, Bar[]>) {
-  const files = readdirSync(OUT).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f));
-  let n = 0;
-  for (const f of files) {
-    const p = JSON.parse(readFileSync(join(OUT, f), "utf8")) as Period;
-    const done = settle(all, p);
-    // 只有真的能结算（有次日 K 线）才回写，否则留着等明天
-    if (done.summary && done.summary.n > 0) {
-      writeFileSync(join(OUT, f), JSON.stringify(done, null, 2));
-      n += 1;
+/** 不写盘地探出某期的 T+1 交易日：本地有就本地取，本地没有就拉一次远端只读、不落盘。 */
+async function peekNextDate(p: Period, all: Map<string, Bar[]>): Promise<string | null> {
+  for (const pick of p.picks) {
+    const bars = all.get(pick.code);
+    if (bars) {
+      const nx = barAfter(bars, p.date, 1);
+      if (nx) return nx.date;
     }
   }
-  console.log(`[forecast] 回验 ${n} 期`);
+  const probe = p.picks[0];
+  if (!probe) return null;
+  const live = await fetchBarsLive(probe.code);
+  const i = live.findIndex((b) => b.date === p.date);
+  if (i < 0 || i + 1 >= live.length) return null;
+  return live[i + 1].date;
 }
 
-const mode = process.argv[2] ?? "--log";
-const all = loadAllKlines();
-if (mode === "--backtest") backtest(all);
-else {
-  logToday();
-  verify(all);
+/** 回验所有未结算的落档期：只看「T+1 已收盘」的，没到结算期的留待次日。 */
+async function verify(all: Map<string, Bar[]>) {
+  const files = readdirSync(OUT).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f));
+  let settled = 0;
+  let pending = 0;
+  for (const f of files) {
+    const p = JSON.parse(readFileSync(join(OUT, f), "utf8")) as Period;
+    if (p.summary && p.summary.n > 0) continue; // 已结算
+    const next = await peekNextDate(p, all);
+    if (!next) { pending += 1; continue; }
+    if (!isFinalBar(next)) { pending += 1; continue; } // T+1 还没收盘，等
+    const done = await settleLive(all, p);
+    if (done.summary && done.summary.n > 0) {
+      writeFileSync(join(OUT, f), JSON.stringify(done, null, 2));
+      settled += 1;
+    } else {
+      pending += 1;
+    }
+  }
+  console.log(`[forecast] 回验 ${settled} 期 · 待结算 ${pending} 期`);
 }
+
+async function main() {
+  const all = loadAllKlines();
+  const mode = process.argv[2] ?? "--log";
+  if (mode === "--backtest") {
+    backtest(all);
+  } else {
+    logToday();
+    await verify(all);
+  }
+}
+main().then(() => process.exit(0)).catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

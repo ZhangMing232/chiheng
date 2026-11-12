@@ -7,24 +7,28 @@
  * ② **口径回算**：拿同一套规则在过去 60 个交易日重跑一遍。
  *    它不是当时发出去的清单，**不能当对外战绩**，所以单独一块、灰色、标题就写明。
  *
- * 两条口径写死在页面上，不只写在代码里：
- * - 结算用 T+1 开盘买入（最早能成交的价），T+1 收盘算涨跌。不含未来函数。
- * - 命中率必须跟全市场基准比。「追买成立 80%」听着不错，但全市场任何一只票
- *   当天最高价高于开盘价的概率是 94%，所以 80% 其实是**显著跑输**。
+ * 结算口径（写死在页面上，不只写在代码里）：
+ *   选股 T 日收盘 → 买入 T+1 开盘（最早能成交的价）→ 结算 T+1 收盘。
+ *   三个价都是盘后才知道的，不含未来函数。命中率必须跟全市场基准比。
+ *
+ * 这个页面最该解决的，是「你到底是什么时候买的」——所以每期都把
+ * 「选股日 → 买入日(开盘) → 结算日(收盘)」三段时间线摆出来，
+ * 每票再给选股价 / 买入价 / 结算价三个实打实的 ¥。
  */
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
-import { getForecast, type ForecastPeriod } from "@/lib/market/archive.functions";
+import { getForecast, type ForecastPeriod, type ForecastOutcome } from "@/lib/market/archive.functions";
 
 export const Route = createFileRoute("/huiyan")({
   loader: async () => await getForecast(),
   component: HuiyanPage,
 });
 
-const pct = (v: number | null | undefined, d = 1) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(d)}%`);
+const pct = (v: number | null | undefined, d = 2) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(d)}%`);
+const money = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2));
 const rate = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : "—");
 
 /** UTC ISO → 北京时间 yyyy-mm-dd hh:mm。落档时刻是这一页的信用凭据，必须能看清。 */
@@ -69,7 +73,7 @@ function HuiyanPage() {
             <Cell
               label="方向命中"
               value={picks ? rate(hits, picks) : "—"}
-              hint={`${hits}/${picks} 笔 · 次日收盘涨`}
+              hint={`${hits}/${picks} 笔 · T日收盘→T+1收盘涨`}
             />
             <Cell label="追买成立" value={picks ? rate(chases, picks) : "—"} hint={`${chases}/${picks} 笔`} />
             <Cell label="次日涨停" value={picks ? rate(lim, picks) : "—"} hint={`${lim}/${picks} 笔`} />
@@ -77,9 +81,8 @@ function HuiyanPage() {
           <div className="px-3 py-2 text-[11px] leading-relaxed text-muted">
             {settled.length === 0 ? (
               <>
-                还没有可结算的期。今天（{locked[0]?.date ?? "—"}）刚落了第一版，
-                <b className="text-fg">下一个交易日收盘后</b>才会出第一条对照。
-                在这之前这一栏空着——空着比填个历史回算的数字诚实。
+                还没有可结算的期。最新一期（{locked[0]?.date ?? "—"}）挑完锁档后，
+                <b className="text-fg">下一个交易日收盘</b>才会出第一条对照。在这之前这一栏空着——空着比填个历史回算的数字诚实。
               </>
             ) : settled.length < 20 ? (
               <>
@@ -90,7 +93,15 @@ function HuiyanPage() {
           </div>
         </Panel>
 
-        <Panel title="逐期对照" note={<span className="text-[11px]">每期 3 只 · 按规则挑 · 挑完锁档</span>}>
+        <Panel
+          title="逐期对照"
+          note={<span className="text-[11px]">每期 3 只 · 按规则挑 · 挑完锁档</span>}
+        >
+          <div className="border-b border-line bg-surface-2 px-3 py-2 text-[11px] leading-relaxed text-muted">
+            结算时间线（写死，不含未来函数）：<b className="text-fg">选股 T 日收盘</b> →{" "}
+            <b className="text-fg">买入 T+1 开盘</b>（最早能成交的价）→ <b className="text-fg">结算 T+1 收盘</b>。
+            每期下面都把这三天摆出来，你一眼就能看到「我是哪天、什么价买的」。
+          </div>
           {locked.length === 0 ? (
             <StateBlock
               kind="empty"
@@ -104,10 +115,6 @@ function HuiyanPage() {
               ))}
             </div>
           )}
-          <div className="border-t border-line px-3 py-2 text-[11px] leading-relaxed text-muted">
-            结算口径：T 日收盘后挑票 → <b className="text-fg">T+1 开盘买入</b>（最早能成交的价）→ T+1 收盘算涨跌。
-            「追买」= 次日开盘买入后盘中最高价仍高于开盘价。两个价都是盘后才知道的，不含未来函数。
-          </div>
         </Panel>
 
         <Panel
@@ -202,13 +209,24 @@ function basisText(source: ForecastPeriod["source"], b: { streak: number; volRat
 
 function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
   const s = p.summary;
+  const settled = Boolean(s && s.n > 0);
   const basisByCode = new Map(p.picks.map((x) => [x.code, x.basis]));
+  // 已结算：用 outcomes 渲染；未结算：用 picks 渲染（只拿得到选股时的收盘价）
+  const rows: { code: string; name: string; rule: string; basis?: { streak: number; volRatio: number; close: number }; o?: ForecastOutcome }[] =
+    settled
+      ? (p.outcomes ?? []).map((o) => ({ code: o.code, name: o.name, rule: o.rule, basis: basisByCode.get(o.code), o }))
+      : p.picks.map((x) => ({ code: x.code, name: x.name, rule: x.rule, basis: x.basis }));
+
   return (
     <div className="px-3 py-2">
+      {/* 三段时间线：一眼看到买入发生在哪天 */}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="num text-xs">
           <b className="text-fg">{p.date}</b>
-          {p.nextDate ? <span className="text-muted"> → {p.nextDate}</span> : <span className="text-muted"> → 待次日收盘</span>}
+          <span className="text-muted"> 收盘挑</span>
+          <span className="text-muted"> → </span>
+          <b className="text-fg">{p.nextDate ?? "待定"}</b>
+          <span className="text-muted"> 开盘买 / 收盘结</span>
         </span>
         <span className="flex items-center gap-2 text-[10px] text-muted">
           {p.source === "locked" ? (
@@ -216,40 +234,73 @@ function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
           ) : (
             <Tag tone="warn">事后重算</Tag>
           )}
-          {s ? (
+          {settled ? (
             <span>
-              命中 {s.hits}/{s.n} · 追买 {s.chases}/{s.n} · 涨停 {s.limitUps}
+              命中 {s!.hits}/{s!.n} · 追买 {s!.chases}/{s!.n} · 涨停 {s!.limitUps}
             </span>
           ) : (
-            <span>未结算</span>
+            <Tag tone="muted">待 T+1 收盘结算</Tag>
           )}
         </span>
       </div>
-      <div className="mt-1 flex flex-col gap-0.5">
-        {(p.outcomes ?? p.picks.map((x) => ({ ...x, nextPct: null, nextHighPct: null, nextOpenToClose: null, limitUp: false, hit: false, chase: false }))).map(
-          (o) => (
-            <div key={o.code} className="flex items-baseline justify-between gap-2 text-[11px]">
-              <span className="flex min-w-0 items-baseline gap-1.5">
-                <span className="truncate">{o.name}</span>
-                <span className="shrink-0 text-[10px] text-muted">{o.rule}</span>
-                {basisByCode.get(o.code) ? (
-                  <span className="num shrink-0 text-[10px] text-muted">{basisText(p.source, basisByCode.get(o.code)!)}</span>
-                ) : null}
-              </span>
-              <span className="num shrink-0">
-                {o.nextPct == null ? (
-                  <span className="text-muted">待回验</span>
-                ) : (
-                  <>
-                    <span className={o.nextPct >= 0 ? "text-up" : "text-down"}>{pct(o.nextPct)}</span>
-                    {o.limitUp ? <span className="ml-1 text-[10px] text-up">涨停</span> : null}
-                    {!compact ? <span className="ml-1 text-[10px] text-muted">最高 {pct(o.nextHighPct)}</span> : null}
-                  </>
-                )}
-              </span>
-            </div>
-          ),
-        )}
+
+      <div className="mt-1.5 flex flex-col gap-1.5">
+        {rows.map((r) => (
+          <PickRow key={r.code} code={r.code} name={r.name} rule={r.rule} basisText={r.basis ? basisText(p.source, r.basis) : ""} o={r.o} pickPrice={r.basis?.close ?? null} compact={compact} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PickRow({
+  code,
+  name,
+  rule,
+  basisText,
+  o,
+  pickPrice,
+  compact,
+}: {
+  code: string;
+  name: string;
+  rule: string;
+  basisText: string;
+  o?: ForecastOutcome;
+  pickPrice: number | null;
+  compact?: boolean;
+}) {
+  const settled = Boolean(o);
+  const trade = o?.tradePct ?? null;
+  return (
+    <div className="rounded border border-line bg-surface px-2 py-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate text-[12px] font-medium">{name}</span>
+          <span className="shrink-0 text-[10px] text-muted">{rule}</span>
+          {basisText ? <span className="num shrink-0 text-[10px] text-muted">{basisText}</span> : null}
+        </span>
+        {/* 真实交易盈亏（T+1 开盘买 → T+1 收盘卖） */}
+        <span className={"num shrink-0 text-[12px] font-medium " + (trade == null ? "text-muted" : trade >= 0 ? "text-up" : "text-down")}>
+          {settled ? pct(trade) : "待结算"}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 num text-[11px] text-muted">
+        <span>
+          选股 <b className="text-fg">{money(settled ? o!.pickPrice : pickPrice)}</b>
+        </span>
+        <span className="text-muted">→</span>
+        <span>
+          买入 <b className="text-fg">{money(o?.buyPrice ?? null)}</b>
+          {settled && !compact ? <span className="ml-0.5 text-[10px]">T+1开</span> : null}
+        </span>
+        <span className="text-muted">→</span>
+        <span>
+          结算 <b className="text-fg">{money(o?.sellPrice ?? null)}</b>
+          {settled && !compact ? <span className="ml-0.5 text-[10px]">T+1收</span> : null}
+        </span>
+        {o?.limitUp ? <Tag tone="up">涨停</Tag> : null}
+        {o?.chase ? <Tag tone="muted">追买成立</Tag> : null}
       </div>
     </div>
   );
