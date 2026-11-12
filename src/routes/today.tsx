@@ -59,6 +59,24 @@ function moodOf(p: { breakRate: number | null; maxStreak: number; ladderCount: n
   return { band: "温和", tone: "muted", action: "中性，只做有题材支撑的票" };
 }
 
+
+/** 像素图标：8×8 网格用 rect 拼，shape-rendering=crispEdges，不用 emoji/位图。 */
+function PxIcon({ kind, color }: { kind: "rocket" | "blade" | "shield"; color: string }) {
+  const art: Record<string, string[]> = {
+    rocket: ["....##..", "..##.#..", ".######.", ".######.", "..####..", "..####..", ".##..##.", ".#....#."],
+    blade: ["......##", ".....###", "....###.", "...###..", "..###...", ".###....", "##......", "#......."],
+    shield: ["########", "#......#", "#.####.#", "#.####.#", "#.####.#", ".#.##.#.", "..####..", "...##..."],
+  };
+  const rows = art[kind] ?? art.rocket;
+  return (
+    <svg className="h-[13px] w-[13px] shrink-0" viewBox="0 0 8 8" fill={color} aria-hidden="true" style={{ shapeRendering: "crispEdges" }}>
+      {rows.flatMap((row, y) =>
+        row.split("").map((ch, x) => (ch === "#" ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} /> : null)),
+      )}
+    </svg>
+  );
+}
+
 function DecisionPage() {
   const { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow } = Route.useLoaderData();
   const { openDetail, modal } = useStockDetail();
@@ -153,9 +171,9 @@ function DecisionPage() {
   return (
     <>
     <Frame wide>
-      <div className="flex flex-col gap-3">
+      <div className="px-noise flex flex-col gap-3">
         {/* ── 顶栏：阶段 + 三个徽标 ── */}
-        <div className="px-mod flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="px-mod4 flex flex-wrap items-center justify-between gap-3 border border-line bg-surface px-4 py-3">
           <div className="flex flex-wrap items-baseline gap-3">
             <span className="px-num text-xs tracking-widest text-muted">SYS//TODAY</span>
             <span className="text-lg font-bold tracking-tight">今天<b className="text-brand">·</b>买什么</span>
@@ -182,7 +200,7 @@ function DecisionPage() {
             <div key={k.label} className="relative bg-surface px-3 pb-3 pt-4">
               <span className="px-ticks" aria-hidden="true" />
               <div className="px-num text-[12px] tracking-widest text-muted">{k.label}</div>
-              <div className={"px-num mt-1 text-4xl font-bold leading-none " + k.tone}>{k.value}</div>
+              <div className={"px-num px-chroma px-reel mt-1 text-4xl font-bold leading-none " + k.tone}>{k.value}</div>
               {k.delta ? <div className="px-num mt-1 text-[12px] text-muted">较前值 {k.delta}</div> : null}
             </div>
           ))}
@@ -195,7 +213,7 @@ function DecisionPage() {
           <span className="px-num text-[12px] text-muted">买价 = 能成交的价 · 高开超过自身振幅即放弃</span>
         </div>
 
-        <div className="px-mod overflow-x-auto">
+        <div className="px-mod4 overflow-x-auto border border-line bg-surface">
           <table className="px-tbl">
             <thead>
               <tr>
@@ -204,8 +222,16 @@ function DecisionPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.path + r.code} className={r.dead ? "is-dead" : undefined}>
-                  <td className={"px-path " + r.pathTone}>▶ {r.path}</td>
+                <tr key={r.path + r.code} className={(r.dead ? "is-dead " : "") + "px-jitter"}>
+                  <td className={"px-path " + r.pathTone}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <PxIcon
+                        kind={r.path === "前瞻" ? "rocket" : r.path === "短线" ? "blade" : "shield"}
+                        color={r.dead ? "#ff6ea4" : r.path === "中长线" ? "#a6ff3d" : "#22e6ff"}
+                      />
+                      {r.path}
+                    </span>
+                  </td>
                   <td>
                     <button type="button" onClick={() => void openDetail(r.id, r.name)} className="px-name hover:underline">{r.name}</button>
                     <span className="px-code">{r.code}</span>
@@ -236,7 +262,7 @@ function DecisionPage() {
           <span className="px-num text-[12px] text-muted">纪律写死，盘中不改</span>
         </div>
 
-        <div className="px-mod grid gap-0 sm:grid-cols-2">
+        <div className="px-mod4 grid gap-0 border border-line bg-surface sm:grid-cols-2">
           <div className="px-4 py-3">
             <div className="px-num mb-2 text-[12px] tracking-widest text-brand">EXIT / 什么时候卖</div>
             <div className="flex gap-2 border-b border-dashed border-line py-1.5 text-[13px]"><span className="px-num w-16 shrink-0 text-[12px] text-muted">SHORT</span><span>断板，或炸板率升到 40% 以上 → 走。<b className="text-warn">今天 {breakRate != null ? (breakRate * 100).toFixed(0) : "—"}%</b></span></div>
@@ -250,6 +276,9 @@ function DecisionPage() {
             <div className="flex justify-between gap-3 py-1.5 text-[13px]"><span className="text-muted">1→2 晋级率</span><span className="px-num">{promo1}</span></div>
           </div>
         </div>
+
+        <div className="px-ticks-x" aria-hidden="true" />
+        <div className="px-barcode" aria-hidden="true" />
 
         <div className="px-num text-[12px] leading-relaxed text-muted">
           // 买价＝竞价价（能成交）。高开超出该股近 5 日振幅的一半就放弃，不给买不到的挂单价。<br />
