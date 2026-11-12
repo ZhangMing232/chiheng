@@ -28,23 +28,82 @@ import { marketBreadth, type Breadth } from "@/lib/market/slim-universe";
 import type { getCloseSnapshot } from "@/lib/market/tdx-daily.functions";
 
 /** 这一区统一的二级 tab：/flow 下所有子页面共用，增删子页只改这里。 */
+/**
+ * 资金区的二级 tab。2026-11-12 从 8 个平级 tab 收成 4 个（用户：页面太多，来回都是那几个内容）：
+ *
+ *   概览    → 四个数字 + 资金汇总 + 分时 + 大盘资金
+ *   方向    → 行业与板块（实时行业榜 / 月度温度计 在页内切）
+ *   个股    → 个股资金明细
+ *   衍生    → 北向 / 两融 / 期指（页内切）
+ *
+ * 为什么能收：北向、两融、期指是三份「辅助资金数据」，用户从来不会只来看期指；
+ * 行业和板块是同一个问题的两个口径（分钟级实时 vs 月度温度），也不该占两个 tab。
+ */
 export function FlowSectionTabs() {
   return (
     <SectionTabs
       ariaLabel="资金流向"
       tabs={[
         { to: "/flow/", label: "概览" },
-        { to: "/flow/north", label: "北向" },
-        { to: "/flow/industries", label: "行业" },
-        { to: "/flow/sectors", label: "板块" },
+        { to: "/flow/sectors", label: "方向" },
         { to: "/flow/stocks", label: "个股" },
-        // 2026-11-12 删「游资」tab：它和 /youzi/track 是同一份龙虎榜数据，
-        // 两处各画一遍。要看席位去 /youzi，那里还多了分级和个股金额。
-        { to: "/flow/close", label: "收盘快照" },
-        { to: "/flow/margin", label: "两融" },
-        { to: "/flow/futures", label: "期指" },
+        { to: "/flow/north", label: "衍生" },
       ]}
     />
+  );
+}
+
+/** 方向页的页内切换：实时行业榜（分钟级）↔ 月度温度计（东财三级行业）。 */
+export function FlowDirectionTabs({ live }: { live: boolean }) {
+  return (
+    <div className="flex items-center gap-1 text-[11px]">
+      <a
+        href="/flow/sectors?view=live"
+        aria-current={live ? "page" : undefined}
+        className={
+          "rounded px-2 py-1 " +
+          (live ? "bg-brand/10 font-medium text-brand-text" : "text-muted hover:text-fg")
+        }
+      >
+        实时行业榜
+      </a>
+      <a
+        href="/flow/sectors"
+        aria-current={!live ? "page" : undefined}
+        className={
+          "rounded px-2 py-1 " +
+          (!live ? "bg-brand/10 font-medium text-brand-text" : "text-muted hover:text-fg")
+        }
+      >
+        月度温度计
+      </a>
+    </div>
+  );
+}
+
+/** 衍生页的页内切换：北向 / 两融 / 期指。三份都是「辅助资金」，不该各占一个 tab。 */
+export function FlowDerivedTabs({ active }: { active: "north" | "margin" | "futures" }) {
+  const items = [
+    { to: "/flow/north", label: "北向", key: "north" },
+    { to: "/flow/margin", label: "两融", key: "margin" },
+    { to: "/flow/futures", label: "期指", key: "futures" },
+  ] as const;
+  return (
+    <div className="flex items-center gap-1 text-[11px]">
+      {items.map((it) => (
+        <a
+          key={it.key}
+          href={it.to}
+          aria-current={active === it.key ? "page" : undefined}
+          className={
+            "rounded px-2 py-1 " +
+            (active === it.key ? "bg-brand/10 font-medium text-brand-text" : "text-muted hover:text-fg")
+          }
+        >
+          {it.label}
+        </a>
+      ))}
+    </div>
   );
 }
 

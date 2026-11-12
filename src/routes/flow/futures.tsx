@@ -11,7 +11,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { PosterButton } from "@/components/screener/poster-button";
-import { FlowSectionTabs, Futures } from "@/components/flow-sections";
+import { FlowDerivedTabs, FlowSectionTabs, Futures } from "@/components/flow-sections";
 import { drawFuturesPoster } from "@/lib/market/extra-posters";
 import { getIndexFutures } from "@/lib/market/quotes.functions";
 
@@ -25,6 +25,7 @@ function FlowFuturesPage() {
   return (
     <Frame wide aside="资金流向 · 期指">
       <FlowSectionTabs />
+      <div className="mb-2"><FlowDerivedTabs active="futures" /></div>
       <PosterButton draw={() => drawFuturesPoster(futures ?? { date: "", rows: [] })} />
       <Futures book={futures} />
     </Frame>

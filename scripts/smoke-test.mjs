@@ -33,8 +33,9 @@ const PAGES = [
   "/today", "/decision", "/huiyan", "/watch", "/watch/history", "/cycle", "/rs", "/interval",
   // 盘后：复盘 / 资金流向 / 游资与席位 / 题材
   "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events",
-  "/flow", "/flow/north", "/flow/industries", "/flow/sectors", "/flow/stocks",
-  "/flow/close", "/flow/margin", "/flow/futures",
+  "/flow", "/flow/north", "/flow/sectors", "/flow/stocks", "/flow/margin", "/flow/futures",
+  // 2026-11-12：8 tab 收成 4 个。/flow/industries 并入 /flow/sectors?view=live、
+  // /flow/close 并入 /flow，两个都只是 307，不再当独立页测。
   "/youzi", "/youzi/track", "/youzi/seats",
   "/themes", "/themes/intel", "/themes/rotation", "/themes/brief",
   "/news", "/overseas",

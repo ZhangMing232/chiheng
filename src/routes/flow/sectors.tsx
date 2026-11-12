@@ -29,6 +29,8 @@ import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { GapList } from "@/components/source-line";
 import { getSectorBoards, getSectorDetail } from "@/lib/market/industry.functions";
+import { getFlow } from "@/lib/market/quotes.functions";
+import { FlowDirectionTabs, List } from "@/components/flow-sections";
 import { searchBoards, sortBoards, type BoardDetail, type SortKey } from "@/lib/market/sectors-view";
 import { signedPct, toneClass } from "@/lib/market/format";
 import type { ThermometerDirection } from "@/lib/market/industry-monthly";
@@ -36,12 +38,16 @@ import type { ThermometerDirection } from "@/lib/market/industry-monthly";
 export const Route = createFileRoute("/flow/sectors")({
   validateSearch: (search: Record<string, unknown>) => ({
     board: typeof search.board === "string" && /^BK\d+$/.test(search.board) ? search.board : "",
+    // 2026-11-12 合并：原来 /flow/industries（实时行业榜）和本页（月度温度计）各占一个 tab。
+    // 两页回答同一个问题「钱往哪个方向去」，只是口径不同（分钟级 vs 月度），所以并成一页两视图。
+    view: search.view === "live" ? ("live" as const) : ("month" as const),
   }),
-  loaderDeps: ({ search }) => ({ board: search.board }),
+  loaderDeps: ({ search }) => ({ board: search.board, view: search.view }),
   loader: async ({ deps }) => {
-    const table = await getSectorBoards().catch(() => null);
+    const table = deps.view === "month" ? await getSectorBoards().catch(() => null) : null;
+    const book = deps.view === "live" ? await getFlow().catch(() => null) : null;
     const detail = deps.board ? await getSectorDetail({ data: { code: deps.board } }).catch(() => null) : null;
-    return { table, detail };
+    return { table, detail, book };
   },
   component: SectorsPage,
 });
@@ -56,7 +62,8 @@ const DIRECTION_TAG: Record<ThermometerDirection, { text: string; tone: "brand" 
 const SORT_LABEL: Record<SortKey, string> = { chg: "月度涨跌", net: "主力净流入", members: "成分股数", name: "名称" };
 
 function SectorsPage() {
-  const { table, detail } = Route.useLoaderData();
+  const { table, detail, book } = Route.useLoaderData();
+  const { view } = Route.useSearch();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const [q, setQ] = useState("");
@@ -71,13 +78,37 @@ function SectorsPage() {
   const picked = search.board;
 
   function pick(code: string) {
-    void navigate({ to: "/flow/sectors", search: { board: picked === code ? "" : code } });
+    void navigate({ to: "/flow/sectors", search: { board: picked === code ? "" : code, view } });
+  }
+
+  // ── 实时行业榜视图（原 /flow/industries，2026-11-12 并进来）──
+  // 为什么并：它和月度温度计回答同一个问题「钱在往哪个方向去」，只是口径一个是分钟级、
+  // 一个是月度。两页各占一个 tab，用户要来回点才知道差别。
+  if (view === "live") {
+    return (
+      <Frame wide aside="资金流向 · 方向 · 实时">
+        <FlowSectionTabs />
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <FlowDirectionTabs live />
+          <span className="text-[11px] text-muted">腾讯资金榜，盘中约一分钟更新</span>
+        </div>
+        {book ? (
+          <div className="flex flex-col gap-3">
+            <List title="行业净流入" rows={book.sectorsIn} />
+            <List title="行业净流出" rows={book.sectorsOut} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted">行业资金暂时拉不下来，刷新重试。</p>
+        )}
+      </Frame>
+    );
   }
 
   if (!table || table.rows.length === 0) {
     return (
       <Frame wide aside="板块">
         <FlowSectionTabs />
+        <div className="mb-2"><FlowDirectionTabs live={false} /></div>
         <Panel title="板块" note="没有数据">
           <StateBlock
             kind="empty"

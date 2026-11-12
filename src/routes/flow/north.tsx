@@ -10,7 +10,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { FlowSectionTabs, North } from "@/components/flow-sections";
+import { FlowDerivedTabs, FlowSectionTabs, North } from "@/components/flow-sections";
 import { getFlow } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/flow/north")({
@@ -23,6 +23,7 @@ function FlowNorthPage() {
   return (
     <Frame wide aside="资金流向 · 北向">
       <FlowSectionTabs />
+      <div className="mb-2"><FlowDerivedTabs active="north" /></div>
       <North legs={book?.north ?? []} />
     </Frame>
   );

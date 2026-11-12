@@ -10,7 +10,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { FlowSectionTabs, Margin } from "@/components/flow-sections";
+import { FlowDerivedTabs, FlowSectionTabs, Margin } from "@/components/flow-sections";
 import { getMargin } from "@/lib/market/quotes.functions";
 
 export const Route = createFileRoute("/flow/margin")({
@@ -23,6 +23,7 @@ function FlowMarginPage() {
   return (
     <Frame wide aside="资金流向 · 两融">
       <FlowSectionTabs />
+      <div className="mb-2"><FlowDerivedTabs active="margin" /></div>
       <Margin data={margin} />
     </Frame>
   );

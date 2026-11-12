@@ -18,7 +18,7 @@ export const Route = createFileRoute("/sectors")({
     throw redirect({
       to: "/flow/sectors",
       // 目标子页的 validateSearch 把 board 定成必填（缺省 ""），这里必须始终带上。
-      search: { board: typeof board === "string" && board ? board : "" },
+      search: { board: typeof board === "string" && board ? board : "", view: "month" as const },
     });
   },
 });
