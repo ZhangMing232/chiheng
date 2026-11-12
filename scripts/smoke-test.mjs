@@ -30,7 +30,7 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PAGES = [
   "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）
   // 盘前 / 盯盘 / 研究（2026-11-11 新增的一批）
-  "/decision", "/huiyan", "/watch", "/watch/history", "/cycle", "/rs", "/interval",
+  "/today", "/decision", "/huiyan", "/watch", "/watch/history", "/cycle", "/rs", "/interval",
   // 盘后：复盘 / 资金流向 / 游资与席位 / 题材
   "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events",
   "/flow", "/flow/north", "/flow/industries", "/flow/sectors", "/flow/stocks",
@@ -65,7 +65,7 @@ const PAGES = [
 // 这类）不在侧栏里，靠页面内 tab 条跳转，整页加载那步（步骤 2）已经覆盖过。
 // /studio、/research 2026-11-11 从侧栏收掉（只留直链），不该再放进这一组——
 // 放进来必然「导航里找不到链接」，白占一个 fail。
-const NAV_PAGES = ["/butler", "/watch", "/cycle", "/flow", "/youzi", "/themes", "/huiyan", "/rs", "/interval", "/strategies/screener", "/factors", "/my-stocks", "/backtest", "/ai"];
+const NAV_PAGES = ["/today", "/butler", "/watch", "/cycle", "/flow", "/youzi", "/themes", "/huiyan", "/rs", "/interval", "/strategies/screener", "/factors", "/my-stocks", "/backtest", "/ai"];
 
 /** 等 fn 返回非 undefined 值，超时抛错 */
 async function waitFor(fn, { timeoutMs = 15000, stepMs = 250 } = {}) {

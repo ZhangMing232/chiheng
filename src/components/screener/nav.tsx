@@ -128,7 +128,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/decision" | "/huiyan" | "/watch" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   // 2026-11-11 大重排：从「按功能类型分组」改成「按一天的节奏分组」。
   // 原因：原来「市场」组 7 项挤成一坨、「研究」组只剩「自选」一项名不符实，
@@ -138,7 +138,7 @@ const SIDEBAR: {
     label: "盘前",
     items: [
       { to: "/", label: "总览", icon: LayoutDashboard },
-      { to: "/decision", label: "今日决策", icon: Compass },
+      { to: "/today", label: "今天", icon: Compass },
       // 2026-11-11 新增：前瞻回验（每日落档 + 次日对照，赤轨的自证页）
       { to: "/huiyan", label: "前瞻回验", icon: CheckCircle2 },
     ],

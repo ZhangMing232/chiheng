@@ -266,7 +266,7 @@ function Dashboard() {
         <Link to="/grid" className="text-accent hover:underline">多股同屏 →</Link>
         <Link to="/cycle" className="text-accent hover:underline">情绪周期 →</Link>
         <Link to="/themes/brief" className="text-accent hover:underline">题材简报 →</Link>
-        <Link to="/decision" className="text-accent hover:underline">今日决策 →</Link>
+        <Link to="/today" className="text-accent hover:underline">今天该干什么 →</Link>
       </div>
 
       {/* ── 当日主线：总龙头 + 板块 + 涨停家数（对标连板网当日主线）── */}
