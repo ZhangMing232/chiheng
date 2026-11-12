@@ -151,3 +151,20 @@
   （`decision: 'host-op'`）。这是宿主拒绝，不是代码问题；此时验证走 dev 服务
   （`node scripts/with-app-env.mjs npx vite dev --port 5197`，**用 Bash 的
   `run_in_background` 起**，`(cmd &)` 那套在工具调用结束时会一起被杀掉）。
+
+### 2026-11-12 盘中采集与回看（别把两条链路混了）
+
+- **今日快取 ≠ 历史归档**。`data/signals/limit-pools-today.json` 盘中每 3 分钟被
+  `capture-intraday-pools.ts` 覆写（`sealed=false`，半截数据）；
+  `data/history/limit-pools/<date>.json` 只在 15:12 收盘采集或用户手动补拉时写
+  （`sealed=true`，永不覆写别天）。**盘中采集绝不能写归档**，否则定盘档被半截污染；
+  补历史也**绝不能写今日快取**，否则盯盘会「今天看昨天的」。
+- 两条链路挂在同一个 60 秒 tick 上，靠时段互斥（盘中 <15:00 / 收盘 >=15:12），
+  别另起 timer 让两个进程同时打东财（并发立刻 403）。
+- **归档没有 ≠ 那天没涨停**：读档失败一律 `null + why`，页面给「补拉」按钮由用户
+  主动触发现拉；东财返回空就明说「没返回/超保留窗口」，不写空档、不显示空梯队。
+- 东财 push2ex 支持 `date=YYYYMMDD`，实测只留**最近约三周**；今天盘中也能拉到
+  实时半截池。补档脚本 `scripts/backfill-limit-pools.ts` 只写归档、跳过已有档。
+- 页面上的「今天」要以 loader 下发的 `serverToday` 校验快取文件的 date；
+  不一致就挂警告让用户重启 serve，**不许装作实时**。当前时刻只在挂载后取
+  （`useMountedNow` / 自己 `useEffect`），SSR 里读 `Date.now()` 会 #418 水合不一致。

@@ -75,7 +75,7 @@ export const Route = createFileRoute("/")({
         getOverseasIndices().catch(() => ({ quotes: [] as IndexQuote[], gaps: [] as string[] })),
         getNews().catch(() => [] as NewsItem[]),
         getStrategyGates().catch(() => ({ gates: {} })),
-        // 三池只读盘后心跳落盘的快照，零外部请求。原来这里直接调 getSignals，
+        // 三池只读心跳落盘的快照（盘中每 3 分钟 / 收盘 15:12），零外部请求。原来这里直接调 getSignals，
         // 3 个东财池串行 ×1300ms 把 GET / 拖到 4.39 秒（2026-11-11 回归）。
         getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
         getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),

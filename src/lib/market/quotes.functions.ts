@@ -1471,6 +1471,28 @@ export type LimitUpReasonsPayload = {
   sectors: Record<string, SectorReason[]>;
 };
 
+/**
+ * 按日期读涨停原因（盯盘回看用）。和上面的 getLimitUpReasons 分工：
+ * 那个永远读「最近一次采到的」，这个只读指定那天，读不到就返回空 date + 空表，
+ * 页面要写「这天没采到原因原文」，不许拿别的日子的原因冒充。
+ */
+export const getLimitUpReasonsForDay = createServerFn({ method: "GET" })
+  .validator((input: unknown): { date: string } => {
+    const v = (input ?? {}) as Record<string, unknown>;
+    return { date: typeof v.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.date) ? v.date : "" };
+  })
+  .handler(async ({ data }): Promise<LimitUpReasonsPayload> => {
+    if (!data.date) return { date: "", reasons: {}, sectors: {} };
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const raw = await readFile(dataPath("data", "history", "limit-up-reasons", `${data.date}.json`), "utf8");
+      const parsed = JSON.parse(raw) as LimitUpReasonsPayload;
+      return { date: parsed.date ?? data.date, reasons: parsed.reasons ?? {}, sectors: parsed.sectors ?? {} };
+    } catch {
+      return { date: "", reasons: {}, sectors: {} };
+    }
+  });
+
 /** 涨停原因（fetch-limit-up-reason.ts 每天收盘后采，转发韭研公社/开盘啦）。 */
 export const getLimitUpReasons = createServerFn({ method: "GET" }).handler(async (): Promise<LimitUpReasonsPayload> => {
   try {

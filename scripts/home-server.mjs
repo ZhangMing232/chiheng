@@ -342,6 +342,39 @@ function runTdxDaily() {
   });
 }
 
+// ── 盘中三池：交易时段每 3 分钟采一次，只刷新「今天」的快取文件。
+// 2026-11-12 用户要求盯盘实时，不要「今天打开看昨天的收盘定格」。
+// 收盘定盘那次（runMarketSnapshot，15:12）照旧写归档并串下游，两条链路互不覆盖：
+//   - 盘中：9:30~11:30 / 13:00~15:00，sealed=false，只写 limit-pools-today.json
+//   - 收盘：>=15:12，sealed=true，写归档 + 算广度 + 下游
+// 限速：一次采集是 3 个东财池串行 ×1300ms ≈ 4 秒；3 分钟一轮是实测 1.3s 间隔
+// 能稳住的节奏，别改并发（开并发立刻 403）。页面轮询读本地文件，不额外打东财。
+let lastIntradayAt = 0;
+let intradayRunning = false;
+function runIntradayPools() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (!isMarketOpen(day)) return;
+  const now = new Date();
+  const hm = now.getHours() * 60 + now.getMinutes();
+  const inSession = (hm >= 9 * 60 + 30 && hm <= 11 * 60 + 30) || (hm >= 13 * 60 && hm < 15 * 60);
+  if (!inSession) return;
+  if (Date.now() - lastIntradayAt < 3 * 60_000) return;
+  // 上一轮还没跑完就别再起一个子进程（两个进程同时打东财 = 并发 = 403）
+  if (intradayRunning) return;
+  lastIntradayAt = Date.now();
+  intradayRunning = true;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/capture-intraday-pools.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("error", () => { intradayRunning = false; });
+  child.on("exit", (code) => {
+    intradayRunning = false;
+    if (code) console.error("盘中三池没采成，盯盘页会继续显示上一次的采集时刻，不拿旧值冒充新值");
+  });
+}
+
 // ── 市场快照：收盘后 15:12 采三池 + 广度，按日落盘，首页只读这份（零外部请求）。
 // 2026-11-11 体检：原来首页 loader 直接调 getSignals，3 个东财池串行 ×1300ms
 // 把 GET / 拖到 4.386620s。采集挪到心跳后，页面读 data/signals/limit-pools-today.json。
@@ -631,7 +664,13 @@ runShortFormsScan();
 runPreflight();
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
-const marketSnapshotTimer = setInterval(runMarketSnapshot, 60_000);
+// 两个都挂在同一个 60 秒 tick 上，别另起一个 timer：
+// runMarketSnapshot 只在 15:12 后跑、runIntradayPools 只在 15:00 前跑，同一个 tick
+// 里最多只有一个会真的起子进程，不会出现两路同时打东财。
+const marketSnapshotTimer = setInterval(() => {
+  runMarketSnapshot();
+  runIntradayPools();
+}, 60_000);
 const limitUpReasonTimer = setInterval(runLimitUpReason, 60_000);
 const regulatoryTimer = setInterval(runRegulatoryRadar, 60_000);
 const hotmoneyTimer = setInterval(runHotmoneyFetch, 60_000);

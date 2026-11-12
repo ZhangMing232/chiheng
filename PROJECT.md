@@ -72,7 +72,7 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 
 **页面清单**（= 侧栏八组，2026-11-11 起按「一天的节奏」排）：
 **盘前**——总览 `/`、今日决策 `/decision`、前瞻回验 `/huiyan`；
-**盯盘**——盯盘 `/watch`（今日梯队/三日演变；原 `/grid` 多股同屏 + `/ladder` 连板天梯，11-11 晚合一）；
+**盯盘**——盯盘 `/watch`（今日梯队实时 + 历史交易日回看 / 三日演变；原 `/grid` 多股同屏 + `/ladder` 连板天梯，11-11 晚合一）；
 **盘后**——每日复盘 `/review`（涨跌分布/信号/公司事件三个子页）、资金流向 `/flow`
 （北向/行业/板块/个股/收盘快照/两融/期指七个子页；「游资」11-12 并入 /youzi）、游资与席位 `/youzi`
 （游资追踪/席位档案）、题材 `/themes`（市场情报/题材轮动/题材简报）；
@@ -113,6 +113,8 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 | 前瞻回验落档 | `forecast.ts`（同上，自带「没封印不落」闸） | `data/history/forecast/<date>.json` | 每天 |
 | 席位档案 | `record-hotmoney.ts` + `seats-build.ts`（18:10，等东财龙虎榜） | `data/history/seats/latest.json` | 每天 |
 | 涨停原因原文 | 第三方盘后整理 | `data/history/limit-up-reasons/*.json` | 每天 |
+| 三池今日快取 | `capture-intraday-pools.ts` / `capture-market-snapshot.ts`（东财 push2ex 3 池串行） | `data/signals/limit-pools-today.json` | **盘中每 3 分钟 / 收盘 15:12** |
+| 三池按日归档（盯盘回看） | `capture-market-snapshot.ts` / `backfill-limit-pools.ts` | `data/history/limit-pools/<date>.json` | 每交易日一份，永不覆写别天 |
 | 笔记 | 笔记页写 | `notes.json` | 你写的时候 |
 
 **限速与缓存 TTL 只有一个来源**：`src/lib/market/fetch-policy.ts`。
