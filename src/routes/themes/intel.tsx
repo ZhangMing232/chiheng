@@ -18,6 +18,7 @@ import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getMarketIntel } from "@/lib/market/quotes.functions";
 import { useStockDetail } from "@/components/stock-detail-modal";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/themes/intel")({
   loader: () => getMarketIntel().catch(() => ({ date: "", cards: [], annGroups: [], annTotal: 0 })),
@@ -36,6 +37,7 @@ function IntelPage() {
     <>
     <Frame wide>
       <SectionTabs ariaLabel="题材" tabs={THEME_TABS} />
+      <PixelHeader label="INTEL // MAPPING" meta="新闻 → 题材 → 个股，映射是模型给的，会错" />
       <div className="flex flex-col gap-3">
         <Panel title="市场情报 · 新闻解读" note={date ? `${date} · 新闻→题材→个股传导` : "还没采集"}>
           {cards.length === 0 ? (

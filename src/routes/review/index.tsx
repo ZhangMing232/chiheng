@@ -29,6 +29,7 @@ import { getFlow, getIndices, getNews, getServerJournal, getUniverse } from "@/l
 import { getLpr, getMacro, getPmi, getSocialFinancing } from "@/lib/market/macro.functions";
 import { TENOR_LABELS, pmiZone, twelveMonthChange } from "@/lib/market/macro";
 import type { NewsItem, NewsTone } from "@/lib/market/news";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/review/")({
   loader: async () => {
@@ -138,6 +139,7 @@ function Review() {
         ariaLabel="复盘"
         tabs={REVIEW_TABS}
       />
+      <PixelHeader label="REVIEW // DAILY" meta="收盘后的事实核对 · 不打分不做预测" />
       {/* 今日结论（效果图招牌件）：四张卡，数字全现算 */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <HeroStat

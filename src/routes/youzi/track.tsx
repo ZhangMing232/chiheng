@@ -28,6 +28,7 @@ import { PosterButton } from "@/components/screener/poster-button";
 import { drawHotPoster } from "@/lib/market/extra-posters";
 import { fmtWan, toneClass } from "@/lib/market/format";
 import { useStockDetail } from "@/components/stock-detail-modal";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/youzi/track")({
   loader: () => getHotMoney().catch(() => ({ date: "", seats: [] })),
@@ -53,6 +54,7 @@ function HotMoneyPage() {
     <>
     <Frame wide>
       <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
+      <PixelHeader label="HOTMONEY // TRACK" meta="龙虎榜席位 · 跟买 5 日口径" />
       <PosterButton draw={() => drawHotPoster({ date, seats })} />
       <div className="flex flex-col gap-3">
         <Panel title="席位净买卖" note={date ? `${date} 龙虎榜 · 席位按游资名号聚合` : "龙虎榜还没出"}>

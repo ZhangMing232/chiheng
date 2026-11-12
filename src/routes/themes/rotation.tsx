@@ -17,6 +17,7 @@ import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getThemeRotation, getThemeHeat, getThemeMembers, type ThemeHeatItem, type ThemeMembersPayload } from "@/lib/market/quotes.functions";
 import { toneClass } from "@/lib/market/format";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/themes/rotation")({
   loader: async () => {
@@ -62,6 +63,7 @@ function RotationPage() {
   return (
     <Frame wide>
       <SectionTabs ariaLabel="题材" tabs={THEME_TABS} />
+      <PixelHeader label="THEMES // ROTATION" meta="涨停家数比昨天多才算扩散" />
       <div className="flex flex-col gap-3">
         <Panel title="轮动方向" note={date ? `${date} · 涨停家数 vs 近5日均值` : "还没算"}>
           {cleaned.length === 0 ? (

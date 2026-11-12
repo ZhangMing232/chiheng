@@ -40,6 +40,7 @@ import {
   RERUN_HINT,
   Section,
 } from "@/components/factor-sections";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/factors/")({
   validateSearch: (search: Record<string, unknown>) => ({ batch: parseBatch(search) }),
@@ -404,6 +405,7 @@ function FactorsIndexPage() {
       }
     >
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
+      <PixelHeader label="FACTORS // LAB" meta="研究层验证，不产生实盘信号" />
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
       <div className="rounded border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
         研究层 · 不进实盘：这里的 40 个因子 + 92 个坟墓只用于挖矿与回测，<b className="text-fg">从不驱动任何实盘信号</b>。

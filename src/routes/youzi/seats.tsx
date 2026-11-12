@@ -21,6 +21,7 @@ import { SectionTabs, YOUZI_TABS } from "@/components/section-tabs";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getSeats } from "@/lib/market/archive.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/youzi/seats")({
   loader: async () => await getSeats(),
@@ -39,6 +40,7 @@ function SeatsPage() {
     return (
       <Frame wide>
         <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
+        <PixelHeader label="HOTMONEY // SEATS" meta="席位历史 · 样本 ≥20 笔才给结论" />
         <Panel title="席位档案">
           <StateBlock kind="empty" title="还没建档案" hint="先跑 scripts/record-hotmoney.ts 采当天，再跑 scripts/seats-build.ts 聚合。" />
         </Panel>
@@ -62,6 +64,7 @@ function SeatsPage() {
       }
     >
       <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
+      <PixelHeader label="HOTMONEY // SEATS" meta="席位历史 · 样本 ≥20 笔才给结论" />
       <div className="flex flex-col gap-3">
         <Panel title="今日席位" note={today ? <span className="text-[11px]">{today.date} · {today.seats.length} 个席位上榜</span> : undefined}>
           {!today || today.seats.length === 0 ? (
