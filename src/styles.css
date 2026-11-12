@@ -200,6 +200,9 @@ html:not([data-theme="light"]) body {
 .px-jitter:hover { animation: px-jitter-once .18s steps(3) 1; }
 @media (prefers-reduced-motion: reduce) { .px-jitter:hover { animation: none; } }
 
+/* 侧栏当前项：左侧一条荧光线 + 方块标记，终端菜单的选中态 */
+.px-active { box-shadow: inset 2px 0 0 var(--color-brand); }
+
 /* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
  * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
  * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。

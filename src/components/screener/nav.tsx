@@ -320,9 +320,9 @@ function SideNav() {
                   type="button"
                   onClick={() => toggle(group.label)}
                   aria-expanded={open}
-                  className="flex w-full items-center justify-between rounded px-3 pt-4 pb-1 text-[12px] tracking-widest text-muted hover:text-fg"
+                  className="px-num flex w-full items-center justify-between rounded px-3 pt-4 pb-1 text-[12px] tracking-[0.16em] text-muted hover:text-fg"
                 >
-                  {group.label}
+                  <span className="truncate">// {group.label}</span>
                   <ChevronDown className={"size-3 transition-transform " + (open ? "" : "-rotate-90")} aria-hidden />
                 </button>
               )}
@@ -342,10 +342,13 @@ function SideNav() {
                         (narrow ? "justify-center px-0 py-2.5" : "gap-2 px-3 py-2") +
                         // 效果图导航激活态：品牌浅底 + 主文字 + 悬挂在侧栏左缘的 3px 红条
                         (active
-                          ? " bg-brand-soft font-medium text-fg before:absolute before:-left-2 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-full before:bg-brand"
+                          ? " px-active bg-brand-soft font-medium text-fg"
                           : " text-muted hover:bg-surface-2 hover:text-fg")
                       }
                     >
+                      {active && !narrow ? (
+                        <span className="h-[5px] w-[5px] shrink-0 bg-brand" aria-hidden="true" />
+                      ) : null}
                       <Icon className={"size-3.5 shrink-0 " + (active ? "text-brand-text" : "")} aria-hidden />
                       {narrow ? null : item.label}
                       {isInbox && inboxUnread > 0 ? (
