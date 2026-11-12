@@ -414,30 +414,11 @@ function runAfterSnapshot() {
   next(0);
 }
 
-// ── 早盘决策推送：9:26 竞价审核落盘之后推 ──
-// 为什么不是 8:30：8:30 只有昨收预判（candidates），没竞价判决；9:26 review-auction
-// 跑完 reviewed.json 才有「可执行/观望」的实盘判决。推的是「可执行」，不是预判。
-let decisionPushedDay = "";
-function runDecisionPush() {
-  const day = new Date().toLocaleDateString("sv-SE");
-  if (decisionPushedDay === day) return;
-  if (!isMarketOpen(day)) return;
-  const hour = new Date().getHours();
-  const min = new Date().getMinutes();
-  // 和 runSignalReview 同一个窗口：9:26 之后（竞价出清）且 12 点前。
-  if (hour < 9 || (hour === 9 && min < 26) || hour >= 12) return;
-  // 等竞价审核落盘：reviewed.json 还是昨天的，说明审核没跑完，这时推就是推昨收预判。
-  if (readSignalField("reviewed.json", "date") !== day) return;
-  decisionPushedDay = day;
-  const child = spawn(
-    process.execPath,
-    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/push-decision.ts", "--push"],
-    { stdio: "inherit" },
-  );
-  child.on("exit", (code) => {
-    if (code) console.error("早盘决策推送失败，手动跑 push-decision.ts --push 补");
-  });
-}
+// ── 早盘决策推送：已并入 review-auction 的中长线腿（2026-11-12）──
+// 原来 9:26 会连推三条：中长线腿 + 短线腿 + 「今日决策」，同一件事说三遍。
+// 现在「市场在玩什么」概览并进当天第一条（中长线腿）顶部，这里不再单独发。
+// scripts/push-decision.ts 留着，手动补发/排障时用：
+//   node --experimental-strip-types --import ./scripts/alias.mjs scripts/push-decision.ts --push
 
 // ── 题材轮动：收盘后 15:15 算（快照 15:12 之后）——从 K 线算题材动量+轮动方向，自算零外部源──
 let rotationRanDay = "";
@@ -642,7 +623,6 @@ runHotmoneyFetch();
 runSeatsArchive();
 runMarketIntel();
 runThemeRotation();
-runDecisionPush();
 runStrategyVerdict();
 runSignalGen();
 runSignalReview();
@@ -657,7 +637,6 @@ const regulatoryTimer = setInterval(runRegulatoryRadar, 60_000);
 const hotmoneyTimer = setInterval(runHotmoneyFetch, 60_000);
 const marketIntelTimer = setInterval(runMarketIntel, 60_000);
 const rotationTimer = setInterval(runThemeRotation, 60_000);
-const decisionPushTimer = setInterval(runDecisionPush, 60_000);
 const strategyVerdictTimer = setInterval(runStrategyVerdict, 60_000);
 const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);

@@ -172,6 +172,52 @@ async function main() {
     ? `信号日：${nowM.toLocaleDateString("sv-SE")}（竞价已核对）`
     : `信号日：${nowM.toLocaleDateString("sv-SE")}（预演：非竞价窗口，「竞价」价以当日开盘价代用）`;
 
+  // ── 「市场在玩什么」概览：涨停/连板/最高板/炸板率/情绪 + 题材热度 Top6 ──
+  //    2026-11-12 合并推送：原来 9:26 这里推两条腿，runDecisionPush 再推一条「今日决策」，
+  //    三条说的是同一件事、内容还重叠。现在概览并进当天第一条（中长线腿）顶部，
+  //    决策那条不再单独发（push-decision.ts 留着手动补发用）。
+  const marketLines = await (async (): Promise<string[]> => {
+    const readMaybe = async <T,>(p: string): Promise<T | null> => {
+      try {
+        return JSON.parse(await readFile(`${DATA}/${p}`, "utf8")) as T;
+      } catch {
+        return null;
+      }
+    };
+    const snap = await readMaybe<{
+      limitUp?: unknown[];
+      limitDown?: unknown[];
+      summary?: { ladder?: { streak: number; count: number }[]; breakRate?: number | null } | null;
+    }>("signals/limit-pools-today.json");
+    const th = await readMaybe<{
+      hot?: { name: string; limitUp: number; avg: number; leader?: { name?: string } | null }[];
+    }>("theme-heat.json");
+    if (!snap && !th) return [];
+    const ladder = snap?.summary?.ladder ?? [];
+    const ladderCount = ladder.reduce((n, l) => n + (l.streak >= 2 ? l.count : 0), 0);
+    const maxStreak = ladder.reduce((m, l) => Math.max(m, l.streak), 0);
+    const br = snap?.summary?.breakRate ?? null;
+    const mood =
+      br != null && br >= 0.4
+        ? "退潮 —— 炸板率高，追高被套概率大，短线少动"
+        : maxStreak >= 5
+          ? "沸点 —— 情绪亢奋，只跟题材不追高连板"
+          : ladderCount >= 15 && (br ?? 0) < 0.25
+            ? "温和偏热 —— 梯队健康，短线可做题材龙头"
+            : ladderCount < 5
+              ? "冰点 —— 情绪冷，冰点不抄底，观望"
+              : "温和 —— 中性，只做有题材支撑的票";
+    const out = ["【市场在玩什么】"];
+    out.push(
+      `涨停 ${snap?.limitUp?.length ?? 0} · 连板 ${ladderCount} · 最高 ${maxStreak}板 · 跌停 ${snap?.limitDown?.length ?? 0} · 炸板率 ${br != null ? (br * 100).toFixed(0) + "%" : "—"}`,
+    );
+    out.push(`情绪：${mood}`);
+    for (const t of (th?.hot ?? []).slice(0, 6)) {
+      out.push(`  · ${t.name}｜${t.limitUp}涨停｜均${t.avg > 0 ? "+" : ""}${t.avg.toFixed(1)}%｜龙头${t.leader?.name ?? "—"}`);
+    }
+    return out;
+  })();
+
   // ── PushPlus 推送：两腿各推一条（2026-11-09 晚补「早上看不到短线」的洞：
   //    短线原来只有 15:10 收盘热榜，早盘管道里根本没有它）。每天必响——
   //    无候选也推「今日无候选」，静默只留给「服务没开」。─────────────────
@@ -199,6 +245,7 @@ async function main() {
           : `${tag}今日观望 · 🟡${lwarn.length} 只`;
       const sent = await sendPushPlus(title, [
         dayLine,
+        ...marketLines,
         "──────────────────",
         ...(lines.length ? lines : ["今天没有到买点的中长线票——不买就是今天的操作。"]),
         ...(lskip.length ? [`⚪ ${lskip.length} 只竞价数据缺失没审成（不是没信号）`] : []),
