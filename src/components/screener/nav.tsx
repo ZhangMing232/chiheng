@@ -81,7 +81,7 @@ function AccountChip() {
     >
       <span className="max-w-36 truncate">{short}</span>
       {isPaidPlan(user.plan) && (
-        <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand-text">
+        <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[12px] font-medium text-brand-text">
           {planLabel(user.plan)}
         </span>
       )}
@@ -354,7 +354,7 @@ function SideNav() {
                       {isInbox && inboxUnread > 0 ? (
                         <span
                           className={
-                            "flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[10px] font-medium text-white tabular-nums " +
+                            "flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[12px] font-medium text-white tabular-nums " +
                             (narrow ? "absolute right-1 top-1 h-2 min-w-2 px-0 text-[0px]" : "ml-auto")
                           }
                           aria-label={`${inboxUnread} 条未读`}
@@ -1104,7 +1104,7 @@ function AlertBell() {
       <div key={r.id} className={"border-b border-line px-3 py-2 text-sm last:border-b-0 " + (isUnread ? "bg-brand-soft/30" : "")}>
         <div className="flex items-baseline justify-between gap-2">
           <span className={"min-w-0 truncate " + (isUnread ? "font-medium text-fg" : "text-muted")}>
-            {r.kind === "failed" ? <span className="mr-1.5 rounded bg-warn-soft px-1 text-[10px] text-warn">没跑成</span> : null}
+            {r.kind === "failed" ? <span className="mr-1.5 rounded bg-warn-soft px-1 text-[12px] text-warn">没跑成</span> : null}
             {r.title}
           </span>
           <span className="shrink-0 text-xs text-muted tabular-nums">{r.at.slice(5, 16).replace("T", " ")}</span>
@@ -1125,7 +1125,7 @@ function AlertBell() {
       >
         <Bell className="size-3.5" />
         {totalUnread > 0 ? (
-          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[10px] font-medium text-white tabular-nums">
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[12px] font-medium text-white tabular-nums">
             {totalUnread}
           </span>
         ) : null}
@@ -1164,7 +1164,7 @@ function AlertBell() {
             {tab === "all" || tab === "sell" ? (
               <section>
                 {(tab === "all" || tab === "sell") && (
-                  <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">卖出提醒</p>
+                  <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">卖出提醒</p>
                 )}
                 {alerts.length === 0 ? (
                   <div className="px-3 py-6 text-center text-sm text-muted">
@@ -1180,7 +1180,7 @@ function AlertBell() {
             ) : null}
             {tab === "all" || tab === "inbox" ? (
               <section>
-                <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">系统提醒</p>
+                <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">系统提醒</p>
                 {inboxRows.length === 0 ? (
                   <div className="px-3 py-6 text-center text-sm text-muted">
                     收件箱还是空的
@@ -1210,13 +1210,13 @@ function AlertBell() {
                 <>
                   {sellUnread > 0 ? (
                     <section>
-                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">卖出提醒 · {sellUnread}</p>
+                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">卖出提醒 · {sellUnread}</p>
                       {alerts.slice(0, sellUnread).map(sellRow)}
                     </section>
                   ) : null}
                   {inboxUnread > 0 ? (
                     <section>
-                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[10px] tracking-widest text-muted">系统提醒 · {inboxUnread}</p>
+                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">系统提醒 · {inboxUnread}</p>
                       {inboxRows
                         .filter((r) => inboxMark != null && r.at > inboxMark && r.id !== inboxMark)
                         .map(inboxRow)}
@@ -1242,7 +1242,7 @@ function AlertBell() {
               </Link>
             </div>
             <div className="mt-2 border-t border-line/60 pt-2">
-              <p className="mb-1 text-[10px] tracking-widest text-muted">通知设置</p>
+              <p className="mb-1 text-[12px] tracking-widest text-muted">通知设置</p>
               <PushConfig />
               {/* 邮件配置和微信推送放一起：用户本来就在通知抽屉里找配置，不用再跳 /settings */}
               <details className="mt-2 border-t border-line/60 pt-2">
@@ -1306,7 +1306,7 @@ export function MobileNav() {
         <div className="absolute left-0 z-40 mt-1 max-h-[70vh] w-60 overflow-y-auto scroll-slim rounded border border-line bg-surface shadow-pop">
           {SIDEBAR.map((group) => (
             <div key={group.label} className="border-b border-line/60 last:border-0">
-              <p className="px-3 pt-2.5 pb-0.5 text-[10px] tracking-widest text-muted">{group.label}</p>
+              <p className="px-3 pt-2.5 pb-0.5 text-[12px] tracking-widest text-muted">{group.label}</p>
               {group.items.map((item) => {
                 const active = path === item.to;
                 const Icon = item.icon;

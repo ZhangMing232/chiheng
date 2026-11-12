@@ -344,7 +344,7 @@ function StudioPage() {
                 className={tabClass(genre === item.id)}
               >
                 {item.label}
-                <span className="ml-1 hidden text-[10px] text-muted sm:inline">{item.desc}</span>
+                <span className="ml-1 hidden text-[12px] text-muted sm:inline">{item.desc}</span>
               </button>
             ))}
           </div>
@@ -385,7 +385,7 @@ function StudioPage() {
                     (newsIndex === i ? "border-brand text-fg" : "border-line text-muted hover:text-fg")
                   }
                 >
-                  <span className="tabular-nums text-[10px] text-muted">{n.time}</span> {n.title}
+                  <span className="tabular-nums text-[12px] text-muted">{n.time}</span> {n.title}
                 </button>
               ))}
             </div>

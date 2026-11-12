@@ -225,7 +225,7 @@ export function Overview({ tape, parts, north, breadth, hasBreadth }: { tape: { 
   const northTotal = north.reduce((sum, leg) => sum + leg.amount, 0);
   const tile = "bg-surface px-4 py-3.5";
   const label = "text-xs text-muted";
-  const value = "mt-1.5 text-2xl font-medium tabular-nums leading-none";
+  const value = "mt-1.5 text-xl font-medium tabular-nums leading-none whitespace-nowrap";
   const foot = "mt-1.5 text-xs text-muted";
   return (
     <section className="overflow-hidden rounded border border-line bg-surface">

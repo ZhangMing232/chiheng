@@ -325,7 +325,7 @@ export function Picks({
                   <button type="button" onClick={() => onOpen(trade.id)} className="min-w-0 truncate font-medium hover:underline">
                     {trade.name}
                   </button>
-                  <span className="shrink-0 rounded bg-surface-2 px-1 text-[10px] text-muted">{book}</span>
+                  <span className="shrink-0 rounded bg-surface-2 px-1 text-[12px] text-muted">{book}</span>
                   <span className="shrink-0 tabular-nums text-muted">{fmtPrice(trade.entry)}</span>
                   {ret != null ? <span className={pctClass(ret)}>{signedPct(ret)}</span> : null}
                 </li>

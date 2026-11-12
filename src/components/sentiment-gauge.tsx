@@ -69,7 +69,7 @@ export function SentimentGauge({
             aria-hidden
           />
         </div>
-        <div className="relative h-36 w-9 text-[10px] whitespace-nowrap text-muted">
+        <div className="relative h-36 w-9 text-[12px] whitespace-nowrap text-muted">
           {BAND_ORDER.map((band, i) => {
             // 刻度位置：沸点在顶（100）、冰点在底（0）
             const top = 100 - (i * 100) / (BAND_ORDER.length - 1);

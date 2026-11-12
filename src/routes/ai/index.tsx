@@ -458,7 +458,7 @@ function AIConsolePage() {
                       <span className="font-medium text-warn">
                         {p.key}：{p.from} → {p.to}
                       </span>
-                      <span className="text-[10px] text-muted">{p.at.slice(0, 16).replace("T", " ")}</span>
+                      <span className="text-[12px] text-muted">{p.at.slice(0, 16).replace("T", " ")}</span>
                     </div>
                     <p className="mt-1 leading-relaxed text-muted">{p.why}</p>
                     <div className="mt-1.5 flex gap-2">

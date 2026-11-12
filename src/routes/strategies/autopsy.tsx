@@ -62,7 +62,7 @@ function SourceRow({ item }: { item: LossSourceSummary }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-medium">
           {SOURCE_LABEL[item.source]}
-          {weak ? <span className="ml-1.5 rounded bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">幅度别当真</span> : null}
+          {weak ? <span className="ml-1.5 rounded bg-warn-soft px-1.5 py-0.5 text-[12px] text-warn">幅度别当真</span> : null}
         </span>
         <span className="tabular-nums text-muted">
           {item.count} 笔 · 均 <span className={pctClass(item.avgRetPct)}>{item.avgRetPct}%</span>
@@ -233,9 +233,9 @@ function AutopsyPage() {
                     <li key={`${v.id}-${v.at}-${i}`} className="px-3.5 py-2.5 text-xs">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <span className="font-medium">
-                          {v.name} <span className="text-[10px] text-muted">{v.style}</span>
+                          {v.name} <span className="text-[12px] text-muted">{v.style}</span>
                         </span>
-                        <span className="rounded bg-surface2 px-1.5 py-0.5 text-[10px]">
+                        <span className="rounded bg-surface2 px-1.5 py-0.5 text-[12px]">
                           {VERDICT_CAUSE_LABEL[v.cause]}
                         </span>
                       </div>
@@ -243,7 +243,7 @@ function AutopsyPage() {
                         <span>{v.params}</span>
                         <span>挑战者 {v.chalN} 笔均 {v.chalMeanPct ?? "—"}%</span>
                         <span>冠军 {v.champN} 笔 {v.champMeanPct ?? "—"}%</span>
-                        <span className="text-[10px]">{v.day}</span>
+                        <span className="text-[12px]">{v.day}</span>
                       </div>
                       <p className="mt-1 leading-relaxed text-muted">{v.causal}</p>
                     </li>

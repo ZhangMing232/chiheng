@@ -275,10 +275,10 @@ export function FactorGateTable({ rows }: { rows: FactorRowView[] }) {
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="font-medium text-fg">{r.name}</span>
                   <code className="text-[12px] text-muted">{r.id}</code>
-                  <span className="rounded border border-line px-1.5 py-0.5 text-[10px] text-muted">
+                  <span className="rounded border border-line px-1.5 py-0.5 text-[12px] text-muted">
                     {r.kind === "no-source" ? "无数据源" : "结构性测不了"}
                   </span>
-                  <span className="text-[10px] text-muted">{r.at} 摘牌</span>
+                  <span className="text-[12px] text-muted">{r.at} 摘牌</span>
                 </div>
                 <p className="mt-1 text-warn">{r.reason}</p>
                 <p className="mt-1 text-muted">实查证据：{r.evidence}</p>

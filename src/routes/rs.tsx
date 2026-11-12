@@ -67,12 +67,12 @@ function RsPage() {
             <div className="bg-surface px-3 py-2">
               <div className="text-[12px] text-muted">剔除停牌</div>
               <div className="num text-lg font-medium">{rs.stale}</div>
-              <div className="num text-[10px] text-muted">最后一根不是最新交易日的</div>
+              <div className="num text-[12px] text-muted">最后一根不是最新交易日的</div>
             </div>
             <div className="bg-surface px-3 py-2">
               <div className="text-[12px] text-muted">成交额门槛</div>
               <div className="num text-lg font-medium">{yi(rs.minAmountWan)}</div>
-              <div className="num text-[10px] text-muted">低于这条不上榜</div>
+              <div className="num text-[12px] text-muted">低于这条不上榜</div>
             </div>
           </div>
 
@@ -100,7 +100,7 @@ function RsPage() {
                       <Link to="/symbol" search={{ q: r.id }} className="hover:underline">
                         {r.name}
                       </Link>
-                      <span className="num ml-1.5 text-[10px] text-muted">{r.id}</span>
+                      <span className="num ml-1.5 text-[12px] text-muted">{r.id}</span>
                     </td>
                     <td className="max-w-[130px] truncate text-[12px] text-muted">{r.industry || "—"}</td>
                     <td className="num text-right font-medium">{r.rs.toFixed(1)}</td>

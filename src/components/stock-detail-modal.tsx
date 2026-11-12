@@ -23,7 +23,7 @@ function Spark({ data }: { data: { date: string; c: number }[] }) {
       <svg viewBox="0 0 200 60" className="h-14 w-full" preserveAspectRatio="none">
         <polyline points={pts} fill="none" stroke={up ? "var(--color-up)" : "var(--color-down)"} strokeWidth="1.5" />
       </svg>
-      <div className="flex justify-between text-[10px] text-muted">
+      <div className="flex justify-between text-[12px] text-muted">
         <span>{data[0].date.slice(5)}</span>
         <span className="num">{data[0].c.toFixed(2)} → {data[data.length - 1].c.toFixed(2)}</span>
         <span>{data[data.length - 1].date.slice(5)}</span>
@@ -53,7 +53,7 @@ export function StockDetailBody({ detail, onClose }: { detail: StockDetailPayloa
           <div className="mb-3">
             <div className="mb-1 text-[12px] text-muted">近 10 次涨停</div>
             <div className="flex flex-wrap gap-1">
-              {detail.limitUps.map((d) => <span key={d} className="num rounded bg-up-soft px-1 text-[10px] text-up">{d.slice(5)}</span>)}
+              {detail.limitUps.map((d) => <span key={d} className="num rounded bg-up-soft px-1 text-[12px] text-up">{d.slice(5)}</span>)}
             </div>
           </div>
         ) : null}
@@ -68,7 +68,7 @@ export function StockDetailBody({ detail, onClose }: { detail: StockDetailPayloa
         {detail.reason ? (
           <div className="border-t border-line pt-2 text-[12px] leading-relaxed text-muted">{detail.reason.slice(0, 200)}</div>
         ) : null}
-        <div className="mt-2 text-[10px] text-muted">封板/开板明细见连板天梯；数据仅供研究，不构成投资建议。</div>
+        <div className="mt-2 text-[12px] text-muted">封板/开板明细见连板天梯；数据仅供研究，不构成投资建议。</div>
       </div>
     </div>
   );

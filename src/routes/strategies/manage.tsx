@@ -106,7 +106,7 @@ function ArenaStrategies() {
                   <div className="flex items-center gap-2">
                     <Swords size={16} className="text-brand" />
                     <span className="font-medium text-sm">{s.name}</span>
-                    <span className="rounded bg-surface2 px-1.5 py-0.5 text-[10px] text-muted">{s.source === "ai" ? "AI" : "手工"}</span>
+                    <span className="rounded bg-surface2 px-1.5 py-0.5 text-[12px] text-muted">{s.source === "ai" ? "AI" : "手工"}</span>
                   </div>
                   <button type="button" onClick={() => remove(s.id)} className="text-muted hover:text-up"><Trash2 size={14} /></button>
                 </div>

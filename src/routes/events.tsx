@@ -197,7 +197,7 @@ export function EventsPanel({
                 <tr key={company.code} className="border-t border-line/60 align-top">
                   <td className={tdClass("text-left")}>
                     <StockName id={item.id} name={item.name} source="flow" />
-                    <div className="text-[10px] text-muted">
+                    <div className="text-[12px] text-muted">
                       {item.code} · {company.items.length > 1 ? `${company.items.length} 个指标` : item.item}
                     </div>
                   </td>
@@ -214,7 +214,7 @@ export function EventsPanel({
                   <td className={tdClass("text-right tabular-nums text-muted")}>
                     {item.forecast == null ? "—" : item.forecast}
                     {item.forecastLow != null && item.forecastHigh != null && item.forecastLow !== item.forecastHigh ? (
-                      <span className="text-[10px]">（{item.forecastLow}~{item.forecastHigh}）</span>
+                      <span className="text-[12px]">（{item.forecastLow}~{item.forecastHigh}）</span>
                     ) : null}
                   </td>
                   <td className={tdClass("text-left text-xs text-muted")}>
@@ -297,7 +297,7 @@ function HolderTradesPanel({ data }: { data: HolderTradesPayload | null }) {
                 <tr key={`${row.id}-${row.holder}-${row.startDate}`} className="border-t border-line/60">
                   <td className={tdClass("text-left")}>
                     <StockName id={row.id} name={row.name} source="flow" />
-                    <div className="text-[10px] text-muted">{row.code}</div>
+                    <div className="text-[12px] text-muted">{row.code}</div>
                   </td>
                   <td className={tdClass("text-left")}>
                     <Tag tone={kindToneOf(tone)}>{row.direction}</Tag>
@@ -380,7 +380,7 @@ function SurveysPanel({ data }: { data: SurveysPayload | null }) {
               <tr key={`${row.id}-${row.receiveDate}`} className="border-t border-line/60">
                 <td className={tdClass("text-left")}>
                   <StockName id={row.id} name={row.name} source="flow" />
-                  <div className="text-[10px] text-muted">{row.code}</div>
+                  <div className="text-[12px] text-muted">{row.code}</div>
                 </td>
                 <td className={tdClass("text-left text-muted")}>{row.receiveDate || "—"}</td>
                 <td className={tdClass("text-left text-muted")}>{row.noticeDate || "—"}</td>
@@ -464,7 +464,7 @@ function BuybacksPanel({ data }: { data: BuybacksPayload | null }) {
               <tr key={`${row.id}-${row.progressCode}-${row.planStart}`} className="border-t border-line/60">
                 <td className={tdClass("text-left")}>
                   <StockName id={row.id} name={row.name} source="flow" />
-                  <div className="text-[10px] text-muted">{row.code}</div>
+                  <div className="text-[12px] text-muted">{row.code}</div>
                 </td>
                 <td className={tdClass("text-left")}>
                   <Tag tone={kindToneOf(buybackTone(row.progressCode))}>
@@ -551,7 +551,7 @@ function PledgesPanel({ data }: { data: PledgesPayload | null }) {
               <tr key={row.id} className="border-t border-line/60">
                 <td className={tdClass("text-left")}>
                   <StockName id={row.id} name={row.name} source="flow" />
-                  <div className="text-[10px] text-muted">{row.code}</div>
+                  <div className="text-[12px] text-muted">{row.code}</div>
                 </td>
                 <td className={tdClass("text-left text-xs text-muted")}>{row.industry ?? "—"}</td>
                 <td className={tdClass("text-right tabular-nums " + ((row.pledgeRatio ?? 0) >= 5 ? "text-down" : ""))}>
@@ -619,7 +619,7 @@ function IposPanel({ data }: { data: IposPayload | null }) {
               <tr key={`${row.id}-${row.applyDate}`} className="border-t border-line/60">
                 <td className={tdClass("text-left")}>
                   <StockName id={row.id} name={row.name} source="flow" />
-                  <div className="text-[10px] text-muted">{row.industry ?? "—"}</div>
+                  <div className="text-[12px] text-muted">{row.industry ?? "—"}</div>
                 </td>
                 <td className={tdClass("text-left text-xs text-muted")}>{row.board ?? "—"}</td>
                 <td className={tdClass("text-left text-muted")}>{row.applyDate || "—"}</td>
@@ -628,7 +628,7 @@ function IposPanel({ data }: { data: IposPayload | null }) {
                 </td>
                 <td className={tdClass("text-right tabular-nums text-muted")}>
                   {row.issuePe == null ? "—" : row.issuePe}
-                  {row.industryPe != null ? <span className="text-[10px]">（行业 {row.industryPe}）</span> : null}
+                  {row.industryPe != null ? <span className="text-[12px]">（行业 {row.industryPe}）</span> : null}
                 </td>
                 <td className={tdClass("text-right tabular-nums text-muted")}>
                   {row.topApplyMktCap == null ? "—" : `${row.topApplyMktCap} 万`}

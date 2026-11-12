@@ -388,7 +388,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
         <div className="grid items-start gap-2 lg:grid-cols-[280px_1fr]">
           <Panel title="筛选条件" bodyClassName="flex flex-col gap-3">
             <div>
-              <div className="text-[10px] tracking-widest text-muted">策略</div>
+              <div className="text-[12px] tracking-widest text-muted">策略</div>
               <div className="mt-1 flex flex-col gap-0.5">
                 {/* 只平铺今天真正在跑的（和上方「现役策略」同一份 running）。
                     被闸门停用的、已下线的都收进下面折叠区，不和能用的混在一起
@@ -418,7 +418,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
                         {gates[item.id] ? (
                           <span
                             title={gates[item.id].reason}
-                            className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent"
+                            className="shrink-0 rounded bg-accent-soft px-1 text-[12px] text-accent"
                           >
                             假释中
                           </span>
@@ -470,7 +470,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
                           >
                             <span className="flex min-w-0 items-center gap-1">
                               <span className="truncate">{item.name}</span>
-                              <span className="shrink-0 rounded bg-warn-soft px-1 text-[10px] text-warn">{label}</span>
+                              <span className="shrink-0 rounded bg-warn-soft px-1 text-[12px] text-warn">{label}</span>
                             </span>
                             <span className="tabular-nums text-xs">{styleCounts[item.id] ?? 0}</span>
                           </button>
@@ -484,7 +484,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
             </div>
             {activePrefChips(prefs).length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] tracking-widest text-muted">已选</span>
+                <span className="text-[12px] tracking-widest text-muted">已选</span>
                 {activePrefChips(prefs).map((chip) => (
                   <FilterChip
                     key={chip.dim}

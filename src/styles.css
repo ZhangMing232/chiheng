@@ -247,6 +247,11 @@ table thead th { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-si
 /* 表格里的股票名点击区：补到 24px 高（原来 20px，手机上不好点） */
 .px-tbl .px-name { padding: 3px 0; display: inline-block; }
 
+/* 表格内可点元素补到 24px（手机上 20px 高的行名不好点，桌面也需要够得着） */
+.data-table tbody td button { min-height: 24px; padding-top: 2px; padding-bottom: 2px; }
+/* 面板头的小按钮（收起/说明）点击区补到 24×24 */
+section > header button { min-width: 24px; min-height: 24px; }
+
 /* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
  * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
  * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。

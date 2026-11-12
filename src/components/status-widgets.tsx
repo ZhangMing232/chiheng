@@ -33,7 +33,7 @@ export function StatusBadge({ snapshot, compact = false }: { snapshot: StatusSna
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border ${cls.border} ${cls.bg} ${cls.fg} ${
-        compact ? "px-1.5 py-px text-[10px]" : "px-2 py-0.5 text-[12px]"
+        compact ? "px-1.5 py-px text-[12px]" : "px-2 py-0.5 text-[12px]"
       }`}
       title={describeSnapshot(snapshot)}
     >

@@ -96,7 +96,7 @@ function BriefPage() {
               className="rounded border border-line px-1.5 py-0.5 text-muted hover:border-brand hover:text-brand-text"
             >
               {t.name}
-              <span className="num ml-1 text-[10px]">{t.limitUp}</span>
+              <span className="num ml-1 text-[12px]">{t.limitUp}</span>
             </a>
           ))}
         </div>
@@ -120,7 +120,7 @@ function BriefPage() {
               <div className="rounded border border-line px-2 py-1.5">
                 <div className="mb-1 flex items-baseline justify-between gap-2">
                   <b className="text-xs">催化</b>
-                  <span className="text-[10px] text-muted">
+                  <span className="text-[12px] text-muted">
                     {t.catalyst ? ymd(t.catalyst.date) : "无原文"}
                   </span>
                 </div>
@@ -132,7 +132,7 @@ function BriefPage() {
                         {t.catalyst.reason.length > 200 ? `${t.catalyst.reason.slice(0, 200)}…` : t.catalyst.reason}
                       </div>
                     ) : null}
-                    <div className="mt-1 text-[10px] text-muted">
+                    <div className="mt-1 text-[12px] text-muted">
                       原文来自第三方盘后整理，本页不改写、不摘要。题材名按包含关系匹配，可能对不完全准。
                     </div>
                   </>
@@ -147,7 +147,7 @@ function BriefPage() {
               <div className="text-[12px] leading-relaxed text-muted">{t.note}</div>
 
               {/* ③ 个股 + 分数 + 论据 */}
-              <div className="mt-0.5 border-b border-line pb-1 text-[10px] text-muted">
+              <div className="mt-0.5 border-b border-line pb-1 text-[12px] text-muted">
                 个股 · 按分数降序 · 展开「论据」能看到四项各得多少，加起来就是这个分数
               </div>
               {/* 宽屏两列：不然名称在最左、分数在最右，中间空 900px，没法逐行扫 */}
@@ -157,16 +157,16 @@ function BriefPage() {
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="flex min-w-0 items-baseline gap-1.5">
                         <span className="truncate text-sm font-medium">{s.name}</span>
-                        <span className="num text-[10px] text-muted">{s.code}</span>
+                        <span className="num text-[12px] text-muted">{s.code}</span>
                         {s.streak > 1 ? <Tag tone="up">{s.streak}板</Tag> : null}
                       </span>
                       <span className="num shrink-0 text-sm font-medium">{s.score.toFixed(1)}</span>
                     </div>
                     <details className="mt-0.5">
-                      <summary className="cursor-pointer text-[10px] text-muted hover:text-fg">
+                      <summary className="cursor-pointer text-[12px] text-muted hover:text-fg">
                         ▸ 论据（{s.scoreParts.length} 项）
                       </summary>
-                      <div className="mt-1 grid gap-x-4 gap-y-0.5 pl-4 text-[10px] text-muted sm:grid-cols-2">
+                      <div className="mt-1 grid gap-x-4 gap-y-0.5 pl-4 text-[12px] text-muted sm:grid-cols-2">
                         {s.scoreParts.map((p) => (
                           <div key={p.label} className="flex justify-between gap-2">
                             <span>{p.label}</span>

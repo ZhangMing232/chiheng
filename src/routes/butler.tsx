@@ -266,22 +266,22 @@ function ButlerPage() {
             <h2 className="text-sm font-medium text-fg">已读取项目状态</h2>
             <div className="mt-2 grid grid-cols-3 gap-2 text-center">
               <div className="rounded-lg border border-line px-1 py-2">
-                <div className="text-[10px] text-muted">持仓</div>
-                <div className="text-xl font-semibold tabular-nums text-ai">{d.open}<span className="text-[10px] font-normal text-muted"> 只</span></div>
+                <div className="text-[12px] text-muted">持仓</div>
+                <div className="text-xl font-semibold tabular-nums text-ai">{d.open}<span className="text-[12px] font-normal text-muted"> 只</span></div>
                 <MiniBars values={d.bars} className="mx-auto mt-1" />
               </div>
               <div className="rounded-lg border border-line px-1 py-2">
-                <div className="text-[10px] text-muted">在跟策略</div>
+                <div className="text-[12px] text-muted">在跟策略</div>
                 <div className="text-xl font-semibold tabular-nums text-ai">
                   {d.runningChallengers + (ACTIVE_STYLES as string[]).filter((s) => d.gates[s]?.state !== "disabled").length}
-                  <span className="text-[10px] font-normal text-muted"> 套</span>
+                  <span className="text-[12px] font-normal text-muted"> 套</span>
                 </div>
-                <div className="mt-1 text-[10px] text-muted">挑战者 {d.runningChallengers}</div>
+                <div className="mt-1 text-[12px] text-muted">挑战者 {d.runningChallengers}</div>
               </div>
               <div className="rounded-lg border border-line px-1 py-2">
-                <div className="text-[10px] text-muted">今日成交</div>
-                <div className="text-xl font-semibold tabular-nums text-ai">{d.today}<span className="text-[10px] font-normal text-muted"> 笔</span></div>
-                <div className="mt-1 text-[10px] text-muted">{d.open > 0 ? `在拿 ${d.open} 只` : "—"}</div>
+                <div className="text-[12px] text-muted">今日成交</div>
+                <div className="text-xl font-semibold tabular-nums text-ai">{d.today}<span className="text-[12px] font-normal text-muted"> 笔</span></div>
+                <div className="mt-1 text-[12px] text-muted">{d.open > 0 ? `在拿 ${d.open} 只` : "—"}</div>
               </div>
             </div>
           </section>
@@ -294,7 +294,7 @@ function ButlerPage() {
                   <span className="min-w-0 truncate text-fg">{r.name}</span>
                   <span
                     className={
-                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] " +
+                      "shrink-0 rounded px-1.5 py-0.5 text-[12px] " +
                       (r.state === "在跑"
                         ? "bg-up-soft text-up"
                         : r.state === "已停用"

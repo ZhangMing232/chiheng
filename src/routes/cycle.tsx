@@ -163,7 +163,7 @@ function CyclePage() {
                 />
               ))}
             </div>
-            <div className="mt-1 flex justify-between text-[10px] text-muted">
+            <div className="mt-1 flex justify-between text-[12px] text-muted">
               <span>{bars[0]?.date}</span>
               <span>{bars[bars.length - 1]?.date}</span>
             </div>
@@ -188,7 +188,7 @@ function CyclePage() {
                   <th className="w-10 text-left font-normal text-muted">板位</th>
                   {heat.map((d) => (
                     <th key={d.date} className="px-[1px] text-center font-normal text-muted" title={d.date}>
-                      <span className="num text-[10px] leading-none">{d.date.slice(8)}</span>
+                      <span className="num text-[12px] leading-none">{d.date.slice(8)}</span>
                     </th>
                   ))}
                 </tr>
@@ -205,7 +205,7 @@ function CyclePage() {
                       return (
                         <td key={d.date} className="p-[1px]">
                           <div
-                            className="grid h-5 place-items-center rounded-sm text-[10px]"
+                            className="grid h-5 place-items-center rounded-sm text-[12px]"
                             style={{
                               background: v === 0 ? "var(--color-surface-2)" : `color-mix(in srgb, var(--color-brand) ${alpha * 100}%, var(--color-surface))`,
                               // 深格配白字，浅格配正文色（不能用 muted：暗色主题下 muted 在近黑底上几乎看不见）

@@ -91,7 +91,7 @@ function SideCard({ side }: { side: DebateSide }) {
           <div className="px-3 py-2">
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{side.text}</p>
           </div>
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line px-3 py-2 text-[10px] text-muted">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line px-3 py-2 text-[12px] text-muted">
             {side.chain ? <code className="font-mono">{side.chain}</code> : null}
             {side.numbersReplaced > 0 ? <span className="text-warn">{side.numbersReplaced} 个数字无出处，已换成（略※）</span> : null}
             {side.refs.length > 0 ? <span>引用 {side.refs.length} 条证据</span> : null}
@@ -103,7 +103,7 @@ function SideCard({ side }: { side: DebateSide }) {
           <p className={"text-xs leading-relaxed " + (side.status === "refused" ? "text-warn" : "text-muted")}>
             {side.why ?? "这一方没有产出"}
           </p>
-          <p className="mt-1 text-[10px] text-muted">
+          <p className="mt-1 text-[12px] text-muted">
             {side.status === "refused"
               ? "赤轨不给买卖建议，越线的那段没有显示。"
               : "这一方没出声不代表没有意见——只是 AI 这次没说出来。"}

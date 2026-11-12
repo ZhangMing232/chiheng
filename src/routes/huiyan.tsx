@@ -248,7 +248,7 @@ function Cell({ label, value, hint, good }: { label: string; value: string; hint
     <div className="bg-surface px-3 py-2">
       <div className="text-[12px] text-muted">{label}</div>
       <div className={"num text-lg font-medium " + (good ? "text-up" : "text-fg")}>{value}</div>
-      {hint ? <div className="num text-[10px] text-muted">{hint}</div> : null}
+      {hint ? <div className="num text-[12px] text-muted">{hint}</div> : null}
     </div>
   );
 }
@@ -313,7 +313,7 @@ function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
           <b className="text-fg">{p.nextDate ?? "待定"}</b>
           <span className="text-muted"> 开盘买 / 收盘结</span>
         </span>
-        <span className="flex items-center gap-2 text-[10px] text-muted">
+        <span className="flex items-center gap-2 text-[12px] text-muted">
           {p.source === "locked" ? (
             <Tag tone="muted">落档 {bjTime(p.lockedAt)}</Tag>
           ) : (
@@ -388,8 +388,8 @@ function PickRow({
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate text-[12px] font-medium">{name}</span>
-          <span className="shrink-0 text-[10px] text-muted">{rule}</span>
-          {basisText ? <span className="num shrink-0 text-[10px] text-muted">{basisText}</span> : null}
+          <span className="shrink-0 text-[12px] text-muted">{rule}</span>
+          {basisText ? <span className="num shrink-0 text-[12px] text-muted">{basisText}</span> : null}
         </span>
         {/* 已结算＝真实交易盈亏；已开盘未收盘＝相对开盘买入价的浮动；都没有才叫待结算 */}
         <span
@@ -411,17 +411,17 @@ function PickRow({
           <b className={buyFail ? "text-muted line-through" : "text-fg"}>
             {money(settled ? (o?.buyPrice ?? null) : (lr?.buyPrice ?? null))}
           </b>
-          {settled && !compact && !buyFail ? <span className="ml-0.5 text-[10px]">T+1开</span> : null}
-          {bought ? <span className="ml-0.5 text-[10px] text-up">今开</span> : null}
-          {buyFail ? <span className="ml-0.5 text-[10px] text-warn">一字板·排不进</span> : null}
+          {settled && !compact && !buyFail ? <span className="ml-0.5 text-[12px]">T+1开</span> : null}
+          {bought ? <span className="ml-0.5 text-[12px] text-up">今开</span> : null}
+          {buyFail ? <span className="ml-0.5 text-[12px] text-warn">一字板·排不进</span> : null}
         </span>
         <span className="text-muted">→</span>
         <span>
           {settled ? "结算" : "现价"}{" "}
           <b className="text-fg">{money(settled ? (o?.sellPrice ?? null) : (lr?.last ?? null))}</b>
-          {settled && !compact ? <span className="ml-0.5 text-[10px]">T+1收</span> : null}
+          {settled && !compact ? <span className="ml-0.5 text-[12px]">T+1收</span> : null}
           {bought && lr?.high != null ? (
-            <span className="ml-1 text-[10px]">
+            <span className="ml-1 text-[12px]">
               高 {money(lr.high)} / 低 {money(lr.low)}
             </span>
           ) : null}
@@ -433,7 +433,7 @@ function PickRow({
         ) : null}
         {sellFail ? <Tag tone="warn">一字跌停·卖不出</Tag> : null}
       </div>
-      {fillNote ? <div className="mt-0.5 text-[10px] leading-snug text-muted">{fillNote}</div> : null}
+      {fillNote ? <div className="mt-0.5 text-[12px] leading-snug text-muted">{fillNote}</div> : null}
     </div>
   );
 }

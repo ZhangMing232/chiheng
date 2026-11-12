@@ -13,6 +13,7 @@ import type { IndexQuote } from "@/lib/market/types";
 import { getIndices, getPrefs, getRecorder, getRules, getServerJournal, getStrategyGates } from "@/lib/market/quotes.functions";
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import { DEFAULT_PREFS } from "@/lib/market/prefs";
+import { PixelHeader } from "@/components/pixel-header";
 
 /** 首页路由。进页面之前把选股要的数据一次取好；失败就用空数据加一句说明。
  *  注意：全市场快照（~5300 只、1.2MB）刻意不进 SSR——手机端解析会卡死主线程。
@@ -67,5 +68,10 @@ export const Route = createFileRoute("/strategies/screener")({
 
 function Home() {
   const data = Route.useLoaderData();
-  return <Screener initial={data} />;
+  return (
+    <div className="flex flex-col gap-2">
+      <PixelHeader label="STRATEGY // PICK" meta="选策略 → 设范围 → 跑 → 加跟踪；成交不在这一步记" />
+      <Screener initial={data} />
+    </div>
+  );
 }

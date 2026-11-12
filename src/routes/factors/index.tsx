@@ -280,8 +280,8 @@ function GateCards({ rows }: { rows: NonNullable<FactorRunsPayload["batch"]>["ro
               className="rounded border border-line bg-surface-2/60 px-2.5 py-2"
             >
               <div className="flex items-baseline justify-between">
-                <span className="text-[10px] tabular-nums text-muted">{String(i + 1).padStart(2, "0")}</span>
-                <span className={"text-[10px] tabular-nums " + (rate >= 0.5 ? "text-down" : rate > 0 ? "text-warn" : "text-muted")}>
+                <span className="text-[12px] tabular-nums text-muted">{String(i + 1).padStart(2, "0")}</span>
+                <span className={"text-[12px] tabular-nums " + (rate >= 0.5 ? "text-down" : rate > 0 ? "text-warn" : "text-muted")}>
                   {passed}/{total} 过
                 </span>
               </div>

@@ -369,7 +369,7 @@ function EvidenceRefChip({ id }: { id: string }) {
     <button
       type="button"
       onClick={() => scrollToEvidence(id)}
-      className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-accent transition hover:border-accent hover:bg-brand-soft"
+      className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[12px] text-accent transition hover:border-accent hover:bg-brand-soft"
       title="跳到这条证据"
     >
       {id}
@@ -464,7 +464,7 @@ function StructuredView({ stages, gaps }: { stages: StageResult[]; gaps: string[
                   <span className="text-xs text-muted">{e.label}</span>
                   <span className="shrink-0 text-sm font-medium tabular-nums text-fg">{e.value}</span>
                 </div>
-                <div className="mt-0.5 text-[10px] text-muted">{e.source}</div>
+                <div className="mt-0.5 text-[12px] text-muted">{e.source}</div>
               </div>
             ))}
             {derived.map(({ s, d }) => (
@@ -475,7 +475,7 @@ function StructuredView({ stages, gaps }: { stages: StageResult[]; gaps: string[
                   <span className="font-medium tabular-nums">{d.value}</span>
                   <Tag tone={TIER_TONE[d.tier] ?? "muted"}>{TIER_LABEL[d.tier] ?? d.tier}</Tag>
                 </div>
-                <code className="pl-[11px] font-mono text-[10px] leading-relaxed text-muted">{d.chain}</code>
+                <code className="pl-[11px] font-mono text-[12px] leading-relaxed text-muted">{d.chain}</code>
               </div>
             ))}
           </div>
@@ -611,7 +611,7 @@ function ResearchLog({ ai, report, saved, knownIds }: { ai: AiSynthesis | null; 
                 <p className="mt-1.5 text-sm leading-relaxed">
                   <LinkifiedText text={ai.text ?? ""} knownIds={knownIds} />
                 </p>
-                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] text-muted">
+                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px] text-muted">
                   {ai.chain ? <code className="font-mono">{ai.chain}</code> : null}
                   {ai.numbersReplaced > 0 ? (
                     <span className="text-warn">{ai.numbersReplaced} 个数字在证据里找不到出处，已换成（略※）</span>
@@ -619,7 +619,7 @@ function ResearchLog({ ai, report, saved, knownIds }: { ai: AiSynthesis | null; 
                 </div>
                 {ai.refs.length > 0 ? (
                   <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <span className="text-[10px] text-muted">引用证据：</span>
+                    <span className="text-[12px] text-muted">引用证据：</span>
                     {ai.refs.map((id) => (
                       <EvidenceRefChip key={id} id={id} />
                     ))}
@@ -735,7 +735,7 @@ function StepFlow({ stages, onSelect }: { stages: StageResult[]; onSelect?: () =
             <span className={"max-w-full truncate text-[12px] leading-tight " + (isActive ? "font-medium text-fg" : "text-muted")}>
               {s.title}
             </span>
-            <span className={"text-[10px] leading-none " + (isActive ? "text-brand-text" : "text-muted")}>{label[st]}</span>
+            <span className={"text-[12px] leading-none " + (isActive ? "text-brand-text" : "text-muted")}>{label[st]}</span>
           </button>
         );
       })}

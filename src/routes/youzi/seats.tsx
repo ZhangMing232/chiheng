@@ -82,7 +82,7 @@ function SeatsPage() {
                         {yi(s.netWan)}
                       </span>
                     </div>
-                    <div className="mt-0.5 truncate text-[10px] text-muted">
+                    <div className="mt-0.5 truncate text-[12px] text-muted">
                       {s.stocks.slice(0, 4).map((x) => `${x.name} ${x.netWan >= 0 ? "+" : ""}${(x.netWan / 10000).toFixed(2)}亿`).join(" · ")}
                     </div>
                   </div>
@@ -154,10 +154,10 @@ function SeatsPage() {
                   >
                     <span className="flex min-w-0 items-baseline gap-2">
                       <span className="truncate">{s.name}</span>
-                      <span className="num shrink-0 text-[10px] text-muted">{s.days} 天上榜 · 买 {s.buys} 笔</span>
+                      <span className="num shrink-0 text-[12px] text-muted">{s.days} 天上榜 · 买 {s.buys} 笔</span>
                     </span>
                     <span className="flex shrink-0 items-baseline gap-3">
-                      <span className="num text-[10px] text-muted">{data.hold}日 {pct(s.avg5)}</span>
+                      <span className="num text-[12px] text-muted">{data.hold}日 {pct(s.avg5)}</span>
                       <span className={"num text-[12px] " + (s.netWan >= 0 ? "text-up" : "text-down")}>{yi(s.netWan)}</span>
                     </span>
                   </button>

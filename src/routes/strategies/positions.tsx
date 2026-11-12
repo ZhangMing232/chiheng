@@ -265,7 +265,7 @@ function ChallengerPanel({
           <span className={`shrink-0 ${st.className}`}>{st.label}</span>
           <span className="font-medium">
             {c.name}
-            {isChampion ? <span className="ml-1 text-[10px] text-brand-text">现任冠军</span> : null}
+            {isChampion ? <span className="ml-1 text-[12px] text-brand-text">现任冠军</span> : null}
           </span>
           <span className="text-muted">
             {styleName(c.style)} · 持有{c.holdDays ?? "沿用冠军"}天 · 止损{c.stopPct ?? "沿用冠军"}% · 目标

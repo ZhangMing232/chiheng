@@ -133,7 +133,7 @@ function RotationPage() {
                       <span className="mt-1 block h-1.5 rounded bg-surface2">
                         <span className="block h-1.5 rounded bg-up" style={{ width: `${(r.limitUp / maxUp) * 100}%` }} />
                       </span>
-                      <div className="mt-0.5 flex items-baseline justify-between text-[10px] text-muted">
+                      <div className="mt-0.5 flex items-baseline justify-between text-[12px] text-muted">
                         <span>均<span className={toneClass(r.avgChg)}>{(r.avgChg * 100).toFixed(1)}%</span> · 5日{(r.chg5d * 100).toFixed(1)}%</span>
                         <span>龙头 {r.heat?.leader?.name ?? "—"}</span>
                       </div>
@@ -156,7 +156,7 @@ function RotationPage() {
                       <span className="mt-1 block h-1.5 rounded bg-surface2">
                         <span className="block h-1.5 rounded bg-down" style={{ width: `${(r.limitUp / maxDown) * 100}%` }} />
                       </span>
-                      <div className="mt-0.5 flex items-baseline justify-between text-[10px] text-muted">
+                      <div className="mt-0.5 flex items-baseline justify-between text-[12px] text-muted">
                         <span>5日{(r.chg5d * 100).toFixed(1)}%</span>
                         <span>龙头 {r.heat?.leader?.name ?? "—"}</span>
                       </div>

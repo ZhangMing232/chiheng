@@ -199,7 +199,7 @@ function OverviewPage() {
             <div className="mt-5 flex h-40 items-end gap-1.5">
               {bucketRows.map((r) => (
                 <div key={r.k} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                  <span className="text-[10px] tabular-nums text-muted">{r.v}</span>
+                  <span className="text-[12px] tabular-nums text-muted">{r.v}</span>
                   <div
                     className={`w-full rounded-t ${r.cls}`}
                     // px 高度：百分比高度在 auto 高的 flex 列里会塌成 0（2026-11-10 实测）
@@ -210,7 +210,7 @@ function OverviewPage() {
             </div>
             <div className="mt-1.5 flex gap-1.5">
               {bucketRows.map((r) => (
-                <span key={r.k} className="min-w-0 flex-1 text-center text-[10px] text-muted">
+                <span key={r.k} className="min-w-0 flex-1 text-center text-[12px] text-muted">
                   {r.k}
                 </span>
               ))}

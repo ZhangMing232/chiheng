@@ -228,7 +228,7 @@ function AIUsagePage() {
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
                     <div className="h-full rounded-full bg-ai" style={{ width: `${Math.max((m.tokens / maxModelTokens) * 100, 2)}%` }} />
                   </div>
-                  <div className="mt-0.5 text-[10px] text-muted">
+                  <div className="mt-0.5 text-[12px] text-muted">
                     {m.calls} 次 · 成功率 {Math.round((m.ok / m.calls) * 100)}% · 平均 {(m.ms / m.calls / 1000).toFixed(1)}s
                     {m.cost > 0 ? ` · ${fmtC(m.cost)}` : ""}
                   </div>

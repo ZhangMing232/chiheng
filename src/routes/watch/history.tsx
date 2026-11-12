@@ -21,6 +21,7 @@ import { SectionTabs, WATCH_TABS } from "@/components/section-tabs";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getLadder3Day, getLimitUpReasons, getStockDetail, type LadderRow, type StockDetailPayload } from "@/lib/market/quotes.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/watch/history")({
   loader: async () => {
@@ -50,7 +51,7 @@ function Spark({ data }: { data: { date: string; c: number }[] }) {
       <svg viewBox="0 0 200 60" className="h-14 w-full" preserveAspectRatio="none">
         <polyline points={pts} fill="none" stroke={up ? "var(--color-up)" : "var(--color-down)"} strokeWidth="1.5" />
       </svg>
-      <div className="flex justify-between text-[10px] text-muted">
+      <div className="flex justify-between text-[12px] text-muted">
         <span>{data[0].date.slice(5)}</span>
         <span className="num">{first.toFixed(2)} → {last.toFixed(2)}</span>
         <span>{data[data.length - 1].date.slice(5)}</span>
@@ -84,7 +85,7 @@ function StockModal({ detail, onClose }: { detail: StockDetailPayload; onClose: 
             <div className="mb-1 text-[12px] text-muted">近 10 次涨停</div>
             <div className="flex flex-wrap gap-1">
               {detail.limitUps.map((d) => (
-                <span key={d} className="num rounded bg-up-soft px-1 text-[10px] text-up">{d.slice(5)}</span>
+                <span key={d} className="num rounded bg-up-soft px-1 text-[12px] text-up">{d.slice(5)}</span>
               ))}
             </div>
           </div>
@@ -119,6 +120,7 @@ function WatchHistoryPage() {
     return (
       <Frame wide>
         <SectionTabs ariaLabel="盯盘" tabs={WATCH_TABS} />
+        <PixelHeader label="WATCH // 3-DAY" meta="三日演变 · 哪一档在加厚、哪一档在断档" />
         <Panel title="三日板位演变"><StateBlock kind="empty" title="还没算" hint="ladder-3day.ts 跑一次就有。" /></Panel>
       </Frame>
     );
@@ -145,6 +147,7 @@ function WatchHistoryPage() {
   return (
     <Frame wide>
       <SectionTabs ariaLabel="盯盘" tabs={WATCH_TABS} />
+      <PixelHeader label="WATCH // 3-DAY" meta="三日演变 · 哪一档在加厚、哪一档在断档" />
       <div className="flex flex-col gap-3">
         <Panel title="三日板位演变" note={dates.join(" / ")}>
           <div className="px-3 py-2 text-[12px] leading-relaxed text-muted">
@@ -215,8 +218,8 @@ function WatchHistoryPage() {
                                     >
                                       {loading === r.id ? "…" : r.name}
                                     </button>
-                                    {r.seal ? <span className="num shrink-0 text-[10px] text-muted">{(r.seal / 10000).toFixed(0)}万·开板{r.breaks ?? 0}</span> : null}
-                                    {concept ? <span className="shrink-0 text-[10px] text-brand-text">{concept}</span> : null}
+                                    {r.seal ? <span className="num shrink-0 text-[12px] text-muted">{(r.seal / 10000).toFixed(0)}万·开板{r.breaks ?? 0}</span> : null}
+                                    {concept ? <span className="shrink-0 text-[12px] text-brand-text">{concept}</span> : null}
                                   </div>
                                 );
                               })}

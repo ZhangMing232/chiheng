@@ -451,7 +451,7 @@ export function FactorLoopPanels() {
                     <span className="font-medium">{c.name}</span>
                     {poolFull ? (
                       <span
-                        className="rounded bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn"
+                        className="rounded bg-warn-soft px-1.5 py-0.5 text-[12px] text-warn"
                         title={`${styleName(c.style)}池 ${open} 仓已满（上限 ${MAX_POSITIONS_DEFAULT}），挑战者成交会变慢`}
                       >
                         池满 · 成交缓慢

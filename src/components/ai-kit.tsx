@@ -93,9 +93,9 @@ export function HealthRing({ value, label = "系统健康", hint }: { value: num
         />
       </svg>
       <div className="absolute text-center">
-        <div className="text-[10px] text-muted">{label}</div>
+        <div className="text-[12px] text-muted">{label}</div>
         <div className="text-[26px] font-semibold leading-tight tabular-nums text-ai">{pct}</div>
-        <div className="text-[10px] text-muted">/100</div>
+        <div className="text-[12px] text-muted">/100</div>
       </div>
     </div>
   );
@@ -130,10 +130,10 @@ export function Pipeline({ stages }: { stages: PipelineStage[] }) {
               }
             >
               <span className={s.done || s.waiting ? "text-ai" : "text-muted"}>{s.icon}</span>
-              <span className="text-[10px] tabular-nums text-muted">{s.step}</span>
+              <span className="text-[12px] tabular-nums text-muted">{s.step}</span>
               <span className="text-xs font-medium text-fg">{s.title}</span>
-              <span className="text-[10px] leading-snug text-muted">{s.desc}</span>
-              <span className="mt-auto pt-1 text-[10px] tabular-nums text-fg">{s.metric}</span>
+              <span className="text-[12px] leading-snug text-muted">{s.desc}</span>
+              <span className="mt-auto pt-1 text-[12px] tabular-nums text-fg">{s.metric}</span>
             </div>
             {i < stages.length - 1 ? (
               <span aria-hidden className="self-center shrink-0 text-muted">
