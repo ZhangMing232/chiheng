@@ -306,11 +306,15 @@ function WatchTodayPage() {
             <div className="border-t border-line">
               {tiers.map((tier) => (
                 <div key={tier.key} className="flex gap-2 border-b border-line px-2 py-2 last:border-b-0">
-                  <div className="w-11 shrink-0 pt-0.5 text-right">
-                    <div className={"num text-sm font-semibold " + (tier.broken ? "text-muted" : "text-up")}>
-                      {tier.broken ? "炸板" : `${tier.streak}板`}
+                  <div className="w-16 shrink-0 pt-0.5">
+                    <div className={"px-num text-2xl font-bold leading-none " + (tier.broken ? "text-muted" : "text-brand")}>
+                      {tier.broken ? "×" : tier.streak}
                     </div>
-                    <div className="num text-[10px] text-muted">{tier.rows.length} 只</div>
+                    <div className="px-num mt-0.5 text-[11px] text-muted">{tier.broken ? "炸板" : "板"}</div>
+                    <div className="mt-1 h-1.5 w-full bg-line">
+                      <span className="block h-full bg-brand" style={{ width: `${Math.min(100, tier.rows.length * 8)}%` }} />
+                    </div>
+                    <div className="px-num mt-0.5 text-[11px] text-muted">{tier.rows.length} 只</div>
                   </div>
                   <div className="grid flex-1 grid-cols-2 content-start gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
                     {tier.rows.map((r, i) => {
@@ -324,7 +328,7 @@ function WatchTodayPage() {
                             setPick({ card: { row: r, broken: tier.broken }, x: rect.left + rect.width / 2, y: rect.bottom + 6 });
                           }}
                           className={
-                            "flex flex-col gap-0.5 rounded border px-2 py-1.5 text-left transition-colors " +
+                            "flex flex-col gap-0.5 border px-2 py-1.5 text-left transition-colors " +
                             (tier.broken
                               ? "border-dashed border-line bg-surface-2 text-muted hover:border-muted"
                               : "border-up/40 bg-surface hover:bg-up-soft")
