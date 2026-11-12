@@ -20,6 +20,7 @@ import type { FactorDiagPayload } from "@/lib/market/factor-runs-file";
 import { FactorSectionTabs, messageOf, Section } from "@/components/factor-sections";
 import { PixelHeader } from "@/components/pixel-header";
 import { batchSummary } from "@/lib/market/factors-view";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/factors/flow")({
   loader: async () => {
@@ -44,6 +45,14 @@ function FactorFlowPage() {
     <Frame wide aside="因子发掘 · 资金流探路">
       <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <PixelHeader label="FACTORS // EXPLORE" meta="外部因子探路 · 借鉴来的能不能用" />
+      <PixelSummary
+        label="FACTORS // EXPLORE"
+        note="外部因子探路 · 借鉴来的能不能用"
+        stats={[
+          { label: "分组", value: flowGroups?.length ?? null, tone: "brand", hero: true },
+          { label: "探针", value: diag?.flowProbe?.length ?? null, hint: "条" },
+        ]}
+      />
       <FactorSectionTabs />
       <Section
         title="资金流探路"

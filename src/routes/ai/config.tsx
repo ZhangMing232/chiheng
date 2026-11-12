@@ -27,6 +27,7 @@ import {
 } from "@/lib/market/quotes.functions";
 import { AISectionTabs, ProfileModal, messageOf, type AIStatusPayload, type UsagePayload } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/ai/config")({
   loader: async () => {
@@ -96,6 +97,15 @@ function AIConfigPage() {
   return (
     <Frame wide aside="AI 管理 · 接口配置">
     <PixelHeader label="AI // CONFIG" meta="模型与额度 · 改的是研究层，不动实盘" />
+    <PixelSummary
+      label="AI // CONFIG"
+      note="改的是研究层，不动实盘"
+      stats={[
+        { label: "已配置", value: ai?.configured ? "是" : "否", tone: ai?.configured ? "up" : "warn", hero: true, hint: ai?.model ?? undefined },
+    { label: "档位配置", value: ai?.profiles?.length ?? null, hint: "套" },
+    { label: "自动进化", value: ai?.autoEvolve ? "开" : "关", tone: ai?.autoEvolve ? "up" : "muted" },
+      ]}
+    />
       <AISectionTabs />
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="font-display text-xl font-medium tracking-wide">AI 接口与模型</h1>
