@@ -13,6 +13,7 @@ import { Frame } from "@/components/screener/nav";
 import { FlowDerivedTabs, FlowSectionTabs, Margin } from "@/components/flow-sections";
 import { getMargin } from "@/lib/market/quotes.functions";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/flow/margin")({
   loader: async () => ({ margin: await getMargin().catch(() => null) }),
@@ -25,6 +26,14 @@ function FlowMarginPage() {
     <Frame wide aside="资金流向 · 两融">
       <FlowSectionTabs />
       <PixelHeader label="FLOW // DERIVED · MARGIN" meta="两融余额是 T-1 口径，不是实时" />
+      <PixelSummary
+        label="FLOW // MARGIN"
+        note="两融余额是 T-1 口径，不是实时"
+        stats={[
+          { label: "融资余额合计", value: margin?.rows?.length ? `${(margin.rows.reduce((n, r) => n + r.rzye, 0) / 1e8).toFixed(0)}亿` : null, tone: "brand", hero: true, hint: `${margin?.rows?.length ?? 0} 只` },
+          { label: "融资净买", value: margin?.rows?.length ? `${(margin.rows.reduce((n, r) => n + r.rzjme, 0) / 1e8).toFixed(2)}亿` : null, tone: (margin?.rows?.reduce((n, r) => n + r.rzjme, 0) ?? 0) >= 0 ? "up" : "down", hint: "正=加杠杆" },
+        ]}
+      />
       <div className="mb-2"><FlowDerivedTabs active="margin" /></div>
       <Margin data={margin} />
     </Frame>

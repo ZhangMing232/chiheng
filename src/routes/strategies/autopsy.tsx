@@ -37,6 +37,7 @@ import {
   type TradeLossSummary,
 } from "@/lib/market/loss-attrib";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 
 export const Route = createFileRoute("/strategies/autopsy")({
@@ -118,6 +119,15 @@ function AutopsyPage() {
         <div className="flex flex-col gap-4 px-4 py-3">
           <SectionTabs tabs={STRATEGY_TABS} ariaLabel="策略子页面" />
           <PixelHeader label="STRATEGY // AUTOPSY" meta="失败归因 · 亏在哪一步" />
+          <PixelSummary
+            label="STRATEGY // AUTOPSY"
+            note="亏在哪一步 · 按退出原因分"
+            stats={[
+              { label: "已平仓亏损", value: summary.losses, tone: "down", hero: true, hint: "笔" },
+              { label: "原因类别", value: summary.byCause.length },
+              { label: "亏损最多", value: summary.byStyle[0]?.styleName ?? null, hint: summary.byStyle[0] ? `${Math.round(summary.byStyle[0].share * 100)}%` : undefined },
+            ]}
+          />
           <SectionTabs tabs={BACKTEST_SUB_TABS} ariaLabel="回测审计" />
 
           <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
