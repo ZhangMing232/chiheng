@@ -140,6 +140,21 @@ function Review() {
         tabs={REVIEW_TABS}
       />
       <PixelHeader label="REVIEW // DAILY" meta="收盘后的事实核对 · 不打分不做预测" />
+
+        {/* 像素摘要带：复盘先给四个数，再往下看明细 */}
+        <div className="px-mod4 mb-3 border border-line bg-surface px-4 py-3">
+          <div className="px-num text-[12px] tracking-widest text-brand">REVIEW_SUMMARY</div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+            <span className="px-num text-[13px] text-muted">上涨 <b className="text-2xl text-up">{breadth?.up ?? "—"}</b></span>
+            <span className="px-num text-[13px] text-muted">下跌 <b className="text-2xl text-down">{breadth?.down ?? "—"}</b></span>
+            <span className="px-num text-[13px] text-muted">平盘 <b className="text-2xl text-fg">{breadth?.flat ?? "—"}</b></span>
+            {indices.slice(0, 3).map((ix) => (
+              <span key={ix.id} className="px-num text-[13px] text-muted">
+                {ix.name} <b className={"text-xl " + (ix.chg >= 0 ? "text-up" : "text-down")}>{ix.chg >= 0 ? "+" : ""}{ix.chg?.toFixed(2)}%</b>
+              </span>
+            ))}
+          </div>
+        </div>
       {/* 今日结论（效果图招牌件）：四张卡，数字全现算 */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <HeroStat

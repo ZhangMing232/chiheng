@@ -57,6 +57,15 @@ function HotMoneyPage() {
       <PixelHeader label="HOTMONEY // TRACK" meta="龙虎榜席位 · 跟买 5 日口径" />
       <PosterButton draw={() => drawHotPoster({ date, seats })} />
       <div className="flex flex-col gap-3">
+        <div className="px-mod4 mb-3 border border-line bg-surface px-4 py-3">
+          <div className="px-num text-[12px] tracking-widest text-brand">SEAT_SUMMARY</div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+            <span className="px-num text-[13px] text-muted">买方席位 <b className="text-2xl text-up">{seats.filter((x) => x.netWan > 0).length}</b></span>
+            <span className="px-num text-[13px] text-muted">卖方席位 <b className="text-2xl text-down">{seats.filter((x) => x.netWan < 0).length}</b></span>
+            <span className="px-num text-[13px] text-muted">净买入额 <b className="text-2xl text-brand">{(buyers.reduce((n, x) => n + x.netWan, 0) / 10000).toFixed(2)}亿</b></span>
+          </div>
+        </div>
+
         <Panel title="席位净买卖" note={date ? `${date} 龙虎榜 · 席位按游资名号聚合` : "龙虎榜还没出"}>
           {seats.length === 0 ? (
             <StateBlock kind="empty" title="今天还没龙虎榜" hint="东财龙虎榜收盘后 ~17:00 才更新，盘中/早盘是空的。" />

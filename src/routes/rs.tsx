@@ -55,14 +55,14 @@ function RsPage() {
         <Panel title="趋势中军" note={<span className="text-[12px]">强度是多周期加权，不是今天的涨幅</span>}>
           <div className="grid grid-cols-2 gap-px overflow-hidden border-b border-line bg-line sm:grid-cols-4">
             <div className="bg-surface px-3 py-2">
-              <div className="text-[12px] text-muted">中位强度</div>
-              <div className={"num text-lg font-medium " + (rs.medianRaw >= 0 ? "text-up" : "text-down")}>{pct(rs.medianRaw, 1)}</div>
-              <div className="num text-[10px] text-muted">全市场一半的票在这条线以下</div>
+              <div className="px-num text-[12px] tracking-widest text-muted">中位强度</div>
+              <div className={"px-num text-2xl font-bold " + (rs.medianRaw >= 0 ? "text-up" : "text-down")}>{pct(rs.medianRaw, 1)}</div>
+              <div className="px-num text-[12px] text-muted">全市场一半的票在这条线以下</div>
             </div>
             <div className="bg-surface px-3 py-2">
               <div className="text-[12px] text-muted">贴近 250 日高</div>
-              <div className="num text-lg font-medium">{strong}</div>
-              <div className="num text-[10px] text-muted">距高点 5% 以内的上榜票</div>
+              <div className="px-num text-2xl font-bold">{strong}</div>
+              <div className="px-num text-[12px] text-muted">距高点 5% 以内的上榜票</div>
             </div>
             <div className="bg-surface px-3 py-2">
               <div className="text-[12px] text-muted">剔除停牌</div>
