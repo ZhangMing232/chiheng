@@ -50,6 +50,12 @@ type LiveRow = {
   low: number | null;
   /** 相对开盘买入价的涨跌（页面直接显示，不再自己算，避免口径漂移） */
   pctFromBuy: number | null;
+  /** 涨停价（按 T 日收盘 + 板块限幅算），一字板判定要用 */
+  limitUpPrice: number | null;
+  /** 能不能买到：false = 一字涨停，开盘挂单排不进；true = 能；null = 还没开盘 */
+  buyFilled: boolean | null;
+  /** 为什么买不进 / 为什么要打折看，页面直接显示 */
+  fillNote: string | null;
 };
 export type LiveFile = {
   date: string;
@@ -84,6 +90,19 @@ async function fetchBars(code: string): Promise<Bar[]> {
 }
 
 /** 交易日是否已收盘：15:00 之后（含集合竞价收盘）算收盘。 */
+/**
+ * 交易所**真实**涨跌幅（算涨跌停价用）：主板 10%、创业板/科创板 20%、北交所 30%。
+ * 别拿 limitPct() 那个 0.095/0.195/0.295——那是「判定涨停」用的近似阈值
+ * （留了余量防止四舍五入漏判），拿来算限价会把 25.66 算成 25.55。
+ * ST 股实际是 5%，但代码里看不出 ST，这里不吃这一口，遇到 ST 会判偏松。
+ */
+function limitRatio(code: string): number {
+  const bare = code.replace(/^(sh|sz|bj)/, "");
+  if (code.startsWith("bj")) return 0.3;
+  if (bare.startsWith("300") || bare.startsWith("301") || bare.startsWith("688") || bare.startsWith("689")) return 0.2;
+  return 0.1;
+}
+
 function isClosedNow(): boolean {
   const now = new Date();
   const hm = now.getHours() * 60 + now.getMinutes();
@@ -121,6 +140,25 @@ async function main() {
       const nx = i >= 0 ? bars[i + 1] : undefined;
       if (nx && !nextDate) nextDate = nx.date;
       const usable = nx && nx.o > 0 ? nx : null;
+      const prevClose = i >= 0 ? bars[i].c : null;
+      const upPrice = prevClose != null ? Math.round(prevClose * (1 + limitRatio(pick.code)) * 100) / 100 : null;
+      // 一字涨停：开盘就在涨停价，而且全天最低也是涨停价——没有低于涨停价的成交，挂单排不进。
+      // 开盘涨停但盘中开过板（最低 < 涨停价）算买得到，但成交价低于开盘价，得标出来。
+      let buyFilled: boolean | null = null;
+      let fillNote: string | null = null;
+      if (usable && upPrice != null) {
+        if (usable.o >= upPrice - 0.005) {
+          if (usable.l >= upPrice - 0.005) {
+            buyFilled = false;
+            fillNote = `${upPrice.toFixed(2)} 一字涨停，开盘挂单排不进（全天最低就是涨停价）`;
+          } else {
+            buyFilled = true;
+            fillNote = `开盘涨停后开板（最低 ${usable.l.toFixed(2)}），成交价低于开盘价`;
+          }
+        } else {
+          buyFilled = true;
+        }
+      }
       rows.push({
         code: pick.code,
         name: pick.name,
@@ -130,6 +168,9 @@ async function main() {
         high: usable ? usable.h : null,
         low: usable ? usable.l : null,
         pctFromBuy: usable && usable.o > 0 ? usable.c / usable.o - 1 : null,
+        limitUpPrice: upPrice,
+        buyFilled,
+        fillNote,
       });
     }
 

@@ -78,6 +78,18 @@ function HuiyanPage() {
             <Cell label="追买成立" value={picks ? rate(chases, picks) : "—"} hint={`${chases}/${picks} 笔`} />
             <Cell label="次日涨停" value={picks ? rate(lim, picks) : "—"} hint={`${lim}/${picks} 笔`} />
           </div>
+          {(() => {
+            const unfilled = settled.reduce((n, p) => n + (p.summary?.unfilled ?? 0), 0);
+            const stuck = settled.reduce((n, p) => n + (p.summary?.stuck ?? 0), 0);
+            if (unfilled === 0 && stuck === 0) return null;
+            return (
+              <div className="border-b border-line bg-surface-2 px-3 py-2 text-[11px] leading-relaxed">
+                <b className="text-warn">成交不了的不算进胜率：</b>
+                {unfilled > 0 ? <>一字涨停买不进 {unfilled} 笔（没买到就没有这笔）。</> : null}
+                {stuck > 0 ? <>一字跌停卖不出 {stuck} 笔（买到了但砸在手里，不计入已完成盈亏）。</> : null}
+              </div>
+            );
+          })()}
           <div className="px-3 py-2 text-[11px] leading-relaxed text-muted">
             {settled.length === 0 ? (
               <>
@@ -152,6 +164,21 @@ function HuiyanPage() {
                 所以这一套规则跑出 {rate(btChases, btPicks)} 其实是
                 <b className="text-down">跑输</b>「随便买一只」。别被 80% 这种数字骗了。
               </div>
+              {(() => {
+                const un = bt.periods.reduce((n, x) => n + (x.summary?.unfilled ?? 0), 0);
+                const st = bt.periods.reduce((n, x) => n + (x.summary?.stuck ?? 0), 0);
+                if (un === 0 && st === 0) return null;
+                const raw = btPicks + un;
+                return (
+                  <div className="border-b border-line bg-surface-2 px-3 py-2 text-[11px] leading-relaxed">
+                    <b className="text-warn">先扣掉成交不了的：</b>
+                    {raw} 笔里 <b className="text-fg">{un}</b> 笔是一字涨停买不进（
+                    {((un / raw) * 100).toFixed(1)}%），已从样本剔除
+                    {st > 0 ? <>；另有 {st} 笔一字跌停卖不出</> : null}。
+                    买不到的恰好是最强的那批——这套规则的真实成绩只会更弱，不会更好。
+                  </div>
+                );
+              })()}
               <details className="px-3 py-2">
                 <summary className="cursor-pointer text-[11px] text-muted hover:text-fg">
                   展开逐期明细（{bt.periods.length} 期）
@@ -314,10 +341,16 @@ function PickRow({
 }) {
   const settled = Boolean(o);
   const trade = o?.tradePct ?? null;
+  // 一字涨停买不进 / 一字跌停卖不出：这种情况不算「有这一笔」，价格一律打折看
+  const buyFail = settled ? o?.buyFilled === false : lr?.buyFilled === false;
+  const sellFail = settled ? o?.sellFilled === false : false;
+  const tradeable = !buyFail && !sellFail;
   // 今日已开盘＝真实的买入价已经发生，只是还没到收盘结算。这一格不许显示「待结算」。
-  const bought = !settled && lr?.buyPrice != null;
+  const bought = !settled && lr?.buyPrice != null && !buyFail;
   const livePct = bought ? (lr?.pctFromBuy ?? null) : null;
-  const shown = settled ? trade : livePct;
+  const shown = tradeable ? (settled ? trade : livePct) : null;
+  const fillNote = settled ? (o?.fillNote ?? null) : (lr?.fillNote ?? null);
+  const failLabel = buyFail ? "买不进" : sellFail ? "卖不出" : null;
   return (
     <div className="rounded border border-line bg-surface px-2 py-1.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -333,7 +366,7 @@ function PickRow({
             (shown == null ? "text-muted" : shown >= 0 ? "text-up" : "text-down")
           }
         >
-          {settled ? pct(trade) : bought ? pct(livePct) : "待结算"}
+          {failLabel ?? (settled ? pct(trade) : bought ? pct(livePct) : "待结算")}
         </span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 num text-[11px] text-muted">
@@ -342,9 +375,13 @@ function PickRow({
         </span>
         <span className="text-muted">→</span>
         <span>
-          买入 <b className="text-fg">{money(settled ? (o?.buyPrice ?? null) : (lr?.buyPrice ?? null))}</b>
-          {settled && !compact ? <span className="ml-0.5 text-[10px]">T+1开</span> : null}
+          买入{" "}
+          <b className={buyFail ? "text-muted line-through" : "text-fg"}>
+            {money(settled ? (o?.buyPrice ?? null) : (lr?.buyPrice ?? null))}
+          </b>
+          {settled && !compact && !buyFail ? <span className="ml-0.5 text-[10px]">T+1开</span> : null}
           {bought ? <span className="ml-0.5 text-[10px] text-up">今开</span> : null}
+          {buyFail ? <span className="ml-0.5 text-[10px] text-warn">一字板·排不进</span> : null}
         </span>
         <span className="text-muted">→</span>
         <span>
@@ -362,7 +399,9 @@ function PickRow({
         {bought && lr?.last != null && lr.high != null && lr.buyPrice != null && lr.high > lr.buyPrice ? (
           <Tag tone="muted">盘中摸高</Tag>
         ) : null}
+        {sellFail ? <Tag tone="warn">一字跌停·卖不出</Tag> : null}
       </div>
+      {fillNote ? <div className="mt-0.5 text-[10px] leading-snug text-muted">{fillNote}</div> : null}
     </div>
   );
 }

@@ -58,6 +58,12 @@ type Outcome = {
   limitUp: boolean;
   hit: boolean;
   chase: boolean;
+  /** 买入日能不能买到：false = 一字涨停排不进；true = 能；null = 不知道 */
+  buyFilled?: boolean | null;
+  /** 结算日能不能卖掉：false = 一字跌停卖不出 */
+  sellFilled?: boolean | null;
+  /** 成交性说明，页面直接显示，不让人自己猜 */
+  fillNote?: string | null;
 };
 
 type Period = {
@@ -68,7 +74,7 @@ type Period = {
   source: "locked" | "backtest";
   picks: Pick[];
   outcomes?: Outcome[];
-  summary?: { hits: number; chases: number; n: number; limitUps: number };
+  summary?: { hits: number; chases: number; n: number; limitUps: number; unfilled?: number; stuck?: number };
 };
 
 function limitOf(code: string): number {
@@ -212,6 +218,58 @@ async function fetchMergeKline(code: string, all: Map<string, Bar[]>): Promise<v
   }
 }
 
+/** 涨跌停价：按板块限幅四舍五入到分。T+1 日的限幅基于 T 日收盘（t.c）。 */
+/**
+ * 交易所**真实**涨跌幅（算涨跌停价用）：主板 10%、创业板/科创板 20%、北交所 30%。
+ * 别拿 limitPct() 那个 0.095/0.195/0.295——那是「判定涨停」用的近似阈值
+ * （留了余量防止四舍五入漏判），拿来算限价会把 25.66 算成 25.55。
+ * ST 股实际是 5%，但代码里看不出 ST，这里不吃这一口，遇到 ST 会判偏松。
+ */
+function limitRatio(code: string): number {
+  const bare = code.replace(/^(sh|sz|bj)/, "");
+  if (code.startsWith("bj")) return 0.3;
+  if (bare.startsWith("300") || bare.startsWith("301") || bare.startsWith("688") || bare.startsWith("689")) return 0.2;
+  return 0.1;
+}
+
+function limitPrices(code: string, prevClose: number): { up: number; down: number } {
+  const p = limitRatio(code);
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  return { up: round2(prevClose * (1 + p)), down: round2(prevClose * (1 - p)) };
+}
+
+/**
+ * 能不能成交。这是「逻辑对不对」的问题，不是精度问题：
+ *   买入日一字涨停（最低价就是涨停价）→ 全天没有低于涨停价的成交，挂单排不进去，买不到。
+ *   结算日一字跌停（最高价就是跌停价）→ 全天没有高于跌停价的成交，挂跌停也卖不出。
+ * 开盘涨停但盘中开过板 → 能买（成交价多半低于开盘价，所以用开盘价算成本是偏保守的）。
+ * 收盘跌停但盘中开过板 → 能卖（卖在跌停价附近，卖出价就用收盘价，是偏保守的）。
+ */
+function fillCheck(code: string, t: Bar, nx: Bar): { buyFilled: boolean | null; sellFilled: boolean | null; fillNote: string | null } {
+  const { up, down } = limitPrices(code, t.c);
+  const eps = 0.005;
+  const notes: string[] = [];
+  let buyFilled: boolean | null = true;
+  if (nx.o >= up - eps) {
+    if (nx.l >= up - eps) {
+      buyFilled = false;
+      notes.push(`买入日 ${up.toFixed(2)} 一字涨停，开盘挂单排不进（当天最低就是涨停价）`);
+    } else {
+      notes.push(`开盘涨停后开板（最低 ${nx.l.toFixed(2)}），能买到，实际成交价低于开盘价`);
+    }
+  }
+  let sellFilled: boolean | null = true;
+  if (nx.c <= down + eps) {
+    if (nx.h <= down + eps) {
+      sellFilled = false;
+      notes.push(`结算日 ${down.toFixed(2)} 一字跌停，挂跌停也卖不出（当天最高就是跌停价）`);
+    } else {
+      notes.push(`收盘跌停（盘中最高 ${nx.h.toFixed(2)}），能卖，卖在跌停价附近`);
+    }
+  }
+  return { buyFilled, sellFilled, fillNote: notes.length ? notes.join("；") : null };
+}
+
 /** 纯函数：给定 T 日棒和 T+1 日棒，算一只票的结算结果。两者缺一不可。 */
 function computeOutcome(pick: Pick, t: Bar | null, nx: Bar | null): Outcome {
   const base: Outcome = {
@@ -231,13 +289,19 @@ function computeOutcome(pick: Pick, t: Bar | null, nx: Bar | null): Outcome {
     limitUp: false,
     hit: false,
     chase: false,
+    buyFilled: null,
+    sellFilled: null,
+    fillNote: null,
   };
   if (!t || !nx) return base;
   const pickPrice = t.c;
   const buyPrice = nx.o;
   const sellPrice = nx.c;
   const highPrice = nx.h;
-  const tradePct = buyPrice > 0 ? sellPrice / buyPrice - 1 : null;
+  const fill = fillCheck(pick.code, t, nx);
+  // 买不到 / 卖不出，就没有「这一笔盈亏」——拿一个成交不了的价算收益就是假账
+  const tradable = fill.buyFilled !== false && fill.sellFilled !== false;
+  const tradePct = tradable && buyPrice > 0 ? sellPrice / buyPrice - 1 : null;
   const holdPct = pickPrice > 0 ? sellPrice / pickPrice - 1 : null;
   const highPct = buyPrice > 0 ? highPrice / buyPrice - 1 : null;
   return {
@@ -257,6 +321,9 @@ function computeOutcome(pick: Pick, t: Bar | null, nx: Bar | null): Outcome {
     hit: (holdPct ?? 0) > 0,
     // 追买：T+1 开盘买入后，盘中最高仍高于开盘价
     chase: buyPrice > 0 && highPrice > buyPrice,
+    buyFilled: fill.buyFilled,
+    sellFilled: fill.sellFilled,
+    fillNote: fill.fillNote,
   };
 }
 
@@ -291,7 +358,10 @@ async function settleLive(all: Map<string, Bar[]>, p: Period): Promise<Period> {
 
 /** 收尾：算 nextDate / summary，只把「真能结算」的写回。 */
 function finishSettle(p: Period, outcomes: Outcome[], all: Map<string, Bar[]>): Period {
-  const valid = outcomes.filter((o) => o.nextPct != null);
+  // 胜率只统计「真的买得进」的笔；一字涨停排不进的单列 unfilled，卖不出的单列 stuck
+  const valid = outcomes.filter((o) => o.nextPct != null && o.buyFilled !== false);
+  const unfilled = outcomes.filter((o) => o.buyFilled === false).length;
+  const stuck = outcomes.filter((o) => o.buyFilled !== false && o.sellFilled === false).length;
   // nextDate：T 日之后第一个交易日。优先从任意一只票的本地棒里找。
   let nextDate: string | null = null;
   for (const pick of p.picks) {
@@ -309,6 +379,8 @@ function finishSettle(p: Period, outcomes: Outcome[], all: Map<string, Bar[]>): 
       chases: valid.filter((o) => o.chase).length,
       n: valid.length,
       limitUps: valid.filter((o) => o.limitUp).length,
+      unfilled,
+      stuck,
     },
   };
 }

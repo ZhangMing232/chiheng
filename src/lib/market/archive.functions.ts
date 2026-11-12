@@ -45,6 +45,12 @@ export type ForecastOutcome = {
   limitUp: boolean;
   hit: boolean;
   chase: boolean;
+  /** 买入日能不能买到：false = 一字涨停，开盘挂单排不进 */
+  buyFilled?: boolean | null;
+  /** 结算日能不能卖掉：false = 一字跌停，挂跌停也卖不出 */
+  sellFilled?: boolean | null;
+  /** 成交性说明（为什么买不进 / 为什么要打折看） */
+  fillNote?: string | null;
 };
 export type ForecastLiveRow = {
   code: string;
@@ -55,6 +61,9 @@ export type ForecastLiveRow = {
   high: number | null;
   low: number | null;
   pctFromBuy: number | null;
+  limitUpPrice: number | null;
+  buyFilled: boolean | null;
+  fillNote: string | null;
 };
 /**
  * 「今天正是买入日、还没收盘结算」这一段。
@@ -75,7 +84,7 @@ export type ForecastPeriod = {
   source: "locked" | "backtest";
   picks: ForecastPick[];
   outcomes?: ForecastOutcome[];
-  summary?: { hits: number; chases: number; n: number; limitUps: number };
+  summary?: { hits: number; chases: number; n: number; limitUps: number; unfilled?: number; stuck?: number };
   /** 未结算的期才有：买入日已经开盘，买入价是真实成交价，现价是盘中值 */
   live?: ForecastLive;
 };
