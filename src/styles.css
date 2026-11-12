@@ -89,6 +89,57 @@ html:not([data-theme="light"]) body {
   background-attachment: fixed;
 }
 
+
+/* ── 像素组件层（2026-11-12）────────────────────────────────────────
+ * 设计稿 design/redesign-2026-11/pixel.css 的 React 版：切角、角标、刻槽、
+ * 斜切标题块、警戒斜纹、等宽数字。只给 /today 用，别处不引用就不会生效。
+ */
+.px-mod { position: relative; background: var(--color-surface); border: 1px solid var(--color-line); }
+/* 四角各一段直角线：像素面板的标志，比整圈发光省眼睛 */
+.px-mod::before, .px-mod::after { content: ""; position: absolute; width: 10px; height: 10px; pointer-events: none; }
+.px-mod::before { top: -1px; left: -1px; border-top: 2px solid var(--color-brand); border-left: 2px solid var(--color-brand); }
+.px-mod::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--color-brand); border-right: 2px solid var(--color-brand); }
+
+/* 顶部刻度条 */
+.px-ticks { position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: repeating-linear-gradient(90deg, var(--color-line) 0 3px, transparent 3px 7px); }
+
+/* 警戒斜纹（红青），只有 8px 高 */
+.px-hazard { height: 8px; border-radius: 2px; opacity: .5;
+  background: repeating-linear-gradient(-45deg,
+    rgba(255, 46, 138, .55) 0 6px, transparent 6px 12px,
+    rgba(34, 230, 255, .45) 12px 18px, transparent 18px 24px); }
+
+/* 等宽数字 + 收紧字距 */
+.px-num { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* 斜切标题块 */
+.px-slash { display: inline-block; padding: 2px 12px 2px 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--color-brand);
+  background: linear-gradient(90deg, rgba(34, 230, 255, .18), rgba(34, 230, 255, .02));
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 0 100%); }
+
+/* 矩阵表：三路信号合成一张 */
+.px-tbl { width: 100%; border-collapse: collapse; }
+.px-tbl th { text-align: left; font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 400;
+  letter-spacing: .12em; color: var(--color-muted); padding: 8px 10px; border-bottom: 1px solid var(--color-line); white-space: nowrap; }
+.px-tbl td { padding: 9px 10px; border-bottom: 1px dashed var(--color-line); vertical-align: baseline; font-size: 13px; }
+.px-tbl tr:last-child td { border-bottom: 0; }
+.px-tbl tbody tr:hover { background: rgba(34, 230, 255, .045); }
+.px-tbl .px-path { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+.px-tbl .px-name { font-weight: 600; white-space: nowrap; }
+.px-tbl .px-code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--color-muted); margin-left: 6px; font-weight: 400; }
+.px-tbl .px-price { font-family: ui-monospace, Menlo, monospace; font-size: 17px; font-weight: 700; text-align: right; white-space: nowrap; }
+.px-tbl .px-why { font-size: 12px; color: var(--color-muted); }
+.px-tbl tr.is-dead .px-name { color: var(--color-muted); text-decoration: line-through; }
+.px-tbl tr.is-dead .px-price { color: #ff6ea4; font-size: 12px; font-weight: 600; }
+
+/* 状态徽标 */
+.px-st { font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 2px 6px; border: 1px solid; white-space: nowrap; }
+.px-st.ok { color: #a6ff3d; border-color: rgba(166, 255, 61, .45); background: rgba(166, 255, 61, .08); }
+.px-st.no { color: #ff6ea4; border-color: rgba(255, 46, 138, .45); background: rgba(255, 46, 138, .1); }
+.px-st.wait { color: var(--color-muted); border-color: var(--color-line); }
+
 /* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
  * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
  * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。
