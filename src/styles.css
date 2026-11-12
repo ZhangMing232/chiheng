@@ -203,6 +203,13 @@ html:not([data-theme="light"]) body {
 /* 侧栏当前项：左侧一条荧光线 + 方块标记，终端菜单的选中态 */
 .px-active { box-shadow: inset 2px 0 0 var(--color-brand); }
 
+/* 手机端固定结论条：窄屏贴底，桌面隐藏（桌面上信息都在首屏） */
+.px-mobile-bar {
+  position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent); backdrop-filter: blur(4px);
+}
+
 /* ── 情绪周期六档（2026-11-11 引入，参考连板网 --ph-*）─────────────────
  * 这六个色**不表达涨跌**，只表达情绪所处的阶段。全站红绿已经被涨跌占满，
  * 周期如果也用红绿，热力图就分不清"涨停多"和"涨得多"。

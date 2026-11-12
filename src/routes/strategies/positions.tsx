@@ -45,6 +45,7 @@ import { loadIndustry } from "@/lib/market/industry-store";
 import { finestIndustry } from "@/lib/market/industry";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { healthChecks } from "@/lib/market/portfolio-health";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
@@ -1075,6 +1076,10 @@ function Positions() {
       <SectionTabs
         ariaLabel="策略"
         tabs={STRATEGY_TABS}
+      />
+      <PixelHeader
+        label="STRATEGY // POSITIONS"
+        meta="跟单 / 持仓 / 体检 / 战绩 · 止损先到先走，买入当天不卖"
       />
       <PageTabs
         storageKey="chiheng-pos-tab"

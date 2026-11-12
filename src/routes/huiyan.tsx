@@ -21,6 +21,7 @@ import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getForecast, type ForecastPeriod, type ForecastOutcome, type ForecastLiveRow } from "@/lib/market/archive.functions";
+import { PixelHeader } from "@/components/pixel-header";
 
 export const Route = createFileRoute("/huiyan")({
   loader: async () => await getForecast(),
@@ -64,6 +65,37 @@ function HuiyanPage() {
       }
     >
       <div className="flex flex-col gap-3">
+        <PixelHeader
+          label="FORWARD_TEST"
+          meta={`落档 ${locked.length} 期 · 可结算 ${settled.length} 期 · 口径回算 ${bt?.periods.length ?? 0} 期`}
+        />
+
+        {/* 最近一期三票对照：选股 → 今开 → 现价，一眼看出哪笔真成交了 */}
+        {locked[0] ? (
+          <div className="px-mod4 border border-line bg-surface px-4 py-3">
+            <div className="px-num mb-2 text-[12px] tracking-widest text-brand">LAST_CALL · {locked[0].date}</div>
+            <div className="flex flex-col gap-1.5">
+              {locked[0].picks.map((k) => {
+                const lr = (locked[0].live?.rows ?? []).find((x) => x.code === k.code);
+                const noBuy = lr?.buyFilled === false;
+                return (
+                  <div key={k.code} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-dashed border-line py-1.5 last:border-0">
+                    <span className={"w-24 shrink-0 truncate text-[13px] font-medium " + (noBuy ? "text-muted line-through" : "")}>{k.name}</span>
+                    <span className="px-num text-[12px] text-muted">选股 {k.basis.close}</span>
+                    <span className="px-num text-[12px] text-muted">→ 今开 {lr?.buyPrice ?? "—"}</span>
+                    <span className={"px-num text-[12px] " + (lr?.pctFromBuy != null && lr.pctFromBuy >= 0 ? "text-up" : "text-down")}>
+                      → 现 {(lr?.last ?? "—")}{lr?.pctFromBuy != null ? ` (${(lr.pctFromBuy * 100).toFixed(2)}%)` : ""}
+                    </span>
+                    <span className={"px-st ml-auto " + (noBuy ? "no" : lr?.buyPrice != null ? "ok" : "wait")}>
+                      {noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "已成交" : "待开盘"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <Panel
           title="落档战绩"
           note={<span className="text-[11px]">只算真的当晚落过档的期，口径回算不混进来</span>}

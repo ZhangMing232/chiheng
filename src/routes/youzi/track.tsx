@@ -68,13 +68,13 @@ function HotMoneyPage() {
                   {buyers.map((s) => {
                     const t = tierOf(s.name);
                     return (
-                      <div key={s.name} className="rounded border border-line bg-surface px-2.5 py-1.5">
+                      <div key={s.name} className="border border-line bg-surface px-2.5 py-1.5">
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="flex items-baseline gap-1.5 text-sm">
                             <span className="truncate font-medium">{s.name}</span>
                             <Tag tone={t.tone}>{t.label}</Tag>
                           </span>
-                          <span className="num shrink-0 text-xs text-up">+{(s.netWan / 10000).toFixed(2)}亿</span>
+                          <span className="px-num shrink-0 text-[15px] font-bold text-up">+{(s.netWan / 10000).toFixed(2)}亿</span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {s.stocks.slice(0, 6).map((st) => (
@@ -94,7 +94,7 @@ function HotMoneyPage() {
                   {sellers.map((s) => {
                     const t = tierOf(s.name);
                     return (
-                      <div key={s.name} className="rounded border border-line bg-surface px-2.5 py-1.5">
+                      <div key={s.name} className="border border-line bg-surface px-2.5 py-1.5">
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="flex items-baseline gap-1.5 text-sm">
                             <span className="truncate font-medium">{s.name}</span>

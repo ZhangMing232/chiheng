@@ -326,6 +326,14 @@ function DecisionPage() {
           </div>
         </div>
 
+        {/* 手机端固定结论条：一屏看完不用往上滚。窄屏才出现，桌面端隐藏。 */}
+        <div className="px-mobile-bar sm:hidden" aria-hidden="true">
+          <div className="px-num text-[11px] text-muted">
+            情绪 <b className="text-warn">{mood.band}</b> · 可买 <b className="text-brand">{buyable}</b> · 放弃 <b className="text-fg">{givenUp}</b>
+          </div>
+          <div className="px-num text-[11px] text-brand">看矩阵 ▾</div>
+        </div>
+
         <div className="px-ticks-x" aria-hidden="true" />
         <div className="px-barcode" aria-hidden="true" />
 
