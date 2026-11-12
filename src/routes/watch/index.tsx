@@ -278,7 +278,7 @@ function WatchTodayPage() {
           ) : null}
         </Panel>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="px-noise flex flex-col gap-3">
           <Panel
             title="封板梯队"
             note={
@@ -291,8 +291,8 @@ function WatchTodayPage() {
             }
           >
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 px-3 py-2 text-xs text-muted">
-              <span>封住 <b className="num text-up">{up.length}</b></span>
-              <span>炸板 <b className="num text-muted">{broken.length}</b></span>
+              <span>封住 <b className="px-num px-chroma text-[16px] text-up">{up.length}</b></span>
+              <span>炸板 <b className="px-num px-chroma text-[16px] text-muted">{broken.length}</b></span>
               {isToday ? (
                 <span className="text-[12px]">
                   采集于 <b className="num text-fg">{at}</b>{ageText} · {snapshot.sealed ? "已收盘定格" : "盘中数据未定，收盘前还会变"}
@@ -364,6 +364,18 @@ function WatchTodayPage() {
           </Panel>
         </div>
       )}
+
+      <div className="px-ticks-x" aria-hidden="true" />
+      <div className="px-barcode" aria-hidden="true" />
+
+      {/* 手机端固定结论条：封住/炸板一屏看完，不用往上滚 */}
+      <div className="px-mobile-bar sm:hidden">
+        <div className="px-num text-[12px] text-muted">
+          封住 <b className="text-up">{up.length}</b> · 炸板 <b className="text-fg">{broken.length}</b>
+          {isToday ? <span className="ml-2 text-brand">{snapshot?.sealed ? "收盘定格" : "盘中未定"}</span> : null}
+        </div>
+        <div className="px-num text-[12px] text-brand">看梯队 ▾</div>
+      </div>
 
       {pick ? (
         <ReasonPopover
