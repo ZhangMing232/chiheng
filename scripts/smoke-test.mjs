@@ -34,7 +34,7 @@ const PAGES = [
   // 盘后：复盘 / 资金流向 / 游资与席位 / 题材
   "/review", "/review/breadth", "/review/signals", "/review/theme", "/review/events",
   "/flow", "/flow/north", "/flow/industries", "/flow/sectors", "/flow/stocks",
-  "/flow/hot", "/flow/close", "/flow/margin", "/flow/futures",
+  "/flow/close", "/flow/margin", "/flow/futures",
   "/youzi", "/youzi/track", "/youzi/seats",
   "/themes", "/themes/intel", "/themes/rotation", "/themes/brief",
   "/news", "/overseas",
@@ -53,9 +53,10 @@ const PAGES = [
   // 旧书签重定向不断链：每次信息架构合并留代表验不断链
   // （/screener /positions 10-21 策略区、/signals /calendar 10-21 复盘区、
   //   /review/flow/stocks 11-11 资金流向拆回平级、/debate 10-26 研究区、
-  //   /hotmoney /brief 11-11 游资与题材合并、/grid /ladder 11-11 晚并成盯盘）
+  //   /hotmoney /brief 11-11 游资与题材合并、/grid /ladder 11-11 晚并成盯盘、
+  //   /flow/hot 11-12 并进 /youzi/track）
   "/screener", "/positions", "/signals", "/calendar", "/review/flow/stocks", "/debate", "/hotmoney", "/brief",
-  "/grid", "/ladder",
+  "/grid", "/ladder", "/flow/hot",
 ];
 
 // 步骤 3 是「从首页点导航链接走 SPA 路由」——只能点侧栏里真实存在的入口

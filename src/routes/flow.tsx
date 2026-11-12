@@ -2,7 +2,7 @@
  * 这个文件是干什么的：
  * 「资金流向」区的布局路由。2026-11-11 从「每日复盘」下面拆回平级：
  * /flow/ 概览、/flow/north 北向、/flow/industries 行业、/flow/sectors 板块、
- * /flow/stocks 个股、/flow/hot 游资、/flow/close 收盘快照、/flow/margin 两融、
+ * /flow/stocks 个股、/flow/close 收盘快照、/flow/margin 两融、
  * /flow/futures 期指。tab 条是 components/flow-sections.tsx 的 FlowSectionTabs。
  *
  * 为什么要拆回来（2026-10-23 并进去，2026-11-11 又拆出来，不是反复无常）：

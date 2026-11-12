@@ -74,7 +74,7 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 **盘前**——总览 `/`、今日决策 `/decision`、前瞻回验 `/huiyan`；
 **盯盘**——盯盘 `/watch`（今日梯队/三日演变；原 `/grid` 多股同屏 + `/ladder` 连板天梯，11-11 晚合一）；
 **盘后**——每日复盘 `/review`（涨跌分布/信号/公司事件三个子页）、资金流向 `/flow`
-（北向/行业/板块/个股/游资/收盘快照/两融/期指八个子页）、游资与席位 `/youzi`
+（北向/行业/板块/个股/收盘快照/两融/期指七个子页；「游资」11-12 并入 /youzi）、游资与席位 `/youzi`
 （游资追踪/席位档案）、题材 `/themes`（市场情报/题材轮动/题材简报）；
 **研究**——情绪周期 `/cycle`、区间统计 `/interval`、趋势中军 `/rs`、自选 `/my-stocks`；
 **资讯**——快讯 `/news`、消息与提醒 `/inbox`、全球行情 `/overseas`；
@@ -82,7 +82,7 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 **AI**——工作台 `/ai`、大管家 `/butler`；**设置**——`/settings`。
 `/ai/config`、`/studio`、`/research/*` 等子页只留直链，侧栏不再单列。
 个股详情 `/symbol` 从任意代码点入。旧地址（`/intel` `/rotation` `/brief` `/hotmoney`
-`/seats` `/review/flow/*` `/grid` `/ladder`）全部留重定向，书签不断链。
+`/seats` `/review/flow/*` `/grid` `/ladder` `/flow/hot`）全部留重定向，书签不断链。
 
 规模：647 提交 · 107,000 行（src + scripts）· 1,556 条测试。
 提交有闸门：pre-commit 跑 typecheck、pre-push 跑全量测试（`.githooks/`，

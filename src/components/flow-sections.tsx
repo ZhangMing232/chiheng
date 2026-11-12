@@ -20,7 +20,6 @@ import { SectionTabs } from "@/components/section-tabs";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { fmtWan, signedPct, toneClass } from "@/lib/market/format";
 import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/market/flow";
-import type { HotBook } from "@/lib/market/hotmoney";
 import type { MarginRow } from "@/lib/market/margin";
 import { GapList } from "@/components/source-line";
 import type { FutBook } from "@/lib/market/index-futures";
@@ -28,7 +27,7 @@ import type { Trend } from "@/lib/market/types";
 import { marketBreadth, type Breadth } from "@/lib/market/slim-universe";
 import type { getCloseSnapshot } from "@/lib/market/tdx-daily.functions";
 
-/** 这一区统一的二级 tab：/review/flow 下所有子页面共用，增删子页只改这里。 */
+/** 这一区统一的二级 tab：/flow 下所有子页面共用，增删子页只改这里。 */
 export function FlowSectionTabs() {
   return (
     <SectionTabs
@@ -39,7 +38,8 @@ export function FlowSectionTabs() {
         { to: "/flow/industries", label: "行业" },
         { to: "/flow/sectors", label: "板块" },
         { to: "/flow/stocks", label: "个股" },
-        { to: "/flow/hot", label: "游资" },
+        // 2026-11-12 删「游资」tab：它和 /youzi/track 是同一份龙虎榜数据，
+        // 两处各画一遍。要看席位去 /youzi，那里还多了分级和个股金额。
         { to: "/flow/close", label: "收盘快照" },
         { to: "/flow/margin", label: "两融" },
         { to: "/flow/futures", label: "期指" },
@@ -434,38 +434,6 @@ export function Margin({ data }: { data: MarginPayload }) {
         </p>
         <GapList items={data.missing > 0 ? [`源数据坏行 ${data.missing} 条（解析不过，已跳过）`] : []} />
       </div>
-    </Section>
-  );
-}
-
-export function Hot({ book }: { book: HotBook | null }) {
-  return (
-    <Section
-      title="游资"
-      hint={
-        "一行一个席位，红是净买，绿是净卖。对得上的才用别名，其余用路名。机构和拉萨放在最后。收盘后才有。" +
-        (book?.date ? ` ${book.date}` : "")
-      }
-    >
-      {!book || book.seats.length === 0 ? (
-        <p className="px-3.5 py-6 text-sm text-muted">游资龙虎榜暂时没有。</p>
-      ) : (
-        <ul className="px-3.5 py-2">
-          {book.seats.map((seat) => (
-            <li key={seat.name} className="grid grid-cols-[5.5rem_1fr] gap-3 border-t border-line py-2 first:border-t-0">
-              <div className="font-medium">{seat.name}</div>
-              <p className="text-sm leading-6">
-                {seat.stocks.map((stock) => (
-                  <span key={stock.name} className={toneClass(stock.netWan) + " mr-3 inline-block"}>
-                    {stock.name} {stock.netWan > 0 ? "净买" : "净卖"}
-                    {fmtWan(Math.abs(stock.netWan))}
-                  </span>
-                ))}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
     </Section>
   );
 }

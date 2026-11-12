@@ -9,6 +9,13 @@
  * 纪律：
  * 1. 席位≠游资本人（营业部是席位，名号是市场惯称）；历史行为不预示未来。
  * 2. 净买入/卖出是事实，不是买卖建议。
+ *
+ * 2026-11-12 合并：原 /flow/hot「游资」子页读的是同一个 getHotMoney()、同一批席位，
+ * 只是画成一行一个席位的列表——用户指出「和游资与席位又重复了」，已删。
+ * 那一页独有的两样并到这里，功能不丢：
+ *   - 每只成分股的**净买/净卖金额**（原来这边只有股票名）；
+ *   - 生成汇总图的 PosterButton（drawHotPoster 原来只在那一页挂着）。
+ * 机构和拉萨排最后、席位别名映射都在 hotmoney.ts 里，两页本来就共用，不用搬。
  */
 
 import { createFileRoute } from "@tanstack/react-router";
@@ -17,7 +24,9 @@ import { SectionTabs, YOUZI_TABS } from "@/components/section-tabs";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getHotMoney } from "@/lib/market/quotes.functions";
-import { toneClass } from "@/lib/market/format";
+import { PosterButton } from "@/components/screener/poster-button";
+import { drawHotPoster } from "@/lib/market/extra-posters";
+import { fmtWan, toneClass } from "@/lib/market/format";
 import { useStockDetail } from "@/components/stock-detail-modal";
 
 export const Route = createFileRoute("/youzi/track")({
@@ -44,6 +53,7 @@ function HotMoneyPage() {
     <>
     <Frame wide>
       <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
+      <PosterButton draw={() => drawHotPoster({ date, seats })} />
       <div className="flex flex-col gap-3">
         <Panel title="席位净买卖" note={date ? `${date} 龙虎榜 · 席位按游资名号聚合` : "龙虎榜还没出"}>
           {seats.length === 0 ? (
@@ -67,7 +77,7 @@ function HotMoneyPage() {
                         <div className="mt-1 flex flex-wrap gap-1">
                           {s.stocks.slice(0, 6).map((st) => (
                             <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[11px] hover:underline ${toneClass(st.netWan)}`}>
-                              {st.name}
+                              {st.name} {st.netWan > 0 ? "净买" : "净卖"}{fmtWan(Math.abs(st.netWan))}
                             </button>
                           ))}
                         </div>
@@ -93,7 +103,7 @@ function HotMoneyPage() {
                         <div className="mt-1 flex flex-wrap gap-1">
                           {s.stocks.slice(0, 6).map((st) => (
                             <button key={st.name} type="button" onClick={() => void openDetail("", st.name)} className={`num rounded bg-surface2 px-1 py-px text-[11px] hover:underline ${toneClass(st.netWan)}`}>
-                              {st.name}
+                              {st.name} {st.netWan > 0 ? "净买" : "净卖"}{fmtWan(Math.abs(st.netWan))}
                             </button>
                           ))}
                         </div>
