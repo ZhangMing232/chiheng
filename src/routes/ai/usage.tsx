@@ -21,6 +21,7 @@ import { getAIUsage } from "@/lib/market/quotes.functions";
 import { AISectionTabs, Section, type UsagePayload } from "@/components/ai-panels";
 import type { AIUsageEntry } from "@/lib/market/ai-usage";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/ai/usage")({
   loader: async () => {
@@ -140,6 +141,16 @@ function AIUsagePage() {
   return (
     <Frame wide aside="AI 管理 · Token 用量">
     <PixelHeader label="AI // USAGE" meta="调用与花费 · 每轮多少 token、多少钱" />
+    <PixelSummary
+      label="AI // USAGE · TOTALS"
+      note={`账本 ${entries.length} 条 · 接口不返回 usage 就记 0`}
+      stats={[
+        { label: "累计 token", value: s?.totalTokens != null ? fmt(s.totalTokens) : null, tone: "brand", hero: true },
+        { label: "累计费用", value: s?.totalCost != null ? fmtC(s.totalCost) : null },
+        { label: "调用次数", value: s?.okCalls ?? entries.length, hint: "成功" },
+        { label: "窗口内调用", value: cur?.calls ?? null, hint: `近 ${range} 天` },
+      ]}
+    />
       <AISectionTabs />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
