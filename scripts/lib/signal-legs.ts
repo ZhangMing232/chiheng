@@ -48,17 +48,54 @@ export function exitTextOf(s: { leg?: Leg; strategy?: string; holdDays?: number 
  *   竞价还没出来        → 退回昨收价，并标明「未竞价」
  * 止损/目标按原来的相对距离一起平移，不因为换了价位就变成另一个风险敞口。
  */
-export const CHASE_CAP = 0.02;
+/**
+ * 高开容忍度不能是一个固定百分比（2026-11-12 用户第二次纠正）。
+ *
+ * 固定 2% 是机械的：银行股一天振幅 1.2%，高开 2% 已经是异动，不该追；
+ * 中际旭创一天振幅 8%，高开 2% 只是正常呼吸，反而不该被挡。
+ * 所以容忍度跟着**这只票自己的近 5 日平均振幅**走：
+ *
+ *   容忍 = 0.5 × 近5日平均振幅（夹在 1%~5% 之间）
+ *   竞价 ≤ 昨收 × (1 + 容忍)  → 买价＝竞价价（挂得上、开盘即成交）
+ *   竞价超出容忍               → 今天不买，并写清「该股振幅多少、容忍多少、这次高开多少」
+ *
+ * 为什么是「一半振幅」而不是全部：全额振幅等于允许它开到昨天最高价，
+ * 那是追高不是买点；一半留了喘息，也让大部分正常小幅高开能成交。
+ * 没有 K 线数据时退回 2%（写明是默认值，不假装有依据）。
+ */
+export const TOLERANCE_OF_ATR = 0.5;
+export const MIN_TOLERANCE = 0.01;
+export const MAX_TOLERANCE = 0.05;
+export const FALLBACK_TOLERANCE = 0.02;
+
+/** 这只票今天能容忍多高的高开。atrPct 传近 5 日平均振幅（0.032 = 3.2%）。 */
+export function toleranceOf(atrPct: number | null | undefined): { tol: number; basis: string } {
+  if (atrPct == null || !Number.isFinite(atrPct) || atrPct <= 0) {
+    return { tol: FALLBACK_TOLERANCE, basis: "没有 K 线，按默认 2%" };
+  }
+  const raw = atrPct * TOLERANCE_OF_ATR;
+  const tol = Math.min(MAX_TOLERANCE, Math.max(MIN_TOLERANCE, raw));
+  return { tol, basis: `近5日振幅 ${(atrPct * 100).toFixed(1)}%，容忍 ${(tol * 100).toFixed(1)}%` };
+}
 
 export function orderPriceOf(s: {
   buyPrice: number;
   auctionPrice?: number | null;
+  atrPct?: number | null;
   stop?: number | null;
   target?: number | null;
-}): { price: number | null; skipReason: string | null; stop: number | null; target: number | null; pending: boolean } {
+}): {
+  price: number | null;
+  skipReason: string | null;
+  stop: number | null;
+  target: number | null;
+  pending: boolean;
+  basis: string;
+} {
   const base = s.buyPrice;
   const au = s.auctionPrice;
   const r2 = (v: number) => Math.round(v * 100) / 100;
+  const { tol, basis } = toleranceOf(s.atrPct);
   const stopPct = s.stop != null && base > 0 ? s.stop / base - 1 : null;
   const targetPct = s.target != null && base > 0 ? s.target / base - 1 : null;
 
@@ -68,11 +105,12 @@ export function orderPriceOf(s: {
   if (au == null || !(au > 0)) {
     price = base;
     pending = true;
-  } else if (au <= base * (1 + CHASE_CAP)) {
+  } else if (au <= base * (1 + tol)) {
     price = au;
   } else {
     price = null;
-    skipReason = `竞价 ${au} 比昨收 ${base} 高 ${(((au - base) / base) * 100).toFixed(1)}%，超过 ${(CHASE_CAP * 100).toFixed(0)}% 不追`;
+    const gap = ((au - base) / base) * 100;
+    skipReason = `竞价 ${au} 比昨收 ${base} 高 ${gap.toFixed(1)}%，${basis}——超出就不追`;
   }
   return {
     price: price == null ? null : r2(price),
@@ -80,6 +118,7 @@ export function orderPriceOf(s: {
     stop: price != null && stopPct != null ? r2(price * (1 + stopPct)) : (s.stop ?? null),
     target: price != null && targetPct != null ? r2(price * (1 + targetPct)) : (s.target ?? null),
     pending,
+    basis,
   };
 }
 
@@ -90,11 +129,12 @@ export function orderFieldsOf(s: {
   holdDays?: number;
   buyPrice: number;
   auctionPrice?: number | null;
+  atrPct?: number | null;
   stop?: number | null;
   target?: number | null;
 }): string {
   const o = orderPriceOf(s);
   if (o.price == null) return `今天不买 —— ${o.skipReason ?? "竞价过高"}`;
-  const tag = o.pending ? "（未竞价，按昨收）" : "";
+  const tag = o.pending ? "（未竞价，按昨收）" : `（${o.basis}）`;
   return `买 ${o.price}${tag} | 止损 ${o.stop ?? "—"} | 目标 ${o.target ?? "—"} | ${exitTextOf(s)}`;
 }

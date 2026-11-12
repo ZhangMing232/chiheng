@@ -172,6 +172,28 @@ async function main() {
     ? `信号日：${nowM.toLocaleDateString("sv-SE")}（竞价已核对）`
     : `信号日：${nowM.toLocaleDateString("sv-SE")}（预演：非竞价窗口，「竞价」价以当日开盘价代用）`;
 
+  /**
+   * 每只票近 5 日平均振幅 (H-L)/C，用来定「这只票能容忍多高的高开」。
+   * 只读本地 K 线（≤20 个文件），不联网。拿不到就返回 null，调用方退回默认 2%。
+   */
+  const atrOf = async (id: string): Promise<number | null> => {
+    try {
+      const raw = JSON.parse(await readFile(`data/backtest/kline/${id}.json`, "utf8")) as
+        | { date: string; c: number; h: number; l: number }[]
+        | { bars: { date: string; c: number; h: number; l: number }[] };
+      const bars = Array.isArray(raw) ? raw : raw.bars;
+      const today = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
+      const past = bars.filter((b) => b.date < today).slice(-5);
+      const vals = past.map((b) => (b.c > 0 ? (b.h - b.l) / b.c : 0)).filter((v) => v > 0);
+      if (vals.length < 3) return null;
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
+    } catch {
+      return null;
+    }
+  };
+  const atrMap = new Map<string, number | null>();
+  for (const r of reviewed) atrMap.set(r.id, await atrOf(r.id));
+
   // ── 「市场在玩什么」概览：涨停/连板/最高板/炸板率/情绪 + 题材热度 Top6 ──
   //    2026-11-12 合并推送：原来 9:26 这里推两条腿，runDecisionPush 再推一条「今日决策」，
   //    三条说的是同一件事、内容还重叠。现在概览并进当天第一条（中长线腿）顶部，
@@ -230,7 +252,7 @@ async function main() {
     // 执行行压成「买 价格 | 止损 | 目标」三要素，一眼可下单；纪律一行钉死。
     {
       const fmt = (r: (typeof reviewed)[number], mark: string) =>
-        `${mark} ${r.name} ${r.code} | ${orderFieldsOf({ ...r, auctionPrice: r.auctionPrice })} | 竞价${r.auctionPrice} ${gapText(r)}`;
+        `${mark} ${r.name} ${r.code} | ${orderFieldsOf({ ...r, auctionPrice: r.auctionPrice, atrPct: atrMap.get(r.id) ?? null })} | 竞价${r.auctionPrice} ${gapText(r)}`;
       const lok = longRows.filter((r) => r.verdict === "ok");
       const lwarn = longRows.filter((r) => r.verdict === "warn");
       const lskip = longRows.filter((r) => r.verdict === "skip");
@@ -260,7 +282,7 @@ async function main() {
     // 短线腿：题材补涨「短线买入单」。行格式同中长线三要素，多带一句题材理由。
     {
       const fmt = (r: (typeof reviewed)[number], mark: string) =>
-        `${mark} ${r.name} ${r.code}｜${r.reason.slice(0, 24)}｜${orderFieldsOf({ ...r, auctionPrice: r.auctionPrice })} | 竞价${r.auctionPrice} ${gapText(r)}`;
+        `${mark} ${r.name} ${r.code}｜${r.reason.slice(0, 24)}｜${orderFieldsOf({ ...r, auctionPrice: r.auctionPrice, atrPct: atrMap.get(r.id) ?? null })} | 竞价${r.auctionPrice} ${gapText(r)}`;
       const sok = shortRows.filter((r) => r.verdict === "ok");
       const swarn = shortRows.filter((r) => r.verdict === "warn");
       const sskip = shortRows.filter((r) => r.verdict === "skip");

@@ -73,13 +73,8 @@ function SignalRows({
    * 昨收只当纪律线：竞价高出昨收 3% 以上就不追——追高这条在项目里已被证伪（连板 −3.71%）。
    * 竞价还没出来（没跑审核）就只报挂价并标「待竞价」。
    */
-  const execPrice = (x: SignalReviewed) => x.auctionPrice ?? x.buyPrice;
-  const chasePct = (x: SignalReviewed) =>
-    x.auctionPrice != null && x.buyPrice > 0 ? x.auctionPrice / x.buyPrice - 1 : null;
-  const isChase = (x: SignalReviewed) => {
-    const g = chasePct(x);
-    return g != null && g > 0.02;
-  };
+  // 下单价由后端按该股自己的振幅算好（order），这里只负责摆——不在前端另立一套规矩
+  const isChase = (x: SignalReviewed) => x.order != null && x.order.price == null;
   const buyable = list.filter((x) => !isChase(x));
   const giveUp = list.filter(isChase);
 
@@ -98,14 +93,14 @@ function SignalRows({
         <span className="num text-[10px] text-muted">{x.code}</span>
       </span>
       <span className="flex shrink-0 items-baseline gap-1.5">
-        <span className="num text-xs">
-          {x.auctionPrice != null ? (
+        <span className="num text-xs" title={x.order?.basis ?? ""}>
+          {x.order?.price != null ? (
             <>
-              买 <b className={dim ? "text-muted" : "text-fg"}>{execPrice(x)}</b>
-              <span className="ml-1 text-[10px] text-muted">竞价</span>
+              买 <b className={dim ? "text-muted" : "text-fg"}>{x.order.price}</b>
+              <span className="ml-1 text-[10px] text-muted">{x.auctionPrice == null ? "未竞价" : "竞价"}</span>
             </>
           ) : (
-            <>挂 {x.buyPrice}</>
+            <>—</>
           )}
         </span>
         <FillTag s={x} />
@@ -124,7 +119,7 @@ function SignalRows({
       {giveUp.length > 0 ? (
         <div className="mt-1 rounded border border-line bg-surface2 px-2 py-1.5">
           <div className="text-[11px] font-medium text-warn">
-            不追高，今天不买：{giveUp.length} 只（竞价高出昨收 2% 以上）
+            不追高，今天不买：{giveUp.length} 只（高开超出该股自身振幅能容忍的幅度）
           </div>
           {giveUp.map((x) => (
             <div key={x.code} className="flex items-baseline justify-between gap-2 py-0.5 text-[11px] text-muted">
@@ -132,9 +127,7 @@ function SignalRows({
                 <span className="truncate">{x.name}</span>
                 <span className="num">{x.code}</span>
               </span>
-              <span className="num shrink-0">
-                昨收 {x.buyPrice} → 竞价 {x.auctionPrice}（高 {((chasePct(x) ?? 0) * 100).toFixed(1)}%）
-              </span>
+              <span className="num shrink-0 text-right">{x.order?.skipReason ?? "—"}</span>
             </div>
           ))}
         </div>
@@ -162,7 +155,7 @@ function FillTag({ s }: { s: SignalReviewed }) {
 /** 一屏之内的成交率，一句话说完：给了几条、能买几条、真成交几条、放弃几条。 */
 function FillSummary({ list }: { list: SignalReviewed[] }) {
   if (list.length === 0) return null;
-  const giveUp = list.filter((x) => x.auctionPrice != null && x.buyPrice > 0 && x.auctionPrice / x.buyPrice - 1 > 0.02);
+  const giveUp = list.filter((x) => x.order != null && x.order.price == null);
   const active = list.filter((x) => !giveUp.includes(x));
   const filled = active.filter((x) => x.fill?.status === "filled").length;
   const missed = active.filter((x) => x.fill?.status === "missed").length;
@@ -319,7 +312,8 @@ function DecisionPage() {
             )}
             <div className="border-t border-line px-2 py-2 text-[11px] leading-relaxed text-muted">
               口径：热门题材的次强/补涨股（题材补涨腿）。<b className="text-fg">买价＝竞价价</b>（挂它就能成交）；
-              昨收只当纪律线，竞价高出 2% 就不追（与推送同一条闸）。原来按昨收挂，过去 20 笔只成交 9 笔（
+              容忍度跟着该股近 5 日平均振幅走（一半振幅，夹 1%~5%）——不是固定百分比；
+              超出就是今天不买，绝不给你一个买不到的挂单价。原来按昨收挂，过去 20 笔只成交 9 笔（
               <b className="text-warn">45%</b>）——报个全天没出现过的价等于没给价。
               改成能成交的价≠更能赚：这条腿回测成交样本 +0.06%，本来就没有超额。
               <FillSummary list={shortSignals} />

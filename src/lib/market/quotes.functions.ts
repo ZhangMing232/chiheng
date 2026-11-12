@@ -1424,6 +1424,18 @@ export interface SignalReviewed extends SignalCandidate {
   target?: number;
   /** 由当日 K 线判定：成交 / 未触价 / K 线还没更新 */
   fill?: SignalFill;
+  /**
+   * 报给你的下单价 + 为什么是这个价。
+   * 容忍度跟着该股近 5 日平均振幅走（0.5×振幅，夹在 1%~5%），不是固定百分比——
+   * 银行股振幅 1.2% 高开 2% 就该放弃，中际旭创振幅 8% 高开 2% 只是正常呼吸。
+   * 口径与 scripts/lib/signal-legs.ts 的 orderPriceOf 一致（那边是推送用）。
+   */
+  order?: {
+    price: number | null;
+    skipReason: string | null;
+    basis: string;
+    tolerance: number;
+  };
 }
 
 /** 收盘初筛候选信号。 */
@@ -1870,18 +1882,55 @@ export const getSignalReviewed = createServerFn({ method: "GET" }).handler(async
           const bars = Array.isArray(barsRaw) ? barsRaw : barsRaw.bars;
           const bar = bars.find((b) => b.date === parsed.date);
           if (!bar) {
-            return { ...sig, fill: { status: "pending", fillPrice: null, low: null, note: "当天的 K 线还没更新（15:10 之后才有），暂时判不了" } };
+            return {
+              ...sig,
+              order: (() => {
+                const au = sig.auctionPrice;
+                const tol = 0.02;
+                const ok = au == null || !(au > 0) || au <= sig.buyPrice * (1 + tol);
+                return {
+                  price: ok ? (au ?? sig.buyPrice) : null,
+                  skipReason: ok ? null : `竞价 ${au} 比昨收 ${sig.buyPrice} 高 ${(((au! - sig.buyPrice) / sig.buyPrice) * 100).toFixed(1)}%，没有 K 线按默认 2%——超出就不追`,
+                  basis: "没有 K 线，按默认 2%",
+                  tolerance: tol,
+                };
+              })(),
+              fill: { status: "pending", fillPrice: null, low: null, note: "当天的 K 线还没更新（15:10 之后才有），暂时判不了" },
+            };
           }
           // 判定用**实际报给你的下单价**：有竞价价就按竞价价（那是能成交的价），
           // 没有才退回挂价。拿昨收限价去判「成交没有」会得出大量假未成交。
-          const order = sig.auctionPrice ?? sig.buyPrice;
-          if (bar.o <= order) {
-            return { ...sig, fill: { status: "filled", fillPrice: bar.o, low: bar.l, note: `开盘 ${bar.o} 已低于下单价 ${order}，按开盘价成交` } };
+          // 该股近 5 日平均振幅 → 今天能容忍多高的高开
+          const past = bars.filter((b) => b.date < parsed.date).slice(-5);
+          const atrVals = past.map((b) => (b.c > 0 ? (b.h - b.l) / b.c : 0)).filter((v) => v > 0);
+          const atrPct = atrVals.length >= 3 ? atrVals.reduce((a, b) => a + b, 0) / atrVals.length : null;
+          const tol = atrPct == null ? 0.02 : Math.min(0.05, Math.max(0.01, atrPct * 0.5));
+          const basis =
+            atrPct == null
+              ? "没有 K 线，按默认 2%"
+              : `近5日振幅 ${(atrPct * 100).toFixed(1)}%，容忍 ${(tol * 100).toFixed(1)}%`;
+          const au = sig.auctionPrice;
+          let orderPrice: number | null = null;
+          let skipReason: string | null = null;
+          if (au == null || !(au > 0)) {
+            orderPrice = sig.buyPrice;
+          } else if (au <= sig.buyPrice * (1 + tol)) {
+            orderPrice = au;
+          } else {
+            skipReason = `竞价 ${au} 比昨收 ${sig.buyPrice} 高 ${(((au - sig.buyPrice) / sig.buyPrice) * 100).toFixed(1)}%，${basis}——超出就不追`;
           }
-          if (bar.l <= order) {
-            return { ...sig, fill: { status: "filled", fillPrice: order, low: bar.l, note: `盘中最低 ${bar.l} 触到下单价 ${order}，按下单价成交` } };
+          const order = { price: orderPrice == null ? null : Math.round(orderPrice * 100) / 100, skipReason, basis, tolerance: tol };
+
+          if (order.price == null) {
+            return { ...sig, order };
           }
-          return { ...sig, fill: { status: "missed", fillPrice: null, low: bar.l, note: `全天最低 ${bar.l}，没碰到下单价 ${order}，这张单没成交` } };
+          if (bar.o <= order.price) {
+            return { ...sig, order, fill: { status: "filled", fillPrice: bar.o, low: bar.l, note: `开盘 ${bar.o} 已低于下单价 ${order.price}，按开盘价成交` } };
+          }
+          if (bar.l <= order.price) {
+            return { ...sig, order, fill: { status: "filled", fillPrice: order.price, low: bar.l, note: `盘中最低 ${bar.l} 触到下单价 ${order.price}，按下单价成交` } };
+          }
+          return { ...sig, order, fill: { status: "missed", fillPrice: null, low: bar.l, note: `全天最低 ${bar.l}，没碰到下单价 ${order.price}，这张单没成交` } };
         } catch {
           return { ...sig, fill: { status: "pending", fillPrice: null, low: null, note: "K 线缺失，判不了成交" } };
         }
