@@ -36,6 +36,7 @@ import {
 import { filterOverseas, sortOverseas, type OverseasMarket, type OverseasSort } from "@/lib/market/overseas-list";
 import { fmtPrice, toneClass } from "@/lib/market/format";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 type Tab = "list" | "indices" | "watch";
 
@@ -106,6 +107,15 @@ function OverseasPage() {
       }
     >
       <PixelHeader label="OVERSEAS // GLOBAL" meta="港美指数与个股 · 时区不同，别拿它的涨跌当次日指引" />
+      <PixelSummary
+        label="OVERSEAS // GLOBAL"
+        note="时区不同 · 别拿它的涨跌当次日指引"
+        stats={[
+          { label: "本页", value: list?.rows?.length ?? null, tone: "brand", hero: true, hint: `共 ${list?.total ?? "—"} 只 · 第 ${list?.page ?? 1} 页` },
+          { label: "指数", value: indices?.quotes?.length ?? null },
+          { label: "我的港美", value: watch?.rows?.length ?? null, tone: "up" },
+        ]}
+      />
       <Panel title="港美行情" note="只看数据，不做策略">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
           {TABS.map((tab) => (

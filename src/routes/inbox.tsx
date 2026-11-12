@@ -24,6 +24,7 @@ import { ALERT_INBOX_LIMIT } from "@/lib/market/alerts";
 import { useMountedNow } from "@/lib/ui/relative-time";
 import type { Alert } from "@/lib/market/alerts";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/inbox")({
   loader: () => getAlerts(),
@@ -97,6 +98,14 @@ function InboxPage() {
       }
     >
       <PixelHeader label="INBOX // ALERTS" meta="只承接策略提醒、预警应验和没跑成的结果" />
+      <PixelSummary
+        label="INBOX // ALERTS"
+        note="只承接策略提醒、预警应验和没跑成的结果"
+        stats={[
+          { label: "全部", value: rows.length, tone: "brand", hero: true, hint: "条" },
+          { label: "未读", value: unread, tone: "up" },
+        ]}
+      />
       <Panel
         title="收件箱"
         note={`${rows.length} 条${unread > 0 ? ` · ${unread} 条未读` : ""}${rows.length >= ALERT_INBOX_LIMIT ? ` · 已满 ${ALERT_INBOX_LIMIT} 条，最旧的被砍` : ""}`}

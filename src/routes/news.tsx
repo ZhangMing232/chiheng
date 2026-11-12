@@ -21,6 +21,7 @@ import { getNews, getRelay, getRules, getServerJournal, getUniverse } from "@/li
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import type { NewsItem, NewsTone } from "@/lib/market/news";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 const WATCH: StyleId[] = ["early", "trend", "breakout", "value"];
 const TONE_LABEL: Record<NewsTone, string> = { good: "利好", bad: "利空", flat: "未表态" };
@@ -181,6 +182,16 @@ function NewsPage() {
         news.length > 0 ? (
           <span className="text-[12px] tabular-nums">
       <PixelHeader label="NEWS // FEED" meta="快讯流 · 原文在来源站，这里只做归集" />
+      <PixelSummary
+        label="NEWS // FEED"
+        note={failed ? "有源没拉到" : "已归集"}
+        stats={[
+          { label: "快讯", value: news.length, tone: "brand", hero: true, hint: "条" },
+          { label: "涉及持仓", value: held.length, tone: "up", hint: "只" },
+          { label: "涉及自选", value: picked.length, tone: "up" },
+          { label: "源失败", value: failed ? 1 : 0, tone: failed ? "warn" : "muted" },
+        ]}
+      />
             利好 {good.boards.length + good.stocks.length} · 利空{" "}
             {bad.boards.length + bad.stocks.length}
           </span>

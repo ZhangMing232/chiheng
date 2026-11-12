@@ -13,6 +13,7 @@ import { Frame } from "@/components/screener/nav";
 import { FlowDerivedTabs, FlowSectionTabs, North } from "@/components/flow-sections";
 import { getFlow } from "@/lib/market/quotes.functions";
 import { PixelHeader } from "@/components/pixel-header";
+import { PixelSummary } from "@/components/pixel-summary";
 
 export const Route = createFileRoute("/flow/north")({
   loader: async () => ({ book: await getFlow().catch(() => null) }),
@@ -25,6 +26,14 @@ function FlowNorthPage() {
     <Frame wide aside="资金流向 · 北向">
       <FlowSectionTabs />
       <PixelHeader label="FLOW // DERIVED · NORTH" meta="北向只有成交额，净买入盘中不再公布" />
+      <PixelSummary
+        label="FLOW // NORTH"
+        note="只公布成交额 · 盘中净买入不再披露"
+        stats={[
+          { label: book?.north?.[0]?.name ?? "沪股通", value: book?.north?.[0] ? `${(book.north[0].amount / 1e4).toFixed(1)}亿` : null, tone: "up", hero: true, hint: "成交额" },
+          { label: book?.north?.[1]?.name ?? "深股通", value: book?.north?.[1] ? `${(book.north[1].amount / 1e4).toFixed(1)}亿` : null, tone: "up", hint: "成交额" },
+        ]}
+      />
       <div className="mb-2"><FlowDerivedTabs active="north" /></div>
       <North legs={book?.north ?? []} />
     </Frame>
