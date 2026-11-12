@@ -231,7 +231,7 @@ function Review() {
 
         <Panel
           title="快讯要点"
-          note={<span>今天 {news.length} 条 · 利好 {tones.good} · 利空 {tones.bad}</span>}
+          note={<span>今天 {news.length} 条 · 利好 {tones.good} · 利空 {tones.bad} · 与 /news 同源（盘后筛选）</span>}
         >
           {headlines.length === 0 ? (
             <StateBlock kind="empty" title="今天还没有快讯" hint="盘中大约一分钟更新一次。" />

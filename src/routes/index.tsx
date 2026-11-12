@@ -23,7 +23,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getLadder3Day, type LadderRow } from "@/lib/market/quotes.functions";
 import { Link } from "@tanstack/react-router";
 import { useStockDetail } from "@/components/stock-detail-modal";
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag, Prog, pctClass } from "@/components/terminal";
 import { SentimentGauge } from "@/components/sentiment-gauge";
@@ -51,7 +50,6 @@ import {
   getStrategyGates,
   getThemeHeat,
   getSignalReviewed,
-  getTrend,
   getUniverse,
   type ThemeHeatItem,
   type SignalReviewed,
@@ -83,10 +81,6 @@ export const Route = createFileRoute("/")({
         // 3 日梯队（算较前值）
         getLadder3Day().catch(() => ({ dates: [] as string[], ladder: {} as Record<string, Record<string, LadderRow[]>>, promotion: {} })),
       ]);
-    // 大盘分时用第一只指数画（getTrend 只认常用指数白名单，索引行情出来的 id 一定在）。
-    const trend = indices[0]
-      ? await getTrend({ data: { id: indices[0].id } }).catch(() => null)
-      : null;
     // 全市场快照 ~5300 只、进 SSR HTML 有 1.2MB，手机端解析时会卡到点不动。
     // 首页只用持仓相关的几只（priceOf 按 id 查现价/涨跌），先按账本 id 瘦身再返回。
     const slimUniverse = slimUniverseByIds(universe, journalTradeIds(journal));
@@ -109,7 +103,7 @@ export const Route = createFileRoute("/")({
         ? new Date(`${phase.date}T${indices[0].time}`).getTime()
         : null;
     return {
-      phase, indices, journal, universe: slimUniverse, recorder, trend, flow,
+      phase, indices, journal, universe: slimUniverse, recorder, flow,
       breadth, sentiment, stamp, pools, themes, reviewed,
       // 行情新鲜度条的「延迟」依赖当前时刻：放进 loader 算一次、随 loader 数据序列化，
       // SSR 与客户端 hydration 拿到的是同一个值，不会因服务端/客户端时刻差触发 #418。
@@ -139,7 +133,7 @@ function yi(wan: number | null): string {
 
 function Dashboard() {
   const {
-    phase, indices, journal, universe, recorder, trend, flow,
+    phase, indices, journal, universe, recorder, flow,
     breadth, sentiment, stamp, serverNow, pools, themes, reviewed,
     runningChallengers, challengerSamples, overseas, overseasGaps, news,
     gates, ladder3,
@@ -388,36 +382,6 @@ function Dashboard() {
         </div>
       </Panel>
 
-      <div className="grid gap-2">
-        {/* 原来的「今日关键数字」已移到第三行「市场事实与资金」，这里只留放大的大盘分时。 */}
-        <Panel title="大盘分时" note={indices[0] ? `${indices[0].name} ${indices[0].price.toFixed(2)}` : "指数暂时拉不下来"}>
-          {trend && trend.points.length > 1 ? (
-            <div className="h-[210px] px-2 py-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trend.points} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--color-up)" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="var(--color-up)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: "var(--color-muted)" }} tickLine={false} axisLine={false} minTickGap={48} />
-                  <YAxis domain={["dataMin", "dataMax"]} tick={{ fontSize: 10, fill: "var(--color-muted)" }} tickLine={false} axisLine={false} width={48} tickFormatter={(v: number) => v.toFixed(2)} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: 6, fontSize: 12 }}
-                    labelStyle={{ color: "var(--color-muted)" }}
-                    formatter={(value) => [Number(value).toFixed(2), "点位"]}
-                  />
-                  {trend.prevClose != null ? <ReferenceLine y={trend.prevClose} stroke="var(--color-line)" strokeDasharray="3 3" /> : null}
-                  <Area type="monotone" dataKey="price" stroke="var(--color-up)" strokeWidth={1.5} fill="url(#trend-fill)" isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex h-[210px] items-center justify-center text-sm text-muted">分时数据暂时拉不下来</div>
-          )}
-        </Panel>
-      </div>
         </div>
 
         {/* 右栏：效果图签名件——未读提醒 + 今日信号 */}
@@ -582,37 +546,11 @@ function Dashboard() {
               tone={mainInflow == null ? undefined : mainInflow > 0 ? "text-up" : mainInflow < 0 ? "text-down" : undefined}
               hint={flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂不可用"}
             />
+            <KeyNum label="北向成交额" value={northAmount != null ? yi(northAmount) : null} hint="沪深股通双腿合计；净流入自 2024-08 起不再公布" />
           </div>
         </Panel>
       </div>
 
-      {/* ── Zone B 资金与结构 ── */}
-      <div className="grid gap-2">
-        <Panel title="资金快照" note={flow ? `数据 ${new Date(flow.asOf).toTimeString().slice(0, 5)}` : "资金流向暂不可用"}>
-          <div className="grid grid-cols-1 gap-x-3 p-3 sm:grid-cols-3">
-            <KeyNum
-              label="主力净额 · 全市场"
-              value={mainInflow == null ? null : yi(mainInflow)}
-              tone={mainInflow == null ? undefined : mainInflow > 0 ? "text-up" : mainInflow < 0 ? "text-down" : undefined}
-              hint="主力 = 超大单 + 大单"
-            />
-            <KeyNum
-              label="北向成交额"
-              value={northAmount != null ? yi(northAmount) : null}
-              hint="沪深股通双腿合计；净流入自 2024-08 起不再公布"
-            />
-            <KeyNum
-              label="两市成交额"
-              value={tapeAmount != null ? yi(tapeAmount) : null}
-              hint={prevTape ? `昨日 ${yi(prevTape)}${tapeAmount != null && prevTape ? `（${tapeAmount >= prevTape ? "+" : ""}${(((tapeAmount - prevTape) / prevTape) * 100).toFixed(1)}%）` : ""}` : undefined}
-            />
-          </div>
-        </Panel>
-
-        {/* 2026-11-11 晚删掉「行业主力净流入 TOP5」：上面「主力资金动向」的
-            板块流入/流出两列就是同一份 flow.sectorsIn/sectorsOut，这里再排一次
-            只是换了排序和条形图。要看分行业明细去 /flow/industries。 */}
-      </div>
 
       {/* ── Zone C 全球对照 + 产品状态 ── */}
       <div className="grid gap-2 lg:grid-cols-2">
