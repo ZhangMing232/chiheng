@@ -196,17 +196,19 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 
 ---
 
-## 7. 当前状态（2026-11-13 实测）
+## 7. 当前状态（2026-11-13 深夜实测）
 
 | 项 | 状态 |
 |---|---|
-| 服务 | **在跑**：8787 HTTP 200，`.output` 是 11-13 09:53 的新构建，SSR 里「微信推送 / 今天该干什么 / 设置与状态」都在 → 跑的是含最新提交的代码。launchd 三件（serve / tunnel / backup 23:30）沿用；`com.chiheng.verdict` 11-06 已 bootout，每日判决走 `record-journal` 收盘封印段的 `auto-verdict.ts`。详见 `design/REMAINING.md` §13 |
-| 测试 | **1,324 / 1,324 全绿** · typecheck 干净 · `check:client` 96 个 JS 干净 · 冒烟 **0 FAIL**（11-13 修掉「首页找复盘」的过时断言，见 `scripts/smoke-test.mjs`） |
-| 数据链路 | 记账心跳 `data/recorder.json` 与三池快取差 1 秒；快取 `sealed=false`、每 3 分钟刷新；`limit-pools` 归档 15 天、`closes` 303、`forecast` 4。今晚 15:12 走收盘封印 |
+| 服务 | **在跑**：8787 HTTP 200，`.output` 是 11-13 深夜的新构建（双页头收口 + huiyan 重排已上线）。launchd 三件（serve / tunnel / backup 23:30）沿用；`com.chiheng.verdict` 11-06 已 bootout，每日判决走 `record-journal` 收盘封印段的 `auto-verdict.ts`。详见 `design/REMAINING.md` §13 |
+| 测试 | **1,341 / 1,341 全绿** · typecheck 干净 · `check:client` 97 个 JS 干净 · 冒烟 **0 FAIL** |
+| git | **origin/main 已同步 `9695506`**。11-13 晚五个提交：对账+ScopeNote+归档（dbddb39）、P2 四条（0715088）、UI 根因修复（80700d6）、双页头收口（ffb2d02）、huiyan 重排（9695506） |
+| 数据链路 | 记账心跳正常；`data/reconcile/<date>.json` 每日收盘后自动落对账快照（11-13 起新增）；`limit-pools` 归档 15 天、`closes` 303、`forecast` 4 |
 | 策略 | 现役 `ACTIVE_STYLES = ["value"]` 一套；breakout 被闸门 disabled（10-29 起，「全池 t=-2.35 无 alpha」）。已下线 4 套只结算历史仓。**研究结论未因这次改版变化**：`strategy-verdicts.json` 11 套聚类 t 全在 ±2 内，无可部署 alpha |
+| 对账裁决 | **P2「两链合一」已评估并裁决不做**（5 日实测 31 笔差异 = 16 挑战者实验 + 15 盘中新增，0 丢单）。`/today` 短线腿标「观察·不建仓」；策略追踪「今日对照」带三类归因标签。详见 `design/P2-RECONCILE-REPORT.md` |
 | 密钥 | `ai-config.json` / `push-config.json` / `tushare-config.json` 三个都是 600，不进 git、不贴进对话 |
 | 推送 | 见下方「两条推送通道」 |
-| 待办 | 96 个本地提交尚未推到 `origin/main`（停在 11-10 `b8c7b2f`）；仓库文档本次已更新到 11-13（改动尚未提交） |
+| 待办 | **E2 baseline 已重跑完成**（`data/backtest/baseline-2026-11-13.txt`，窗口 2025-11-04~2026-11-13，11 套全未过两关、超额 ≤0.8%）。P1-3 硬判据 / DECISIONS 三件仍待拍板——本轮数字不支持任何口径放宽 |
 
 ### 两条推送通道（别混，2026-11-13 核实）
 
