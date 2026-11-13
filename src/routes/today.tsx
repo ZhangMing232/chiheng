@@ -258,6 +258,8 @@ function DecisionPage() {
     status: string; statusTone: "ok" | "no" | "wait"; dead?: boolean; exit: string;
     /** 账本真实成交状态；只用账本 entry，绝不用理论成交 fillPrice。 */
     book: string; bookTone: "ok" | "muted" | "warn";
+    /** 短线腿是观察名单：已淘汰策略不建仓，不计入「可买」。 */
+    observeOnly?: boolean;
   };
   /** 一行按六位 code 查账本。读不到时显示原因，不谎称「未买」。 */
   const bookCell = (code: string): Pick<Row, "book" | "bookTone"> => {
@@ -288,6 +290,9 @@ function DecisionPage() {
   }
 
   for (const [list, label] of [[shortSignals, "短线"], [longSignals, "中长线"]] as const) {
+    // 短线（relay）已在 RETIRED_STYLES：只结算历史仓、不建仓。它的行照常列，
+    // 但状态必须写「观察·不建仓」，否则用户看到没进账本会以为丢单（P2 报告 §5-②）。
+    const observeOnly = label === "短线";
     for (const sig of list) {
       const skip = sig.order != null && sig.order.price == null;
       rows.push({
@@ -295,18 +300,21 @@ function DecisionPage() {
         pathTone: label === "短线" ? "text-brand" : "text-brand-text",
         name: sig.name, code: sig.code, id: sig.id,
         price: skip ? "不追高·放弃" : String(sig.order?.price ?? sig.buyPrice),
-        priceNote: skip ? "" : sig.fill?.status === "filled" ? "成交" : "可买",
+        priceNote: skip ? "" : observeOnly ? "观察" : sig.fill?.status === "filled" ? "成交" : "可买",
         why: sig.order?.basis ?? sig.order?.skipReason ?? sig.reason.slice(0, 28),
-        status: skip ? "放弃" : sig.fill?.status === "filled" ? "成交" : sig.fill?.status === "missed" ? "未成交" : "待判定",
-        statusTone: skip ? "no" : sig.fill?.status === "filled" ? "ok" : sig.fill?.status === "missed" ? "no" : "wait",
+        status: observeOnly ? "观察·不建仓" : skip ? "放弃" : sig.fill?.status === "filled" ? "成交" : sig.fill?.status === "missed" ? "未成交" : "待判定",
+        statusTone: observeOnly ? "wait" : skip ? "no" : sig.fill?.status === "filled" ? "ok" : sig.fill?.status === "missed" ? "no" : "wait",
         dead: skip,
         exit: sig.holdDays ? `第 ${sig.holdDays} 日` : "按纪律",
         ...bookCell(sig.code),
+        observeOnly: observeOnly || undefined,
       });
     }
   }
-  const buyable = rows.filter((r) => !r.dead).length;
+  // 观察行（短线·已淘汰策略）既不算「可买」也不算「放弃」——它不是今天的买入计划。
+  const buyable = rows.filter((r) => !r.dead && !r.observeOnly).length;
   const givenUp = rows.filter((r) => r.dead).length;
+  const observing = rows.filter((r) => r.observeOnly).length;
   const promo1 = (() => {
     const ds = ladder3.dates;
     const d = ds[ds.length - 1];
@@ -332,6 +340,7 @@ function DecisionPage() {
             <span className="px-st no">今日情绪档 · {mood.band}</span>
             <span className="px-st ok">候选 {buyable}</span>
             <span className="px-st wait">放弃 {givenUp}</span>
+            {observing > 0 ? <span className="px-num text-[12px] text-muted">观察 {observing}（不建仓）</span> : null}
             <span className="px-num text-[12px] text-muted">账本成交 {reconcile.bookTradeCount} 笔</span>
           </div>
         </div>
@@ -467,6 +476,11 @@ function DecisionPage() {
             <p className="mt-1 text-[12px] leading-relaxed text-muted">
               来自今早竞价审核（reviewed.json）：短线跟题材、中长线跟低估值。和前瞻链是两套不同的扫描，各自独立选股，没有谁复选谁。
             </p>
+            <p className="mt-1 text-[12px] leading-relaxed text-warn">
+              短线（题材补涨）一套<b className="text-fg">已淘汰、只结算历史仓</b>，记账进程不会为它建仓
+              （<code className="px-num">ACTIVE_STYLES=[&quot;value&quot;]</code>）。所以短线那几行是<b className="text-fg">观察名单</b>，
+              不是今天的买入计划——看到它们没进账本，不是丢单。
+            </p>
           </div>
         </div>
 
@@ -572,7 +586,7 @@ function DecisionPage() {
         {/* 手机端固定结论条：一屏看完不用往上滚。窄屏才出现，桌面端隐藏。 */}
         <div className="px-mobile-bar sm:hidden" aria-hidden="true">
           <div className="px-num text-[12px] text-muted">
-            今日情绪档 <b className="text-warn">{mood.band}</b> · 可买 <b className="text-brand">{buyable}</b> · 放弃 <b className="text-fg">{givenUp}</b>
+            今日情绪档 <b className="text-warn">{mood.band}</b> · 可买 <b className="text-brand">{buyable}</b> · 放弃 <b className="text-fg">{givenUp}</b>{observing > 0 ? <> · 观察 <b className="text-muted">{observing}</b></> : null}
           </div>
           <div className="px-num text-[12px] text-brand">看矩阵 ▾</div>
         </div>

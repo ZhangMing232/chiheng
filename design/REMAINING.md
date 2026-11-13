@@ -16,13 +16,20 @@
 > 改动归档见 `design/DECISIONS.md` 最后一节，界面真源 `design/redesign-2026-11/`，
 > 现行页面清单与推送通道边界见 `PROJECT.md` §3 / §7。
 >
-> **工程状态**：8787 在跑且 `.output` 是 11-13 09:53 的新构建；
-> typecheck 干净 · `check:client` 96 个 JS 干净 · **`npm test` 1324/1324** ·
-> 线上冒烟 **0 FAIL**；盘中采集 3 分钟一跳、记账心跳正常。
+> **工程状态（2026-11-13 22:40 实测，本轮收尾后）**：8787 在跑且 `.output` 是
+> **11-13 22:13 的新构建**（`npm run build:mac` + `mac:restart` 后已上线，
+> `scope-note-C3vfusMW.js` 已渲染）；typecheck 干净 · `check:client` **97 个 JS** 干净 ·
+> **`npm test` 1333/1333** · `reconcile-p2.ts` 可复跑；8787 / 3080 DSH 全 200、记账心跳正常。
 > **策略结论没变**：`ACTIVE_STYLES=["value"]` 一套，`strategy-verdicts.json` 仍是
 > 11 套聚类 t 全在 ±2 内、无可部署 alpha——这轮改版一行研究层都没动。
 >
-> **仍未处理**：本地 96 个提交未推 `origin/main`（停在 11-10）；仓库文档本次已同步到 11-13。
+> **已推送**：`origin/main` 已同步到 **`dbddb39`**（11-13 22:4x push，含 `eb3b6bb`）；
+> 本轮新增 `design/P2-RECONCILE-REPORT.md`、`scripts/reconcile-p2.ts`、
+> `src/components/scope-note.tsx`、`src/lib/market/daily-reconcile.ts(+test)` 与
+> `scripts/mac.sh` 的 restart 修复。**P2 两链合一已评估裁决「不做」**（见
+> `design/P2-RECONCILE-REPORT.md`），不再列为待拍板。
+>
+> 下面 10-23 那段是历史快照，别当成今天。
 
 护栏齐了、研究流水线跑通、SOP 6/6、数据 D1-D10 落地（含宏观四块/事件驱动东财 6 类）、
 港美行情接入、GitHub 已同步。**973 测试全绿**（2026-10-23）。Vibe-Research 对齐两轮，
@@ -36,7 +43,10 @@ Vibe-Trading 融合 VT1-VT7 完成（VT6 暂缓）。
 - ✅ /studio 自媒体图文（复盘海报/资金异动，AI 文案活人感，抖音/公众号两版式）
 - ✅ 公网访问跑通一次（meanwhy.top + Cloudflare Tunnel，**隧道是手动开的，没常开**）
 - ✅ 信息架构收口（侧栏 7 功能组；删 /desk；/flow 三合一）
-- ⬜ 真收款（支付通道，MEMBERSHIP.md 第三节待拍板）、生产库 Neon、成本核算
+- ⏸ **真收款 / 生产库 Neon / 成本核算整条线冻结**（2026-10-22 用户拍板「付费模式先待定」；
+  11-13 复核：`pricing.ts:66` 仍是占位文案、本机无 `DATABASE_URL`、不开放注册）。
+  早期产品化文档已归档到 `design/archive/ARCHIVED-*.md`，见 `ARCHIVED-README.md` 的现行真源表。
+  **别再当成待拍板项**——要恢复得先单独拍板，且要先接 Neon。
 
 **待拍板**：design/DECISIONS.md 剩余三件（g5 换 DSR / 同日样本去留 / 名单饱和观察；
 第 1 件 Welch 提前否决已于 63c6219 按 C 落地）。
@@ -52,7 +62,7 @@ Vibe-Trading 融合 VT1-VT7 完成（VT6 暂缓）。
 | D3 | 融资融券 + 龙虎榜 | 东财 datacenter | 风险清单的杠杆/交易结构那一半 | ✅ 完成（margin.ts） |
 | D4 | 股东户数 + 解禁表 | 东财 datacenter | 治理风险、流动性风险 | ✅ 完成（holder-lift.ts） |
 | D5+D6 | 行业月度数据 + 行业分类 | 东财板块（日线+资金流+三级分类） | **产业链 SOP 的原料** | ✅ 完成（2026-10-13，见下） |
-| D7 | 宏观（CPI/PMI/社融） | 待定 | 宏观面 | ⬜ |
+| D7 | 宏观（国债收益率曲线 / PMI / 社融） | 中债 / 统计局 / 央行 | 宏观面 | ✅ 完成（2026-10-14，`src/lib/market/macro.ts` 三块 + `data/macro/` + `/review` 宏观水温区；`GAP-REPORT.md` 已标 ✅，原先本表标 ⬜ 是漏改） |
 | D8 | 问财自然语言选股 | 同花顺授权/爬取 | 自然语言选股 | ⬜ |
 | D9+D10 | 信号类（涨停池/炸板/龙头）+ 事件驱动/打板 | 东财 datacenter | 打板族数据 | ⬜ |
 
@@ -128,7 +138,7 @@ markets.ts 已把规则登记成表（T+1/T+0、涨跌停、币种、时区）�
 
 | # | 项 | 说明 | 状态 |
 |---|---|---|---|
-| E1 | push | origin/main 已同步到最新（10-13 核实 `git status` 无 ahead/behind） | ✅ 已推送 |
+| E1 | push | `origin/main` 已同步（**2026-11-13 22:4x 复核：本地与远端同为 `dbddb39`**，无 ahead/behind） | ✅ 已推送 |
 | E2 | baseline 重跑 | 成本口径变了（基准也扣费），旧 baseline 数字失效 | ⬜ 说一声就跑 |
 | E3 | 休市日：settle.ts 抽取 + backup() 加固 | 两个 60 秒热路径任务，要补测试保护 | ✅ 完成（2026-10-13，settle 7 测 + backup 加固） |
 | E4 | Electron 桌面端 | 建议不做（Web 够用） | ✅ 2026-10-12 拍板：不做 |

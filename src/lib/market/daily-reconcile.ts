@@ -36,6 +36,8 @@ export type ReconcileTrade = {
   entry: number;
   style?: string;
   variant?: string | null;
+  /** 挑战者深扫标记：和 variant 一起决定「实验田」归因。 */
+  deepScan?: boolean | null;
   exit?: number | null;
 };
 
@@ -131,4 +133,46 @@ export function reconcileDay(args: {
 /** 给页面用的一行汇总，数字都从结果里现算，不写死。 */
 export function reconcileSummary(r: ReconcileResult): string {
   return `信号 ${r.signalRows.length} 只 · 账本成交 ${r.bookTradeCount} 笔 · 重合 ${r.matched.length} 只`;
+}
+
+/**
+ * 「账本买了、/today 没提」的归因（P2 报告 §5-①）。
+ *
+ * 2026-11-13 对 5 个交易日 31 笔差异逐笔核过：没有一笔是丢单，全是这三类。
+ * 分类互斥、顺序即优先级；页面只显示结论，不再让用户自己猜为什么没对上。
+ *
+ * - `experiment`：带 variant / deepScan → 冠军-挑战者管道的独立实验田，/today 按定义不展示；
+ * - `retired`：style 不是现役 value → 已淘汰策略的历史结算；
+ * - `intraday`：出现在当天 signals.jsonl 里 → 09:26 竞价审核之后行情变了、新票进池；
+ * - `unknown`：读不到信号日志（logCodes 为 null）或确实无留痕 —— 如实说，不猜。
+ *
+ * 纯函数、零 IO：logCodes 由服务端 serverFn 读好后传进来，页面不碰 node 内置。
+ */
+export type BookOnlyReason = "experiment" | "retired" | "intraday" | "unknown";
+
+export const BOOK_ONLY_LABEL: Record<BookOnlyReason, string> = {
+  experiment: "挑战者·深扫实验",
+  retired: "已淘汰策略结算",
+  intraday: "盘中新增扫描",
+  unknown: "未留痕",
+};
+
+export function attributeBookOnly(
+  trade: ReconcileTrade,
+  logCodes: Set<string> | null,
+  activeStyle = "value",
+): BookOnlyReason {
+  if (trade.variant || trade.deepScan) return "experiment";
+  if (trade.style && trade.style !== activeStyle) return "retired";
+  if (logCodes == null) return "unknown";
+  return logCodes.has(sixDigitCode(trade.code)) ? "intraday" : "unknown";
+}
+
+/** 一次给整组「账本独有」归类，返回与原数组同序的标签数组。 */
+export function attributeBookOnlyAll(
+  trades: ReconcileTrade[],
+  logCodes: Set<string> | null,
+  activeStyle = "value",
+): BookOnlyReason[] {
+  return trades.map((t) => attributeBookOnly(t, logCodes, activeStyle));
 }

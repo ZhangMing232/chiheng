@@ -31,8 +31,8 @@ import { SectionTabs } from "@/components/section-tabs";
 import { Term } from "@/components/term";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getChallengerRobustness, getChallengerSamples, getChallengers, getGenomeView, getNavHistory, getServerJournal, getUniverse, getSignalCandidates, getSignalReviewed, getSignalTracking, getShortForms, type NavPoint, type SignalCandidate, type SignalReviewed, type SignalTrackItem, type SignalTrackSummary, type ShortFormsData } from "@/lib/market/quotes.functions";
-import { reconcileDay, reconcileSummary, sixDigitCode, type ReconcileDay, type ReconcileSignal } from "@/lib/market/daily-reconcile";
+import { getChallengerRobustness, getChallengerSamples, getChallengers, getGenomeView, getNavHistory, getServerJournal, getUniverse, getSignalCandidates, getSignalLogCodes, getSignalReviewed, getSignalTracking, getShortForms, type NavPoint, type SignalCandidate, type SignalReviewed, type SignalTrackItem, type SignalTrackSummary, type ShortFormsData } from "@/lib/market/quotes.functions";
+import { reconcileDay, reconcileSummary, sixDigitCode, attributeBookOnlyAll, BOOK_ONLY_LABEL, type ReconcileDay, type ReconcileSignal, type BookOnlyReason } from "@/lib/market/daily-reconcile";
 import { SignalFollowBoard, type SignalBoardData } from "@/components/strategy/signal-board";
 import type { Challenger } from "@/lib/market/challenger";
 import type { ChallengerRobustReport } from "@/lib/market/challenger-robust";
@@ -112,13 +112,18 @@ export const Route = createFileRoute("/strategies/positions")({
           date: d.date,
           trades: d.trades.map((t) => ({
             code: t.code, name: t.name, entry: t.entry,
-            style: t.style, exit: t.exit,
+            style: t.style, variant: t.variant, deepScan: t.deepScan, exit: t.exit,
           })),
         })),
         journalWhy: journal.why,
       }),
       // 策略基因组候选数：只给页头入口显示徽标用，不进任何买卖逻辑。
       genomeCount: genome.candidates.length,
+      // 「账本买了、/today 没提」的归因依据：当天 signals.jsonl 里出现过的代码。
+      // 读不到就是 null → 页面如实标「未留痕」，不替用户猜（P2 报告 §5-①）。
+      signalLog: await getSignalLogCodes({
+        data: ("date" in sigR ? sigR.date : "") || shanghaiDate(),
+      }).catch(() => ({ codes: null as string[] | null, why: "信号日志读不到" })),
     };
   },
   component: Positions,
@@ -573,7 +578,24 @@ function verdictOf(t: number | null): { label: string; tone: "up" | "down" | "mu
  * 只展示，不提供补买/同步按钮 —— P0 阶段一律不写账本。
  * 账本成交价只用 entry；理论成交(fill)是事后按日 K 重算的，不进这一列。
  */
-function TodayReconcilePanel({ r }: { r: import("@/lib/market/daily-reconcile").ReconcileResult }) {
+function TodayReconcilePanel({
+  r,
+  logCodes,
+  logWhy,
+}: {
+  r: import("@/lib/market/daily-reconcile").ReconcileResult;
+  logCodes: string[] | null;
+  logWhy: string | null;
+}) {
+  // 归因：把「账本买了、/today 没提」逐笔分类，用户不用自己猜为什么没对上。
+  const codeSet = logCodes ? new Set(logCodes) : null;
+  const reasons = attributeBookOnlyAll(r.bookOnly, codeSet);
+  const reasonTone: Record<BookOnlyReason, string> = {
+    experiment: "text-warn",
+    retired: "text-muted",
+    intraday: "text-brand",
+    unknown: "text-muted",
+  };
   const Line = ({ name, code, tail, tone }: { name: string; code: string; tail: string; tone: string }) => (
     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-dashed border-line py-1.5 last:border-0 text-[13px]">
       <span className="text-fg">{name}</span>
@@ -606,8 +628,11 @@ function TodayReconcilePanel({ r }: { r: import("@/lib/market/daily-reconcile").
             <div className="px-num mb-1 text-[12px] tracking-widest text-warn">账本买了 · /today 没提 · {r.bookOnly.length}</div>
             {r.bookOnly.length === 0 ? <div className="text-[12px] text-muted">无</div> : null}
             {r.bookOnly.map((t, i) => (
-              <Line key={t.code + i} name={t.name} code={sixDigitCode(t.code)} tail={`成交 ${t.entry.toFixed(2)}`} tone="text-warn" />
+              <Line key={t.code + i} name={t.name} code={sixDigitCode(t.code)} tail={`${BOOK_ONLY_LABEL[reasons[i]]} · ${t.entry.toFixed(2)}`} tone={reasonTone[reasons[i]]} />
             ))}
+            {r.bookOnly.length > 0 && codeSet == null ? (
+              <div className="mt-1 text-[12px] text-muted">归因读不到信号日志：{logWhy ?? "未知原因"}，一律标「未留痕」</div>
+            ) : null}
           </div>
         </div>
         <ScopeNote
@@ -627,7 +652,7 @@ function TodayReconcilePanel({ r }: { r: import("@/lib/market/daily-reconcile").
 }
 
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks, signals, reconcile, genomeCount } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks, signals, reconcile, genomeCount, signalLog } = Route.useLoaderData();
   const [ready, setReady] = useState(false);
   useEffect(() => {
     // rehydrate() 有时返回 void、有时返回 Promise，两种都当成「读完了」
@@ -1176,7 +1201,7 @@ function Positions() {
         storageKey="chiheng-pos-tab"
         tabs={[
           { key: "follow", label: "跟单", content: <SignalFollowBoard data={signals} /> },
-          { key: "today", label: "今日对照", content: <TodayReconcilePanel r={reconcile} /> },
+          { key: "today", label: "今日对照", content: <TodayReconcilePanel r={reconcile} logCodes={signalLog.codes} logWhy={signalLog.why} /> },
           {
             key: "hold",
             label: urgent.length > 0 ? `持仓 · 需处理 ${urgent.length}` : "持仓",

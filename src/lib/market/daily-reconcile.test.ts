@@ -11,6 +11,9 @@ import {
   reconcileDay,
   reconcileSummary,
   sixDigitCode,
+  attributeBookOnly,
+  attributeBookOnlyAll,
+  BOOK_ONLY_LABEL,
   type ReconcileDay,
   type ReconcileSignal,
 } from "./daily-reconcile.ts";
@@ -128,4 +131,68 @@ test("汇总行数字从结果现算，不写死", () => {
     reconcileSummary(reconcileDay({ date: DATE, signals, days })),
     "信号 4 只 · 账本成交 3 笔 · 重合 1 只",
   );
+});
+
+// ── days[] 顺序守门（P2 报告 §5-③）─────────────────────────────────────
+// 2026-11-13 实测：账本 days[] 是**降序**（新→旧），不是升序、也不是无序。
+// 任何写 days[days.length - 1] 取「最新一天」的代码都会静默拿到最早那天
+// （实测会拿到 2026-09-29 而不是 2026-11-13）。这条测试钉住两件事：
+// 1. 造具时顺序乱了也能按 date 命中（本模块只认 date，不认位置）；
+// 2. 反向钉死「按位置取最新」是错的 —— 它拿到的不是最新那天。
+
+const unordered: ReconcileDay[] = [
+  { date: "2026-09-29", trades: [{ code: "000001", name: "平安银行", entry: 11.0 }] },
+  { date: DATE, trades: [{ code: "002432", name: "九安医疗", entry: 56.7 }] },
+  { date: "2026-10-09", trades: [{ code: "600000", name: "浦发银行", entry: 8.0 }] },
+];
+
+test("days[] 乱序也按 date 命中，不依赖数组位置", () => {
+  const r = reconcileDay({
+    date: DATE,
+    signals: [{ code: "002432", name: "九安医疗", orderPrice: 56.92 }],
+    days: unordered,
+  });
+  assert.equal(r.matched.length, 1);
+  assert.equal(r.bookTradeCount, 1);
+});
+
+test("守门：days[days.length-1] 取不到最新一天（反向验证这条纪律）", () => {
+  const last = unordered[unordered.length - 1];
+  assert.notEqual(last.date, DATE, "若这条挂了，说明 days[] 顺序约定变了，需同步全仓取最新一天的写法");
+  // 正确写法是找 date，不是拿末项
+  const byDate = unordered.find((d) => d.date === DATE);
+  assert.equal(byDate?.date, DATE);
+});
+
+// ── 「账本独有」归因（P2 报告 §5-①）────────────────────────────────────
+
+test("归因：variant / deepScan 一律算挑战者实验田", () => {
+  assert.equal(attributeBookOnly({ code: "600690", name: "海尔智家", entry: 20.81, style: "value", variant: "value-stop10" }, new Set()), "experiment");
+  assert.equal(attributeBookOnly({ code: "601857", name: "中国石油", entry: 11.96, style: "value", deepScan: true }, new Set()), "experiment");
+});
+
+test("归因：非现役 style 算已淘汰策略结算", () => {
+  assert.equal(attributeBookOnly({ code: "300476", name: "胜宏科技", entry: 128, style: "rebound" }, new Set()), "retired");
+});
+
+test("归因：出现在 signals.jsonl 里算盘中新增扫描", () => {
+  assert.equal(attributeBookOnly({ code: "002648", name: "卫星化学", entry: 23.52, style: "value" }, new Set(["002648"])), "intraday");
+});
+
+test("归因：读不到信号日志时老实标未留痕，不猜成盘中", () => {
+  assert.equal(attributeBookOnly({ code: "601009", name: "南京银行", entry: 12.58, style: "value" }, null), "unknown");
+});
+
+test("归因：日志读到了但没这只，也算未留痕", () => {
+  assert.equal(attributeBookOnly({ code: "601009", name: "南京银行", entry: 12.58, style: "value" }, new Set(["600000"])), "unknown");
+});
+
+test("归因：批量与原数组同序，标签可直接按 index 取", () => {
+  const trades = [
+    { code: "600690", name: "海尔智家", entry: 20.81, style: "value", variant: "value-stop10" },
+    { code: "300476", name: "胜宏科技", entry: 128, style: "rebound" },
+    { code: "002648", name: "卫星化学", entry: 23.52, style: "value" },
+  ];
+  assert.deepEqual(attributeBookOnlyAll(trades, new Set(["002648"])), ["experiment", "retired", "intraday"]);
+  assert.equal(BOOK_ONLY_LABEL.experiment, "挑战者·深扫实验");
 });

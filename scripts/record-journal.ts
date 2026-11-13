@@ -935,6 +935,47 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
     }
   }
 
+  // ── 每日对账快照（P2 报告 §5-④）──────────────────────────────────
+  // 收盘后落一份「当天 /today 信号 vs 账本真实成交」的快照，供以后扩样本。
+  // 纯落盘：不写账本、不改建仓、失败只警告（和 gate-log 同款纪律）。
+  if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+    try {
+      const { writeReconcileSnapshot } = await import("../src/lib/market/reconcile-snapshot.ts");
+      let signals: Parameters<typeof writeReconcileSnapshot>[0]["signals"] = null;
+      try {
+        const raw = JSON.parse(await readFile(join(process.cwd(), "data", "signals", "reviewed.json"), "utf8")) as {
+          date?: string;
+          signals?: { code: string; name: string; leg?: "long" | "short"; verdict?: "ok" | "warn" | "skip"; order?: { price?: number }; fill?: { status?: "filled" | "missed" | "pending" } }[];
+        };
+        // 只认当天那份：备份/残留的隔日 reviewed.json 不能冒充今天的名单。
+        if (raw.date === phase.date && Array.isArray(raw.signals)) {
+          signals = raw.signals.map((s) => ({
+            code: s.code, name: s.name, leg: s.leg,
+            orderPrice: s.order?.price ?? null,
+            fillStatus: s.fill?.status,
+            verdict: s.verdict,
+          }));
+        }
+      } catch {
+        /* 读不到就落 missing，让快照自己说明 */
+      }
+      const out = writeReconcileSnapshot({
+        date: phase.date,
+        signals,
+        days: days.map((d) => ({
+          date: d.date,
+          trades: d.trades.map((t) => ({
+            code: t.code, name: t.name, entry: t.entry,
+            style: t.style, variant: t.variant, deepScan: t.deepScan, exit: t.exit,
+          })),
+        })),
+      });
+      if (!out.path) console.warn(`[reconcile] ${phase.date} 快照没落：${out.reason}`);
+    } catch (err) {
+      console.warn(`[reconcile] 快照写入异常：${(err as Error).message}`);
+    }
+  }
+
   // ── 日终汇总推送：收盘后当天第一次跑时推一条当日账本流水 ──────────
   // 板块逻辑梳理（2026-11-05）补的通知缺口：闸门/判决/预警都有推送，唯独
   // 「今天到底结算成什么样」没有——人不在 Mac 前时只能开盘后自己翻账本。

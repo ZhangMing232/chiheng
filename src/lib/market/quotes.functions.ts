@@ -660,6 +660,27 @@ export const getRecorder = createServerFn({ method: "GET" }).handler(async () =>
  * 页面拿回去后按"已读水位"（最后一条的 key）切未读，水位存在浏览器里。
  * 原因：stop 止损 / target 目标价 / time 到期。
  */
+export const getSignalLogCodes = createServerFn({ method: "GET" })
+  .inputValidator((date: unknown) => (typeof date === "string" ? date : ""))
+  .handler(async ({ data: date }: { data: string }) => {
+    try {
+      const { readSignals } = await import("@/lib/market/signal-log");
+      const log = readSignals();
+      if (log.missing) return { codes: null as string[] | null, why: log.missing };
+      const codes = [
+        ...new Set(
+          log.rows
+            .filter((row) => !date || row.tradingDate === date)
+            .map((row) => row.code.replace(/^(sh|sz|bj)/i, "").trim())
+            .filter(Boolean),
+        ),
+      ];
+      return { codes, why: null as string | null };
+    } catch (err) {
+      return { codes: null as string[] | null, why: (err as Error).message };
+    }
+  });
+
 export const getSellAlerts = createServerFn({ method: "GET" }).handler(async () => {
   const empty = { alerts: [] as SellAlert[] };
   try {

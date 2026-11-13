@@ -33,6 +33,13 @@ export type PaperTrade = {
    * 两种口径可信度不同，统计时不该混在一起算。
    */
   exitKind?: "intraday" | "daily";
+  /**
+   * 挑战者变体标记（如 `value-stop10`）：这一笔是冠军-挑战者管道开的实验单，
+   * 不是常规现役策略建的仓。对账时要单独归因（P2 报告 §5-①）。
+   */
+  variant?: string | null;
+  /** 深扫标记：挑战者用 depth scan 额外扫出来的票。和 variant 一起判「实验田」。 */
+  deepScan?: boolean | null;
 };
 
 export type PaperDay = {
