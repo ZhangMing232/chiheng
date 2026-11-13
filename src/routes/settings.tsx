@@ -177,6 +177,31 @@ function SettingsPage() {
         </p>
       </Panel>
 
+      <Panel
+        title="系统体检"
+        note={<span className="text-[12px]">哪里不正常，一屏看完</span>}
+      >
+        <div className="flex flex-col divide-y divide-line">
+          {data.health.map((h) => (
+            <div key={h.label} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3.5 py-2">
+              <span className="w-24 shrink-0 text-[13px] text-fg">{h.label}</span>
+              <Tag tone={h.state === "ok" ? "muted" : h.state === "warn" ? "warn" : "down"}>
+                {h.state === "ok" ? "正常" : h.state === "warn" ? "注意" : "异常"}
+              </Tag>
+              <span className="min-w-0 flex-1 text-[12px] leading-relaxed text-muted">{h.detail}</span>
+              {h.fix ? (
+                <span className="shrink-0 text-[12px] text-brand">{h.fix}</span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        <p className="border-t border-line/60 px-3.5 py-2 text-[12px] leading-relaxed text-muted">
+          这六项是「系统还在不在正常跑」的判据，不是选股建议。
+          <span className="text-fg">「异常」要立刻处理（记账停了、进化断电了）；「注意」多数是休市或观察期未满，不用动手</span>。
+          更细的运维数字在终端跑 <code>node scripts/ops-check.mjs</code>。
+        </p>
+      </Panel>
+
       <Panel title="数据新鲜度" note={`${files.length} 份 · 待更新 ${stale.length} · 缺 ${missing.length}`}>
         <div className="overflow-x-auto scroll-slim">
           <table className="data-table w-full min-w-[600px]">

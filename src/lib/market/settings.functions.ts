@@ -78,6 +78,17 @@ async function configRows(): Promise<ConfigRow[]> {
   return rows;
 }
 
+/** 系统体检的一行：管理者视角「哪里不正常」。 */
+export type HealthRow = {
+  label: string;
+  /** ok / warn / bad —— 只看这三种，不要更多档，否则人分不清轻重 */
+  state: "ok" | "warn" | "bad";
+  /** 一句话现状（带数字） */
+  detail: string;
+  /** 怎么修（只在非 ok 时给） */
+  fix: string | null;
+};
+
 export type SettingsPayload = {
   recorder: { at: number | null; ok: boolean };
   universe: { source: string | null; count: number; ageMin: number | null };
@@ -85,7 +96,131 @@ export type SettingsPayload = {
   missing: Freshness[];
   config: ConfigRow[];
   gaps: string[];
+  /** 系统体检（2026-11-14 新增）：把散在 ops-check / serve.log / ai-log /
+   *  rule-change-effects 里的「哪里不正常」收敛到一屏。 */
+  health: HealthRow[];
 };
+
+
+/**
+ * 系统体检（2026-11-14）：把「哪里不正常」从 5 个地方收敛到一屏。
+ *
+ * 为什么需要它（用户 2026-11-13 的要求：不展示的东西，管理者怎么发现问题）：
+ * 之前要发现问题得同时看 `scripts/ops-check.mjs`、`data/serve.log`、
+ * `data/ai-log.json`、`data/rule-change-effects.jsonl`、`data/strategy-gates.json`
+ * ——五个地方，还得知道每处该看什么字段。管理者视角缺一个入口。
+ *
+ * 判据纪律（同全站）：**只报事实 + 数字，不报「可能」「建议关注」这种模糊词**；
+ * 读不到就写「读不到」并给修复命令，不拿 0 顶替；只分 ok/warn/bad 三档，
+ * 档位多了人反而分不清轻重。
+ */
+async function healthRows(root: string): Promise<HealthRow[]> {
+  const { readFile } = await import("node:fs/promises");
+  const readJson = async <T,>(rel: string): Promise<T | null> => {
+    try {
+      return JSON.parse(await readFile(join(root, rel), "utf8")) as T;
+    } catch {
+      return null;
+    }
+  };
+  const rows: HealthRow[] = [];
+
+  // ① 记账心跳：整个系统的心脏。超过 5 分钟没跳 = 记账停了。
+  const rec = await readJson<{ at?: number; ok?: boolean }>("data/recorder.json");
+  if (!rec || typeof rec.at !== "number") {
+    rows.push({ label: "记账心跳", state: "bad", detail: "读不到 recorder.json", fix: "确认服务在跑：npm run mac:status" });
+  } else {
+    const ageMin = Math.round((Date.now() - rec.at) / 60_000);
+    rows.push({
+      label: "记账心跳",
+      state: !rec.ok ? "bad" : ageMin > 5 ? "bad" : "ok",
+      detail: `${ageMin} 分钟前${rec.ok ? "" : "（进程报 ok=false）"}`,
+      fix: !rec.ok || ageMin > 5 ? "服务可能停了：npm run mac:restart" : null,
+    });
+  }
+
+  // ② 进化熔断：断电了就等于自我进化停了，必须显眼。
+  const brk = await readJson<{ trippedAt?: string | null; trippedReason?: string }>("data/evolve-breaker.json");
+  if (brk?.trippedAt) {
+    rows.push({
+      label: "自动进化",
+      state: "bad",
+      detail: `已熔断（${brk.trippedAt.slice(0, 10)}）：${brk.trippedReason || "连续失败"}`,
+      fix: "去 /ai 页重新打开「自动进化」开关",
+    });
+  } else {
+    const prefs = await readJson<{ autoEvolve?: boolean }>("data/ai-prefs.json");
+    rows.push({
+      label: "自动进化",
+      state: prefs?.autoEvolve === false ? "warn" : "ok",
+      detail: prefs?.autoEvolve === false ? "开关是关的（手动模式）" : "开着，未熔断",
+      fix: prefs?.autoEvolve === false ? "要自动跑就去 /ai 打开开关" : null,
+    });
+  }
+
+  // ③ 策略闸：停用的策略 = 不建仓，管理者必须知道现在到底几套在跑。
+  const gates = await readJson<Record<string, { state?: string; since?: string; reason?: string }>>("data/strategy-gates.json");
+  const disabled = Object.entries(gates ?? {}).filter(([, g]) => g?.state === "disabled");
+  rows.push({
+    label: "策略闸",
+    state: disabled.length > 0 ? "warn" : "ok",
+    detail:
+      disabled.length > 0
+        ? `${disabled.length} 套停用：${disabled.map(([k, g]) => `${k}（${g.since ?? "?"} ${truncate(g.reason ?? "", 20)}）`).join("、")}`
+        : "全部就绪",
+    fix: null,
+  });
+
+  // ④ 规则改动回验（本轮新增）：无效改动 = 白砍了一刀，要建议回滚。
+  const effects = await (async () => {
+    try {
+      const raw = await readFile(join(root, "data", "rule-change-effects.jsonl"), "utf8");
+      return raw.split("\n").filter(Boolean).map((l) => {
+        try {
+          return JSON.parse(l) as { key: string; verdict: string; reason: string; revertAdvice: string | null };
+        } catch {
+          return null;
+        }
+      }).filter(Boolean) as { key: string; verdict: string; reason: string; revertAdvice: string | null }[];
+    } catch {
+      return [];
+    }
+  })();
+  const ineffective = effects.filter((e) => e.verdict === "ineffective");
+  const pendingFx = effects.filter((e) => e.verdict === "pending");
+  rows.push({
+    label: "规则回验",
+    state: ineffective.length > 0 ? "warn" : "ok",
+    detail:
+      effects.length === 0
+        ? "还没有回验记录（要等规则改动后 10 个交易日）"
+        : `已回验 ${effects.length} 条 · 判无效 ${ineffective.length} · 观察中 ${pendingFx.length}` +
+          (ineffective.length > 0 ? `（${ineffective[0].key}：${truncate(ineffective[0].reason, 30)}）` : ""),
+    fix: ineffective.length > 0 ? ineffective[0].revertAdvice : null,
+  });
+
+  // ⑤ AI 闭环：昨天有没有真的跑过。连续失败说明 API/key 有问题。
+  const aiLog = await readJson<{ entries?: { at?: string; trigger?: string; ok?: boolean }[] }>("data/ai-log.json");
+  const entries = aiLog?.entries ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+  const todayAuto = entries.filter((e) => (e.at ?? "").slice(0, 10) === today && e.trigger === "auto");
+  const fails = todayAuto.filter((e) => e.ok === false).length;
+  rows.push({
+    label: "AI 闭环",
+    state: fails >= 2 ? "bad" : todayAuto.length === 0 ? "warn" : "ok",
+    detail:
+      todayAuto.length === 0
+        ? "今天还没跑（收盘封印后自动触发，或开关关着）"
+        : `今天 ${todayAuto.length} 轮，失败 ${fails} 轮`,
+    fix: fails >= 2 ? "看 /ai 页的失败原因；连续失败会触发熔断" : null,
+  });
+
+  return rows;
+}
+
+function truncate(s: string, n: number): string {
+  return s.length <= n ? s : `${s.slice(0, n)}…`;
+}
 
 export const getSettings = createServerFn({ method: "GET" }).handler(async (): Promise<SettingsPayload> => {
   const root = process.cwd();
@@ -126,6 +261,7 @@ export const getSettings = createServerFn({ method: "GET" }).handler(async (): P
   const files = allFreshness(await factsOf(root));
   const missing = missingRequired(files);
   const config = await configRows();
+  const health = await healthRows(root);
 
-  return { recorder, universe, files, missing, config, gaps };
+  return { recorder, universe, files, missing, config, gaps, health };
 });
