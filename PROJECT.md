@@ -2,6 +2,10 @@
 
 > 这份是**入口文档**：第一次打开这个仓库先看这里。专题细节在各专项文档里
 > （见文末索引）。数字 2026-11-05 全面对过一轮，不是估的。
+>
+> **2026-11-13 更新**：11-12 晚到 11-13 早做了一次整站改版（信息架构重排、
+> 像素赛博主题、新增 `/today`）。§3 页面清单、§7 当前状态、§8 索引已按现行代码对齐；
+> 文中标注了日期的历史实测数字（如 §4 数据源表）保留原样，别当成现状。
 
 ---
 
@@ -32,24 +36,24 @@ cd /Volumes/colorful/chiheng
 
 npm run serve        # 启动服务（正式网页 http://127.0.0.1:8787，前台，窗口别关）
 npm run preflight    # 开盘前自检：11 项检查 + 退出码（0 就绪 / 1 有阻塞 / 2 休市）
-npm run build:mac    # 改了前端之后必须 build 才可见（⚠️ 见下方「我跑不了的命令」）
-npm test             # 1,556 条测试，约 3 秒跑完
-npm run lint         # 0 error（110 个既有 warning）
+npm run build:mac    # 改了前端之后必须 build 才可见（8787 跑的是 .output 产物）
+npm test             # 1,324 条测试（2026-11-13 实测，两段共约 20 秒）
+npm run lint         # 0 error（既有 warning 数量见当期输出）
 ```
 
 ### 我（AI）跑不了的命令
 
 | 命令 | 为什么 |
 |---|---|
-| `npm run build:mac` | 2026-11-05 起实测**可以跑**（此前外置盘 `fs.promises.cp` 被代理层拦）。若再遇 CODEBUDDY_BROKER_DENY，提示用户自己跑 |
-| `npm run serve` | 服务由 launchd 托管（`com.chiheng.serve`，开机自启、崩溃自动拉起）。手动再起只会端口冲突；要重启用 `launchctl kickstart -k gui/$(id -u)/com.chiheng.serve` |
+| `npm run serve` | 服务由 launchd 托管（`com.chiheng.serve`，开机自启、崩溃自动拉起）。**只能用户自己终端起**；手动再起只会端口冲突；要重启用 `launchctl kickstart -k gui/$(id -u)/com.chiheng.serve` |
+| `npm run build:mac` | 2026-11-05 起实测**可以跑**（此前外置盘 `fs.promises.cp` 被代理层拦）。11-12 晚曾被 safe-delete / fs-broker 拦过一轮，**11-13 09:53 已成功产出新构建**（见 §7）；若再遇 CODEBUDDY_BROKER_DENY，提示用户自己跑 |
 
 ### 探测服务状态的规矩
 
 - 用 `curl --noproxy '*'`，**不要用 lsof**（本机无权限，会误报成没起来）
 - **绕代理**：本机 `HTTP_PROXY` 会把本地请求发给代理，返回一个**假的 502**
-- 探静态文件（`/favicon.svg`），**不要探 `/`**——首页 SSR 耗时在 80ms~3.15 秒之间飘，
-  拿飘的耗时判生死必然偶发误报
+- 探静态文件（`/favicon.svg`），**不要探 `/`**——`/` 自 11-12 起是纯 307 → `/today`，
+  探它测到的是重定向而不是页面健康；要测页面就直连 `/today`
 - 判断记账有没有发生，看 `data/recorder.json` 的心跳，**不看 HTTP**
 
 ---
@@ -70,21 +74,34 @@ design/ docs/         规范、手册、进度表（STRATEGY-GEN2.md 是策略�
 data/                 全部运行时数据，**不在 git 里**，每天 23:30 自动快照（见 OPS.md）
 ```
 
-**页面清单**（= 侧栏八组，2026-11-11 起按「一天的节奏」排）：
-**盘前**——总览 `/`、今日决策 `/decision`、前瞻回验 `/huiyan`；
-**盯盘**——盯盘 `/watch`（今日梯队实时 + 历史交易日回看 / 三日演变；原 `/grid` 多股同屏 + `/ladder` 连板天梯，11-11 晚合一）；
-**盘后**——每日复盘 `/review`（涨跌分布/信号/公司事件三个子页）、资金流向 `/flow`
-（北向/行业/板块/个股/收盘快照/两融/期指七个子页；「游资」11-12 并入 /youzi）、游资与席位 `/youzi`
-（游资追踪/席位档案）、题材 `/themes`（市场情报/题材轮动/题材简报）；
-**研究**——情绪周期 `/cycle`、区间统计 `/interval`、趋势中军 `/rs`、自选 `/my-stocks`；
-**资讯**——快讯 `/news`、消息与提醒 `/inbox`、全球行情 `/overseas`；
-**进化**——策略看板 `/strategies/screener`、因子实验室 `/factors`、回测 `/backtest`；
-**AI**——工作台 `/ai`、大管家 `/butler`；**设置**——`/settings`。
-`/ai/config`、`/studio`、`/research/*` 等子页只留直链，侧栏不再单列。
-个股详情 `/symbol` 从任意代码点入。旧地址（`/intel` `/rotation` `/brief` `/hotmoney`
-`/seats` `/review/flow/*` `/grid` `/ladder` `/flow/hot`）全部留重定向，书签不断链。
+**页面清单**（= 侧栏**五组 + 系统**，2026-11-13 重排；唯一真源是 `src/components/screener/nav.tsx` 的 `SIDEBAR`）：
+**今天**——今天该干什么 `/today`、前瞻回验 `/huiyan`；
+**行情**——盯盘 `/watch`、题材与情绪 `/themes`、游资席位 `/youzi`、资金流向 `/flow`、全球行情 `/overseas`；
+**研究**——情绪周期 `/cycle`、区间统计 `/interval`、趋势中军 `/rs`、因子实验室 `/factors`；
+**策略**——策略选股 `/strategies/screener`、策略跟踪 `/strategies/positions`、回测审计 `/backtest`；
+**我的**——自选与持仓 `/my-stocks`、快讯 `/news`；
+**系统**——AI 工作台 `/ai`、大管家 `/butler`、设置与状态 `/settings`。
 
-规模：647 提交 · 107,000 行（src + scripts）· 1,556 条测试。
+分组理由（`nav.tsx` 注释）：11-11 那版「按一天的节奏分八组」会把同一件事拆到两组
+（资金、题材都在「盘后」，「盯盘」却只有一项）→ **分组跟着问题走，不跟着时钟走**。
+
+- **`/` 已不是首页**：11-12 起是纯 307 → `/today`，`src/routes/index.tsx` 只剩一段注释和重定向。
+  `/today` 一屏走完「市场在玩什么 → 短线买什么 → 中长线买什么 → 什么时候卖」，
+  11-13 又加了**一天时间轴**，每块数据标明几点到位（昨收落档 15:12 / 竞价审核 09:26 /
+  盘中资金约 1 分钟），防止把 9:26 的竞价价当成此刻能挂的价。
+- **子页收进页内 tab，不占侧栏**：策略 5 tab → 3 工作台、因子 6 页 → 1 工作台（`FACTOR_TABS`）、
+  资金 8 tab → 4（`/flow/industries` 并入 `/flow/sectors?view=live`、`/flow/close` 并入 `/flow`）。
+  `/inbox` 11-13 下线（两个入口违反单一入口）。
+- `/ai/config`、`/studio`、`/research/*`、`/review/*` 等子页只留直链，侧栏不再单列。
+  个股详情 `/symbol` 从任意代码点入。旧地址全部留 307，书签不断链；
+  `scripts/smoke-pages.test.mjs` 的 `LEGACY_ALIASES` / `SKIP_WITH_REASON` 是同步清单。
+
+**界面**：11-12 晚整站换成**像素赛博**主题（`design/redesign-2026-11/` 16 个设计稿 +
+`tokens.css` / `pixel.css`）。默认深色（`--color-brand: #22e6ff`），浅色保留可切
+（`localStorage chiheng-theme`）；新增 `PixelHeader` / `PixelSummary` 两个组件，
+标题块与摘要块已覆盖全站。旧的「浅底 + 蓝主色 #1677ff」口径已过时。
+
+规模（2026-11-13）：704 提交 · 92 个路由文件 / 149 个脚本 · 1,324 条测试。
 提交有闸门：pre-commit 跑 typecheck、pre-push 跑全量测试（`.githooks/`，
 `git config core.hooksPath` 已指向它）。
 
@@ -179,17 +196,34 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 
 ---
 
-## 7. 当前状态（2026-11-05 实测）
+## 7. 当前状态（2026-11-13 实测）
 
 | 项 | 状态 |
 |---|---|
-| 服务 | **在跑**：launchd 托管三件——serve（开机自启 · 网页 8787）、tunnel（对外 meanwhy.top）、backup（每天 23:30 快照）。⚠️ `com.chiheng.verdict`（原每天 16:10 的重复判决）**11-06 已 bootout 卸载**，plist 早就不存在；每日判决统一走 `record-journal` 收盘封印段的 `auto-verdict.ts`（15:08）。详见 `design/REMAINING.md` §13 |
-| 测试 | 1,556 条全绿 · typecheck 干净 · lint 0 error（110 个既有 warning）· 页面冒烟 0 FAIL |
-| 策略 | 现役 2 套：低估值在跑；放量突破被闸门暂停（10-29 起，冷却中）。已下线 4 套只结算历史仓 |
-| 记账 | 每分钟记账正常；「赤轨日终」推送 2026-11-05 首次触发成功（stamp 去重一天一次） |
-| 备份 | `data/` 741MB，23:30 定时快照到 `~/chiheng-backup`（留 5 份）。⚠️ **11-06 才修好**（launchd 包 bash + 日志落内盘），此前从未跑成过；今晚 23:30 首次真实定时触发，明早验 `last exit code`。详见 OPS.md |
-| 密钥 | `data/ai-config.json` 已收紧 600（含 apiKey，别进 git） |
-| 下一步 | 四件大件中 **②流水去重 / ③AI 超时治理 / ④深扫复盘已落地**（11-06）；①账本加锁待收盘后做，账本确定**不迁 SQLite**（体检与结论见 `design/REMAINING.md` §12） |
+| 服务 | **在跑**：8787 HTTP 200，`.output` 是 11-13 09:53 的新构建，SSR 里「微信推送 / 今天该干什么 / 设置与状态」都在 → 跑的是含最新提交的代码。launchd 三件（serve / tunnel / backup 23:30）沿用；`com.chiheng.verdict` 11-06 已 bootout，每日判决走 `record-journal` 收盘封印段的 `auto-verdict.ts`。详见 `design/REMAINING.md` §13 |
+| 测试 | **1,324 / 1,324 全绿** · typecheck 干净 · `check:client` 96 个 JS 干净 · 冒烟 **0 FAIL**（11-13 修掉「首页找复盘」的过时断言，见 `scripts/smoke-test.mjs`） |
+| 数据链路 | 记账心跳 `data/recorder.json` 与三池快取差 1 秒；快取 `sealed=false`、每 3 分钟刷新；`limit-pools` 归档 15 天、`closes` 303、`forecast` 4。今晚 15:12 走收盘封印 |
+| 策略 | 现役 `ACTIVE_STYLES = ["value"]` 一套；breakout 被闸门 disabled（10-29 起，「全池 t=-2.35 无 alpha」）。已下线 4 套只结算历史仓。**研究结论未因这次改版变化**：`strategy-verdicts.json` 11 套聚类 t 全在 ±2 内，无可部署 alpha |
+| 密钥 | `ai-config.json` / `push-config.json` / `tushare-config.json` 三个都是 600，不进 git、不贴进对话 |
+| 推送 | 见下方「两条推送通道」 |
+| 待办 | 96 个本地提交尚未推到 `origin/main`（停在 11-10 `b8c7b2f`）；仓库文档本次已更新到 11-13（改动尚未提交） |
+
+### 两条推送通道（别混，2026-11-13 核实）
+
+设置页 `/settings` 有两块，共用一个 PushPlus token（`data/push-config.json`）：
+
+| 通道 | 什么时候发 | 由谁触发 | 状态落盘 |
+|---|---|---|---|
+| **收盘日报** | 交易日 **15:12 收盘封印后**（实测 15:08~15:16） | `record-journal.ts` → `daily-digest.ts` 的 `sendDailyDigest` | `data/.daily-digest-last.json`（`sent`/`failed` + 通道），配 `.daily-mail-<date>.stamp` 一天一次去重 |
+| **交易提醒** | 09:20 前瞻 3 只 / 09:26 中长线+短线买入单 / 15:10 温度计 / 到止损·到目标·到期该卖 | `home-server.mjs` 时间表 + `scripts/forecast.ts --push-morning` 等，各自调 `sendPushPlus` | **不写 `.daily-digest-last.json`**，只在 `data/serve.log` 留痕 |
+
+🔴 **`.daily-digest-last.json` 只描述收盘日报这一条，不是全站推送健康度。**
+看到它停在昨天不代表今天的推送漏了：交易日 15:12 之前本来就不该有当天记录。
+（2026-11-13 11:00 实测：状态是 11-12 15:14:34 `sent/wechat`，而 11-13 早上
+09:20 买入单已在 `serve.log` 记为「早上买入单已推送微信」，两者互不覆盖，都正常。）
+
+**提醒**：11-12 起用户拍板「前瞻买入单只要早上 9:20 这条」，`forecast.ts` 落档时
+默认不再自动推（保留 `--push-on-lock` 手动）。改动的是买入单，**不是收盘日报**。
 
 ---
 
@@ -201,7 +235,8 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 | `design/REMAINING.md` | **进度总表**——每项的状态、卡点、依赖 |
 | `design/DECISIONS.md` | 拍板记录——已定的方案和理由，别再重新讨论 |
 | `design/GAP-REPORT.md` | 对标 Vibe-Research 的缺口逐条（数据/市场/实现/工程） |
-| `design/DESIGN.md` | 界面规范（十章） |
+| `design/DESIGN.md` | 界面规范（十章，偏早期） |
+| `design/redesign-2026-11/` | **现行界面真源**：像素赛博 8 屏设计稿 + 手机版 + `tokens.css` / `pixel.css` / `_rail.txt` / `_steps.txt`。11-12 晚改版的设计记录，和 `src/styles.css` 对齐 |
 | `docs/DATA-ACCESS.md` | 取数口径手册：数据源登记、限速、TTL、降级、**踩过第二次的坑** |
 | `docs/EARNINGS.md` | 财报口径（单季/TTM/杜邦） |
 | `docs/VALUATION.md` | 估值口径（历史分位/前瞻 PE/PEG） |

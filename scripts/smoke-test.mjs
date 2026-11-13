@@ -28,7 +28,7 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 // 这份清单有守门测试 scripts/smoke-pages.test.mjs：漏覆盖新路由或列了不存在的
 // 路由都会直接红，不会再静默漂移。
 const PAGES = [
-  "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）
+  "/", // 步骤 1 单独测（菜单按钮点击 + 控制台）；11-12 起是 307 → /today，浏览器自己跟
   // 盘前 / 盯盘 / 研究（2026-11-11 新增的一批）
   "/today", "/decision", "/huiyan", "/watch", "/watch/history", "/cycle", "/rs", "/interval",
   // 盘后：复盘 / 资金流向 / 游资与席位 / 题材
@@ -157,7 +157,9 @@ async function main() {
     await send("Page.enable");
     console.log("  ..  Chrome 已连接，开始逐页检查");
 
-    // 1) 首页：JS 启动无异常 + 页面菜单按钮可点击展开
+    // 1) 落地页：JS 启动无异常 + 页面菜单按钮可点击展开
+    // 2026-11-12 起 `/` 只是 307 → `/today`（首页已并入今日决策），浏览器会自己跟，
+    // 所以这里实际测的是落地后的页面，不是老首页。
     consoleErrors.length = 0;
     const navReply = await send("Page.navigate", { url: BASE + "/" });
     console.log("  ..  导航请求已发出", JSON.stringify(navReply.result ?? navReply.error ?? {}).slice(0, 120));
@@ -169,25 +171,30 @@ async function main() {
       return ready;
     });
 
-    // hydration 需要一点时间（等按钮挂上事件处理器）
+    // hydration 需要一点时间（等按钮挂上事件处理器）。
+    // 判「展开成功」只看两件和页面名无关的事实：aria-expanded 变 true、
+    // 且站内导航链接数变多。2026-11-13 前这里写死找「复盘」二字，侧栏重排成
+    // 五组后那个词没了 → 永远等不到 → 假红「等待超时」。别再绑具体页面名。
     await waitFor(async () => {
       const expanded = await evalJs(`(async () => {
         const btn = document.querySelector('button[aria-label="页面菜单"]');
         if (!btn) return undefined;
+        const countNavLinks = () => document.querySelectorAll('a[href^="/"]').length;
+        const before = countNavLinks();
         btn.click();
         await new Promise((r) => setTimeout(r, 300));
-        const menu = [...document.querySelectorAll("a")].some((a) => a.textContent.includes("复盘"));
+        const opened = btn.getAttribute('aria-expanded') === 'true' && countNavLinks() > before;
         btn.click();
-        return menu ? "ok" : undefined;
+        return opened ? "ok" : undefined;
       })()`);
       return expanded;
     }).then(
-      () => pass("首页：页面菜单按钮点击可展开"),
-      (e) => fail("首页：页面菜单按钮点击可展开", String(e.message ?? e)),
+      () => pass("落地页：页面菜单按钮点击可展开"),
+      (e) => fail("落地页：页面菜单按钮点击可展开", String(e.message ?? e)),
     );
 
-    if (consoleErrors.length > 0) fail("首页：控制台无报错", consoleErrors[0].split("\n")[0]);
-    else pass("首页：控制台无报错");
+    if (consoleErrors.length > 0) fail("落地页：控制台无报错", consoleErrors[0].split("\n")[0]);
+    else pass("落地页：控制台无报错");
 
     // 2) 逐页扫一遍：HTTP 200 + 客户端无异常
     for (const path of PAGES.slice(1)) {
@@ -205,7 +212,7 @@ async function main() {
 
     // 3) 客户端导航扫一遍：整页加载抓不到「loader 在浏览器里跑崩」类问题
     // （2026-10-17 /backtest 实例：loader 直接调 node 函数，SSR 正常、一点导航就整页报错）。
-    // 做法：从首页逐个点击导航链接走 SPA 路由，抓控制台异常。只扫侧栏真实存在的入口。
+    // 做法：从落地页（/today）逐个点击导航链接走 SPA 路由，抓控制台异常。只扫侧栏真实存在的入口。
     for (const path of NAV_PAGES) {
       consoleErrors.length = 0;
       await send("Page.navigate", { url: BASE + "/" });

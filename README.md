@@ -19,12 +19,15 @@ A 股选股。策略分开记账，每套每天最多 10 只。名额按天算�
 | `src/lib/market/rules.ts` | 启动前期的门槛 |
 | `src/lib/market/journal-book.ts` | T+1、涨跌停卖不掉、手续费 |
 | `src/lib/market/session.ts` | 现在是早盘、午休还是尾盘 |
-| `src/routes/` | 每个页面。总览、市场、资讯、研究、组合、进化、AI、设置（侧边栏七组） |
+| `src/routes/` | 每个页面。侧栏现为**五组 + 系统**：今天 / 行情 / 研究 / 策略 / 我的 / 系统（11-13 起，见 `src/components/screener/nav.tsx`）；`/` 只是 307 → `/today` |
 | `scripts/record-journal.ts` | 后台记账。只写本机账，不下单 |
 
 登录、脚手架、预览相关的文件开头写了「日常选股不用改这里」。
 
-界面规范以 `design/ui-upgrade-2026-10.md` 为准（侧边栏七组 IA、朱砂/红涨绿跌令牌、情绪温度计签名组件）；`design/archive/` 里的旧稿（UI 方案 v3、旧页头装饰、HTML 原型）是历史版本，勿按此施工。
+界面规范现以 **`design/redesign-2026-11/`** 为准（11-12 晚整站换成像素赛博：默认深色 +
+霓虹青、8 屏设计稿 + 手机版、`tokens.css` / `pixel.css`），色值真源是 `src/styles.css`。
+`design/ui-upgrade-2026-10.md`（侧栏七组 IA、朱砂令牌、浅底蓝主色）和 `design/archive/`
+里的旧稿都是**历史版本，勿按此施工**；浅色主题保留可切，但不再是默认。
 
 ## 回测：结论和怎么用
 
@@ -202,9 +205,19 @@ token 放在 `data/push-config.json`（已被 git 忽略，不会进代码库）
 ```
 
 在 [PushPlus 官网](http://www.pushplus.plus) 扫码登录就能拿到 token。
-界面入口：顶栏铃铛下拉里直接粘贴保存（只有主人账号看得到这块）；留空点保存是关闭推送。
-也可以直接编辑 `data/push-config.json`，效果一样。不填就静默跳过，
-只发 Mac 通知——推送失败永远不会影响记账本身。页面上的铃铛红点 / Toast 不受影响。
+界面入口：**`/settings` 的「交易推送」面板**（11-13 从顶栏铃铛搬进设置页；只有主人账号
+看得到这块）；留空点保存是关闭推送。也可以直接编辑 `data/push-config.json`，效果一样。
+不填就静默跳过，只发 Mac 通知——推送失败永远不会影响记账本身。
+
+这个 token 同时供**两条通道**，别混：
+- **收盘日报**：交易日 15:12 收盘封印后发一份，状态记在 `data/.daily-digest-last.json`
+  （`sent`/`failed` + 通道），`.daily-mail-<date>.stamp` 一天一次去重；
+- **交易提醒**：09:20 前瞻 3 只 / 09:26 两条腿买入单 / 15:10 温度计 / 到止损·到目标·到期该卖，
+  由 `home-server.mjs` 时间表调度。**这些不写状态文件**，只留痕在 `data/serve.log`。
+
+所以 `.daily-digest-last.json` 停在昨天**不代表今天漏推**——15:12 之前本来就不该有当天记录。
+11-12 起买入单只推早上 9:20 那条（晚上收到容易被刷掉，早上看正好要下单），
+`forecast.ts` 落档时不再自动推，`--push-on-lock` 保留作手动补发。
 
 ## 部署到 Mac mini
 

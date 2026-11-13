@@ -1206,3 +1206,63 @@ PE≤18/PB≤2 在 A 股天然≈银行筛选器——**value 现在正收益的
 ⚠️ **要用户自己终端跑 `npm run build:mac` 并重启 `npm run serve`**：
 前端改动要 build 才在 8787 生效，盘中采集挂在 home-server 的心跳上，不重启不跑。
 本轮 build 仍被宿主 safe-delete / fs-broker 拦（见上节），验证走 dev 5197。
+
+---
+
+## 2026-11-13 整站改版归档（11-12 晚 ~ 11-13 早，会话外提交）
+
+这一节只**归档已落地的事实和口径**，不重新讨论、也不代表新增待拍板事项。
+区间：`0fa74fd`（11-12 14:23）→ `15e823e`（11-13 09:54），50 个提交、110 文件、
++6064/−2213 行。按主题：设计/UI 30 · 信息架构 8 · 决策与推送链路 8 · 其他 2。
+**没有提交改动研究层**：`strategy-verdicts.json` 与「无可部署 alpha」结论原样未动。
+
+**1. 侧栏五组 + 系统（取代 11-11 的八组）**
+真源 `src/components/screener/nav.tsx` 的 `SIDEBAR`：今天 / 行情 / 研究 / 策略 / 我的 / 系统。
+理由写在代码注释：八组按时间分会把同一件事拆到两组（资金、题材都在「盘后」，
+「盯盘」却只有一项），**分组跟着问题走，不跟着时钟走**。
+子页继续进页内 tab：策略 5→3 工作台、因子 6→1（`FACTOR_TABS`）、资金 8→4。
+`/inbox` 11-13 下线（两个入口违反单一入口）；`/decision`、`/flow/industries`、
+`/flow/close` 只剩 307。`smoke-pages.test.mjs` 的 `LEGACY_ALIASES` / `SKIP_WITH_REASON`
+已同步，`smoke-test.mjs` 的 PAGES / NAV_PAGES 已含 `/today`。
+
+**2. `/` 变纯 307 → `/today`，`/today` 成为核心入口**
+`src/routes/index.tsx` 从 753 行砍成注释 + 重定向（11-12 15:48「总览并入 /today」）。
+理由：总览和今日决策原来各有一份涨停/连板/炸板率指标条、各有一份梯队和资金摘要，
+同一批数据摆两遍。11-13 又加**一天时间轴**，每块数据标明几点到位
+（昨收落档 15:12 / 竞价审核 09:26 / 盘中资金约 1 分钟），
+避免把 9:26 竞价价误当此刻能挂的价。
+
+**3. 像素赛博主题（11-12 22:00~23:42）**
+`design/redesign-2026-11/` 16 个设计稿（8 屏 + 手机版 + `tokens.css`/`pixel.css`），
+`src/styles.css` 默认深色黑底 `#07080b` + 霓虹青 `#22e6ff`，浅色搬到
+`html[data-theme="light"]` 可切；新增 `PixelHeader` / `PixelSummary`，全站标题块与摘要块覆盖。
+**旧口径作废**：`design/ui-upgrade-2026-10.md` 的浅底蓝主色 `#1677ff`、朱砂主强调、
+「默认浅色」全部不再适用。
+
+**4. 决策与推送链路（11-12 下午）**
+- 挂单价从「昨收限价」改成**能成交的竞价价 + 2% 追高闸**，昨收只当纪律线；
+  容忍度改按每只票自己的振幅定，不再固定百分比；一字板买不进/卖不出不算「买到了」。
+- 推送改**早上 9:20**：`forecast.ts` 落档不再自动推（保留 `--push-on-lock`），
+  新增 `--push-morning` 读最近一期落档推「今天开盘买入 · 3 只」，
+  `home-server.mjs` 只在 9:20–9:30 之间发一次，过点不发（发出来也来不及下单）。
+- `scripts/forecast-live.ts`：盘中买入价另存 `data/history/forecast/live/<落档日>.json`，
+  **只读衍生、绝不回写落档**（/huiyan 第一条规矩：落档之后不许改）。
+- `scripts/lib/signal-legs.ts`：短线 5 / 中长线 8 个交易日「什么时候走」单一出处。
+- `15e823e`：`PushConfig` 从顶栏铃铛搬进 `/settings`，修掉「没有入口的死代码」。
+
+**5. 两条推送通道的边界（2026-11-13 查实，防以后再混）**
+
+| 通道 | 何时 | 触发 | 状态落盘 |
+|---|---|---|---|
+| 收盘日报 | 交易日 15:12 封印后（实测 15:08~15:16） | `record-journal.ts` → `daily-digest.ts` `sendDailyDigest` | `data/.daily-digest-last.json`，`.daily-mail-<date>.stamp` 一天一次 |
+| 交易提醒 | 09:20 / 09:26 / 15:10 / 事件触发 | `home-server.mjs` 时间表，各自 `sendPushPlus` | **不写状态文件**，只在 `data/serve.log` 留痕 |
+
+🔴 `.daily-digest-last.json` **只描述收盘日报，不是全站推送健康度**。
+11-12 改 9:20 动的是**买入单**，不是收盘日报；两条通道共用一个 PushPlus token。
+所以「状态文件停在昨天」≠ 漏推：交易日 15:12 之前本来就不该有当天记录。
+（2026-11-13 11:00 实测：状态 11-12 15:14:34 `sent/wechat`；11-13 早上 09:20 买入单
+在 `serve.log` 记为「早上买入单已推送微信」，`forecast-live` 已开盘 3/3 只——都正常。）
+
+**验证（11-13 10:5x）**：typecheck 干净 · `check:client` 96 个 JS 干净 ·
+`npm test` 1324/1324 · 线上 8787 冒烟 0 FAIL（本次修掉 `smoke-test.mjs` 写死找「复盘」
+的过时断言，改成判 `aria-expanded` + 导航链接数增加）· `.output` 为 11-13 09:53 新构建。

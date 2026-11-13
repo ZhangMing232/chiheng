@@ -58,13 +58,41 @@
 
 ## UI
 
-- **2026-11-10 起默认主题 = 浅底 + 蓝主色**（8 张效果图整体换肤）：`--color-brand: #1677ff`
-  （按钮/激活/链接；小字用 `--color-brand-text: #095dcc` 保对比）。**红只许出现在两处**：
-  logo 方块（nav.tsx 写死的渐变红）和 A 股涨跌（红涨绿跌铁律）。AI 区专用青
-  （`--color-ai`）继续给 AI 页的状态语义用。深色主题整套保留为可切换
-  （`html[data-theme="dark"]`，墨黑+青观感），新页面不需要为深色单独写样式——
-  一律用 token，两套主题自动适配。旧文档 `design/ui-upgrade-2026-10.md` 的
-  「朱砂主强调」「2026-11-06 青统一」两条都已过时，别再照抄。
+- 🔴 **2026-11-12 晚起默认主题 = 像素赛博深色**（整站换肤，`src/styles.css` 的 `@theme`
+  是色值真源，`design/redesign-2026-11/pixel.css` 与它一致）：黑底 `#07080b` +
+  霓虹青 `--color-brand: #22e6ff`，品红警示、红涨绿跌提亮保深底可读，
+  圆角一律 4px、无阴影。**浅色（白卡 + 蓝）没删**，搬到 `html[data-theme="light"]`
+  可切（浏览器 `localStorage chiheng-theme`）；同样还有 `chiheng-scheme`（红涨绿跌/绿涨红跌）、
+  `chiheng-slack`（摸鱼模式）、`chiheng-nav-closed`。一律用 token，别写死 hex。
+- **旧口径作废**：`design/ui-upgrade-2026-10.md` 的「朱砂主强调 / 浅底 + #1677ff 蓝主色 /
+  2026-11-06 青统一」以及本文此前写的「默认浅色」**都已过时，别再照抄**。
+  改 UI 前先看 `design/redesign-2026-11/` 的 8 屏设计稿 + `tokens.css`。
+- **标题块 / 摘要块已覆盖全站**：新页面用 `PixelHeader`（`src/components/pixel-header.tsx`）
+  和 `PixelSummary`（`src/components/pixel-summary.tsx`），别再手写一套。
+- 红涨绿跌是 A 股铁律，换主题也不许翻。
+
+### 现行信息架构（2026-11-13，别再按八组写）
+
+侧栏唯一真源是 `src/components/screener/nav.tsx` 的 `SIDEBAR`，现为**五组 + 系统**：
+今天 / 行情 / 研究 / 策略 / 我的 / 系统。11-11 那版「按一天节奏分八组」已废——
+理由是会把同一件事拆两组，**分组跟着问题走，不跟着时钟走**。
+
+- **`/` 是纯 307 → `/today`**，`src/routes/index.tsx` 只有注释和重定向，别往里加内容。
+  `/today` 是新的核心入口，带一天时间轴（每块数据标明几点到位）。
+- `/inbox` 11-13 下线；`/decision`、`/flow/industries`、`/flow/close` 等都只剩 307。
+- 新增/删路由照旧三必做：重生 `routeTree.gen.ts`、补 `smoke-test.mjs` 的 PAGES
+  （守门测试会红）、补 `PAGE_DECOR` 登记（否则没有 L2 页头）。
+
+### 两条推送通道（2026-11-13 核实，别混）
+
+- **收盘日报**：交易日 15:12 封印后由 `record-journal.ts` → `sendDailyDigest` 发，
+  状态写 `data/.daily-digest-last.json`，`.daily-mail-<date>.stamp` 一天一次去重。
+- **交易提醒**：09:20 前瞻 3 只 / 09:26 两条腿买入单 / 15:10 温度计 / 事件触发卖出，
+  由 `home-server.mjs` 时间表调度，各自调 `sendPushPlus`，**不写上面那个状态文件**。
+- 🔴 所以 `.daily-digest-last.json` 停在昨天 ≠ 今天漏推；15:12 之前本来就不该有当天记录。
+  判断交易提醒发没发，查 `data/serve.log`。
+- 11-12 起买入单**只推早上 9:20 那条**，落档不再自动推（`--push-on-lock` 手动保留）；
+  这条改的是买入单，不是收盘日报。
 - 面向用户的页面给白话：术语用 `src/lib/ui/glossary.ts` 的 `<Term>` 悬停卡，别在页面上裸抛黑话；
   「已下线」的东西明说「历史仓结算中」，不和现役混排。
 
@@ -138,6 +166,10 @@
 全量名单、4×8 榜单这类属于专页，首页给汇总 + 链接。
 
 ### 构建这台机器上的两个环境坑（2026-11-11 深夜）
+
+> **2026-11-13 现状**：这两个坑**已被绕过**——`.output` 于 11-13 09:53 成功产出新构建，
+> 8787 跑的就是它。下面保留作排障记录，不代表「现在构建跑不了」。
+> 仍要记住：改前端必须 build 才在 8787 生效，且 `npm run serve` 只能用户自己终端起。
 
 - `npm run build:mac` 会被 safe-delete 守卫拦：`vite build` 要清空自己的 `.output`
   （200~500 个文件）和 `node_modules/.nitro/.../assets`（186 个），超过守卫 50 文件阈值。
