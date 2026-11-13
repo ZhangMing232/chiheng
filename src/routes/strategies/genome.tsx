@@ -27,7 +27,7 @@ import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Stat, Tag } from "@/components/terminal";
 import { SectionTabs } from "@/components/section-tabs";
-import { STRATEGY_TABS, BACKTEST_SUB_TABS } from "@/lib/ui/strategy-tabs";
+import { BACKTEST_SUB_TABS } from "@/lib/ui/strategy-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getGenomeView } from "@/lib/market/quotes.functions";
 import type { GenomeCandidate } from "@/lib/market/strategy-genome";
@@ -65,7 +65,6 @@ function GenomePage() {
 
   return (
     <Frame wide>
-      <SectionTabs tabs={STRATEGY_TABS} />
       <PixelHeader label="STRATEGY // GENOME" meta="参数与基因视图 · 变体判赢也未必有现役席位" />
       <PixelSummary
         label="STRATEGY // GENOME"

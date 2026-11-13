@@ -473,10 +473,8 @@ function StatusBar() {
         <span>
           风控闸门: <span className={s.gatesOff === 0 ? "text-down" : "text-warn"}>{s.gatesOff === 0 ? "已就绪" : `${s.gatesOff} 套停用${s.gatesParole > 0 ? ` · ${s.gatesParole} 套假释` : ""}`}</span>
         </span>
-        <Link to="/settings" className={`${linkCls} ml-auto`}>
-          查看详细日志
-          <span aria-hidden>→</span>
-        </Link>
+        <span className="ml-auto text-muted">查看详细日志
+          <span aria-hidden>→</span></span>
       </div>
     </footer>
   );

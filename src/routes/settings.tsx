@@ -157,9 +157,7 @@ function SettingsPage() {
               <td className={tdClass("text-left text-muted")}>AI 接入</td>
               <td className={tdClass("text-left")}>接口配置、进化控制台、Token 用量</td>
               <td className={tdClass("text-left text-muted")}>
-                <a href="/ai" className="underline decoration-line underline-offset-2 hover:text-fg">
-                  接入 AI
-                </a>
+                接入 AI
               </td>
             </tr>
             <tr className="border-b border-line/60">

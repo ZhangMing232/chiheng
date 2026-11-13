@@ -28,7 +28,6 @@ import { ACTIVE_STYLES, STYLES, styleOf } from "@/lib/market/strategies";
 import { MAX_RUNNING_PER_STYLE } from "@/lib/market/challenger";
 import { SectionTabs } from "@/components/section-tabs";
 import { Term } from "@/components/term";
-import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
 import { getChallengerRobustness, getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, getSignalCandidates, getSignalReviewed, getSignalTracking, getShortForms, type NavPoint, type SignalCandidate, type SignalReviewed, type SignalTrackItem, type SignalTrackSummary, type ShortFormsData } from "@/lib/market/quotes.functions";
@@ -1073,10 +1072,6 @@ function Positions() {
         </div>
       }
     >
-      <SectionTabs
-        ariaLabel="策略"
-        tabs={STRATEGY_TABS}
-      />
       <PixelHeader
         label="STRATEGY // POSITIONS"
         meta="跟单 / 持仓 / 体检 / 战绩 · 止损先到先走，买入当天不卖"

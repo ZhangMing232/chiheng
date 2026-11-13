@@ -17,7 +17,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { SectionTabs, FACTOR_TABS } from "@/components/section-tabs";
+import { SectionTabs } from "@/components/section-tabs";
 import { FactorLoopPanels } from "@/components/screener/factor-loop-panels";
 import { Stat, Panel, Tag, Prog } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -204,9 +204,7 @@ function FactorToStrategy({
               <span>
                 策略候选共 <span className="tabular-nums text-fg">{candidates.length}</span> 套
               </span>
-              <Link to="/strategies/genome" className="text-brand transition hover:underline">
-                去「策略基因组」看全部判决 →
-              </Link>
+              去「策略基因组」看全部判决 →（侧栏「策略 → 回测审计」里的页签）
             </div>
 
             {passed.length > 0 ? (
@@ -312,7 +310,7 @@ function FactorLabCard({ summary, tombstones, batchIndex }: { summary: BatchSumm
   return (
     <Panel
       title="因子实验室"
-      action={<Link to="/factors/gates" search={{ batch: batchIndex }} className="text-xs text-muted transition hover:text-fg">查看 6 关明细 →</Link>}
+      action={<span className="text-xs text-muted">6 关明细在上方页签</span>}
       bodyClassName="px-3.5 py-3"
     >
       <div className="grid gap-5 sm:grid-cols-3">
@@ -404,7 +402,6 @@ function FactorsIndexPage() {
         )
       }
     >
-      <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <PixelHeader label="FACTORS // LAB" meta="研究层验证，不产生实盘信号" />
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>
       <div className="rounded border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">

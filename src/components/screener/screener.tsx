@@ -18,7 +18,7 @@ import { FilterChip } from "@/components/filter-chip";
 import { Frame } from "@/components/screener/nav";
 import { cycleTheme } from "@/components/screener/nav";
 import { SectionTabs } from "@/components/section-tabs";
-import { STRATEGY_TABS } from "@/lib/ui/strategy-tabs";
+import { SCREENER_SUB_TABS } from "@/lib/ui/strategy-tabs";
 import { runningStyles, type GateLike } from "@/lib/ui/running-styles";
 import { useHotkeys } from "@/lib/ui/hotkeys";
 import { useSymbolUi } from "@/lib/ui/symbol-store";
@@ -248,6 +248,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
       wide
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
+      <SectionTabs tabs={SCREENER_SUB_TABS} ariaLabel="策略选股" />
           <span className="text-fg">{phase.label}</span>
           <span className="tabular-nums">{indexTime ? indexTime : formatClock(universe?.asOf ?? null)}</span>
           <AccountStatus personal={personal} why={journalWhy} />
@@ -284,10 +285,6 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
     >
         {/* 2026-10-21 整合：选股和追踪同属「策略」区（/strategies 下两个子页面），
             顶部给二级 tab，和追踪页是同一组。 */}
-        <SectionTabs
-          ariaLabel="策略"
-          tabs={STRATEGY_TABS}
-        />
         {/* 状态卡行（效果图签名件）：结果快照 / 行情延迟 / 策略引擎 / 风控闸门，全真实 */}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <HeroStat

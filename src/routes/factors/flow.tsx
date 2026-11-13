@@ -11,7 +11,7 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { SectionTabs, FACTOR_TABS } from "@/components/section-tabs";
+import { SectionTabs } from "@/components/section-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getFactorDiag } from "@/lib/market/quotes.functions";
 import { flowStress } from "@/lib/market/factors-view";
@@ -43,7 +43,6 @@ function FactorFlowPage() {
   const flowGroups = useMemo(() => flowStress(diag.flowProbe), [diag.flowProbe]);
   return (
     <Frame wide aside="因子发掘 · 资金流探路">
-      <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <PixelHeader label="FACTORS // EXPLORE" meta="外部因子探路 · 借鉴来的能不能用" />
       <PixelSummary
         label="FACTORS // EXPLORE"

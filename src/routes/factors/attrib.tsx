@@ -10,7 +10,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { SectionTabs, FACTOR_TABS } from "@/components/section-tabs";
+import { SectionTabs } from "@/components/section-tabs";
 import { StateBlock } from "@/components/state-block";
 import { getFactorDiag } from "@/lib/market/quotes.functions";
 import { ShrinkFlipPanel } from "@/components/screener/factor-diag-panels";
@@ -40,7 +40,6 @@ function FactorAttribPage() {
   const { diag } = Route.useLoaderData();
   return (
     <Frame wide aside="因子发掘 · 缩量归因">
-      <SectionTabs ariaLabel="因子实验室" tabs={FACTOR_TABS} />
       <PixelHeader label="FACTORS // ATTRIBUTION" meta="失败归因 · 没过的话坏在哪" />
       <PixelSummary
         label="FACTORS // ATTRIB"
