@@ -85,7 +85,7 @@ function OverseasPage() {
   }
 
   return (
-    <Frame wide
+    <Frame decorHeader={false} wide
       aside="港美行情"
       ornamentContent={
         // **真实数据**：indices[0] 是当前 tab 关注的那组指数里的第一个。

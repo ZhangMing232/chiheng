@@ -40,7 +40,7 @@ function IntervalPage() {
 
   if (!p) {
     return (
-      <Frame wide>
+      <Frame decorHeader={false} wide>
       <PixelHeader label="RANGE // STATS" meta="区间统计 · 只看收盘价，给涨幅不给净额" />
         <Panel title="区间统计">
           <StateBlock kind="empty" title="还没建收盘价索引" hint="跑 scripts/closes-index.ts（读本地 K 线，不联网）。" />
@@ -56,7 +56,7 @@ function IntervalPage() {
   const upBoards = p.boards.filter((b) => b.median > 0).length;
 
   return (
-    <Frame
+    <Frame decorHeader={false}
       wide
       aside={
         <span className="num text-xs text-muted">

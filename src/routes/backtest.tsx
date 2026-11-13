@@ -72,7 +72,7 @@ function BacktestPage() {
 
   if (!picked) {
     return (
-      <Frame wide
+      <Frame decorHeader={false} wide
         aside="回测"
         status={{
           label: "记录",
@@ -97,7 +97,7 @@ function BacktestPage() {
   const weak = untested(picked);
 
   return (
-    <Frame wide
+    <Frame decorHeader={false} wide
       aside="回测"
       status={{
         label: "记录",

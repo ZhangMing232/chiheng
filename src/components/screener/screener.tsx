@@ -244,7 +244,7 @@ export function Screener({ initial }: { initial: ScreenerInitial }) {
   }, [quotes, rules, prefs]);
 
   return (
-    <Frame
+    <Frame decorHeader={false}
       wide
       aside={
         <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">

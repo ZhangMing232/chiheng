@@ -1152,14 +1152,8 @@ function Positions() {
   );
 
   return (
-    <Frame
+    <Frame decorHeader={false}
       wide
-      status={{
-        label: "在跟",
-        // **真实数据**：未平仓笔数（从本页已有的 rows/journal 算，不额外拉）。
-        value: `${openCount} 只`,
-        tone: openCount > 0 ? "brand" : "neutral",
-      }}
       ornamentContent={
         // **真实数据**：在跑的挑战者数量 + 它们挑战哪套策略。
         // 没挑战者就是"现在没有在跑的挑战"——不是"0 场对决"。
@@ -1183,7 +1177,16 @@ function Positions() {
     >
       <PixelHeader
         label="STRATEGY // POSITIONS"
-        meta="跟单 / 持仓 / 体检 / 战绩 · 止损先到先走，买入当天不卖"
+        meta={
+          <>
+            跟单 / 持仓 / 体检 / 战绩 · 止损先到先走，买入当天不卖
+            {/* 原 DecorHeader 的状态药丸（真实数据：未平仓笔数）随页头收编到这里，
+                删两套页头后信息不丢（2026-11-13 用户标注）。 */}
+            <span className="ml-3 inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand-soft px-2 py-0.5 text-brand-text">
+              在跟 <span className="font-medium tabular-nums">{openCount} 只</span>
+            </span>
+          </>
+        }
       />
       {/* 策略基因组入口（P1-2）：解决「融合策略找不着」。
           同一份 loader 数据（genomeCount），不额外拉接口、不进任何买卖逻辑；

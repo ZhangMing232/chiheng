@@ -48,7 +48,7 @@ function MembershipPage() {
   })();
 
   return (
-    <Frame wide aside="会员">
+    <Frame decorHeader={false} wide aside="会员">
     <PixelHeader label="MY // PLAN" meta="档位与配额 · 只影响 AI 用量，不影响数据" />
       {/* 当前档位 */}
       <Panel title="当前档位" bodyClassName="px-3.5 py-3">

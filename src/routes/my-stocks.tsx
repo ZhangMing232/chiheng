@@ -74,7 +74,7 @@ function MyStocksPage() {
   }
 
   return (
-    <Frame wide
+    <Frame decorHeader={false} wide
       status={{
         label: "自选",
         // **真实数据**：本页已有的 items 长度。items 是 [] 时说明确实没有自选

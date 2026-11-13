@@ -129,7 +129,7 @@ function ButlerPage() {
   });
 
   return (
-    <Frame wide aside="AI · 大管家">
+    <Frame decorHeader={false} wide aside="AI · 大管家">
     <PixelHeader label="SYS // BUTLER" meta="服务与数据状态 · 心跳、任务、延迟" />
       {/* 页头 */}
       <div className="flex flex-wrap items-center gap-3">

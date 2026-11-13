@@ -70,7 +70,7 @@ function CyclePage() {
   const { series, meta } = Route.useLoaderData();
   if (series.length === 0) {
     return (
-      <Frame wide aside="情绪周期">
+      <Frame decorHeader={false} wide aside="情绪周期">
       <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 周期阶段六档：冰点/修复/升温/高潮/降温/退潮" />
         <Panel title="情绪周期">
           <StateBlock kind="empty" title="还没算" hint="跑一次 scripts/cycle-history.ts 就有（扫本地 K 线，不联网）。" />        </Panel>
@@ -96,7 +96,7 @@ function CyclePage() {
   const fmtRet = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%`);
 
   return (
-    <Frame
+    <Frame decorHeader={false}
       wide
       aside={
         /* 顶栏这一行放真实状态，不重复页名（页名在第一行页头里已经有了） */

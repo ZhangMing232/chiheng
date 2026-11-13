@@ -935,6 +935,14 @@ export function Frame({
   /** 模块级数据新鲜度条（状态·数据源·更新时间·延迟·重试）——
    *  口径纪律：必须来自本页 loader/universe 的真实时间戳，不许编。 */
   freshness,
+  /** 关掉 L2 装饰页头（图标 + 页名 + 一句话职能）。
+   *  给**自己渲染 PixelHeader 的页面**用（2026-11-13）：那 13 页原先是
+   *  DecorHeader + PixelHeader 两套页头叠着，页名出现三次
+   *  （顶栏面包屑 / DecorHeader / PixelHeader meta），视觉两套语言打架——
+   *  用户标注指出的就是这块。关掉后页名由顶栏面包屑 + PixelHeader 承担。
+   *  没有自渲染页头的页面（/watch /youzi /flow /ai 等）**不要传**，
+   *  DecorHeader 是它们唯一的大页名。 */
+  decorHeader = true,
   children,
 }: {
   aside?: ReactNode;
@@ -947,6 +955,8 @@ export function Frame({
   /** 专属装饰件的额外内容（真实数据） */
   ornamentContent?: ReactNode;
   freshness?: StatusSnapshot | null;
+  /** 关掉 L2 装饰页头，见上 */
+  decorHeader?: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -1035,8 +1045,9 @@ export function Frame({
 
           {/* L2 页头：图标 + 页面名 + 一句话职能 + 状态药丸。
               没有配置装饰的页面（不在 page-decor 表里的）不渲染这一段——
-              装饰是加分项，不该在某些页面上留个空壳。 */}
-          {decor ? (
+              装饰是加分项，不该在某些页面上留个空壳。
+              自渲染 PixelHeader 的页面传 decorHeader={false} 关掉它（两套页头打架）。 */}
+          {decor && decorHeader ? (
             <DecorHeader decor={decor} status={status} />
           ) : null}
 

@@ -56,7 +56,7 @@ function HuiyanPage() {
   const btChases = bt?.periods.reduce((s, p) => s + (p.summary?.chases ?? 0), 0) ?? 0;
 
   return (
-    <Frame
+    <Frame decorHeader={false}
       wide
       aside={
         <span className="num text-xs text-muted">

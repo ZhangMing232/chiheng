@@ -37,7 +37,7 @@ function RsPage() {
   const rs = Route.useLoaderData();
   if (!rs) {
     return (
-      <Frame wide>
+      <Frame decorHeader={false} wide>
         <Panel title="趋势中军">
           <StateBlock kind="empty" title="还没算" hint="跑 scripts/rs-build.ts（读本地 K 线，不联网）。" />
         </Panel>
@@ -49,7 +49,7 @@ function RsPage() {
   const strong = rows.filter((r) => r.fromHigh > -0.05).length;
 
   return (
-    <Frame wide aside={<span className="num text-xs text-muted">{rs.date} · 参与排名 {rs.universe} 只 · 上榜 {rows.length} 只</span>}>
+    <Frame decorHeader={false} wide aside={<span className="num text-xs text-muted">{rs.date} · 参与排名 {rs.universe} 只 · 上榜 {rows.length} 只</span>}>
       <PixelHeader label="RS // LEADERS" meta="多周期加权 RS 前 200 · 相对强不等于绝对上涨" />
       <div className="flex flex-col gap-3">
         <Panel title="趋势中军" note={<span className="text-[12px]">强度是多周期加权，不是今天的涨幅</span>}>
