@@ -77,6 +77,50 @@ function PxIcon({ kind, color }: { kind: "rocket" | "blade" | "shield"; color: s
   );
 }
 
+
+/**
+ * 一天的时间轴：每一段写清「什么时候发生、数据什么时候到位」。
+ *
+ * 为什么要有这个：/today 上同时摆着三种时态的数据——
+ *   昨天的落档（15:12 写入，今天开盘才可买）
+ *   今早的竞价审核（09:26 写入，决定挂什么价）
+ *   盘中的资金（约 1 分钟一更）
+ * 不标时间，用户会以为「买 244.80」是现在能挂的价，其实那是今早 9:26 的竞价价。
+ *
+ * 所以每个节点写两行：上面是动作（几点干什么），下面是数据（几点到哪份文件）。
+ */
+const DAY_STAGES = [
+  { at: "09:15", action: "集合竞价开始", data: "盘中三池开始每 3 分钟采" },
+  { at: "09:26", action: "竞价审核 → 定买价", data: "reviewed.json 落盘" },
+  { at: "09:30", action: "开盘，按价挂单", data: "竞价价即开盘价" },
+  { at: "15:00", action: "收盘", data: "盘中数据作废，等定盘" },
+  { at: "15:12", action: "收盘封印", data: "涨停池 / K线 / 落档写入" },
+  { at: "15:15", action: "算明天", data: "题材热度 / 监管雷达 / 轮动" },
+  { at: "次日 09:20", action: "推送明天买什么", data: "读昨日落档" },
+];
+
+function StageBar({ now }: { now: string }) {
+  return (
+    <div className="px-mod4 border border-line bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="px-num text-[12px] tracking-widest text-brand">DAY // TIMELINE</span>
+        <span className="px-num text-[12px] text-muted">
+          数据现状 {now} · 下面每块都标了它是什么时候的
+        </span>
+      </div>
+      <div className="mt-2 grid gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-7">
+        {DAY_STAGES.map((s) => (
+          <div key={s.at} className="min-w-0">
+            <div className="px-num text-[12px] tracking-wider text-brand">{s.at}</div>
+            <div className="text-[13px] leading-snug text-fg">{s.action}</div>
+            <div className="px-num mt-0.5 text-[12px] leading-snug text-muted">{s.data}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DecisionPage() {
   const { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow } = Route.useLoaderData();
   const { openDetail, modal } = useStockDetail();
@@ -187,6 +231,8 @@ function DecisionPage() {
         </div>
         <div className="px-hazard" aria-hidden="true" />
 
+        <StageBar now={`${pool?.date ?? "—"} ${pool?.sealed ? "收盘封印" : "盘中未定"}`} />
+
         {/* ── 指标带：等宽大数字 ── */}
         <div className="grid grid-cols-3 gap-px overflow-hidden border border-line bg-line sm:grid-cols-6">
           {[
@@ -210,6 +256,7 @@ function DecisionPage() {
         {/* ── 当日主线 + 题材强度（2026-11-12 从总览 / 搬回：合并时漏了这两块）── */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="px-slash">THEMES // STRENGTH</span>
+          <span className="px-st wait">昨日 15:10</span>
           <span className="h-px flex-1 bg-line" />
           <span className="px-num text-[12px] text-muted">涨停家数多的在前 · 龙头 = 板内涨幅最高且没涨停的那只</span>
         </div>
@@ -258,6 +305,7 @@ function DecisionPage() {
         {/* ── 买入矩阵 ── */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="px-slash">BUY_MATRIX</span>
+          <span className="px-st ok">今晨 09:26 竞价审核</span>
           <span className="h-px flex-1 bg-line" />
           <span className="px-num text-[12px] text-muted">买价 = 能成交的价 · 高开超过自身振幅即放弃</span>
         </div>
@@ -307,6 +355,7 @@ function DecisionPage() {
         {/* ── 作战块：纪律 + 盯什么 ── */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="px-slash">OPS // EXIT · WATCH</span>
+          <span className="px-st wait">昨日 15:15</span>
           <span className="h-px flex-1 bg-line" />
           <span className="px-num text-[12px] text-muted">纪律写死，盘中不改</span>
         </div>
