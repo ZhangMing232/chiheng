@@ -20,9 +20,30 @@ import type { FactorRunRow } from "./factor-runs-file.ts";
 
 const GATE_LABEL = new Map(GATE_LEGEND.map((gate) => [gate.key, gate.label]));
 
+/**
+ * 死因标签 + 处置倾向（2026-11-14 第 9 轮修）。
+ *
+ * 为什么必须带处置：原先只写「败于 单调/显著/两段/换样本/多重检验」——
+ * 列了一串关卡名，但**没告诉 AI 该怎么办**。实测 85 条档案里 46 条是五关全挂
+ * （因子本身没区分度），而 AI 看到这串名字只会以为「差一点」，
+ * 于是继续提同形状的微调变体——白烧一轮检验。
+ *
+ * 三档判据与 factor-tombstones.ts 的 describeDeath 保持一致（同一套口径，两处都能用）：
+ *   - 五关全挂 → 换方向，别提近亲变体
+ *   - 含 g5 且多关 → 试多了碰巧显著，别当信号
+ *   - 只挂一两关 → 接近可用，值得再试
+ */
 function failedLabel(record: TombstoneRecord): string {
   if (record.failedGates.length === 0) return "衰减退役（不是 6 关打死）";
-  return `败于 ${record.failedGates.map((key) => GATE_LABEL.get(key as never) ?? key).join("/")}`;
+  const names = record.failedGates.map((key) => GATE_LABEL.get(key as never) ?? key).join("/");
+  const core = ["g1", "g2", "g3", "g4", "g5"];
+  const allCore = core.every((g) => record.failedGates.includes(g as never));
+  if (allCore) return `败于 ${names} —— **五关全挂，因子本身没区分度**，换方向别再提近亲变体`;
+  if (record.failedGates.includes("g5" as never) && record.failedGates.length >= 3) {
+    return `败于 ${names} —— 含多重检验，**试多了碰巧显著**，别当信号用`;
+  }
+  if (record.failedGates.length <= 2) return `败于 ${names} —— 只挂一两关，**接近可用**，可换参数再试`;
+  return `败于 ${names}`;
 }
 
 /** 截断自由文本，prompt 里一行别太长。 */

@@ -111,3 +111,42 @@ test("edgeFamilyLines：只挑历史某批五关全过、独挂 g5 的临门一�
   // runs 里根本没这个因子 → 不编数，不进名单
   assert.deepEqual(edgeFamilyLines([near], []), []);
 });
+
+// ── 死因带处置倾向（2026-11-14 第 9 轮）──────────────────────────
+// 问题：原先只写「败于 单调/显著/…」，列了一串关卡名却没告诉 AI 该怎么办。
+// 85 条里 46 条是五关全挂，AI 却以为「差一点」，继续提同形状微调，白烧一轮。
+
+test("🔴 五关全挂的死因必须带「换方向」指令，不只是列关卡", () => {
+  const rec = {
+    id: "x", name: "近高点放量", category: "量能", direction: 1, source: "ai",
+    diedAt: "2026-11-12T00:00:00Z", runs: 2, failCount: 2, note: "",
+    failedGates: ["g1", "g2", "g3", "g4", "g5"], rationale: "r", expr: "e",
+  } as never;
+  const lines = necropsyLines([rec]);
+  const body = lines.join("\n");
+  assert.match(body, /五关全挂/);
+  assert.match(body, /换方向/);
+  assert.match(body, /别再提近亲变体/);
+});
+
+test("含 g5 且多关 → 提示「试多了碰巧显著」", () => {
+  const rec = {
+    id: "x", name: "某因子", category: "动量", direction: 1, source: "ai",
+    diedAt: "2026-11-12T00:00:00Z", runs: 2, failCount: 2, note: "",
+    failedGates: ["g2", "g3", "g5"], rationale: "r", expr: "e",
+  } as never;
+  const body = necropsyLines([rec]).join("\n");
+  assert.match(body, /试多了碰巧显著/);
+  assert.match(body, /别当信号用/);
+});
+
+test("只挂一两关 → 提示「接近可用」", () => {
+  const rec = {
+    id: "x", name: "某因子", category: "反转", direction: -1, source: "ai",
+    diedAt: "2026-11-12T00:00:00Z", runs: 2, failCount: 2, note: "",
+    failedGates: ["g3"], rationale: "r", expr: "e",
+  } as never;
+  const body = necropsyLines([rec]).join("\n");
+  assert.match(body, /接近可用/);
+  assert.match(body, /可换参数再试/);
+});
