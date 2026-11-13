@@ -274,6 +274,38 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({ label: "探索效率", state: "warn", detail: "读不到因子队列或基因组，算不出", fix: null });
   }
 
+
+  // ⑧ 判决功效（2026-11-14 新增）：比「判出什么」更根本——这套规则有没有能力判。
+  // 实测：标准差 10.05% + minTrades=12 → 最小可检出 11.49pp，而典型效果只有 3pp。
+  // 也就是说攒够样本也判不出来。这条比任何单次判决结论都重要。
+  try {
+    const { evaluateRulePower } = await import("./rule-power.ts");
+    const { loadChallengerRule } = await import("./challenger.ts");
+    const rule = await loadChallengerRule();
+    const book = await readJson<{ days?: { trades?: { entry: number; exit: number | null }[] }[] }>(
+      "data/books/dev-user.json",
+    );
+    const rets = (book?.days ?? [])
+      .flatMap((d) => d.trades ?? [])
+      .filter((t) => t && typeof t.exit === "number")
+      .map((t) => ((t.exit as number) - t.entry) / t.entry);
+    if (rets.length < 30) {
+      rows.push({ label: "判决功效", state: "warn", detail: `已平仓只有 ${rets.length} 笔，算不出可靠标准差`, fix: "继续攒样本，≥30 笔后再看" });
+    } else {
+      const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+      const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) ** 2, 0) / (rets.length - 1));
+      const power = evaluateRulePower({ perSide: rule.minTrades, sd, thresholdT: rule.promoteT });
+      rows.push({
+        label: "判决功效",
+        state: power.verdict === "underpowered" ? "warn" : "ok",
+        detail: `${power.reason}（标准差 ${(sd * 100).toFixed(2)}% / minTrades=${rule.minTrades}）`,
+        fix: power.advice,
+      });
+    }
+  } catch {
+    rows.push({ label: "判决功效", state: "warn", detail: "读不到挑战者规则或账本", fix: null });
+  }
+
   return rows;
 }
 
