@@ -143,8 +143,27 @@ export type GenomeVerdictOutcome = {
 };
 
 /**
- * 判决：聚类 |t| ≥ 2 且前后同向 → 站住（promoted）；
+ * 判决：聚类 |t| ≥ 2 **且**前后同向 **且**超额为正 → 站住（promoted）；
  * 差一道 → 判死（rejected）；样本不够 / 没跑成 → 还没结论（testing）。
+ *
+ * 🔴 2026-11-13 修（第三道关：超额符号）：
+ * 原实现只卡 |t|≥2 和前后同向，`t` 取的是聚类的**绝对强度**——一个稳定跑输
+ * 基准 1.24pp 的策略，其负向 t 同样过 |t|≥2，于是被判成 promoted。实测抓到
+ * `fused_vol_confirmed_momentum`（t=-2.85、超额 -1.24pp、2352 笔）被写进
+ * `data/strategy-genome.json` 的 status=promoted，理由文字自己都写着「超额 -1.24pp」。
+ *
+ * 这是自我进化链条上最致命的一环：**把「稳定输」当成「已验证」**，然后这条
+ * 错误结论会被下一轮 AI 当既成事实读进去（passedFactors / 近亲封禁 / 融合种子），
+ * 整个反思机制就在错误的地基上迭代。
+ *
+ * 为什么现在才加：白皮书 §4 原文是「|t| ≥ 2 且前后同向」，字面没写超额符号；
+ * 11-13 用户要求「没有外部 AI 也能自我进化」，那这条链必须自己判断得了
+ * 「赢还是输」——`|t|` 只回答「稳不稳」，不回答「赢没赢」，缺了符号就会被
+ * 稳定亏损骗过去。所以补上第三道关，并在理由里写明判定依据。
+ *
+ * 纪律：超额为负且过 |t| 的，判 rejected 并明确写「稳定跑输」——它不是
+ * 「没测出来」，是「测出来了，是反向的」，这两种要分开说（与 P1-3 页面
+ * 「反向·不可用」的文案口径一致）。
  */
 export function judgeGenomeVerdict(v: GenomeVerdictInput): GenomeVerdictOutcome {
   if (!v.ran) {
@@ -185,10 +204,26 @@ export function judgeGenomeVerdict(v: GenomeVerdictInput): GenomeVerdictOutcome 
       reason: `信噪比=${t.toFixed(2)} 过线，但前后半段同向算不出来，不是判决——继续攒样本`,
     };
   }
+  // 第三道关（2026-11-13 新增）：超额必须为正。|t| 只证「稳」，不证「赢」。
+  // 超额算不出来（null）时不能放行——不知道赢没赢就不许标站住。
+  if (v.excessPp == null || !Number.isFinite(v.excessPp)) {
+    return {
+      status: "testing",
+      failedGates: [],
+      reason: `信噪比=${t.toFixed(2)} 过线且前后同向，但超额算不出来——不能判赢，继续攒样本`,
+    };
+  }
+  if (v.excessPp <= 0) {
+    return {
+      status: "rejected",
+      failedGates: ["超额为正"],
+      reason: `稳定跑输：信噪比=${t.toFixed(2)} 虽过线，但超额 ${fmtPp(v.excessPp)} 为负（${v.trades} 笔）——这是「反向信号」，不是「站住」`,
+    };
+  }
   return {
     status: "promoted",
     failedGates: [],
-    reason: `信噪比=${t.toFixed(2)} 过线且前后同向（超额 ${fmtPp(v.excessPp)}，${v.trades} 笔）`,
+    reason: `信噪比=${t.toFixed(2)} 过线、前后同向、超额 ${fmtPp(v.excessPp)} 为正（${v.trades} 笔）`,
   };
 }
 

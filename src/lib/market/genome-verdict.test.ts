@@ -80,11 +80,34 @@ test("信噪比够了但前后半段翻脸 → 判死，败在「前后同向」
   assert.deepEqual(r.failedGates, ["前后同向"]);
 });
 
-test("两道都过 → 站住（promoted）", () => {
+test("🔴 三关全过才站住：|t|≥2 + 前后同向 + 超额为正", () => {
   const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: 0.58, clusteredT: 2.8, halvesSameSign: true });
   assert.equal(r.status, "promoted");
   assert.deepEqual(r.failedGates, []);
   assert.match(r.reason, /过线/);
+  assert.match(r.reason, /为正/, "理由必须写明超额为正");
+});
+
+test("🔴 稳定跑输（超额为负但 |t| 过线）判死，不许标站住（2026-11-13 修）", () => {
+  // 实测抓到的真事故：fused_vol_confirmed_momentum，clusteredT=-2.85、
+  // excessPp=-1.24、halvesSameSign=true，原实现判成 promoted。
+  // |t| 只证明「稳」，不证明「赢」；稳定亏损要被判死并写明「反向信号」。
+  const r = judgeGenomeVerdict({ ran: true, trades: 2352, excessPp: -1.24, clusteredT: -2.85, halvesSameSign: true });
+  assert.equal(r.status, "rejected", "超额为负不能判 promoted");
+  assert.deepEqual(r.failedGates, ["超额为正"]);
+  assert.match(r.reason, /稳定跑输|反向信号/, "理由要说清是稳定跑输，不是没测出来");
+});
+
+test("超额为 0 不算赢：等于打平，不站住", () => {
+  const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: 0, clusteredT: 2.5, halvesSameSign: true });
+  assert.equal(r.status, "rejected");
+  assert.deepEqual(r.failedGates, ["超额为正"]);
+});
+
+test("超额算不出来 → 不判赢，退回 testing（不知道赢没赢就不许站住）", () => {
+  const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: null, clusteredT: 2.5, halvesSameSign: true });
+  assert.equal(r.status, "testing");
+  assert.match(r.reason, /超额算不出来/);
 });
 
 test("🔴 前后同向算不出来(null) 不算过关——两道关缺一道就是还没结论", () => {
@@ -95,9 +118,14 @@ test("🔴 前后同向算不出来(null) 不算过关——两道关缺一道�
   assert.ok(!/同向/.test(r.reason) || /算不出来/.test(r.reason), "理由不许声称已同向");
 });
 
-test("负的信噪比也按绝对值判（-2.5 是过线，不是判死）", () => {
-  const r = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: -0.6, clusteredT: -2.5, halvesSameSign: true });
-  assert.equal(r.status, "promoted");
+test("负的信噪比按绝对值过线，但仍要超额为正才站住", () => {
+  // 负 t + 负超额 = 稳定跑输 → 判死（原测试断言 promoted，是旧 bug 行为）
+  const lose = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: -0.6, clusteredT: -2.5, halvesSameSign: true });
+  assert.equal(lose.status, "rejected", "负 t + 负超额 = 稳定跑输");
+  // 负 t 但超额为正：罕见（可能是聚类口径残差），按「超额为正」这一关放行，
+  // 由 |t| 与前后同向把关——这里只钉住「符号关不误伤正超额」。
+  const odd = judgeGenomeVerdict({ ran: true, trades: 350, excessPp: 0.6, clusteredT: -2.5, halvesSameSign: true });
+  assert.equal(odd.status, "promoted");
 });
 
 // ── 回写 ────────────────────────────────────────────────────────

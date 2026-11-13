@@ -1228,6 +1228,64 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
   }
 }
 
+// ── 规则改动效果回验（2026-11-14，反思闭环最后一环）────────────────
+// 优化器会依据诊断自动改 challenger-rule，每次改动写进 rule-change-log.jsonl，
+// 但**从没回头验证过**——earlyRejectDays 在 10-30~11-11 被来回摆 6 次
+// （15→3→5→10→12→20→30），earlyRejectGap 摆 4 次，全是盲调。
+// 这里每天收盘后对「已过观察期」的改动做一次前后窗口对比，落
+// data/rule-change-effects.jsonl：有效→保留，无效→给回滚建议（人不拍板不执行）。
+// 只读账本 + 只写回验报告，不改任何规则——回滚仍需人拍板。
+if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+  try {
+    const stamp = join(process.cwd(), "data", `rule-effect-${phase.date}.stamp`);
+    let done = false;
+    try {
+      await access(stamp);
+      done = true;
+    } catch {
+      /* 今天还没回验过 */
+    }
+    if (!done) {
+      const { readRuleChangeLog } = await import("../src/lib/market/optimize.ts");
+      const { pollRuleChangeEffect, appendRuleChangeEffect, MIN_DAYS_AFTER } = await import(
+        "../src/lib/market/rule-change-effect.ts"
+      );
+      const changes = (await readRuleChangeLog()).slice(0, 8);
+      const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
+      const allTrades = (ownerBook?.days ?? []).flatMap((d) => d.trades);
+      const tradingDays = [...new Set((ownerBook?.days ?? []).map((d) => d.date))].sort();
+      let evaluated = 0;
+      for (const c of changes) {
+        const effect = await pollRuleChangeEffect({
+          at: c.at,
+          key: c.key,
+          from: c.from,
+          to: c.to,
+          trades: allTrades
+            .filter((t) => t.exit != null)
+            .map((t) => ({ entryDate: t.exitDate ?? "", ret: (t.exit! - t.entry) / t.entry })),
+          tradingDays,
+        });
+        if (effect) {
+          await appendRuleChangeEffect(effect);
+          evaluated += 1;
+          if (effect.verdict === "ineffective") {
+            console.log(`${time} 规则回验：${c.key} ${c.from}→${c.to} 判无效 —— ${effect.reason}`);
+            await pushBestEffort(
+              "赤轨规则回验",
+              [`${c.key} 从 ${c.from} 改到 ${c.to}：${effect.reason}`, effect.revertAdvice ?? ""].join("\n"),
+            );
+          }
+        }
+      }
+      await writeFile(stamp, String(Date.now()));
+      if (evaluated > 0) console.log(`${time} 规则改动回验：${evaluated} 条（观察期 ≥${MIN_DAYS_AFTER} 交易日才判）`);
+    }
+  } catch (error) {
+    console.error(`${time} 规则改动回验失败（不影响记账）:`, error);
+  }
+}
+
 await mark(true);
 const backupDate = phase.date || new Date().toISOString().slice(0, 10);
 for (const userId of ids) {
