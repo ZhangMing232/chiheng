@@ -19,13 +19,15 @@ import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getMarketSnapshot } from "@/lib/market/limit-up.functions";
 import { getRegulatoryRadar, getLadder3Day, type RegulatoryRow, type LadderRow } from "@/lib/market/quotes.functions";
-import { getThemeHeat, getLimitUpReasons, getSignalReviewed, type ThemeHeatItem, type SignalReviewed, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
+import { getThemeHeat, getLimitUpReasons, getSignalReviewed, getServerJournal, type ThemeHeatItem, type SignalReviewed, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
 import { getForecast, type ForecastPeriod } from "@/lib/market/archive.functions";
 import { getFlow } from "@/lib/market/quotes.functions";
+import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
+import { reconcileDay, reconcileSummary, sixDigitCode, type ReconcileDay, type ReconcileSignal } from "@/lib/market/daily-reconcile";
 
 export const Route = createFileRoute("/today")({
   loader: async () => {
-    const [snap, themes, reasons, reviewed, reg, ladder3, forecast, flow] = await Promise.all([
+    const [snap, themes, reasons, reviewed, reg, ladder3, forecast, flow, journal] = await Promise.all([
       getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
       getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
       getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
@@ -34,8 +36,23 @@ export const Route = createFileRoute("/today")({
       getLadder3Day().catch(() => ({ dates: [] as string[], ladder: {} as Record<string, Record<string, LadderRow[]>>, promotion: {} })),
       getForecast().catch(() => ({ locked: [] as ForecastPeriod[], backtest: null })),
       getFlow().catch(() => null),
+      // 账本只取对账要用的精简字段，不把整本账（22 天 354 笔）塞进 SSR HTML。
+      getServerJournal().catch(() => null),
     ]);
-    return { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow };
+    const journalDays: ReconcileDay[] | null = journal
+      ? journal.days.map((d) => ({
+          date: d.date,
+          trades: d.trades.map((t) => ({
+            code: t.code, name: t.name, entry: t.entry,
+            style: t.style, exit: t.exit,
+          })),
+        }))
+      : null;
+    return {
+      snap, themes, reasons, reviewed, reg, ladder3, forecast, flow,
+      journalDays,
+      journalWhy: journal?.why ?? (journal ? null : "服务端账本没返回"),
+    };
   },
   component: DecisionPage,
 });
@@ -176,7 +193,7 @@ function stageAfter532(): boolean {
 }
 
 function DecisionPage() {
-  const { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow } = Route.useLoaderData();
+  const { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow, journalDays, journalWhy } = Route.useLoaderData();
   const { openDetail, modal } = useStockDetail();
   const pool = snap.snapshot;
 
@@ -213,12 +230,42 @@ function DecisionPage() {
   const longSignals = reviewed.signals.filter((s) => s.leg === "long").slice(0, 8);
   const shortSignals = reviewed.signals.filter((s) => s.leg === "short").slice(0, 8);
 
+  // 把「今天说了什么」和账本「后来真买了什么」对上账。
+  // 只做展示对齐：signals 用竞价审核名单，账本用 getServerJournal 的精简字段，
+  // 关联键是六位 code + 当天日期。理论成交(fill)刻意不传 —— 它不能冒充账本成交价。
+  const daySignals: ReconcileSignal[] = reviewed.signals.map((s) => ({
+    code: s.code, name: s.name, leg: s.leg,
+    orderPrice: s.order?.price ?? null,
+    fillStatus: s.fill?.status,
+    verdict: s.verdict,
+  }));
+  const reconcile = reconcileDay({
+    date: reviewed.date || pool?.date || "",
+    signals: daySignals,
+    days: journalDays,
+    journalWhy,
+  });
+  // 任意一行（含前瞻票）都能按六位 code 查账本状态；同一只多笔取第一笔展示。
+  const bookByCode = new Map(
+    reconcile.bookTrades.map((t) => [sixDigitCode(t.code), t] as const),
+  );
+
   // ── 三路信号合成一张矩阵（前瞻 / 短线 / 中长线）──
   // 为什么要合成一张：三条腿的价格在同一列，才比得出「今天到底哪几笔能成交」。
   type Row = {
     path: string; pathTone: string; name: string; code: string; id: string;
     price: string; priceNote: string; why: string;
     status: string; statusTone: "ok" | "no" | "wait"; dead?: boolean; exit: string;
+    /** 账本真实成交状态；只用账本 entry，绝不用理论成交 fillPrice。 */
+    book: string; bookTone: "ok" | "muted" | "warn";
+  };
+  /** 一行按六位 code 查账本。读不到时显示原因，不谎称「未买」。 */
+  const bookCell = (code: string): Pick<Row, "book" | "bookTone"> => {
+    if (reconcile.missing) return { book: "账本读不到", bookTone: "warn" };
+    const t = bookByCode.get(sixDigitCode(code));
+    return t
+      ? { book: `已买 ${t.entry.toFixed(2)}`, bookTone: "ok" }
+      : { book: "未买", bookTone: "muted" };
   };
   const rows: Row[] = [];
 
@@ -236,6 +283,7 @@ function DecisionPage() {
       status: noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "成交" : "待开盘",
       statusTone: noBuy ? "no" : lr?.buyPrice != null ? "ok" : "wait",
       dead: noBuy, exit: "当日收盘",
+      ...bookCell(k.code),
     });
   }
 
@@ -253,6 +301,7 @@ function DecisionPage() {
         statusTone: skip ? "no" : sig.fill?.status === "filled" ? "ok" : sig.fill?.status === "missed" ? "no" : "wait",
         dead: skip,
         exit: sig.holdDays ? `第 ${sig.holdDays} 日` : "按纪律",
+        ...bookCell(sig.code),
       });
     }
   }
@@ -275,12 +324,15 @@ function DecisionPage() {
           <div className="flex flex-wrap items-baseline gap-3">
             <span className="px-num text-xs tracking-widest text-muted">SYS//TODAY</span>
             <span className="text-xl font-bold tracking-tight">今天<b className="text-brand">·</b>买什么</span>
-            <span className="px-num text-xs text-muted">{pool?.date ?? "—"} · 收盘封印</span>
+            <span className="px-num text-xs text-muted">
+              {pool?.date ?? "—"} · {pool?.sealed ? "收盘封印" : "盘中未定"}
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-st no">{mood.band}</span>
-            <span className="px-st ok">可买 {buyable}</span>
+            <span className="px-st no">今日情绪档 · {mood.band}</span>
+            <span className="px-st ok">候选 {buyable}</span>
             <span className="px-st wait">放弃 {givenUp}</span>
+            <span className="px-num text-[12px] text-muted">账本成交 {reconcile.bookTradeCount} 笔</span>
           </div>
         </div>
         <div className="px-hazard" aria-hidden="true" />
@@ -295,7 +347,7 @@ function DecisionPage() {
             { label: "最高板", value: String(maxStreak), delta: prev ? delta(maxStreak, prev.yTop) : null, tone: "text-brand" },
             { label: "炸板率", value: breakRate != null ? `${(breakRate * 100).toFixed(0)}%` : "—", delta: null, tone: "text-warn" },
             { label: "封板率", value: sealRate != null ? `${(sealRate * 100).toFixed(0)}%` : "—", delta: null, tone: "text-fg" },
-            { label: "情绪", value: mood.band, delta: null, tone: "text-warn" },
+            { label: "今日情绪档", value: mood.band, delta: null, tone: "text-warn" },
           ].map((k) => (
             <div key={k.label} className="relative bg-surface px-3 pb-3 pt-4">
               <span className="px-ticks" aria-hidden="true" />
@@ -306,6 +358,20 @@ function DecisionPage() {
           ))}
         </div>
 
+        {/* 口径说明：/cycle 的「周期阶段」是另一套量纲。不写清楚，用户会拿
+            「今日情绪档 温和」去对「周期阶段 冰点」，以为同一个指标自相矛盾。 */}
+        <ScopeNote
+          label="今日情绪档"
+          link={
+            <Link to="/cycle" className={scopeNoteLinkClass}>
+              /cycle 周期阶段 →
+            </Link>
+          }
+          after="按 250 日温度分位算、只在收盘后更新；两边口径不同，同名的「冰点 / 退潮」定义也不同。"
+        >
+          {pool?.date ?? "—"} {pool?.sealed ? "收盘定格" : "盘中快取（收盘前还会变）"} ·
+          按炸板率 / 最高板 / 连板数的绝对阈值分五档；四条阈值都不命中就落默认「温和」，不是判出了温和。
+        </ScopeNote>
 
         <ZoneHeader
           no="①"
@@ -372,6 +438,38 @@ function DecisionPage() {
           warn="这一区的价是今早竞价定的；开盘后才拿到开盘价，收盘后它就不再变"
         />
 
+        {/* ── 两批票的来历：前瞻链 vs 信号链，互不相干 ──
+            用户原话：「页面东一个西一个」。把矩阵上方的分区说清：这一张表里混着
+            两套独立扫描出来的票，前瞻链是昨收落档、信号链是今早竞价审核，
+            两套各自选股、不互相引用，重合纯属巧合。不写清，用户会以为
+            「前瞻命中的票又被竞价审核复选了一遍」。 */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="px-slash">TWO_CHAINS</span>
+          <span className="px-st wait">两套独立扫描 · 重合是巧合不是联动</span>
+          <span className="h-px flex-1 bg-line" />
+          <span className="px-num text-[12px] text-muted">下面的矩阵把两批票放在同一张表里比，路列标了每只来自哪条链</span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="border border-line bg-surface px-3 py-2">
+            <div className="flex items-baseline gap-2">
+              <span className="px-path text-muted"><PxIcon kind="rocket" color="#22e6ff" /> 前瞻链</span>
+              <span className="px-num text-[12px] text-muted">连板 / 封单 · 昨收落档</span>
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">
+              来自昨收后的落档（forecast.locked，隔夜持仓），落档之后不改。是「昨天收盘后定好、今天开盘前就挂着」的那批——它们不进竞价审核名单。
+            </p>
+          </div>
+          <div className="border border-line bg-surface px-3 py-2">
+            <div className="flex items-baseline gap-2">
+              <span className="px-path text-brand-text"><PxIcon kind="blade" color="#22e6ff" /> 信号链</span>
+              <span className="px-num text-[12px] text-muted">低估值 / 题材补涨 · 今早 09:26 竞价审核</span>
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">
+              来自今早竞价审核（reviewed.json）：短线跟题材、中长线跟低估值。和前瞻链是两套不同的扫描，各自独立选股，没有谁复选谁。
+            </p>
+          </div>
+        </div>
+
         {/* ── 买入矩阵 ── */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="px-slash">BUY_MATRIX</span>
@@ -384,7 +482,7 @@ function DecisionPage() {
           <table className="px-tbl">
             <thead>
               <tr>
-                <th>路</th><th>标的</th><th style={{ textAlign: "right" }}>买价</th><th>依据</th><th>状态</th><th>走</th>
+                <th>路</th><th>标的</th><th style={{ textAlign: "right" }}>买价</th><th>依据</th><th>状态</th><th>账本</th><th>走</th>
               </tr>
             </thead>
             <tbody>
@@ -409,16 +507,34 @@ function DecisionPage() {
                   </td>
                   <td className="px-why">{r.why}</td>
                   <td><span className={"px-st " + r.statusTone}>{r.status}</span></td>
+                  <td>
+                    <span className={"px-num text-[12px] " + (r.bookTone === "ok" ? "text-brand" : r.bookTone === "warn" ? "text-warn" : "text-muted")}>
+                      {r.book}
+                    </span>
+                  </td>
                   <td className="px-why">{r.exit}</td>
                 </tr>
               ))}
               {rows.length === 0 ? (
-                <tr><td colSpan={6} className="px-why" style={{ padding: 16 }}>今天三路都没有候选。</td></tr>
+                <tr><td colSpan={7} className="px-why" style={{ padding: 16 }}>今天三路都没有候选。</td></tr>
               ) : null}
             </tbody>
           </table>
           <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             前瞻命中 49.1%（基准 46.0%）· 追买 87.9% 跑输 94.4% · 8.3% 一字板买不进 · 低估值线上 20 笔 +3.33pp 但从未回测验证 · 题材补涨 +0.06% 无超额。<b className="text-fg">能买到 ≠ 更能赚。</b>
+          </div>
+          {/* 对账：把「今天说了什么」和账本「真买了什么」摆在一起，两边不再各说各的。 */}
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
+            <span className="px-num tracking-widest text-brand">对账 // {reconcile.date || "日期未知"}</span>
+            <span className="text-fg">{reconcileSummary(reconcile)}</span>
+            <span>· /today 有账本没买 {reconcile.signalOnly.length} 只 · 账本买了本页没提 {reconcile.bookOnly.length} 笔</span>
+            {reconcile.missing ? <span className="text-warn">{reconcile.missing}，「未买」不可信</span> : null}
+            <Link to="/strategies/positions" className={scopeNoteLinkClass}>策略追踪 →</Link>
+          </div>
+          <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
+            「状态」是按当天日 K <b className="text-fg">事后重算的理论成交</b>；「账本」是记账进程
+            <b className="text-fg">当时记下的真实成交</b>。两者口径不同，列在一起只为对得上号，
+            本页不拿理论价冒充成交价，也不改任何买卖。
           </div>
         </div>
 
@@ -456,7 +572,7 @@ function DecisionPage() {
         {/* 手机端固定结论条：一屏看完不用往上滚。窄屏才出现，桌面端隐藏。 */}
         <div className="px-mobile-bar sm:hidden" aria-hidden="true">
           <div className="px-num text-[12px] text-muted">
-            情绪 <b className="text-warn">{mood.band}</b> · 可买 <b className="text-brand">{buyable}</b> · 放弃 <b className="text-fg">{givenUp}</b>
+            今日情绪档 <b className="text-warn">{mood.band}</b> · 可买 <b className="text-brand">{buyable}</b> · 放弃 <b className="text-fg">{givenUp}</b>
           </div>
           <div className="px-num text-[12px] text-brand">看矩阵 ▾</div>
         </div>

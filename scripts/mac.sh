@@ -104,8 +104,32 @@ start() {
 }
 
 restart() {
-  stop
-  start
+  # 优先 kickstart -k：直接重启已注册的服务，不经过 bootout → bootstrap。
+  # 旧写法是 stop(); start()，2026-11-13 实测在辅助会话里会把服务停成 000：
+  # bootout 之后 launchd 状态有残留，start() 开头的 running() 立刻又判为真，
+  # 打印「已经在跑」就返回，结果只停不启。kickstart 不注销服务，没这个竞态。
+  # 没注册（或 kickstart 被拒）时才走完整的停→等→起。
+  if running && launchctl kickstart -k "$DOMAIN/$LABEL" 2>/dev/null; then
+    echo "已重启（登录自启保持不变）。页面 http://127.0.0.1:8787"
+  else
+    stop
+    # 等 launchd 真的把注销做完再 start，否则 running() 会误判成「还在跑」。
+    for _ in $(seq 1 20); do
+      running || break
+      sleep 0.25
+    done
+    start
+  fi
+  # 等页面真能打开再返回，别只留一句「已重启」而其实 8787 还没起来。
+  # 绕代理：本机 HTTP_PROXY 会把本地请求发去代理，返回一个假的 502。
+  for _ in $(seq 1 40); do
+    if curl -sf --noproxy '*' -o /dev/null --max-time 2 "http://127.0.0.1:8787/favicon.svg"; then
+      return
+    fi
+    sleep 0.25
+  done
+  echo "重启后页面还没打开。看日志：tail -30 \"$ROOT/data/serve.log\""
+  exit 1
 }
 
 log() {

@@ -163,7 +163,6 @@ const SIDEBAR: {
       { to: "/cycle", label: "情绪周期", icon: Activity },
       { to: "/interval", label: "区间统计", icon: CalendarRange },
       { to: "/rs", label: "趋势中军", icon: Gauge },
-      { to: "/factors", label: "因子实验室", icon: FlaskConical },
     ],
   },
   {
@@ -171,6 +170,7 @@ const SIDEBAR: {
     items: [
       { to: "/strategies/screener", label: "策略选股", icon: LayoutList },
       { to: "/strategies/positions", label: "策略跟踪", icon: Star },
+      { to: "/factors", label: "因子实验室", icon: FlaskConical },
       { to: "/backtest", label: "回测审计", icon: LineChart },
     ],
   },

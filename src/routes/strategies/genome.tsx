@@ -155,13 +155,19 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
   const meta = STATUS_META[c.status] ?? { label: c.status, tone: "muted" as const };
   const v = c.verdict;
   const seeded = c.seededFactors;
+  // P1-3 修误导标签：promoted 只表示过了白皮书 §4 两道关（|t|≥2 且前后同向），
+  // 但闸门不卡超额符号——超额为负时它是「稳定输家」，标签写「站住了」会误导成可用。
+  // 这里只改**显示文案**，不改成判决口径（改判据需单独拍板）。
+  const reversed = c.status === "promoted" && v != null && v.excessPp != null && v.excessPp < 0;
+  const statusLabel = reversed ? "反向·不可用" : meta.label;
+  const statusTone = reversed ? ("warn" as const) : meta.tone;
   return (
     <div className="rounded-lg border border-line bg-surface px-3 py-2.5 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{c.name}</span>
           <span className="text-[12px] text-muted tabular-nums">{c.id}</span>
-          <Tag tone={meta.tone}>{meta.label}</Tag>
+          <Tag tone={statusTone}>{statusLabel}</Tag>
         </div>
         <span className="text-[12px] text-muted">{c.since}</span>
       </div>
@@ -229,10 +235,17 @@ function CandidateCard({ c }: { c: GenomeCandidate }) {
       ) : null}
 
       {c.status === "promoted" ? (
-        <div className="mt-2 flex items-center gap-1.5 text-[12px] text-up">
-          <ShieldCheck size={12} />
-          过了白皮书 §4 的两道关（|t|≥2 且前后同向）——但**还没进实盘**，要单独拍板。
-        </div>
+        reversed ? (
+          <div className="mt-2 flex items-center gap-1.5 text-[12px] text-warn">
+            <ShieldCheck size={12} />
+            过了白皮书 §4 的两道关（|t|≥2 且前后同向），但**超额为负**——反向信号，不能进实盘，要单独拍板。
+          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-1.5 text-[12px] text-up">
+            <ShieldCheck size={12} />
+            过了白皮书 §4 的两道关（|t|≥2 且前后同向）——但**还没进实盘**，要单独拍板。
+          </div>
+        )
       ) : null}
 
       {c.note ? <p className="mt-2 text-[12px] leading-relaxed text-muted">{c.note}</p> : null}

@@ -12,6 +12,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { FlaskConical } from "lucide-react";
 import { Bar, BarChart, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockName } from "@/components/screener/stock-name";
 import { Frame } from "@/components/screener/nav";
@@ -30,7 +31,8 @@ import { SectionTabs } from "@/components/section-tabs";
 import { Term } from "@/components/term";
 import { DEFAULT_RULES, type EarlyRules } from "@/lib/market/rules";
 import { shanghaiDate } from "@/lib/market/session";
-import { getChallengerRobustness, getChallengerSamples, getChallengers, getNavHistory, getServerJournal, getUniverse, getSignalCandidates, getSignalReviewed, getSignalTracking, getShortForms, type NavPoint, type SignalCandidate, type SignalReviewed, type SignalTrackItem, type SignalTrackSummary, type ShortFormsData } from "@/lib/market/quotes.functions";
+import { getChallengerRobustness, getChallengerSamples, getChallengers, getGenomeView, getNavHistory, getServerJournal, getUniverse, getSignalCandidates, getSignalReviewed, getSignalTracking, getShortForms, type NavPoint, type SignalCandidate, type SignalReviewed, type SignalTrackItem, type SignalTrackSummary, type ShortFormsData } from "@/lib/market/quotes.functions";
+import { reconcileDay, reconcileSummary, sixDigitCode, type ReconcileDay, type ReconcileSignal } from "@/lib/market/daily-reconcile";
 import { SignalFollowBoard, type SignalBoardData } from "@/components/strategy/signal-board";
 import type { Challenger } from "@/lib/market/challenger";
 import type { ChallengerRobustReport } from "@/lib/market/challenger-robust";
@@ -45,10 +47,11 @@ import { finestIndustry } from "@/lib/market/industry";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { healthChecks } from "@/lib/market/portfolio-health";
 import { PixelHeader } from "@/components/pixel-header";
+import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
-    const [universe, journal, nav, chal, samples, robust, sigC, sigR, sigT, sigF] = await Promise.all([
+    const [universe, journal, nav, chal, samples, robust, sigC, sigR, sigT, sigF, genome] = await Promise.all([
       getUniverse({ data: { refresh: false } }).catch(() => null),
       getServerJournal(),
       // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
@@ -60,6 +63,9 @@ export const Route = createFileRoute("/strategies/positions")({
       getSignalReviewed().catch(() => ({ signals: [] as SignalReviewed[] })),
       getSignalTracking().catch(() => ({ signalDate: "", trackedDate: "", summary: null as SignalTrackSummary | null, signals: [] as SignalTrackItem[] })),
       getShortForms().catch(() => null as ShortFormsData | null),
+      // 策略基因组：用来在策略跟踪页挂一个入口 + 候选数徽标，解决「融合策略找不着」。
+      // 读不到就空数组——这里只显示计数，没有候选是正常状态，不顶替、不报错。
+      getGenomeView().catch(() => ({ candidates: [] as import("@/lib/market/strategy-genome").GenomeCandidate[], strategyVerdicts: {} })),
     ]);
     // 组合体检（portfolio-health.ts）要行业归属和 PE 分位：只对未平仓的票查，
     // 数量很小（盯盘上限 10 只），逐只读文件可接受；查不到就 null，检查项如实降级。
@@ -93,6 +99,26 @@ export const Route = createFileRoute("/strategies/positions")({
         tracking: sigT,
         forms: sigF,
       } satisfies SignalBoardData,
+      // 「今天 /today 说了什么」回看区用的对账数据：只传精简字段，不把整本账塞进 SSR。
+      reconcile: reconcileDay({
+        date: ("date" in sigR ? sigR.date : "") || shanghaiDate(),
+        signals: sigR.signals.map((s): ReconcileSignal => ({
+          code: s.code, name: s.name, leg: s.leg,
+          orderPrice: s.order?.price ?? null,
+          fillStatus: s.fill?.status,
+          verdict: s.verdict,
+        })),
+        days: journal.days.map((d): ReconcileDay => ({
+          date: d.date,
+          trades: d.trades.map((t) => ({
+            code: t.code, name: t.name, entry: t.entry,
+            style: t.style, exit: t.exit,
+          })),
+        })),
+        journalWhy: journal.why,
+      }),
+      // 策略基因组候选数：只给页头入口显示徽标用，不进任何买卖逻辑。
+      genomeCount: genome.candidates.length,
     };
   },
   component: Positions,
@@ -542,8 +568,66 @@ function verdictOf(t: number | null): { label: string; tone: "up" | "down" | "mu
   return { label: "未测出", tone: "muted" };
 }
 
+/**
+ * 「今日对照」回看区：把 /today 的信号名单和本页的账本成交摆在一起。
+ * 只展示，不提供补买/同步按钮 —— P0 阶段一律不写账本。
+ * 账本成交价只用 entry；理论成交(fill)是事后按日 K 重算的，不进这一列。
+ */
+function TodayReconcilePanel({ r }: { r: import("@/lib/market/daily-reconcile").ReconcileResult }) {
+  const Line = ({ name, code, tail, tone }: { name: string; code: string; tail: string; tone: string }) => (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-dashed border-line py-1.5 last:border-0 text-[13px]">
+      <span className="text-fg">{name}</span>
+      <span className="px-num text-[12px] text-muted">{code}</span>
+      <span className={"px-num ml-auto text-[12px] " + tone}>{tail}</span>
+    </div>
+  );
+  return (
+    <Panel title={`今日对照 · ${r.date || "日期未知"}`} note="只看对得上对不上，不改任何买卖">
+      <div className="px-3 py-2">
+        <div className="px-num text-[13px] text-fg">{reconcileSummary(r)}</div>
+        {r.missing ? <div className="mt-1 text-[12px] text-warn">{r.missing}</div> : null}
+        <div className="mt-2 grid gap-3 sm:grid-cols-3">
+          <div>
+            <div className="px-num mb-1 text-[12px] tracking-widest text-brand">两边都有 · {r.matched.length}</div>
+            {r.matched.length === 0 ? <div className="text-[12px] text-muted">今天没有重合的票</div> : null}
+            {r.signalRows.filter((x) => x.bookTrade != null).map((x) => (
+              <Line key={x.signal.code} name={x.signal.name} code={sixDigitCode(x.signal.code)} tail={`账本 ${x.bookTrade!.entry.toFixed(2)}`} tone="text-brand" />
+            ))}
+          </div>
+          <div>
+            <div className="px-num mb-1 text-[12px] tracking-widest text-muted">/today 有 · 账本没买 · {r.signalOnly.length}</div>
+            {r.signalOnly.length === 0 ? <div className="text-[12px] text-muted">无</div> : null}
+            {r.signalOnly.slice(0, 12).map((s) => (
+              <Line key={s.code} name={s.name} code={sixDigitCode(s.code)} tail={s.orderPrice == null ? "不追高" : "未买"} tone="text-muted" />
+            ))}
+            {r.signalOnly.length > 12 ? <div className="text-[12px] text-muted">…另有 {r.signalOnly.length - 12} 只</div> : null}
+          </div>
+          <div>
+            <div className="px-num mb-1 text-[12px] tracking-widest text-warn">账本买了 · /today 没提 · {r.bookOnly.length}</div>
+            {r.bookOnly.length === 0 ? <div className="text-[12px] text-muted">无</div> : null}
+            {r.bookOnly.map((t, i) => (
+              <Line key={t.code + i} name={t.name} code={sixDigitCode(t.code)} tail={`成交 ${t.entry.toFixed(2)}`} tone="text-warn" />
+            ))}
+          </div>
+        </div>
+        <ScopeNote
+          label="理论成交与真实成交"
+          variant="footnote"
+          className="mt-3"
+          link={
+            <Link to="/today" className={scopeNoteLinkClass}>去 /today 看名单 →</Link>
+          }
+        >
+          「账本」是记账进程当时记下的真实成交；/today 页面上的「成交」是按当日日 K
+          <b className="text-fg">事后重算的理论成交</b>，两者口径不同，不互相冒充。本页数字来自账本。
+        </ScopeNote>
+      </div>
+    </Panel>
+  );
+}
+
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks, signals } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks, signals, reconcile, genomeCount } = Route.useLoaderData();
   const [ready, setReady] = useState(false);
   useEffect(() => {
     // rehydrate() 有时返回 void、有时返回 Promise，两种都当成「读完了」
@@ -1076,10 +1160,23 @@ function Positions() {
         label="STRATEGY // POSITIONS"
         meta="跟单 / 持仓 / 体检 / 战绩 · 止损先到先走，买入当天不卖"
       />
+      {/* 策略基因组入口（P1-2）：解决「融合策略找不着」。
+          同一份 loader 数据（genomeCount），不额外拉接口、不进任何买卖逻辑；
+          候选数为 0 时显示「0 候选」也是真实状态，不藏。 */}
+      <Link
+        to="/strategies/genome"
+        className="inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+      >
+        <FlaskConical size={14} className="text-brand" />
+        <span className="font-medium text-fg">策略基因组</span>
+        <span className="px-num rounded bg-brand-soft px-1.5 py-0.5 text-[12px] font-medium text-brand-text">{genomeCount} 候选</span>
+        <span className="text-[12px] text-muted">AI 提的策略候选 + 回测判决 →</span>
+      </Link>
       <PageTabs
         storageKey="chiheng-pos-tab"
         tabs={[
           { key: "follow", label: "跟单", content: <SignalFollowBoard data={signals} /> },
+          { key: "today", label: "今日对照", content: <TodayReconcilePanel r={reconcile} /> },
           {
             key: "hold",
             label: urgent.length > 0 ? `持仓 · 需处理 ${urgent.length}` : "持仓",

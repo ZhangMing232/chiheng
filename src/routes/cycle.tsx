@@ -13,7 +13,7 @@
  * - 这是历史统计，不是预测，也不是买卖信号（red-line 不允许）。
  */
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
@@ -21,6 +21,7 @@ import { getCycleSeries } from "@/lib/market/quotes.functions";
 import { PHASES, PHASE_TONE, nextDayOutcome, promotion, transferMatrix, type Phase } from "@/lib/market/cycle";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
+import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
 
 export const Route = createFileRoute("/cycle")({
   loader: async () => getCycleSeries().catch(() => ({ date: "", series: [], meta: null })),
@@ -42,7 +43,7 @@ function CyclePage() {
   if (series.length === 0) {
     return (
       <Frame wide aside="情绪周期">
-      <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 冰点/修复/升温/高潮/降温/退潮六档" />
+      <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 周期阶段六档：冰点/修复/升温/高潮/降温/退潮" />
         <Panel title="情绪周期">
           <StateBlock kind="empty" title="还没算" hint="跑一次 scripts/cycle-history.ts 就有（扫本地 K 线，不联网）。" />        </Panel>
       </Frame>
@@ -72,20 +73,20 @@ function CyclePage() {
       aside={
         /* 顶栏这一行放真实状态，不重复页名（页名在第一行页头里已经有了） */
         <span className="num text-xs text-muted">
-    <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 冰点/修复/升温/高潮/降温/退潮六档" />
+    <PixelHeader label="CYCLE // MOOD" meta="情绪周期 · 周期阶段六档：冰点/修复/升温/高潮/降温/退潮" />
     <PixelSummary
       label="CYCLE // NOW"
       note={
-        <span title="本页阶段按情绪温度分档；/today 的『退潮/沸点』按炸板率与连板数判，两者口径不同">
-          {last.date} · 阶段按温度分档（与今日页炸板率口径不同）
+        <span>
+          截至 <b className="text-fg">{last.date} 收盘</b> · 盘中不更新，15:12 收盘后才重算
         </span>
       }
       stats={[
-        { label: "当前阶段", value: last.phase, tone: "brand", hero: true },
+        { label: "周期阶段", value: last.phase, tone: "brand", hero: true },
         { label: "涨停", value: last.limitUp ?? null, tone: "up" },
         { label: "连板", value: last.ladder ?? null },
         { label: "最高板", value: last.maxStreak, tone: "warn" },
-      { label: "情绪温度", value: last.temp?.toFixed?.(0) ?? last.temp, tone: "brand", hint: last.tempDelta5 != null ? `5日 ${last.tempDelta5 > 0 ? "+" : ""}${last.tempDelta5.toFixed(0)}` : undefined },
+      { label: "周期温度", value: last.temp?.toFixed?.(0) ?? last.temp, tone: "brand", hint: last.tempDelta5 != null ? `5日 ${last.tempDelta5 > 0 ? "+" : ""}${last.tempDelta5.toFixed(0)}` : undefined },
       ]}
     />
           {last.date} · 温度 {last.temp.toFixed(1)} · {todayPhase}
@@ -93,9 +94,25 @@ function CyclePage() {
       }
     >
       <div className="flex flex-col gap-3">
+        {/* 口径说明：和 /today 的「今日情绪档」不是同一个指标。原来只藏在
+            PixelSummary 的 title 里，用户看不见，才会拿「温和」对「冰点」说矛盾。 */}
+        <ScopeNote
+          label="周期阶段"
+          link={
+            <Link to="/today" className={scopeNoteLinkClass}>
+              /today 今日情绪档 →
+            </Link>
+          }
+          after="按盘中炸板率 / 连板数的绝对阈值分五档；两边口径不同，同名的「冰点 / 退潮」定义也不同。"
+        >
+          温度 = 涨停 / 连板 / 最高板 / 涨跌家数比各取 250 日滚动中位秩加权（0–100），
+          再按温度档位 + 5 日变化分六档；这是<b className="text-fg">历史分位</b>，不是当日绝对阈值。
+          数据截至 <b className="text-fg">{last.date} 收盘</b>。
+        </ScopeNote>
+
         {/* ── 当前状态 ── */}
         <Panel
-          title="当前阶段"
+          title="周期阶段"
           note={meta?.generatedAt ? `数据 ${meta.generatedAt.slice(0, 10)} · ${last.date}` : last.date}
         >
           <div className="flex flex-wrap items-end gap-x-8 gap-y-3 px-3 py-3">
