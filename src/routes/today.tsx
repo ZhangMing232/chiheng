@@ -90,16 +90,27 @@ function PxIcon({ kind, color }: { kind: "rocket" | "blade" | "shield"; color: s
  * 所以每个节点写两行：上面是动作（几点干什么），下面是数据（几点到哪份文件）。
  */
 const DAY_STAGES = [
-  { at: "09:15", action: "集合竞价开始", data: "盘中三池开始每 3 分钟采" },
-  { at: "09:26", action: "竞价审核 → 定买价", data: "reviewed.json 落盘" },
-  { at: "09:30", action: "开盘，按价挂单", data: "竞价价即开盘价" },
-  { at: "15:00", action: "收盘", data: "盘中数据作废，等定盘" },
-  { at: "15:12", action: "收盘封印", data: "涨停池 / K线 / 落档写入" },
-  { at: "15:15", action: "算明天", data: "题材热度 / 监管雷达 / 轮动" },
-  { at: "次日 09:20", action: "推送明天买什么", data: "读昨日落档" },
+  { key: "pre", at: "09:15", action: "集合竞价开始", data: "盘中三池开始每 3 分钟采" },
+  { key: "auction", at: "09:26", action: "竞价审核 → 定买价", data: "reviewed.json 落盘" },
+  { key: "live", at: "09:30", action: "开盘，按价挂单", data: "竞价价即开盘价" },
+  { key: "live", at: "15:00", action: "收盘", data: "盘中数据作废，等定盘" },
+  { key: "post", at: "15:12", action: "收盘封印", data: "涨停池 / K线 / 落档写入" },
+  { key: "post", at: "15:15", action: "算明天", data: "题材热度 / 监管雷达 / 轮动" },
+  { key: "post", at: "次日 09:20", action: "推送明天买什么", data: "读昨日落档" },
 ];
 
+/** 现在处在一天的哪一段。用来在时间轴上高亮，并决定「现在」区该怎么说。 */
+function stageNow(): { key: string; label: string; hint: string } {
+  const d = new Date();
+  const hm = d.getHours() * 60 + d.getMinutes();
+  if (hm < 9 * 60 + 15) return { key: "pre", label: "盘前", hint: "还没有竞价价，矩阵里是待开盘" };
+  if (hm < 9 * 60 + 30) return { key: "auction", label: "竞价中", hint: "9:26 审核刚出，价还会跳" };
+  if (hm < 15 * 60) return { key: "live", label: "盘中", hint: "挂单价=今早竞价价，成交与否看现价" };
+  return { key: "post", label: "盘后", hint: "今天已经结束，下面是明天的依据" };
+}
+
 function StageBar({ now }: { now: string }) {
+  const st = stageNow();
   return (
     <div className="px-mod4 border border-line bg-surface px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -109,16 +120,59 @@ function StageBar({ now }: { now: string }) {
         </span>
       </div>
       <div className="mt-2 grid gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-7">
-        {DAY_STAGES.map((s) => (
-          <div key={s.at} className="min-w-0">
-            <div className="px-num text-[12px] tracking-wider text-brand">{s.at}</div>
-            <div className="text-[13px] leading-snug text-fg">{s.action}</div>
-            <div className="px-num mt-0.5 text-[12px] leading-snug text-muted">{s.data}</div>
-          </div>
-        ))}
+        {DAY_STAGES.map((s) => {
+          const on = s.key === st.key;
+          return (
+            <div key={s.at} className={"min-w-0 border-l-2 pl-2 " + (on ? "border-brand" : "border-line")}>
+              <div className={"px-num text-[12px] tracking-wider " + (on ? "text-brand" : "text-muted")}>
+                {s.at}{on ? " ← 现在" : ""}
+              </div>
+              <div className={"text-[13px] leading-snug " + (on ? "font-medium text-fg" : "text-muted")}>{s.action}</div>
+              <div className="px-num mt-0.5 text-[12px] leading-snug text-muted">{s.data}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
+}
+
+
+/**
+ * 分区头：每块内容属于「什么时候的数据」，一句话说清这区该不该动手。
+ * 用户原话：「分区规划好，不然就等等误会了」——所以每区都写三件事：
+ *   ① 这区是何时产出的 ② 现在能不能用它下单 ③ 用错了会怎么错
+ */
+function ZoneHeader({
+  no,
+  title,
+  when,
+  canAct,
+  warn,
+}: {
+  no: string;
+  title: string;
+  when: string;
+  canAct: boolean;
+  warn: string;
+}) {
+  return (
+    <div className={"flex flex-wrap items-baseline gap-x-3 gap-y-1 border-l-2 py-1 pl-3 " + (canAct ? "border-brand" : "border-line")}>
+      <span className="px-num text-[12px] tracking-widest text-brand">{no}</span>
+      <span className="text-[15px] font-bold tracking-tight">{title}</span>
+      <span className="px-st wait">{when}</span>
+      <span className={"px-num text-[12px] " + (canAct ? "text-up" : "text-muted")}>
+        {canAct ? "现在可以照着做" : "只作参考，现在不动手"}
+      </span>
+      <span className="text-[12px] text-muted">{warn}</span>
+    </div>
+  );
+}
+
+/** 9:26 竞价审核之后，矩阵里的价才算定下来（盘前只能看昨天的落档）。 */
+function stageAfter532(): boolean {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes() >= 9 * 60 + 26;
 }
 
 function DecisionPage() {
@@ -253,6 +307,14 @@ function DecisionPage() {
         </div>
 
 
+        <ZoneHeader
+          no="①"
+          title="昨收依据"
+          when="昨日 15:10–15:15 写入"
+          canAct={false}
+          warn="说明昨天钱在哪个题材、哪些票触了异动线；它不进今天挂单价"
+        />
+
         {/* ── 当日主线 + 题材强度（2026-11-12 从总览 / 搬回：合并时漏了这两块）── */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="px-slash">THEMES // STRENGTH</span>
@@ -301,6 +363,14 @@ function DecisionPage() {
             )}
           </div>
         </div>
+
+        <ZoneHeader
+          no="②"
+          title="今晨定价"
+          when="今日 09:26 竞价审核"
+          canAct={stageAfter532()}
+          warn="这一区的价是今早竞价定的；开盘后才拿到开盘价，收盘后它就不再变"
+        />
 
         {/* ── 买入矩阵 ── */}
         <div className="flex flex-wrap items-center gap-3">
@@ -351,6 +421,14 @@ function DecisionPage() {
             前瞻命中 49.1%（基准 46.0%）· 追买 87.9% 跑输 94.4% · 8.3% 一字板买不进 · 低估值线上 20 笔 +3.33pp 但从未回测验证 · 题材补涨 +0.06% 无超额。<b className="text-fg">能买到 ≠ 更能赚。</b>
           </div>
         </div>
+
+        <ZoneHeader
+          no="③"
+          title="执行与卖出"
+          when="买入后每一刻"
+          canAct
+          warn="这里管的是「什么时候走」，不看它就会忘记止损和到期"
+        />
 
         {/* ── 作战块：纪律 + 盯什么 ── */}
         <div className="flex flex-wrap items-center gap-3">
