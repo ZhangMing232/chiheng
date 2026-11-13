@@ -23,7 +23,9 @@ import { getThemeHeat, getLimitUpReasons, getSignalReviewed, getServerJournal, t
 import { getForecast, type ForecastPeriod } from "@/lib/market/archive.functions";
 import { getFlow } from "@/lib/market/quotes.functions";
 import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
+import { splitMatrixRows } from "@/lib/market/matrix-split";
 import { reconcileDay, reconcileSummary, sixDigitCode, type ReconcileDay, type ReconcileSignal } from "@/lib/market/daily-reconcile";
+
 
 export const Route = createFileRoute("/today")({
   loader: async () => {
@@ -500,7 +502,11 @@ function DecisionPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {/* 主矩阵只放「今天可能成交的」：前瞻 + 中长线 + 未放弃的短线。
+                  观察行（短线·已淘汰策略）单独折叠在后面——它们永远不建仓，
+                  却原先和可买标的同优先级占 8 行 528px（38% 矩阵高度），
+                  用户打开「今天买什么」先看到一堆买不了的票（2026-11-14 实测）。 */}
+              {splitMatrixRows(rows).actionable.map((r) => (
                 <tr key={r.path + r.code} className={(r.dead ? "is-dead " : "") + "px-jitter"}>
                   <td className={"px-path " + r.pathTone}>
                     <span className="inline-flex items-center gap-1.5">
@@ -529,8 +535,44 @@ function DecisionPage() {
                   <td className="px-why">{r.exit}</td>
                 </tr>
               ))}
-              {rows.length === 0 ? (
-                <tr><td colSpan={7} className="px-why" style={{ padding: 16 }}>今天三路都没有候选。</td></tr>
+              {splitMatrixRows(rows).actionable.length === 0 ? (
+                <tr><td colSpan={7} className="px-why" style={{ padding: 16 }}>今天没有可成交的候选。</td></tr>
+              ) : null}
+              {/* 观察名单：短线腿（已淘汰策略）的票，永远不建仓，折叠起来不占核心位置。
+                  用 <details> 保留全部信息——想看的人展开，不看的人不受干扰。 */}
+              {splitMatrixRows(rows).observing.length > 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 0 }}>
+                    <details className="border-t border-line">
+                      <summary className="cursor-pointer select-none px-3 py-2 text-[12px] text-muted hover:text-fg">
+                        观察名单 · {splitMatrixRows(rows).observing.length} 只（短线腿已淘汰，只跟踪不建仓 · 点开）
+                      </summary>
+                      <table className="px-tbl w-full">
+                        <tbody>
+                          {splitMatrixRows(rows).observing.map((r) => (
+                            <tr key={r.path + r.code} className="is-dead px-jitter">
+                              <td className={"px-path " + r.pathTone}>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <PxIcon kind="blade" color="#ff6ea4" />
+                                  {r.path}
+                                </span>
+                              </td>
+                              <td>
+                                <button type="button" onClick={() => void openDetail(r.id, r.name)} className="px-name hover:underline">{r.name}</button>
+                                <span className="px-code">{r.code}</span>
+                              </td>
+                              <td className="px-price text-brand">{r.price}</td>
+                              <td className="px-why">{r.why}</td>
+                              <td><span className={"px-st " + r.statusTone}>{r.status}</span></td>
+                              <td><span className="px-num text-[12px] text-muted">{r.book}</span></td>
+                              <td className="px-why">{r.exit}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  </td>
+                </tr>
               ) : null}
             </tbody>
           </table>
