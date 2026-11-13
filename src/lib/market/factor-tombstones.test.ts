@@ -12,6 +12,7 @@ import type { QueueEntry } from "./factor-queue.ts";
 import {
   appendTombstones,
   buildRecord,
+  describeDeath,
   liveDeaths,
   diffTombstones,
   readTombstones,
@@ -126,4 +127,47 @@ test("liveDeaths：复活的因子（队列里已 passed）不再算死因", () 
 test("liveDeaths：队列里没有的（比如手工登记的老因子）照旧算死因", () => {
   const records = [{ id: "x", name: "老因子" }] as unknown as TombstoneRecord[];
   assert.equal(liveDeaths(records, []).length, 1);
+});
+
+// ── 死因描述（2026-11-14）──────────────────────────────────────────
+// 实测问题：94 条墓碑的 note 全是「连续 2 次未过 6 关，自动淘汰」，
+// 一模一样，AI 从死因档案里学不到「为什么死」。下面把死因分三档说清。
+
+test("🔴 五关全挂 → 明说因子本身有问题，别提近亲变体", () => {
+  const s = describeDeath({ failCount: 2 }, ["g1", "g2", "g3", "g4", "g5"]);
+  assert.match(s, /五关全挂/);
+  assert.match(s, /换方向/);
+  assert.match(s, /不是「差一点」/);
+});
+
+test("🔴 挂 g5 且多关 → 点明「试多了碰巧显著」", () => {
+  const s = describeDeath({ failCount: 2 }, ["g2", "g3", "g5"]);
+  assert.match(s, /多重检验/);
+  assert.match(s, /别当信号用/);
+});
+
+test("只挂一两关 → 说接近可用，值得再试", () => {
+  const s = describeDeath({ failCount: 2 }, ["g3"]);
+  assert.match(s, /接近可用/);
+  assert.match(s, /值得换参数/);
+});
+
+test("关卡名翻成中文，不甩 g1/g2 给用户", () => {
+  const s = describeDeath({ failCount: 2 }, ["g2", "g5"]);
+  assert.match(s, /信噪比/);
+  assert.match(s, /多重检验/);
+  assert.ok(!/g2|g5/.test(s), "不该把内部 key 露出来");
+});
+
+test("没记录关卡时如实说，不编", () => {
+  const s = describeDeath({ failCount: 2 }, []);
+  assert.match(s, /未记录具体关卡/);
+});
+
+test("buildRecord 用真实死因，不再抄那句固定文案", () => {
+  const entry = { id: "x", name: "X", category: "动量", direction: 1, source: "ai", runs: 2, failCount: 2,
+    note: "连续 2 次未过 6 关，自动淘汰", rationale: "r", expr: "e" } as never;
+  const rec = buildRecord(entry, { at: "2026-11-14T00:00:00Z", failedGates: ["g1", "g2", "g3", "g4", "g5"] } as never);
+  assert.match(rec.note, /五关全挂/);
+  assert.deepEqual(rec.failedGates, ["g1", "g2", "g3", "g4", "g5"]);
 });

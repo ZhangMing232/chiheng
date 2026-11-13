@@ -69,6 +69,7 @@ export function diffTombstones(before: QueueEntry[], after: QueueEntry[]): Queue
 
 /** 队列条目 + 判决 → 一条档案。判决里没有这条（理论上不该发生）也能归档，死因记空。 */
 export function buildRecord(entry: QueueEntry, verdict: QueueVerdict | undefined): TombstoneRecord {
+  const failedGates = verdict?.failedGates ?? [];
   return {
     id: entry.id,
     name: entry.name,
@@ -78,11 +79,55 @@ export function buildRecord(entry: QueueEntry, verdict: QueueVerdict | undefined
     diedAt: verdict?.at ?? new Date().toISOString(),
     runs: entry.runs,
     failCount: entry.failCount,
-    note: entry.note ?? "",
-    failedGates: verdict?.failedGates ?? [],
+    // 死因描述（2026-11-14）：原先直接抄 entry.note，而那句永远是
+    // 「连续 2 次未过 6 关，自动淘汰」——94 条墓碑 note 一模一样，
+    // AI 从死因档案里学不到「为什么死」，只知道「死了」。
+    // 实测 50% 是 g1~g5 五关全挂（因子本身有问题的信号），只有 3 条真只挂一关。
+    // 现在按 failedGates 生成能读的死因，让「避开死过的方向」有依据。
+    note: describeDeath(entry, failedGates),
+    failedGates,
     rationale: entry.rationale,
     expr: entry.expr,
   };
+}
+
+/** 六关的中文名（与 factors-view.ts 的 GATE_KEYS 对应，写在这里是为了不引入客户端依赖）。 */
+const GATE_LABEL: Record<string, string> = {
+  g1: "样本量",
+  g2: "信噪比",
+  g3: "前后同向",
+  g4: "单调性",
+  g5: "多重检验",
+  g6: "经济逻辑",
+};
+
+/**
+ * 把 failedGates 翻成人能读、AI 能学的死因。
+ *
+ * 分三档说，因为处置完全不同：
+ * - **五关全挂**：因子本身有问题（表达式写错/方向反了/该因子在这批票上没有区分度），
+ *   不是「稍微差一点」——再提近亲变体没意义，要换方向。
+ * - **挂 g5 但不全挂**：过不了多重检验，说明是「试得多了碰巧显著」——
+ *   这类最危险，因为单看 t 值会以为它是好因子。
+ * - **只挂一两关**：接近可用，值得换参数/换样本再试一次。
+ */
+export function describeDeath(entry: { runs?: number; failCount?: number }, failedGates: string[]): string {
+  const base = `连续 ${entry.failCount ?? 2} 次未过 6 关`;
+  if (failedGates.length === 0) return `${base}，自动淘汰（未记录具体关卡）`;
+  const names = failedGates.map((g) => GATE_LABEL[g] ?? g).join("、");
+  const core = ["g1", "g2", "g3", "g4", "g5"];
+  const allCore = core.every((g) => failedGates.includes(g));
+
+  if (allCore) {
+    return `${base}：**五关全挂**（${names}）——因子本身没有区分度或表达式有问题，不是「差一点」，换方向而不是提近亲变体`;
+  }
+  if (failedGates.includes("g5") && failedGates.length >= 3) {
+    return `${base}：死在 ${names}，其中含多重检验（g5）——单看 t 值可能像好因子，但试多了碰巧显著，别当信号用`;
+  }
+  if (failedGates.length <= 2) {
+    return `${base}：只挂 ${names}——接近可用，值得换参数/样本再试`;
+  }
+  return `${base}：死在 ${names}`;
 }
 
 // ── 文件 IO（node:fs，server-only）─────────────────────────────
