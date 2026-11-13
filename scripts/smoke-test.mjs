@@ -41,7 +41,7 @@ const PAGES = [
   "/news", "/overseas",
   // 工作台 + 研究 + 我的（按侧栏顺序）
   "/butler", "/studio", "/research", "/research/debate", "/research/reports", "/research/notes",
-  "/my-stocks", "/inbox", "/settings", "/admin", "/membership", "/login",
+  "/my-stocks", "/settings", "/admin", "/membership", "/login",
   // 策略因子
   "/strategies/screener", "/strategies/positions",
   "/factors", "/factors/gates", "/factors/attrib", "/factors/baseline", "/factors/buckets", "/factors/flow",

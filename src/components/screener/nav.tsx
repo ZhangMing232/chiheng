@@ -128,7 +128,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/watch/history" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/watch/history" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/overseas" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   // 2026-11-13 按设计稿重排：五组，和 design/redesign-2026-11 的侧栏一致。
   //   今天 → 干什么（决策）
@@ -179,7 +179,6 @@ const SIDEBAR: {
     items: [
       { to: "/my-stocks", label: "自选与持仓", icon: Star },
       { to: "/news", label: "快讯", icon: Newspaper },
-      { to: "/inbox", label: "消息与提醒", icon: Bell },
     ],
   },
   {
@@ -248,26 +247,6 @@ function SideNav() {
       return next;
     });
   }
-  // 侧栏「消息与提醒」的未读红点：和 /inbox 页用**同一个**已读水位
-  // （chiheng-alert-read-at），两处计数永远一致。
-  const visible = usePageVisible();
-  const inboxQuery = useQuery({
-    queryKey: ["sidebar-inbox-unread"],
-    queryFn: () => getAlerts(),
-    // 页面在后台就别查了：侧栏红点没人看，白烧接口。
-    refetchInterval: visible ? 120_000 : false,
-  });
-  const [inboxMark, setInboxMark] = useState<string | null>(null);
-  useEffect(() => {
-    try {
-      setInboxMark(localStorage.getItem("chiheng-alert-read-at") ?? "");
-    } catch {
-      setInboxMark("");
-    }
-  }, []);
-  const inboxRows = inboxQuery.data ?? [];
-  const inboxUnread =
-    inboxMark == null ? 0 : inboxRows.filter((r) => r.at > inboxMark && r.id !== inboxMark).length;
   return (
     <aside
       className={
@@ -314,7 +293,6 @@ function SideNav() {
                 group.items.map((item) => {
                   const active = path === item.to;
                   const Icon = item.icon;
-                  const isInbox = item.to === "/inbox";
                   return (
                     <Link
                       key={item.to}
@@ -335,17 +313,7 @@ function SideNav() {
                       ) : null}
                       <Icon className={"size-3.5 shrink-0 " + (active ? "text-brand-text" : "")} aria-hidden />
                       {narrow ? null : item.label}
-                      {isInbox && inboxUnread > 0 ? (
-                        <span
-                          className={
-                            "flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[12px] font-medium text-white tabular-nums " +
-                            (narrow ? "absolute right-1 top-1 h-2 min-w-2 px-0 text-[0px]" : "ml-auto")
-                          }
-                          aria-label={`${inboxUnread} 条未读`}
-                        >
-                          {narrow ? null : inboxUnread}
-                        </span>
-                      ) : null}
+
                     </Link>
                   );
                 })}
@@ -943,325 +911,7 @@ function PushConfig() {
  * "已读水位"是浏览器里存的最后一条 key：铃铛红点数 = 水位之后的新条目；
  * 页面打开时如果没有水位，就把当前最新一条当水位——旧账不补报，不弹 Toast 风暴。
  */
-/**
- * 顶栏铃铛 + 右侧统一通知抽屉（2026-11-06 按参考实现 §5「提醒中心」升级：
- * 原来的 details 下拉只装得下卖出提醒，现在四个 tab——全部 / 未读 / 卖出提醒 /
- * 系统提醒，两个真实数据源（卖出提醒 getAlerts 卖出册 + 系统提醒 /inbox 的
- * alerts），**各用各的已读水位，和铃铛红点、侧栏红点、inbox 页四处计数一致**。
- * Toast（新提醒 8 秒自动消失）原样保留。
- * 空态规则：没有未读时「全部标为已读」禁用并给下一步动作（参考实现 §5 的要求）。
- * **默认停在「未读」tab（2026-11-07）**：以前默认「全部」，已读完的历史一直摊在
- * 抽屉里，看着像没清掉。现在点铃铛先看要处理的，历史点「全部」或空态里的按钮还能查，
- * 一条都没删。
- * PushConfig（微信推送）和 MailConfigCard（每日复盘日报）都在抽屉底部「通知设置」：
- * 低频配置不占顶栏，而且用户本来就在通知这儿找配置。
- */
-function AlertBell() {
-  const navigate = useNavigate();
-  const visible = usePageVisible();
-  const { data } = useQuery({
-    queryKey: ["sell-alerts"],
-    queryFn: () => getSellAlerts(),
-    refetchInterval: visible ? 60_000 : false,
-  });
-  const alerts = data?.alerts ?? [];
-  // 已读水位存在浏览器里。SSR 阶段没有 localStorage，初始给 null，挂载后再读。
-  const [seenKey, setSeenKey] = useState<string | null>(null);
-  const [toast, setToast] = useState<(typeof alerts)[number] | null>(null);
-  const toastedKeyRef = useRef<string | null>(null);
-  const [open, setOpen] = useState(false);
-  // 默认只看未读：已读完的历史不该一直摊在抽屉里（想看历史点「全部」）。
-  const [tab, setTab] = useState<"all" | "unread" | "sell" | "inbox">("unread");
-  // 抽屉里的邮件配置标题要显示「已配置/未配置」，和 /settings 卡片共用同一份查询缓存。
-  const mailQuery = useQuery({
-    queryKey: ["mail-status"],
-    queryFn: () => getMailStatus(),
-    enabled: open,
-  });
-  // 抽屉里这份没有 loader 数据：SSR/hydration 统一显示「读取中」，挂载后才用真实状态，
-  // 否则和 /settings 页那个实例共用 ["mail-status"] 缓存会对不上文本（#418）。
-  const bellMounted = useMountedNow() != null;
-  const mailChannelLabel =
-    !bellMounted || !mailQuery.data || !mailQuery.data.allowed
-      ? "读取中"
-      : mailQuery.data.pushConfigured
-        ? "微信已就绪"
-        : mailQuery.data.configured
-          ? "邮件已配置"
-          : "未配置通道";
 
-  // 系统提醒（/inbox 的 alerts）：打开抽屉才拉，60s 轮询。
-  const inboxQuery = useQuery({
-    queryKey: ["bell-inbox-alerts"],
-    queryFn: () => getAlerts(),
-    enabled: open,
-    refetchInterval: open && visible ? 60_000 : false,
-  });
-  const inboxRows = inboxQuery.data ?? [];
-  // 系统提醒的已读水位：和 /inbox 页同一个 key（chiheng-alert-read-at）。
-  const [inboxMark, setInboxMark] = useState<string | null>(null);
-  useEffect(() => {
-    try {
-      setInboxMark(localStorage.getItem("chiheng-alert-read-at") ?? "");
-    } catch {
-      setInboxMark("");
-    }
-  }, []);
-
-  useEffect(() => {
-    setSeenKey(localStorage.getItem("chiheng-alerts-seen"));
-  }, []);
-
-  // 第一次拿到数据时定水位：没见过任何水位 → 当前最新一条即全部已读。
-  useEffect(() => {
-    if (alerts.length === 0 || seenKey != null) return;
-    const newest = alerts[0];
-    if (newest) {
-      localStorage.setItem("chiheng-alerts-seen", newest.key);
-      setSeenKey(newest.key);
-    }
-  }, [alerts, seenKey]);
-
-  // 新预警 → Toast。只在会话内弹一次（按 key 去重），静默期间不打扰。
-  useEffect(() => {
-    const newest = alerts[0];
-    if (!newest || seenKey == null) return;
-    if (newest.key === seenKey || newest.key === toastedKeyRef.current) return;
-    toastedKeyRef.current = newest.key;
-    setToast(newest);
-  }, [alerts, seenKey]);
-
-  // 一条 Toast 8 秒后自己消失（可静默的落地版：不堆叠、不强制）。
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 8_000);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  const seenIndex = seenKey ? alerts.findIndex((alert) => alert.key === seenKey) : 0;
-  const sellUnread = seenIndex === -1 ? 0 : seenIndex;
-  const inboxUnread = inboxMark == null ? 0 : inboxRows.filter((r) => r.at > inboxMark && r.id !== inboxMark).length;
-  const totalUnread = sellUnread + inboxUnread;
-
-  function markAllRead() {
-    const newest = alerts[0];
-    if (newest) {
-      localStorage.setItem("chiheng-alerts-seen", newest.key);
-      setSeenKey(newest.key);
-    }
-    const newestInbox = inboxRows[0];
-    if (newestInbox) {
-      try {
-        localStorage.setItem("chiheng-alert-read-at", newestInbox.id);
-      } catch {
-        /* 隐私模式：不影响查看 */
-      }
-      setInboxMark(newestInbox.id);
-    }
-  }
-
-  const TABS: { id: typeof tab; label: string }[] = [
-    { id: "all", label: "全部" },
-    { id: "unread", label: totalUnread > 0 ? `未读 ${totalUnread}` : "未读" },
-    { id: "sell", label: "卖出提醒" },
-    { id: "inbox", label: "系统提醒" },
-  ];
-
-  /** 卖出提醒一条。unread = 水位之后的。 */
-  const sellRow = (alert: (typeof alerts)[number], index: number) => (
-    <div key={alert.key} className={"border-b border-line px-3 py-2 text-sm last:border-b-0 " + (index < sellUnread ? "bg-up-soft/50" : "")}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="min-w-0 truncate">
-          {alert.name ?? alert.id}
-          <span className="ml-2 text-xs text-muted">{alert.reason}</span>
-        </span>
-        <span className="shrink-0 text-xs text-muted">{alert.date.slice(5)}</span>
-      </div>
-      {alert.exit != null ? <div className="mt-0.5 text-xs tabular-nums text-muted">卖出价 {alert.exit.toFixed(2)}</div> : null}
-    </div>
-  );
-
-  /** 系统提醒一条（/inbox 同源同貌）。 */
-  const inboxRow = (r: (typeof inboxRows)[number], i: number) => {
-    const isUnread = inboxMark != null && r.at > inboxMark && r.id !== inboxMark;
-    return (
-      <div key={r.id} className={"border-b border-line px-3 py-2 text-sm last:border-b-0 " + (isUnread ? "bg-brand-soft/30" : "")}>
-        <div className="flex items-baseline justify-between gap-2">
-          <span className={"min-w-0 truncate " + (isUnread ? "font-medium text-fg" : "text-muted")}>
-            {r.kind === "failed" ? <span className="mr-1.5 rounded bg-warn-soft px-1 text-[12px] text-warn">没跑成</span> : null}
-            {r.title}
-          </span>
-          <span className="shrink-0 text-xs text-muted tabular-nums">{r.at.slice(5, 16).replace("T", " ")}</span>
-        </div>
-        <p className="mt-0.5 text-xs leading-snug text-muted">{r.detail}</p>
-      </div>
-    );
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        aria-label={`消息与提醒，${totalUnread} 条未读`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="relative inline-flex h-8 shrink-0 items-center rounded border border-line bg-surface px-2.5 text-muted hover:bg-surface-2 hover:text-fg"
-      >
-        <Bell className="size-3.5" />
-        {totalUnread > 0 ? (
-          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-up px-1 text-[12px] font-medium text-white tabular-nums">
-            {totalUnread}
-          </span>
-        ) : null}
-      </button>
-      {open ? <div className="fixed inset-0 z-40 bg-fg/30" aria-hidden onClick={() => setOpen(false)} /> : null}
-      {open ? (
-        <aside
-          className="fixed top-0 right-0 z-50 flex h-screen w-[380px] max-w-[calc(100vw-1.5rem)] flex-col border-l border-line bg-surface shadow-pop"
-          aria-label="消息与提醒"
-        >
-          <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="flex items-baseline gap-2">
-              <span className="text-sm font-medium">消息与提醒</span>
-              {totalUnread > 0 ? <span className="text-xs text-up">未读 {totalUnread}</span> : null}
-            </span>
-            <button type="button" onClick={() => setOpen(false)} aria-label="关闭通知抽屉" className="text-muted hover:text-fg">
-              ×
-            </button>
-          </div>
-          <div className="flex gap-1 border-b border-line px-3 py-2">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={
-                  "rounded px-2.5 py-1 text-xs transition " +
-                  (tab === t.id ? "bg-brand-soft font-medium text-brand-text" : "text-muted hover:bg-surface-2 hover:text-fg")
-                }
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto scroll-slim">
-            {tab === "all" || tab === "sell" ? (
-              <section>
-                {(tab === "all" || tab === "sell") && (
-                  <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">卖出提醒</p>
-                )}
-                {alerts.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-sm text-muted">
-                    还没有触发过卖出提醒
-                    <Link to="/strategies/positions" onClick={() => setOpen(false)} className="mt-2 block text-xs text-accent hover:underline">
-                      去策略追踪看持仓 →
-                    </Link>
-                  </div>
-                ) : (
-                  alerts.map(sellRow)
-                )}
-              </section>
-            ) : null}
-            {tab === "all" || tab === "inbox" ? (
-              <section>
-                <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">系统提醒</p>
-                {inboxRows.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-sm text-muted">
-                    收件箱还是空的
-                    <Link to="/my-stocks" onClick={() => setOpen(false)} className="mt-2 block text-xs text-accent hover:underline">
-                      把股票加进自选，收盘后自动核对预警 →
-                    </Link>
-                  </div>
-                ) : (
-                  inboxRows.map(inboxRow)
-                )}
-              </section>
-            ) : null}
-            {tab === "unread" ? (
-              totalUnread === 0 ? (
-                <div className="px-3 py-6 text-center text-sm text-muted">
-                  没有未读提醒
-                  <p className="mt-1 text-xs">卖出提醒和系统提醒都会在这里聚齐；下次触发会自动亮红点。</p>
-                  <button
-                    type="button"
-                    onClick={() => setTab("all")}
-                    className="mt-3 rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg"
-                  >
-                    查看全部历史 →
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {sellUnread > 0 ? (
-                    <section>
-                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">卖出提醒 · {sellUnread}</p>
-                      {alerts.slice(0, sellUnread).map(sellRow)}
-                    </section>
-                  ) : null}
-                  {inboxUnread > 0 ? (
-                    <section>
-                      <p className="sticky top-0 border-b border-line/60 bg-surface px-3 py-1.5 text-[12px] tracking-widest text-muted">系统提醒 · {inboxUnread}</p>
-                      {inboxRows
-                        .filter((r) => inboxMark != null && r.at > inboxMark && r.id !== inboxMark)
-                        .map(inboxRow)}
-                    </section>
-                  ) : null}
-                </>
-              )
-            ) : null}
-          </div>
-          <div className="border-t border-line px-3 py-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={markAllRead}
-                disabled={totalUnread === 0}
-                className="rounded border border-line px-2.5 py-1 text-xs text-muted transition hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-                title={totalUnread === 0 ? "没有未读，无需标记" : undefined}
-              >
-                全部标为已读
-              </button>
-              <Link to="/inbox" onClick={() => setOpen(false)} className="text-xs text-accent hover:underline">
-                打开收件箱 →
-              </Link>
-            </div>
-            <div className="mt-2 border-t border-line/60 pt-2">
-              <p className="mb-1 text-[12px] tracking-widest text-muted">通知设置</p>
-              <PushConfig />
-              {/* 邮件配置和微信推送放一起：用户本来就在通知抽屉里找配置，不用再跳 /settings */}
-              <details className="mt-2 border-t border-line/60 pt-2">
-                <summary className="cursor-pointer text-[12px] text-muted hover:text-fg">
-                  每日复盘日报 · {mailChannelLabel}
-                </summary>
-                <div className="mt-2">
-                  <MailConfigCard initial={null} clientOnly />
-                </div>
-              </details>
-            </div>
-          </div>
-        </aside>
-      ) : null}
-      {toast ? (
-        <button
-          type="button"
-          onClick={() => {
-            markAllRead();
-            setToast(null);
-            void navigate({ to: "/strategies/positions" });
-          }}
-          className="fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-0.5 rounded border border-warn/60 bg-surface px-3 py-2.5 text-left shadow-pop"
-        >
-          <span className="text-xs text-warn">卖出提醒</span>
-          <span className="text-sm text-fg">
-            {toast.name ?? toast.id} 触发{toast.reason}
-            {toast.exit != null ? `，卖出价 ${toast.exit.toFixed(2)}` : ""}
-          </span>
-          <span className="text-xs text-muted">点击去策略追踪 · 8 秒后自动消失</span>
-        </button>
-      ) : null}
-    </>
-  );
-}
 
 /** 窄屏主导航：一个「当前页 ▾」按钮，点开是和桌面侧边栏**同一组数据**的分组菜单
  *  （2026-10-16 用户反馈：原来摊平成一排 19 个页签，又占地方又看不出层级）。
@@ -1389,7 +1039,6 @@ export function Frame({
             <QuickSearch />
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <AccountChip />
-              <AlertBell />
               <button
                 type="button"
                 onClick={() => void refresh()}
