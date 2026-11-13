@@ -44,7 +44,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { getAILog, getFactorQueue, getPushStatus, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse, savePushConfig } from "@/lib/market/quotes.functions";
+import { getAILog, getFactorQueue, getQuickSearch, getRecorder, getSellAlerts, getStrategyGates, getUniverse } from "@/lib/market/quotes.functions";
 import { getMailStatus } from "@/lib/market/mail.functions";
 import { MailConfigCard } from "@/components/mail-config-card";
 import { useMountedNow } from "@/lib/ui/relative-time";
@@ -857,52 +857,6 @@ export function SlackMode() {
   );
 }
 
-/**
- * 铃铛下拉里的微信推送配置（PushPlus）。
- * 只给主人账号显示——推送本身只在主人账本上触发，别人配置了也不会收到。
- * 填新 token 覆盖旧的；留空点保存 = 关闭微信推送（回到只发 Mac 通知）。
- */
-function PushConfig() {
-  const { data } = useQuery({ queryKey: ["push-status"], queryFn: () => getPushStatus() });
-  const [token, setToken] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  if (!data?.allowed) return null;
-  const save = async () => {
-    try {
-      const res = await savePushConfig({ data: { token } });
-      setMessage(res.configured ? `已保存，尾号 ${res.tail ?? ""}`.trim() : "已关闭微信推送");
-      setToken("");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "保存失败");
-    }
-  };
-  return (
-    <div className="border-t border-line px-3 py-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="shrink-0 text-xs font-medium text-muted">微信推送（PushPlus）</span>
-        <span className="truncate text-xs text-muted">
-          {data.configured ? `已配置 · 尾号 ${data.tail}` : "未配置"}
-        </span>
-      </div>
-      <div className="mt-1.5 flex gap-1.5">
-        <input
-          value={token}
-          onChange={(event) => setToken(event.target.value)}
-          placeholder={data.configured ? "填新 token 替换，留空保存可关闭" : "粘贴 PushPlus token"}
-          className="min-w-0 flex-1 rounded border border-line bg-surface px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-brand"
-        />
-        <button
-          type="button"
-          onClick={() => void save()}
-          className="shrink-0 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90"
-        >
-          保存
-        </button>
-      </div>
-      {message ? <p className="mt-1 text-xs text-muted">{message}</p> : null}
-    </div>
-  );
-}
 
 /**
  * 顶栏铃铛 + 右下角 Toast（PPT 交互规范 05 预警推送的落地版）。

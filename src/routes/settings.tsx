@@ -30,6 +30,7 @@ import { sourceLabel } from "@/lib/market/data-status";
 import { snapshotAgeSince } from "@/lib/market/format";
 import type { Universe } from "@/lib/market/types";
 import { PixelHeader } from "@/components/pixel-header";
+import { PushConfig } from "@/components/push-config";
 
 export const Route = createFileRoute("/settings")({
   loader: async () => {
@@ -102,7 +103,38 @@ function SettingsPage() {
         {gaps.length > 0 ? <GapList items={gaps} title="现在的问题" /> : null}
       </Panel>
 
-      <Panel title="配置现状" note="只读展示，改的地方都标了">
+            <Panel title="交易推送" note="PushPlus · 和上面的「日报」是两条通道">
+        <div className="px-3.5 py-2 text-[12px] leading-relaxed text-muted">
+          上面那块「微信推送」是<b className="text-fg">收盘后一份日报</b>；
+          这一块是<b className="text-fg">盘中按时间点的交易提醒</b>——开盘前的买入单、到止损/到期该卖。两条通道共用一个 PushPlus token。
+        </div>
+        <PushConfig />
+        <div className="border-t border-line px-3.5 py-3">
+          <div className="px-num mb-1.5 text-[12px] tracking-widest text-brand">PUSH // SCHEDULE</div>
+          <div className="flex flex-col gap-1 text-[13px]">
+            {[
+              ["09:20", "今天开盘买什么（前瞻 3 只）"],
+              ["09:26", "中长线买入单 + 短线买入单（含市场在玩什么）"],
+              ["15:10", "盘面温度计"],
+              ["15:15", "绝望底仓实验篮子"],
+              ["周一 18:00", "绝望底仓周报"],
+              ["周一 18:30", "周对账"],
+              ["事件触发", "到止损 / 到目标 / 到期该卖"],
+            ].map(([t, what]) => (
+              <div key={t} className="flex items-baseline gap-3 border-b border-dashed border-line py-1 last:border-0">
+                <span className="px-num w-24 shrink-0 text-[12px] text-brand">{t}</span>
+                <span className="text-muted">{what}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[12px] leading-relaxed text-muted">
+            上表是写死在 home-server 里的时间表，页面上改不了——要改时间得改代码。
+            这里能改的只有 token；token 存在 data/push-config.json，不进 git。
+          </p>
+        </div>
+      </Panel>
+
+<Panel title="配置现状" note="只读展示，改的地方都标了">
         <div className="overflow-x-auto scroll-slim">
         <table className="data-table w-full min-w-[520px]">
           <caption className="sr-only">当前配置值与修改入口</caption>
