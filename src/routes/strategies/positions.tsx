@@ -56,7 +56,7 @@ export const Route = createFileRoute("/strategies/positions")({
       getServerJournal(),
       // 净值史是收盘后记账进程沉淀的，读不到就当空的——页面显示空态而不是打不开。
       getNavHistory().catch(() => ({ points: [] as NavPoint[] })),
-      getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string> })),
+      getChallengers().catch(() => ({ list: [] as Challenger[], champions: {} as Record<string, string>, rule: null })),
       getChallengerSamples().catch(() => ({}) as Record<string, { n: number; target: number; champN: number }>),
       getChallengerRobustness().catch(() => ({}) as Record<string, ChallengerRobustReport>),
       getSignalCandidates().catch(() => ({ signals: [] as SignalCandidate[] })),
@@ -89,6 +89,7 @@ export const Route = createFileRoute("/strategies/positions")({
       date: shanghaiDate(),
       chal: chal.list,
       champions: chal.champions,
+      chalRule: chal.rule,
       samples,
       robust,
       industry,
@@ -272,12 +273,16 @@ function ChallengerPanel({
   champions,
   samples,
   robust,
+  rule,
 }: {
   list: Challenger[];
   champions: Record<string, string>;
   samples: Record<string, { n: number; target: number; champN: number }>;
   /** VT3 判决旁路的参数敏感度报告（按挑战者 id），没有评估过的就没有 entry。 */
   robust: Record<string, ChallengerRobustReport>;
+  /** 运行时真实生效的判决规则（2026-11-14）：阈值可被 challenger-rule.json 覆盖，
+   *  不许在文案里写死——原先写「30 笔 / t≤-2」，实际是 12 笔 / t≤-1.5。 */
+  rule: { minTrades: number; promoteT: number; rejectT: number } | null;
 }) {
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
   const runningCount = list.filter((c) => c.status === "running").length;
@@ -337,7 +342,7 @@ function ChallengerPanel({
   return (
     <Panel
       title="冠军-挑战者"
-      note={`${runningCount} 个在跑 · 转正要 Welch t ≥ 1.5（30 笔）`}
+      note={`${runningCount} 个在跑 · 转正要 Welch t ≥ ${rule?.promoteT ?? "?"}（${rule?.minTrades ?? "?"} 笔已平仓）`}
       bodyClassName="px-3 py-2"
     >
       {alive.length > 0 ? (
@@ -345,6 +350,16 @@ function ChallengerPanel({
       ) : (
         <p className="text-xs text-muted">还没有在跑的挑战者，这一块暂时是空的。等自动进化或手动跑一轮完整进化后，这里会列出新的候选。</p>
       )}
+      {/* 判决功效提醒（2026-11-14）：光有「样本 n/12」会让人以为攒够就能判。
+          实测单笔收益标准差 ~10%，12 笔只能检出 ≥11.5pp 的差异，而这类调整
+          典型效果只有 3pp——攒够也判不出来。这句必须写在进度条旁边，
+          否则用户会一直等一个永远不来的判决。 */}
+      <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
+        判决功效提醒：单笔收益标准差约 10%，每侧 {rule?.minTrades ?? "?"} 笔只能检出
+        <b className="text-fg"> ≥11.5pp </b>的差异，而改止损/持有期这类调整的典型效果约 3pp。
+        <b className="text-warn">所以样本攒够了也大概率判不出来</b>——这里的「样本 n/{rule?.minTrades ?? "?"}」
+        只能说明在攒，不等于判得准。完整的功效数与所需样本量见「设置与状态」的系统体检。
+      </p>
       {dead.length > 0 ? (
         <CollapsibleSection
           className="mt-2"
@@ -652,7 +667,7 @@ function TodayReconcilePanel({
 }
 
 function Positions() {
-  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks, signals, reconcile, genomeCount, signalLog } = Route.useLoaderData();
+  const { universe, journal, nav, rules, date, chal, champions, samples, robust, industry, peRanks, signals, reconcile, genomeCount, signalLog, chalRule } = Route.useLoaderData();
   const [ready, setReady] = useState(false);
   useEffect(() => {
     // rehydrate() 有时返回 void、有时返回 Promise，两种都当成「读完了」
@@ -931,7 +946,7 @@ function Positions() {
   {/* 体检 tab：当前状态——挑战者赛马、净值曲线、持仓结构。 */}
   const checkTab = (
     <div className="flex flex-col gap-2">
-        <ChallengerPanel list={chal} champions={champions} samples={samples} robust={robust} />
+        <ChallengerPanel list={chal} champions={champions} samples={samples} robust={robust} rule={chalRule} />
 
         {/* 净值曲线：收盘后记账进程逐日沉淀（record-journal.ts），这里只画不造数。
             不足两个点不出图——首日只有孤立一点，连不成线，硬画是误导。 */}

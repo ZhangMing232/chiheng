@@ -1065,9 +1065,12 @@ export const runFactorAI = createServerFn({ method: "POST" }).handler(async () =
 
 /** 挑战者名单 + 各策略当前冠军参数。 */
 export const getChallengers = createServerFn({ method: "GET" }).handler(async () => {
-  const { readChallengers, readChampions } = await import("@/lib/market/challenger");
-  const [chal, champions] = await Promise.all([readChallengers(), readChampions()]);
-  return { list: chal.list, champions };
+  const { readChallengers, readChampions, loadChallengerRule } = await import("@/lib/market/challenger");
+  const [chal, champions, rule] = await Promise.all([readChallengers(), readChampions(), loadChallengerRule()]);
+  // 真实规则一起返回（2026-11-14）：面板上原先硬编码「30 笔 / t≥1.5 / 淘汰 t≤-2」，
+  // 而实际规则是 minTrades=12 / rejectT=-1.5——文案和事实对不上，用户会被误导。
+  // 阈值是运行时数据（可被 challenger-rule.json 覆盖），必须读出来渲染，不许写死。
+  return { list: chal.list, champions, rule };
 });
 
 /** 因子死因档案（最近 100 条，新的在前）。UI 升级 2026-10：进化页 ⓘ 点开可见判决依据。 */
