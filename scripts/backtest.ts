@@ -1623,12 +1623,22 @@ const STRATEGIES: Record<string, { label: string; fn: StrategyFn; hold?: number 
     ? { gen2: { label: "二代·线上对齐", fn: breakoutGen2 } }
     : {}),
   // 低估值回测变体（value）。用 baostock 真实逐日 PE/PB，镜像 valueOrder 的锚定逻辑。
-  // 默认不注册：日常基线/页面账本不带它；跑法 BT_VALUE=1 BT_NO_LOG=1（100 亿门槛在
-  // 策略函数内部按个股查 capMap，不走 BT_CAP 全局闸——后者会删股票触发覆盖率闸口拒绝）。
-  // 100 亿总市值用今日快照 capMap（已知近似，见文件头注释，非历史市值）。
-  ...(process.env.BT_VALUE === "1"
-    ? { value: { label: "低估值·回测变体", fn: valueBacktest, hold: holdOf("value") } }
-    : {}),
+  //
+  // 🔴 2026-11-14 改为**默认注册**（原先是 BT_VALUE=1 才注册）。
+  // 原因：value 是 ACTIVE_STYLES 里**唯一在真实跑的策略**，但它默认不进回测，
+  // 导致 data/strategy-verdicts.json 的 11 套里没有它——「现役策略到底有没有
+  // alpha」这个问题，系统默认状态下答不出来，所有「11 套无 alpha」的结论都不含
+  // 正在用的那一套。原注释的理由是「免得日常基线多一行、免得污染 JSONL」，
+  // 但一行报告的代价，远小于「现役策略没有判决」这个盲点。
+  // 补跑实测（250 日窗口）：2131 笔、胜率 45%、超额 +0.14%、信噪比 1.16
+  // ——12 套里三项最高，但仍未过 |t|≥2。
+  //
+  // 想跳过它（如只测其它家族）：BT_SKIP_VALUE=1。
+  // 100 亿门槛在策略函数内部按个股查 capMap，不走 BT_CAP 全局闸（后者会删股票
+  // 触发覆盖率闸口拒绝）。100 亿总市值用今日快照 capMap（已知近似，非历史市值）。
+  ...(process.env.BT_SKIP_VALUE === "1"
+    ? {}
+    : { value: { label: "低估值·回测变体", fn: valueBacktest, hold: holdOf("value") } }),
   // 持有期 A/B（2026-11-09 预登记，用户直觉驱动）：买入逻辑一字不动，只变持有期
   // （8 / 20 / 40 个交易日）。质疑点：8 天是从短炒家族继承的口径，价值重估
   // （15 倍买 → 22 倍卖）本来需要几周到几个月，8 天强制清仓等于半路下车。

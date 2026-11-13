@@ -253,6 +253,27 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({ label: "实盘vs回测", state: "warn", detail: "读不到账本或判决，无法比对", fix: null });
   }
 
+
+  // ⑦ 探索效率（2026-11-14 新增）：系统「只会一直找、不会停下来想值不值」。
+  // 熔断器只管连续失败，管不了「永远成功运行但永远没产出」。这里补上产出钩子。
+  try {
+    const { evaluateExplorationBudget, attemptsFromQueue, BUDGET_RULE } = await import("./exploration-budget.ts");
+    const q = await readJson<{ entries?: { id: string; status?: string; createdAt?: string; lastRunAt?: string | null }[] }>(
+      "data/factor-queue.json",
+    );
+    const g = await readJson<{ list?: { id: string; status?: string; since?: string }[] }>("data/strategy-genome.json");
+    const attempts = attemptsFromQueue({ factorQueue: q?.entries ?? [], genome: g?.list ?? [] });
+    const budget = evaluateExplorationBudget(attempts, new Date().toISOString().slice(0, 10));
+    rows.push({
+      label: "探索效率",
+      state: budget.verdict === "halt" ? "bad" : budget.verdict === "cooldown" ? "warn" : "ok",
+      detail: `${budget.reason}（判据：${BUDGET_RULE.windowDays} 天窗口 / ≥${BUDGET_RULE.minAttempts} 次才判）`,
+      fix: budget.action,
+    });
+  } catch {
+    rows.push({ label: "探索效率", state: "warn", detail: "读不到因子队列或基因组，算不出", fix: null });
+  }
+
   return rows;
 }
 
