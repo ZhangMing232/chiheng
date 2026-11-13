@@ -22,7 +22,7 @@
 import { readFile } from "node:fs/promises";
 import { callAIWithFallback, readAIConfig, readQueue } from "./factor-queue.ts";
 import { appendAILog, readAILog, strategySelfHistory } from "./ai-log.ts";
-import { MAX_RUNNING_PER_STYLE, readChallengers, readChampions, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
+import { CHALLENGER_RULE, MAX_RUNNING_PER_STYLE, loadChallengerRule, readChallengers, readChampions, writeChallengers, championLogPath, type Challenger } from "./challenger.ts";
 
 // 常量的权威定义在 challenger.ts（客户端安全）；这里 re-export 保住老导入路径（测试与潜在调用方）。
 export { MAX_RUNNING_PER_STYLE };
@@ -171,10 +171,22 @@ export type StrategyAIContext = {
    * 增强项：读不到就空，提议照常跑。
    */
   lossAttribLines?: string[];
+  /**
+   * 运行时真实生效的判决规则（2026-11-14）。
+   *
+   * 为什么必须传：prompt 里原先写死「各攒够 30 笔、t ≥ 1.5、t ≤ −2 淘汰」，
+   * 而实际规则是 minTrades=12 / promoteT=1.5 / rejectT=-1.5——**AI 被错误前提
+   * 喂了几个月**，它据此判断「还要攒很久」或「这条已经够格了」，决策全偏。
+   * 阈值是运行时数据（challenger-rule.json 可覆盖、优化器会改），必须读出来喂。
+   * 不传时回退到代码默认（只在测试/离线场景发生）。
+   */
+  rule?: { minTrades: number; promoteT: number; rejectT: number };
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
   const styleName = (id: string) => STYLES.find((s) => s.id === id)?.name ?? id;
+  // 真实规则：ctx 传了就用真实的，没传回退代码默认（测试/离线）。
+  const rule = ctx.rule ?? { minTrades: CHALLENGER_RULE.minTrades, promoteT: CHALLENGER_RULE.promoteT, rejectT: CHALLENGER_RULE.rejectT };
   const chalLines = ctx.challengers
     .slice(-20)
     .map((c) => {
@@ -194,7 +206,12 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     .map((c) => `- ${styleName(c.style)}：${c.source}；当前参数 ${c.params}`)
     .join("\n");
   return [
-    "你在管理一个 A 股量化项目的策略参数进化。机制是冠军-挑战者：挑战者和冠军用同一套选股名单、只改出场参数，双方各攒够 30 笔已平仓后 Welch t ≥ 1.5 且均值更高才转正，t ≤ −2 淘汰。",
+    `你在管理一个 A 股量化项目的策略参数进化。机制是冠军-挑战者：挑战者和冠军用同一套选股名单、只改出场参数，双方各攒够 ${rule.minTrades} 笔已平仓后 Welch t ≥ ${rule.promoteT} 且均值更高才转正，t ≤ ${rule.rejectT} 淘汰。`,
+    // 功效提醒（2026-11-14）：让 AI 知道「攒够也大概率判不出来」，
+    // 否则它会以为「再攒 12 笔就能定论」，不断提小改动消耗样本。
+    `⚠️ 判决功效有限：单笔收益标准差约 10%，每侧 ${rule.minTrades} 笔只能检出 ≥11.5pp 的差异，` +
+      `而改止损/持有期的典型效果约 3pp——**攒够也大概率判不出**。所以不要提「微小调整试试看」的提案，` +
+      `要么改动足够大（≥11pp 量级）、要么指出当前判决本身的问题。`,
     "",
     `目前在实盘跑的策略：${ACTIVE_STYLES.map(styleName).join("、")}。`,
     "",
@@ -368,6 +385,9 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     diagnosisHints,
     chalSampleLines,
     lossAttribLines: lossLines,
+    // 真实判决规则（2026-11-14）：阈值是运行时数据，必须喂真实值给 AI，
+    // 否则它会按写死的「30 笔」判断进度，决策全偏。
+    rule: await loadChallengerRule(),
   };
   let raw: string;
   try {

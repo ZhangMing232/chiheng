@@ -1175,7 +1175,7 @@ export const rejectRuleChange = createServerFn({ method: "POST" })
     return item ? { ok: true as const, item } : { ok: false as const, error: "没找到这条待确认（可能已处理）" };
   });
 
-/** 在跑挑战者各自攒到的已平仓样本数（判决要 30 笔，冠军那边也要 30 笔）。和记账进程同一个分桶口径。 */
+/** 在跑挑战者各自攒到的已平仓样本数（每侧目标数由运行时规则 minTrades 决定，当前值见 challenger-rule.json）。和记账进程同一个分桶口径。 */
 export const getChallengerSamples = createServerFn({ method: "GET" }).handler(async () => {
   const { OWNER_ID, readUserBook } = await import("@/lib/market/book-file");
   const { bucketReturns, loadChallengerRule, readChallengers } = await import("@/lib/market/challenger");

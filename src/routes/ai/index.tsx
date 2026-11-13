@@ -66,7 +66,7 @@ export const Route = createFileRoute("/ai/")({
       getPendingRuleChanges().catch(() => ({ pending: [], log: [] })),
       getRuleChangeEffects().catch(() => ({ effects: [] as never[], why: "读不到" })),
       getAIUsage().catch((): { allowed: false; entries: AIUsageEntry[]; stats: null } => ({ allowed: false, entries: [], stats: null })),
-      getChallengers().catch(() => ({ list: [] as { id: string; status: string }[], champions: {} })),
+      getChallengers().catch(() => ({ list: [] as { id: string; status: string }[], champions: {}, rule: null })),
       getRecorder().catch(() => ({ at: null as number | null, ok: true })),
       getIndices().catch(() => []),
     ]);
@@ -79,6 +79,7 @@ export const Route = createFileRoute("/ai/")({
       effects: effectsRes.effects,
       usage: usageRes,
       chal: chalRes.list,
+      chalRule: chalRes.rule,
       recorder,
       indexCount: indices.length,
       // 健康分里的「自动记账多久前」依赖当前时刻：放进 loader 算一次、随 loader 数据序列化，
@@ -211,7 +212,7 @@ function AIConsolePage() {
       done: totalProposed > 0,
     },
     {
-      icon: <Gauge size={18} />, step: "04", title: "评估", desc: "30 笔 Welch t 判决",
+      icon: <Gauge size={18} />, step: "04", title: "评估", desc: `挑战者攒够 ${d.chalRule?.minTrades ?? "?"} 笔后 Welch t 判决`,
       metric: `在跑 ${running} · 已判 ${judged}`,
       done: judged > 0,
     },
@@ -634,7 +635,7 @@ function AIConsolePage() {
       )}
 
       <p className="mt-3 px-1 text-[12px] leading-relaxed text-warn">
-        AI 提议 ≠ 生效：因子要过 6 关，挑战者要过 30 笔 Welch 判决；两个判决函数都预先登记在代码里，AI 无权修改。
+        AI 提议 ≠ 生效：因子要过 6 关，挑战者要攒够 {d.chalRule?.minTrades ?? "?"} 笔后过 Welch 判决；两个判决函数都预先登记在代码里，AI 无权修改。
       </p>
     </Frame>
   );

@@ -265,7 +265,7 @@ const CHAL_STATUS: Record<Challenger["status"], { label: string; className: stri
 
 /**
  * 冠军-挑战者 + AI 提名面板。挑战者和冠军同一套选股名单、只改出场参数，
- * 攒满 30 笔已平仓后 Welch t ≥ 1.5 转正 / t ≤ −2 淘汰——判决是记账进程里
+ * 攒够 minTrades 笔已平仓后 Welch t 判决（阈值读运行时规则，见面板标题）——判决是记账进程里
  * 预先登记的函数算的，AI 只许提名，不许任命。
  */
 function ChallengerPanel({

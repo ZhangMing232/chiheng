@@ -71,7 +71,7 @@ type Loader = {
   queue: QueuePayload;
   ai: { allowed: boolean; configured: boolean };
   chal: Challenger[];
-  /** 在跑挑战者攒到的已平仓样本数（判决双方各要 30 笔），id → {n, target, champN}。 */
+  /** 在跑挑战者攒到的已平仓样本数（每侧目标数由运行时规则 minTrades 决定，见 challenger-rule.json），id → {n, target, champN}。 */
   samples: Record<string, { n: number; target: number; champN: number }>;
   ledger: { allowed: boolean; ledger: DecisionLedger | null };
   /** 各策略当前未平仓只数（策略池饱和度：满池时挑战者成交会被挤掉）。 */
@@ -418,7 +418,7 @@ export function FactorLoopPanels() {
 
       <Section
         title="策略层：冠军-挑战者提名"
-        hint="AI 只许调出场参数（持有天数/止损/目标价），选股名单不许动。提名通过的直接开跑纸面（每策略每天限 1 只），攒满 30 笔后 Welch t ≥ 1.5 转正 / t ≤ −2 淘汰——判决在记账进程里，AI 碰不到。名单详情在策略追踪页。"
+        hint="AI 只许调出场参数（持有天数/止损/目标价），选股名单不许动。提名通过的直接开跑纸面（每策略每天限 1 只），攒够 minTrades 笔后过 Welch 判决（当前值见挑战者面板标题）——判决在记账进程里，AI 碰不到。名单详情在策略追踪页。"
       >
         <div className="border-b border-line px-3.5 py-2">
           {ai.allowed ? (
