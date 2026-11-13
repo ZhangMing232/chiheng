@@ -111,8 +111,8 @@ const DAY_STAGES = [
   { key: "auction", at: "09:26", action: "竞价审核 → 定买价", data: "reviewed.json 落盘" },
   { key: "live", at: "09:30", action: "开盘，按价挂单", data: "竞价价即开盘价" },
   { key: "live", at: "15:00", action: "收盘", data: "盘中数据作废，等定盘" },
-  { key: "post", at: "15:12", action: "收盘封印", data: "涨停池 / K线 / 落档写入" },
-  { key: "post", at: "15:15", action: "算明天", data: "题材热度 / 监管雷达 / 轮动" },
+  { key: "post", at: "15:12", action: "收盘封印", data: "涨停池 / K线落档" },
+  { key: "post", at: "15:15", action: "算明天", data: "题材热度 / 监管雷达" },
   { key: "post", at: "次日 09:20", action: "推送明天买什么", data: "读昨日落档" },
 ];
 
@@ -465,7 +465,7 @@ function DecisionPage() {
               <span className="px-num text-[12px] text-muted">连板 / 封单 · 昨收落档</span>
             </div>
             <p className="mt-1 text-[12px] leading-relaxed text-muted">
-              来自昨收后的落档（forecast.locked，隔夜持仓），落档之后不改。是「昨天收盘后定好、今天开盘前就挂着」的那批——它们不进竞价审核名单。
+              来自昨收后的落档（forecast.locked，隔夜持仓），落档之后不改——「昨天定好、开盘前就挂着」的那批，不进竞价审核名单。
             </p>
           </div>
           <div className="border border-line bg-surface px-3 py-2">
@@ -474,7 +474,7 @@ function DecisionPage() {
               <span className="px-num text-[12px] text-muted">低估值 / 题材补涨 · 今早 09:26 竞价审核</span>
             </div>
             <p className="mt-1 text-[12px] leading-relaxed text-muted">
-              来自今早竞价审核（reviewed.json）：短线跟题材、中长线跟低估值。和前瞻链是两套不同的扫描，各自独立选股，没有谁复选谁。
+              来自今早竞价审核（reviewed.json）：短线跟题材、中长线跟低估值。和前瞻链是两套独立扫描，没有谁复选谁。
             </p>
             <p className="mt-1 text-[12px] leading-relaxed text-warn">
               短线（题材补涨）一套<b className="text-fg">已淘汰、只结算历史仓</b>，记账进程不会为它建仓
@@ -588,7 +588,7 @@ function DecisionPage() {
           <div className="px-num text-[12px] text-muted">
             今日情绪档 <b className="text-warn">{mood.band}</b> · 可买 <b className="text-brand">{buyable}</b> · 放弃 <b className="text-fg">{givenUp}</b>{observing > 0 ? <> · 观察 <b className="text-muted">{observing}</b></> : null}
           </div>
-          <div className="px-num text-[12px] text-brand">看矩阵 ▾</div>
+          <div className="px-num whitespace-nowrap text-[12px] text-brand">看矩阵 ▾</div>
         </div>
 
         <div className="px-ticks-x" aria-hidden="true" />

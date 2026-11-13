@@ -1190,12 +1190,12 @@ function Positions() {
           候选数为 0 时显示「0 候选」也是真实状态，不藏。 */}
       <Link
         to="/strategies/genome"
-        className="inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        className="inline-flex max-w-full flex-wrap items-center gap-2 rounded border border-line bg-surface px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
       >
-        <FlaskConical size={14} className="text-brand" />
-        <span className="font-medium text-fg">策略基因组</span>
-        <span className="px-num rounded bg-brand-soft px-1.5 py-0.5 text-[12px] font-medium text-brand-text">{genomeCount} 候选</span>
-        <span className="text-[12px] text-muted">AI 提的策略候选 + 回测判决 →</span>
+        <FlaskConical size={14} className="shrink-0 text-brand" />
+        <span className="whitespace-nowrap font-medium text-fg">策略基因组</span>
+        <span className="whitespace-nowrap px-num rounded bg-brand-soft px-1.5 py-0.5 text-[12px] font-medium text-brand-text">{genomeCount} 候选</span>
+        <span className="whitespace-nowrap text-[12px] text-muted">AI 提的策略候选 + 回测判决 →</span>
       </Link>
       <PageTabs
         storageKey="chiheng-pos-tab"

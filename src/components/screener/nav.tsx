@@ -1000,9 +1000,12 @@ export function Frame({
                 <RefreshCw className={"size-3.5 " + (refreshing ? "animate-spin" : "")} />
                 <span className="hidden sm:inline">刷新</span>
               </button>
-              <details className="relative hidden shrink-0 sm:block">
+              <details className="group/details relative hidden shrink-0 sm:block">
                 <summary className="cursor-pointer list-none rounded border border-line bg-surface px-2.5 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden">显示</summary>
-                <div className="absolute right-0 z-30 mt-2 flex flex-col gap-2 rounded border border-line bg-surface p-2">
+                {/* 关闭态必须真的藏住：曾只在 details 上加 relative、面板 absolute，
+                    关闭态被实测点到面板里的「小」按钮压住顶栏说明文字（elementFromPoint 命中 span）。
+                    hidden 直至 group 打开（Tailwind group-open 变体），不依赖 details 的默认 UA 行为。 */}
+                <div className="absolute right-0 z-30 mt-2 hidden flex-col gap-2 rounded border border-line bg-surface p-2 group-open/details:flex">
                   <ThemeMode />
                   <TypeSize />
                   <ColorScheme />

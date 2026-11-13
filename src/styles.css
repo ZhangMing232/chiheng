@@ -42,6 +42,16 @@
   --radius-xl: 4px;
   --shadow-card: none;
   --shadow-pop: none;
+
+  /* 六档阶段色（浅底版）：:root 那组是深底优化值，在白底上对比度只剩
+     3.4~4.8:1（2026-11-13 实测）。这里给浅色主题一组提明度对比的值，
+     全部 ≥4.8:1（#f6f8fa 实算）。色相不变，只调明度饱和。 */
+  --color-phase-fix: #357a2a; /* 4.97 */
+  --color-phase-up: #8f5706; /* 5.58 */
+  --color-phase-top: #c9202e; /* 5.29 */
+  --color-phase-cool: #a63379; /* 5.85 */
+  --color-phase-ebb: #6b4fd0; /* 5.40 */
+  --color-phase-ice: #1f6fbe; /* 4.84 */
 }
 
 /* ── 浅色主题（原默认，2026-11-12 保留可切回）────────────────────── */
@@ -263,12 +273,17 @@ section > header button { min-width: 24px; min-height: 24px; }
  * （2026-11-11 实测踩过：页面渲染正常但柱子全透明）。
  */
 :root {
-  --color-phase-fix: #3f8f31; /* 修复：跌完开始有人接 */
-  --color-phase-up: #c1760a; /* 升温：赚钱效应扩散 */
-  --color-phase-top: #c9202e; /* 高潮：情绪顶点（唯一允许用红，因为它是"最热"） */
-  --color-phase-cool: #c2469a; /* 降温：还有热度但接力变差 */
-  --color-phase-ebb: #6b4fd0; /* 退潮：亏钱效应 */
-  --color-phase-ice: #1f6fbe; /* 冰点：没人玩 */
+  /* 默认主题（像素赛博）就是深底，这里必须用**深底优化**的六色
+     （2026-11-13 实测：原来放的是浅色主题的中饱和旧值，在 #12161D 底上
+     冰点 3.5 / 高潮 3.2 / 退潮 3.2:1，check_design 抓了 7 格不达标）。
+     html[data-theme="dark"] 里的同名定义保留（切深色时同值），浅色主题
+     在 data-theme="light" 里另有一组浅底值。 */
+  --color-phase-fix: #63c94e; /* 修复：跌完开始有人接 */
+  --color-phase-up: #f9b23c; /* 升温：赚钱效应扩散 */
+  --color-phase-top: #ff3b30; /* 高潮：情绪顶点（唯一允许用红，因为它是"最热"） */
+  --color-phase-cool: #ff7ac2; /* 降温：还有热度但接力变差 */
+  --color-phase-ebb: #a98bf5; /* 退潮：亏钱效应 */
+  --color-phase-ice: #3d9ae0; /* 冰点：没人玩 */
 }
 
 /* 键帽。快捷键面板和文档里都用它，两处看起来必须是同一样东西。 */

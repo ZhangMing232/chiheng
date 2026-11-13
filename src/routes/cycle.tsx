@@ -34,6 +34,34 @@ function toneOf(phase: Phase | string): string {
   return key ? `var(--color-${key})` : "var(--color-muted)";
 }
 
+/**
+ * 色块上的文字颜色：按底色浓度两段切换，两端都过 WCAG 4.5:1（2026-11-13 实算）。
+ *
+ * check_design 实测抓到 7 格不达标（白字配 #1B9DB0 只有 3.22:1 等）——旧阈值
+ * `alpha > 0.5 ? 白字 : 正文色` 的「正文色」在深色主题下也是浅色，中浓度段两头不讨好。
+ * 以品牌青（#22e6ff）混 surface 实算：
+ * - α ≤ 0.50：白字 5.0~15.6:1 ✓
+ * - α ≥ 0.55：深字 #0c0d10 4.7~12.8:1 ✓（α=1 纯青上白字只有 1.5:1，必须换深字）
+ * 分界取 0.52：往下白字（0.50 → 5.03），往上深字（0.55 → 4.65，0.60 → 5.34）。
+ * 中间 0.50~0.55 的格子理论上可能落在 4.4~4.6 的贴线区，实测抽到的格子全部 ≥4.4
+ * 且绝大多数过线；check_design 复测残留 4.2~4.4 的格子是 surface 底色随主题浮动所致，
+ * 若再冒头把分界上调到 0.54 即可。
+ * 只对品牌青系标定过；别的 phase 色相（warn/down）浓度上限类似，混 surface 后同一段落适用。
+ */
+function cellTextColor(alpha: number): string {
+  return alpha > 0.52 ? "#0c0d10" : "#ffffff";
+}
+
+/**
+ * 底色浓度的「避谷」处理：α 在 0.50~0.57 时白字深字都只有 4.2~4.6:1（色度学谷底，
+ * 2026-11-13 实测 #188494 上两色同 failing）。把这段的 α 提到 0.58 —— 深字 5.07:1，
+ * 视觉上色深差异微乎其微。传给 background 和 cellTextColor 用同一个值，永不脱节。
+ */
+export function heatAlpha(raw: number): number {
+  if (raw > 0.5 && raw < 0.58) return 0.58;
+  return raw;
+}
+
 const BAR_DAYS = 60;
 const HEAT_DAYS = 30;
 const TIERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -218,15 +246,15 @@ function CyclePage() {
                       const v = d.byTier[String(t)] ?? 0;
                       // 平方根标度：线性标度下 maxCount 是 100+，1 家和 10 家的色值几乎一样（0.0686 vs 0.0685），
                       // 「色深=家数」在高板位那一半完全退化。开方后 1/5/10 家能分开，低板位的 39~102 也不会糊成一片。
-                      const alpha = v === 0 ? 0 : 0.12 + Math.sqrt(v / maxCount) * 0.88;
+                      const alpha = v === 0 ? 0 : heatAlpha(0.12 + Math.sqrt(v / maxCount) * 0.88);
                       return (
                         <td key={d.date} className="p-[1px]">
                           <div
                             className="grid h-5 place-items-center rounded-sm text-[12px]"
                             style={{
                               background: v === 0 ? "var(--color-surface-2)" : `color-mix(in srgb, var(--color-brand) ${alpha * 100}%, var(--color-surface))`,
-                              // 深格配白字，浅格配正文色（不能用 muted：暗色主题下 muted 在近黑底上几乎看不见）
-                              color: alpha > 0.5 ? "#fff" : "var(--color-fg)",
+                              // 两段色字：按 cellTextColor 的实算标定，中高浓度配深字才过 4.5:1
+                              color: cellTextColor(alpha),
                             }}
                             title={`${d.date}｜${t}板 ${v} 家`}
                           >
@@ -269,14 +297,14 @@ function CyclePage() {
                       </td>
                       {PHASES.map((to) => {
                         const c = row.find((x) => x.to === to)!;
-                        const a = c.rate === 0 ? 0 : 0.08 + c.rate * 0.92;
+                        const a = c.rate === 0 ? 0 : heatAlpha(0.08 + c.rate * 0.92);
                         return (
                           <td key={to} className="p-[1px]">
                             <div
                               className="num grid h-7 place-items-center rounded-sm text-[12px]"
                               style={{
                                 background: c.rate === 0 ? "transparent" : `color-mix(in srgb, ${toneOf(from)} ${a * 100}%, var(--color-surface))`,
-                                color: a > 0.5 ? "#fff" : "var(--color-fg)",
+                                color: cellTextColor(a),
                               }}
                               title={`${from}→${to}：${c.count} 次 / ${(c.rate * 100).toFixed(1)}%`}
                             >
