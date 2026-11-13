@@ -92,3 +92,39 @@ test("两份市值快照都登记在册——漏登记的那份烂了也没人�
   assert.ok(paths.includes("data/backtest/cap.json"), "总市值快照没登记");
   assert.ok(paths.includes("data/backtest/floatcap.json"), "流通市值快照没登记");
 });
+// ── 过期数据要说清「影响什么」（2026-11-14）──────────────────────
+// 实测：行业分类/行业月度已过期 1 个月，页面只说「已过新鲜期（6 小时）」，
+// 用户会以为系统坏了或以为选股受影响。查代码：strategies.ts 完全不读行业数据。
+
+test("🔴 登记了 impact 的，过期时要把影响面带出去", () => {
+  const now = Date.now();
+  const old = now - 40 * 24 * 3600_000; // 40 天前
+  const fact = {
+    path: "data/backtest/industry.json",
+    label: "行业分类（东财三级）",
+    ttlKey: "industry" as const,
+    refresh: "行业分类，板块归属要用。由后台抓取任务生成",
+    required: false,
+    impact: "过期只影响研究页/持仓体检/板块页，不影响选股",
+  };
+  const r = freshnessOf(fact as never, { [fact.path]: { size: 1024, mtime: old } }, now);
+  assert.equal(r.state, "stale");
+  assert.match(r.impact!, /不影响选股/);
+});
+
+test("没登记 impact 的不编，留 null", () => {
+  const now = Date.now();
+  const fact = { path: "x.json", label: "X", ttlKey: null, refresh: "r", required: false };
+  const r = freshnessOf(fact as never, { "x.json": { size: 1, mtime: now } }, now);
+  assert.equal(r.impact, null, "没想清楚影响面就别猜");
+});
+
+test("真实清单里，过期风险最高的两项都登记了 impact", () => {
+  // 行业数据 1 个月没更新，是最可能被误读成「系统坏了」的两项
+  const industry = DATA_FILES.filter((f) => f.path.includes("industry"));
+  assert.ok(industry.length >= 2);
+  for (const f of industry) {
+    assert.ok(f.impact, `${f.label} 应登记 impact，否则过期时用户不知道影响什么`);
+    assert.match(f.impact!, /不影响|不参与/, `${f.label} 的 impact 该说清「不影响什么」`);
+  }
+});

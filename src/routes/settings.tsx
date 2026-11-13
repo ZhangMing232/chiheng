@@ -224,6 +224,11 @@ function SettingsPage() {
                   <td className={tdClass("text-right text-muted")}>{f.sizeKb == null ? "—" : `${f.sizeKb} KB`}</td>
                   <td className={tdClass("text-left")}>
                     <Tag tone={f.state === "ok" ? "muted" : f.state === "na" ? "muted" : "warn"}>{f.note}</Tag>
+                    {/* 过期时补一句「影响什么」：光说「已过新鲜期」用户会以为系统坏了，
+                        或者以为选股受影响。实测行业数据过期 1 个月但完全不进选股链路。 */}
+                    {f.state === "stale" && f.impact ? (
+                      <div className="mt-0.5 text-[11px] leading-snug text-muted">{f.impact}</div>
+                    ) : null}
                   </td>
                   <td className={tdClass("text-left text-muted")}>
                     <span className="text-[12px] leading-snug">{f.refresh}</span>

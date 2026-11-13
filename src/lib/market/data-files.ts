@@ -30,6 +30,18 @@ export type FileFact = {
   command?: string;
   /** 是否必须有（false = 有就赚，没有也能用） */
   required: boolean;
+  /**
+   * 过期时影响什么、不影响什么（2026-11-14）。
+   *
+   * 为什么必须有：实测「行业分类」「行业月度温度计」已过期 1 个月，
+   * 页面只在状态里写「已过新鲜期（6 小时）」——用户看到会以为系统坏了、
+   * 或者以为选股受影响。实际查代码：`strategies.ts` **完全不读行业数据**，
+   * 现役 value 策略不受任何影响；只有研究页、持仓体检、板块页用到。
+   *
+   * 「过期」和「坏了」是两件事，用户需要知道的是「这会不会影响我今天的操作」。
+   * 不填 = 没想清楚影响面，那就别猜，留空比编一句准。
+   */
+  impact?: string;
 };
 
 export type Freshness = {
@@ -46,6 +58,8 @@ export type Freshness = {
   /** 给开发者的手动重抓命令；null = 这份不需要（或没有）命令 */
   command: string | null;
   required: boolean;
+  /** 过期时影响什么、不影响什么；null = 没登记（不编） */
+  impact: string | null;
 };
 
 /** 本机要盯着的文件清单。顺序就是页面显示顺序（按重要程度排）。 */
@@ -97,11 +111,15 @@ export const DATA_FILES: FileFact[] = [
     refresh: "行业分类，板块归属要用。由后台抓取任务生成",
     command: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/fetch-industry.mjs",
     required: false,
+    // 2026-11-14 核实：strategies.ts 完全不读行业数据，现役 value 策略不受影响。
+    impact: "过期只影响【研究页的行业归属、持仓体检的行业暴露、板块页】。不影响选股、建仓、账本结算——今天照常交易",
   },
   {
     path: "data/backtest/industry-monthly.json",
     label: "行业月度温度计",
     ttlKey: "industryMonthly",
+    // 同上：只喂板块/研究页，不进选股链路。
+    impact: "过期只影响【板块页的月度温度曲线】。不参与选股与建仓",
     refresh: "行业月度温度计，行业轮动要用。由后台抓取任务生成",
     command: "node --experimental-strip-types --import ./scripts/alias.mjs scripts/fetch-industry-monthly.mjs",
     required: false,
@@ -136,7 +154,7 @@ export type Facts = Record<string, { size: number; mtime: number } | null>;
 /** 判一份文件的新鲜度。事实表按 path 索引，缺的当「没这个文件」。 */
 export function freshnessOf(fact: FileFact, facts: Facts, now = Date.now()): Freshness {
   const hit = facts[fact.path] ?? null;
-  const base = { label: fact.label, refresh: fact.refresh, command: fact.command ?? null, required: fact.required };
+  const base = { label: fact.label, refresh: fact.refresh, command: fact.command ?? null, required: fact.required, impact: fact.impact ?? null };
   if (!hit) {
     return {
       ...base,
