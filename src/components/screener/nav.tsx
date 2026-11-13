@@ -128,84 +128,69 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/watch/history" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/inbox" | "/overseas" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
-  // 2026-11-11 大重排：从「按功能类型分组」改成「按一天的节奏分组」。
-  // 原因：原来「市场」组 7 项挤成一坨、「研究」组只剩「自选」一项名不符实，
-  // 而连板网和弈盘都是按 盘前→盯盘→盘后→研究 组织的。分组跟着人做事的时间走，
-  // 比跟着「这是行情还是资讯」走要顺手。
+  // 2026-11-13 按设计稿重排：五组，和 design/redesign-2026-11 的侧栏一致。
+  //   今天 → 干什么（决策）
+  //   行情 → 看什么（盘面事实）
+  //   研究 → 信什么（证据与验证）
+  //   策略 → 管什么（规则与持仓）
+  //   我的 → 自己的对象（自选、快讯、提醒）
+  // 再加一组「系统」放设置、管家、AI——它们不是业务任务，不该占业务位。
+  // 原来的「盘前/盯盘/盘后/研究/资讯/进化/AI/设置」八组按时间分，
+  // 结果是同一件事被拆到两组：资金在「盘后」、题材也在「盘后」，
+  // 而「盯盘」组只有一项。分组跟着问题走，比跟着时钟走稳。
   {
-    label: "盘前",
+    label: "今天",
     items: [
-      { to: "/today", label: "今天", icon: Compass },
-      // 2026-11-11 新增：前瞻回验（每日落档 + 次日对照，赤轨的自证页）
+      { to: "/today", label: "今天该干什么", icon: Compass },
       { to: "/huiyan", label: "前瞻回验", icon: CheckCircle2 },
     ],
   },
   {
-    label: "盯盘",
+    label: "行情",
     items: [
-      // 2026-11-11 晚：多股同屏 + 连板天梯合成一页。两页读的是同一份三池快照、
-      // 同一套板位分档、同一份涨停原因，只是格子 vs 表格——留着两个入口等于让人
-      // 在同一份数据里二选一。合并后今天的位置/封单在「今日梯队」，三天演变与
-      // 晋级率在「三日演变」，都在这一页的 tab 里，不再各占一个侧栏位。
-      { to: "/watch", label: "盯盘", icon: Grid3x3 },
-    ],
-  },
-  {
-    label: "盘后",
-    items: [
-      { to: "/review", label: "每日复盘", icon: History },
-      // 2026-11-11 从复盘里拆出来：它自己有 8 个子页，挂在复盘下面就是三层导航
+      { to: "/watch", label: "连板天梯", icon: Grid3x3 },
+      { to: "/watch/history", label: "三日演变", icon: History },
+      { to: "/themes", label: "题材轮动", icon: FileText },
+      { to: "/youzi", label: "游资席位", icon: Users },
       { to: "/flow", label: "资金流向", icon: Coins },
-      // 2026-11-11 两页合一：今天谁在买 → 跟这些席位买赚不赚
-      { to: "/youzi", label: "游资与席位", icon: Users },
-      // 2026-11-11 三页合一：消息从哪来 → 钱在往哪去 → 里面哪几只
-      { to: "/themes", label: "题材", icon: FileText },
+      { to: "/overseas", label: "全球行情", icon: Globe },
     ],
   },
   {
     label: "研究",
     items: [
       { to: "/cycle", label: "情绪周期", icon: Activity },
-      // 2026-11-11 新增：区间统计、RS 榜——都是「跨日视角」，和当天的盘面分开
       { to: "/interval", label: "区间统计", icon: CalendarRange },
       { to: "/rs", label: "趋势中军", icon: Gauge },
-      { to: "/my-stocks", label: "自选", icon: Star },
+      { to: "/factors", label: "因子实验室", icon: FlaskConical },
     ],
   },
   {
-    label: "资讯",
+    label: "策略",
     items: [
+      { to: "/strategies/screener", label: "策略选股", icon: LayoutList },
+      { to: "/strategies/positions", label: "策略跟踪", icon: Star },
+      { to: "/backtest", label: "回测审计", icon: LineChart },
+    ],
+  },
+  {
+    label: "我的",
+    items: [
+      { to: "/my-stocks", label: "自选与持仓", icon: Star },
       { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/inbox", label: "消息与提醒", icon: Bell },
-      { to: "/overseas", label: "全球行情", icon: Globe },
     ],
   },
   {
-    label: "进化",
-    // 研究层：策略看板里只有「低估值」是现役，因子实验室的 40 因子 + 92 坟墓
-    // 从不进实盘信号。留着是给「回测/walk-forward」用，不是决策入口。
+    label: "系统",
     items: [
-      { to: "/strategies/screener", label: "策略看板", icon: LayoutList },
-      { to: "/factors", label: "因子实验室", icon: FlaskConical },
-      { to: "/backtest", label: "回测", icon: LineChart },
-    ],
-  },
-  {
-    label: "AI",
-    items: [
-      { to: "/ai", label: "工作台", icon: Sparkles },
+      { to: "/ai", label: "AI 工作台", icon: Sparkles },
       { to: "/butler", label: "大管家", icon: Bot },
-      // 2026-11-06 收掉「接口与模型」(/ai/config) 侧栏入口：它本来就是 /ai 页内
-      // AISectionTabs 的第 2 个 tab，侧栏再列一次是同一目的地的两级重复导航，
-      // 也违反本文件头注释「最多两级，第三级只许在页面里切，不占侧栏」。
-      // 沿用 10-26 处理「行为边界」的同一做法：入口收进 tab，直链不删。
-      // /ai/config 路由、页面、smoke PAGES、QuickSearch 直达词条全部保留；
-      // navHit 的前缀匹配会把 /ai/config 归到 /ai，顶栏名和激活态都不丢。
+      { to: "/settings", label: "设置与状态", icon: Settings },
     ],
   },
-  { label: "设置", items: [{ to: "/settings", label: "设置与状态", icon: Settings }] },
 ];
 
 /** 所有分组项摊平，按路径查「当前在哪儿」。顶栏页面名和边栏激活态共用这一张表。 */
