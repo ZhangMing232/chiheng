@@ -1228,6 +1228,27 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
   }
 }
 
+// ── 清理已淘汰家族的僵尸挑战者（2026-11-14）──────────────────────
+// 实测：14 个挑战者里 8 个卡在 inconclusive，其中 6 个属于已淘汰家族
+// （rebound/early/trend/relay 11-09 起不再建仓）。它们永远攒不够 minTrades，
+// 判也判不出、退也退不掉，永久躺在名单里让页面显示一堆「停跑·未分胜负」。
+// 清理只标终态 + 写明原因，**不删记录**（历史事实要留着）。
+if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+  try {
+    const { readChallengers, writeChallengers, retireDeadFamilyChallengers } = await import(
+      "../src/lib/market/challenger.ts"
+    );
+    const file = await readChallengers();
+    const { list: next, retired } = retireDeadFamilyChallengers(file.list, RETIRED_STYLES, phase.date);
+    if (retired.length > 0) {
+      await writeChallengers({ list: next });
+      console.log(`${time} 清理僵尸挑战者 ${retired.length} 个（所属策略已淘汰）：${retired.map((c) => c.id).join("、")}`);
+    }
+  } catch (error) {
+    console.error(`${time} 清理僵尸挑战者失败（不影响记账）:`, error);
+  }
+}
+
 // ── 规则改动效果回验（2026-11-14，反思闭环最后一环）────────────────
 // 优化器会依据诊断自动改 challenger-rule，每次改动写进 rule-change-log.jsonl，
 // 但**从没回头验证过**——earlyRejectDays 在 10-30~11-11 被来回摆 6 次

@@ -154,6 +154,47 @@ export function isCoreRuleKey(key: string): key is (typeof CORE_RULE_KEYS)[numbe
   return (CORE_RULE_KEYS as readonly string[]).includes(key);
 }
 
+
+/**
+ * 清理「所属策略已淘汰」的挑战者（2026-11-14）。
+ *
+ * 为什么必须有这一步（实测证据）：
+ * 2026-11-14 查 data/challengers.json，14 个挑战者里 8 个卡在 `inconclusive`，
+ * **其中 6 个属于已淘汰家族**（rebound×3 / early×2 / trend×2 里的 4 个 + relay×2）。
+ * 这些家族 11-09 起不再建仓（ACTIVE_STYLES 只剩 value），所以它们的挑战者
+ * **永远攒不够 minTrades 笔**——样本停在 3~6 笔，判也判不出，退也退不掉。
+ *
+ * 更糟的是：`strategy-ai.ts:123` 拦住了「给已淘汰家族提新挑战者」，
+ * `record-journal.ts:656` 拦住了「给已淘汰家族建仓」，**但没有任何一处清理
+ * 已经存在的**。结果是这些僵尸挑战者永久躺在名单里，人在页面上看到一堆
+ * 「停跑·未分胜负」，误以为是系统在正常攒样本。
+ *
+ * 判据：所属 style 在 RETIRED_STYLES 里 + 状态不是终态（promoted/rejected）
+ * → 标 tombstone 并写明原因。**不删记录**（它们是历史事实，删了就看不到教训）。
+ *
+ * 纯函数：返回新数组，不改入参。落盘由调用方做。
+ */
+export function retireDeadFamilyChallengers(
+  list: Challenger[],
+  retiredStyles: readonly string[],
+  at: string,
+): { list: Challenger[]; retired: Challenger[] } {
+  const retired: Challenger[] = [];
+  const next = list.map((c) => {
+    // 终态不动：promoted 是转正记录、rejected 是判决记录，都是历史事实。
+    if (c.status === "promoted" || c.status === "rejected") return c;
+    if (!retiredStyles.includes(c.style)) return c;
+    const done: Challenger = {
+      ...c,
+      status: "rejected",
+      note: `${c.note ? `${c.note}；` : ""}${at} 清理：所属策略 ${c.style} 已淘汰（不再建仓），本挑战者永远攒不够样本，标终态退出名单`,
+    };
+    retired.push(done);
+    return done;
+  });
+  return { list: next, retired };
+}
+
 export async function readChallengers(): Promise<ChallengersFile> {
   try {
     const { readFile } = await fsApi();

@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CHALLENGER_RULE, judgeChallenger, welchT } from "@/lib/market/challenger";
+import { CHALLENGER_RULE, judgeChallenger, welchT, retireDeadFamilyChallengers } from "@/lib/market/challenger";
 
 /** 交替骨架：均值≈mean、样本标准差≈sd 的 n 笔收益。 */
 function makeRets(n: number, mean: number, sd: number): number[] {
@@ -109,4 +109,41 @@ test("tradingDaysSince：数 since 及之后的去重交易日", async () => {
   ];
   assert.equal(tradingDaysSince(days, "2026-10-09"), 2); // 10-09、10-10
   assert.equal(tradingDaysSince(days, "2026-10-11"), 0); // 之后没有
+});
+
+// ── 清理已淘汰家族的僵尸挑战者（2026-11-14）──────────────────────────
+
+test("🔴 已淘汰家族的挑战者被标终态，不再永久占名单", () => {
+  // 实测场景：rebound/early/trend/relay 11-09 起不再建仓，
+  // 它们的挑战者永远攒不够样本，却一直躺在 inconclusive。
+  const list = [
+    { id: "rebound-hold10", style: "rebound", name: "反转·持10天", status: "inconclusive" as const, since: "2026-11-04" },
+    { id: "trend-stop8", style: "trend", name: "趋势·止损8", status: "inconclusive" as const, since: "2026-10-29" },
+    { id: "value-stop8", style: "value", name: "低估值·止损8", status: "running" as const, since: "2026-11-02" },
+  ];
+  const { list: next, retired } = retireDeadFamilyChallengers(list, ["rebound", "early", "trend", "relay"], "2026-11-14");
+  assert.equal(retired.length, 2, "两个僵尸被清");
+  assert.equal(next[0].status, "rejected");
+  assert.match(next[0].note!, /所属策略 rebound 已淘汰/);
+  assert.equal(next[2].status, "running", "现役 value 的挑战者不动");
+});
+
+test("终态不动：promoted / rejected 是历史事实，清理不覆盖", () => {
+  const list = [
+    { id: "a", style: "rebound", name: "A", status: "rejected" as const, since: "2026-10-01", note: "原判决" },
+    { id: "b", style: "trend", name: "B", status: "promoted" as const, since: "2026-10-02" },
+  ];
+  const { retired, list: next } = retireDeadFamilyChallengers(list, ["rebound", "trend"], "2026-11-14");
+  assert.equal(retired.length, 0, "终态不该被再清一次");
+  assert.equal(next[0].note, "原判决", "原判决理由不能被覆盖");
+});
+
+test("现役家族一个都不动", () => {
+  const list = [
+    { id: "v1", style: "value", name: "V1", status: "running" as const, since: "2026-11-01" },
+    { id: "v2", style: "value", name: "V2", status: "inconclusive" as const, since: "2026-11-02" },
+  ];
+  const { retired, list: next } = retireDeadFamilyChallengers(list, ["rebound", "early", "trend", "relay"], "2026-11-14");
+  assert.equal(retired.length, 0);
+  assert.deepEqual(next.map((c) => c.status), ["running", "inconclusive"]);
 });
