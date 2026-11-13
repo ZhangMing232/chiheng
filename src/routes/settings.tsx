@@ -181,23 +181,53 @@ function SettingsPage() {
         title="系统体检"
         note={<span className="text-[12px]">哪里不正常，一屏看完</span>}
       >
-        <div className="flex flex-col divide-y divide-line">
-          {data.health.map((h) => (
-            <div key={h.label} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3.5 py-2">
+        {/* 分层展示（2026-11-14 第 11 轮）：8 项一路平铺要每次重扫，
+            而其中一半是「一周看一次就够」。按 cadence 分组，低频折叠。
+            ⚠️ 但 state=bad 的一律强制置顶常驻——「出问题才看」不等于出问题时能藏起来。 */}
+        {(() => {
+          const health = data.health as (typeof data.health[number] & { cadence?: "daily" | "weekly" | "ondemand" })[];
+          const bad = health.filter((h) => h.state === "bad");
+          const rest = health.filter((h) => h.state !== "bad");
+          const daily = rest.filter((h) => (h.cadence ?? "daily") === "daily");
+          const later = rest.filter((h) => (h.cadence ?? "daily") !== "daily");
+          const Row = ({ h }: { h: (typeof health)[number] }) => (
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3.5 py-2">
               <span className="w-24 shrink-0 text-[13px] text-fg">{h.label}</span>
               <Tag tone={h.state === "ok" ? "muted" : h.state === "warn" ? "warn" : "down"}>
                 {h.state === "ok" ? "正常" : h.state === "warn" ? "注意" : "异常"}
               </Tag>
               <span className="min-w-0 flex-1 text-[12px] leading-relaxed text-muted">{h.detail}</span>
-              {h.fix ? (
-                <span className="shrink-0 text-[12px] text-brand">{h.fix}</span>
-              ) : null}
+              {h.fix ? <span className="shrink-0 text-[12px] text-brand">{h.fix}</span> : null}
             </div>
-          ))}
-        </div>
+          );
+          return (
+            <>
+              {bad.length > 0 ? (
+                <div className="border-b border-down/30 bg-down-soft/20">
+                  <div className="px-num px-3.5 pt-2 text-[11px] tracking-widest text-down">需要处理 · {bad.length}</div>
+                  <div className="divide-y divide-line">{bad.map((h) => <Row key={h.label} h={h} />)}</div>
+                </div>
+              ) : null}
+              {daily.length > 0 ? (
+                <div>
+                  <div className="px-num border-b border-line px-3.5 pt-2 pb-1 text-[11px] tracking-widest text-muted">每天看 · {daily.length}</div>
+                  <div className="divide-y divide-line">{daily.map((h) => <Row key={h.label} h={h} />)}</div>
+                </div>
+              ) : null}
+              {later.length > 0 ? (
+                <details className="border-t border-line">
+                  <summary className="cursor-pointer select-none px-3.5 py-2 text-[11px] tracking-widest text-muted hover:text-fg">
+                    每周看 / 出问题才看 · {later.length} 项（点开）
+                  </summary>
+                  <div className="divide-y divide-line">{later.map((h) => <Row key={h.label} h={h} />)}</div>
+                </details>
+              ) : null}
+            </>
+          );
+        })()}
         <p className="border-t border-line/60 px-3.5 py-2 text-[12px] leading-relaxed text-muted">
-          这六项是「系统还在不在正常跑」的判据，不是选股建议。
-          <span className="text-fg">「异常」要立刻处理（记账停了、进化断电了）；「注意」多数是休市或观察期未满，不用动手</span>。
+          这八项是「系统还在不在正常跑」的判据，不是选股建议。
+          <span className="text-fg">「异常」会置顶到第一组，立刻处理；「注意」多数是休市或观察期未满，不用动手</span>。
           更细的运维数字在终端跑 <code>node scripts/ops-check.mjs</code>。
         </p>
       </Panel>

@@ -78,6 +78,21 @@ async function configRows(): Promise<ConfigRow[]> {
   return rows;
 }
 
+/**
+ * 体检项的查看频度（2026-11-14 第 11 轮）。
+ *
+ * 为什么需要：8 项占 47% 视口、一路平铺，用户每次打开都要重新扫一遍，
+ * 而其中一半是「一周看一次就够」的。分层后高频项常驻、低频项折叠，
+ * **但状态为 bad 的一律强制展开**——「出问题才看」不等于出问题时能藏起来。
+ */
+export type HealthCadence = "daily" | "weekly" | "ondemand";
+
+export const CADENCE_LABEL: Record<HealthCadence, string> = {
+  daily: "每天看",
+  weekly: "每周看",
+  ondemand: "出问题才看",
+};
+
 /** 系统体检的一行：管理者视角「哪里不正常」。 */
 export type HealthRow = {
   label: string;
@@ -87,6 +102,8 @@ export type HealthRow = {
   detail: string;
   /** 怎么修（只在非 ok 时给） */
   fix: string | null;
+  /** 查看频度：决定默认展开还是折叠。bad 时无视它强制展开。 */
+  cadence: HealthCadence;
 };
 
 export type SettingsPayload = {
@@ -128,12 +145,13 @@ async function healthRows(root: string): Promise<HealthRow[]> {
   // ① 记账心跳：整个系统的心脏。超过 5 分钟没跳 = 记账停了。
   const rec = await readJson<{ at?: number; ok?: boolean }>("data/recorder.json");
   if (!rec || typeof rec.at !== "number") {
-    rows.push({ label: "记账心跳", state: "bad", detail: "读不到 recorder.json", fix: "确认服务在跑：npm run mac:status" });
+    rows.push({ label: "记账心跳", state: "bad", cadence: "daily", detail: "读不到 recorder.json", fix: "确认服务在跑：npm run mac:status" });
   } else {
     const ageMin = Math.round((Date.now() - rec.at) / 60_000);
     rows.push({
       label: "记账心跳",
       state: !rec.ok ? "bad" : ageMin > 5 ? "bad" : "ok",
+      cadence: "daily",
       detail: `${ageMin} 分钟前${rec.ok ? "" : "（进程报 ok=false）"}`,
       fix: !rec.ok || ageMin > 5 ? "服务可能停了：npm run mac:restart" : null,
     });
@@ -145,6 +163,7 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({
       label: "自动进化",
       state: "bad",
+      cadence: "weekly",
       detail: `已熔断（${brk.trippedAt.slice(0, 10)}）：${brk.trippedReason || "连续失败"}`,
       fix: "去 /ai 页重新打开「自动进化」开关",
     });
@@ -153,6 +172,7 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({
       label: "自动进化",
       state: prefs?.autoEvolve === false ? "warn" : "ok",
+      cadence: "weekly",
       detail: prefs?.autoEvolve === false ? "开关是关的（手动模式）" : "开着，未熔断",
       fix: prefs?.autoEvolve === false ? "要自动跑就去 /ai 打开开关" : null,
     });
@@ -164,6 +184,7 @@ async function healthRows(root: string): Promise<HealthRow[]> {
   rows.push({
     label: "策略闸",
     state: disabled.length > 0 ? "warn" : "ok",
+    cadence: "daily",
     detail:
       disabled.length > 0
         ? `${disabled.length} 套停用：${disabled.map(([k, g]) => `${k}（${g.since ?? "?"} ${truncate(g.reason ?? "", 20)}）`).join("、")}`
@@ -191,6 +212,7 @@ async function healthRows(root: string): Promise<HealthRow[]> {
   rows.push({
     label: "规则回验",
     state: ineffective.length > 0 ? "warn" : "ok",
+    cadence: "weekly",
     detail:
       effects.length === 0
         ? "还没有回验记录（要等规则改动后 10 个交易日）"
@@ -208,6 +230,7 @@ async function healthRows(root: string): Promise<HealthRow[]> {
   rows.push({
     label: "AI 闭环",
     state: fails >= 2 ? "bad" : todayAuto.length === 0 ? "warn" : "ok",
+    cadence: "daily",
     detail:
       todayAuto.length === 0
         ? "今天还没跑（收盘封印后自动触发，或开关关着）"
@@ -246,11 +269,12 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({
       label: "实盘vs回测",
       state: cmp.verdict === "divergent" ? "warn" : cmp.verdict === "insufficient" ? "warn" : "ok",
+      cadence: "ondemand",
       detail: `${cmp.reason}（实盘 ${liveRet.length} 笔）`,
       fix: cmp.action,
     });
   } catch {
-    rows.push({ label: "实盘vs回测", state: "warn", detail: "读不到账本或判决，无法比对", fix: null });
+    rows.push({ label: "实盘vs回测", state: "warn", cadence: "ondemand", detail: "读不到账本或判决，无法比对", fix: null });
   }
 
 
@@ -267,11 +291,12 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({
       label: "探索效率",
       state: budget.verdict === "halt" ? "bad" : budget.verdict === "cooldown" ? "warn" : "ok",
+      cadence: "weekly",
       detail: `${budget.reason}（判据：${BUDGET_RULE.windowDays} 天窗口 / ≥${BUDGET_RULE.minAttempts} 次才判）`,
       fix: budget.action,
     });
   } catch {
-    rows.push({ label: "探索效率", state: "warn", detail: "读不到因子队列或基因组，算不出", fix: null });
+    rows.push({ label: "探索效率", state: "warn", cadence: "weekly", detail: "读不到因子队列或基因组，算不出", fix: null });
   }
 
 
@@ -290,7 +315,7 @@ async function healthRows(root: string): Promise<HealthRow[]> {
       .filter((t) => t && typeof t.exit === "number")
       .map((t) => ((t.exit as number) - t.entry) / t.entry);
     if (rets.length < 30) {
-      rows.push({ label: "判决功效", state: "warn", detail: `已平仓只有 ${rets.length} 笔，算不出可靠标准差`, fix: "继续攒样本，≥30 笔后再看" });
+      rows.push({ label: "判决功效", state: "warn", cadence: "weekly", detail: `已平仓只有 ${rets.length} 笔，算不出可靠标准差`, fix: "继续攒样本，≥30 笔后再看" });
     } else {
       const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
       const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) ** 2, 0) / (rets.length - 1));
@@ -298,12 +323,13 @@ async function healthRows(root: string): Promise<HealthRow[]> {
       rows.push({
         label: "判决功效",
         state: power.verdict === "underpowered" ? "warn" : "ok",
+        cadence: "weekly",
         detail: `${power.reason}（标准差 ${(sd * 100).toFixed(2)}% / minTrades=${rule.minTrades}）`,
         fix: power.advice,
       });
     }
   } catch {
-    rows.push({ label: "判决功效", state: "warn", detail: "读不到挑战者规则或账本", fix: null });
+    rows.push({ label: "判决功效", state: "warn", cadence: "weekly", detail: "读不到挑战者规则或账本", fix: null });
   }
 
   return rows;
