@@ -1125,6 +1125,24 @@ export const getLossAttribution = createServerFn({ method: "GET" }).handler(asyn
 });
 
 /** 待人工确认的核心规则变更 + 最近审计。 */
+/**
+ * 规则改动的效果回验（2026-11-14）：把「改完到底有没有用」摆到 /ai 页。
+ *
+ * 为什么单独一个 serverFn 而不是塞进 getPendingRuleChanges：回验结果是
+ * **后验事实**（改完 10 个交易日后才知道），和「待批 / 审计」这种即时状态
+ * 不是一类东西，读法也不同（按 at+key 关联）。放一起会让那个接口语义发糊。
+ *
+ * 只读；读不到返回空数组 + 原因，不编。
+ */
+export const getRuleChangeEffects = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { readRuleChangeEffects } = await import("@/lib/market/rule-change-effect");
+    return { effects: await readRuleChangeEffects(), why: null as string | null };
+  } catch (err) {
+    return { effects: [], why: (err as Error).message };
+  }
+});
+
 export const getPendingRuleChanges = createServerFn({ method: "GET" }).handler(async () => {
   const { readPendingRuleChanges, readRuleChangeLog } = await import("@/lib/market/optimize");
   return { pending: await readPendingRuleChanges(), log: (await readRuleChangeLog()).slice(0, 30) };

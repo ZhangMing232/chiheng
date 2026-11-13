@@ -31,6 +31,7 @@ import {
   getChallengers,
   getIndices,
   getPendingRuleChanges,
+  getRuleChangeEffects,
   getRecorder,
   getVTToolsStatus,
   rejectRuleChange,
@@ -57,12 +58,13 @@ const DAY = 86_400_000;
 
 export const Route = createFileRoute("/ai/")({
   loader: async () => {
-    const [ai, logRes, diagnosis, vtRes, rulesRes, usageRes, chalRes, recorder, indices] = await Promise.all([
+    const [ai, logRes, diagnosis, vtRes, rulesRes, effectsRes, usageRes, chalRes, recorder, indices] = await Promise.all([
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] })),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
       getAgentDiagnosis().catch(() => null),
       getVTToolsStatus().catch(() => ({ allowed: false as const })),
       getPendingRuleChanges().catch(() => ({ pending: [], log: [] })),
+      getRuleChangeEffects().catch(() => ({ effects: [] as never[], why: "读不到" })),
       getAIUsage().catch((): { allowed: false; entries: AIUsageEntry[]; stats: null } => ({ allowed: false, entries: [], stats: null })),
       getChallengers().catch(() => ({ list: [] as { id: string; status: string }[], champions: {} })),
       getRecorder().catch(() => ({ at: null as number | null, ok: true })),
@@ -74,6 +76,7 @@ export const Route = createFileRoute("/ai/")({
       diagnosis,
       vt: vtRes.allowed ? vtRes.status : null,
       rules: rulesRes,
+      effects: effectsRes.effects,
       usage: usageRes,
       chal: chalRes.list,
       recorder,
@@ -486,14 +489,40 @@ function AIConsolePage() {
 
           {d.rules.log.length > 0 ? (
             <div className="mt-3 border-t border-line pt-2">
-              <p className="mb-1 text-[12px] font-medium text-muted">最近规则变更审计</p>
-              <ul className="flex flex-col gap-0.5 text-[12px] text-muted">
-                {d.rules.log.slice(0, 8).map((a, i) => (
-                  <li key={`${a.at}-${a.key}-${i}`} className="tabular-nums">
-                    {a.at.slice(0, 16).replace("T", " ")} · {a.mode === "auto" ? "自动" : a.mode === "approved" ? "人工批准" : "驳回"} · {a.key} {a.from}→{a.to}
-                  </li>
-                ))}
+              <p className="mb-1 text-[12px] font-medium text-muted">
+                最近规则变更审计
+                <span className="ml-2 font-normal">· 右侧是改完之后的回验结论（观察期满才有）</span>
+              </p>
+              <ul className="flex flex-col gap-1 text-[12px] text-muted">
+                {d.rules.log.slice(0, 8).map((a, i) => {
+                  // 按 at+key 关联回验结论：同一条改动可能被回验多次（样本在长），取最新那条。
+                  const fx = (d.effects as { at: string; key: string; verdict: string; reason: string; revertAdvice: string | null }[])
+                    .filter((e) => e.at === a.at && e.key === a.key)[0];
+                  const tone =
+                    fx?.verdict === "effective" ? "text-down"
+                      : fx?.verdict === "ineffective" ? "text-warn"
+                        : "text-muted";
+                  const label =
+                    fx == null ? "还没回验"
+                      : fx.verdict === "effective" ? "有效·保留"
+                        : fx.verdict === "ineffective" ? "无效·建议回滚"
+                          : fx.verdict === "pending" ? "观察中"
+                            : "样本不足";
+                  return (
+                    <li key={`${a.at}-${a.key}-${i}`} className="flex flex-wrap items-baseline gap-x-2 tabular-nums">
+                      <span>
+                        {a.at.slice(0, 16).replace("T", " ")} · {a.mode === "auto" ? "自动" : a.mode === "approved" ? "人工批准" : "驳回"} · {a.key} {a.from}→{a.to}
+                      </span>
+                      <span className={"shrink-0 font-medium " + tone} title={fx?.reason ?? ""}>[{label}]</span>
+                      {fx?.revertAdvice ? <span className="text-[11px] text-muted">{fx.revertAdvice}</span> : null}
+                    </li>
+                  );
+                })}
               </ul>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+                回验判据：改动后 ≥10 个交易日 + 前后各 ≥30 笔 + 差值超 ±0.3pp 噪声区才下结论。
+                <span className="text-fg">「无效」只给回滚建议，不会自动改回去</span>——撤规则和改规则一样要人拍板。
+              </p>
             </div>
           ) : null}
         </div>

@@ -215,6 +215,44 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     fix: fails >= 2 ? "看 /ai 页的失败原因；连续失败会触发熔断" : null,
   });
 
+
+  // ⑥ 实盘 vs 回测背离（2026-11-14 新增）：两个真相并存时必须显式摆出来。
+  // 回测说无 alpha、实盘说 +0.18%，26 笔不够下结论——但背离本身要盯着。
+  try {
+    const { compareLiveVsBacktest, sideStats } = await import("./live-vs-backtest.ts");
+    const book = await readJson<{ days?: { trades?: { style?: string; entry: number; exit: number | null }[] }[] }>(
+      "data/books/dev-user.json",
+    );
+    const valueTrades = (book?.days ?? [])
+      .flatMap((d) => d.trades ?? [])
+      .filter((t) => t?.style === "value" && typeof t.exit === "number");
+    const liveRet = valueTrades.map((t) => ((t.exit as number) - t.entry) / t.entry);
+
+    // 回测侧取 strategy-verdicts 里最接近现役的一套（value 默认不进判决，
+    // 用 spring 作参照；真值在 BT_VALUE=1 的专项回测里，见 AUDIT 文档）。
+    const verdicts = await readJson<{ at?: string; strategies?: Record<string, { excess?: number; n?: number; clusterT?: number }> }>(
+      "data/strategy-verdicts.json",
+    );
+    const anyKey = verdicts?.strategies ? Object.keys(verdicts.strategies)[0] : null;
+    const anyV = anyKey ? verdicts!.strategies![anyKey] : null;
+    const cmp = compareLiveVsBacktest({
+      backtest: sideStats({
+        source: `回测·${anyKey ?? "?"}`,
+        returns: anyV?.excess != null && anyV.n ? Array(Math.min(anyV.n, 2000)).fill(anyV.excess) : [],
+        tStat: anyV?.clusterT ?? null,
+      }),
+      live: sideStats({ source: "实盘·value", returns: liveRet }),
+    });
+    rows.push({
+      label: "实盘vs回测",
+      state: cmp.verdict === "divergent" ? "warn" : cmp.verdict === "insufficient" ? "warn" : "ok",
+      detail: `${cmp.reason}（实盘 ${liveRet.length} 笔）`,
+      fix: cmp.action,
+    });
+  } catch {
+    rows.push({ label: "实盘vs回测", state: "warn", detail: "读不到账本或判决，无法比对", fix: null });
+  }
+
   return rows;
 }
 
