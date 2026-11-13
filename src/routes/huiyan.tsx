@@ -110,6 +110,51 @@ function HuiyanPage() {
             <Cell label="追买成立" value={picks ? rate(chases, picks) : "—"} hint={`${chases}/${picks} 笔`} />
             <Cell label="次日涨停" value={picks ? rate(lim, picks) : "—"} hint={`${lim}/${picks} 笔`} />
           </div>
+          {/* 归因紧跟数字：胜率是哪几只票挣来的/亏掉的，一眼对上号——
+              不用再滚到「逐期对照」里自己找（用户标注：看到战绩看不到内容）。 */}
+          {(() => {
+            const rows = settled.flatMap((p) =>
+              (p.outcomes ?? [])
+                .filter((o) => o.tradePct != null && o.buyFilled !== false)
+                .map((o) => ({ date: p.date, name: o.name, pct: o.tradePct!, hold: o.holdPct ?? null })),
+            );
+            if (rows.length === 0) return null;
+            const best = [...rows].sort((a, b) => b.pct - a.pct);
+            const winners = best.filter((r) => r.pct > 0);
+            const losers = best.filter((r) => r.pct <= 0);
+            return (
+              <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2">
+                <div className="bg-surface px-3 py-2">
+                  <div className="px-num mb-1 text-[12px] tracking-widest text-up">赚的 {winners.length} 笔</div>
+                  {winners.length === 0 ? (
+                    <div className="text-[12px] text-muted">还没有赚钱的笔</div>
+                  ) : (
+                    winners.map((r) => (
+                      <div key={r.date + r.name} className="flex items-baseline justify-between gap-2 py-0.5 text-[12px]">
+                        <span className="text-fg">{r.name}</span>
+                        <span className="text-muted">{r.date.slice(5)} 落档</span>
+                        <span className="num font-medium text-up">{pct(r.pct)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="bg-surface px-3 py-2">
+                  <div className="px-num mb-1 text-[12px] tracking-widest text-down">亏/平的 {losers.length} 笔</div>
+                  {losers.length === 0 ? (
+                    <div className="text-[12px] text-muted">没有</div>
+                  ) : (
+                    losers.map((r) => (
+                      <div key={r.date + r.name} className="flex items-baseline justify-between gap-2 py-0.5 text-[12px]">
+                        <span className="text-fg">{r.name}</span>
+                        <span className="text-muted">{r.date.slice(5)} 落档</span>
+                        <span className="num font-medium text-down">{pct(r.pct)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           {(() => {
             const unfilled = settled.reduce((n, p) => n + (p.summary?.unfilled ?? 0), 0);
             const stuck = settled.reduce((n, p) => n + (p.summary?.stuck ?? 0), 0);
@@ -143,13 +188,8 @@ function HuiyanPage() {
 
         <Panel
           title="逐期对照"
-          note={<span className="text-[12px]">每期 3 只 · 按规则挑 · 挑完锁档</span>}
+          note={<span className="text-[12px]">每期 3 只 · 按规则挑 · 挑完锁档 · 结算口径见本页底部「这一页的规矩」</span>}
         >
-          <div className="border-b border-line bg-surface-2 px-3 py-2 text-[12px] leading-relaxed text-muted">
-            结算时间线（写死，不含未来函数）：<b className="text-fg">选股 T 日收盘</b> →{" "}
-            <b className="text-fg">买入 T+1 开盘</b>（最早能成交的价）→ <b className="text-fg">结算 T+1 收盘</b>。
-            每期下面都把这三天摆出来，你一眼就能看到「我是哪天、什么价买的」。
-          </div>
           {locked.length === 0 ? (
             <StateBlock
               kind="empty"
@@ -232,6 +272,10 @@ function HuiyanPage() {
 
         <Panel title="这一页的规矩">
           <div className="flex flex-col gap-1.5 px-3 py-3 text-[12px] leading-relaxed text-muted">
+            <div>
+              · <b className="text-fg">结算时间线（写死，不含未来函数）</b>：选股 T 日收盘 → 买入 T+1 开盘
+              （最早能成交的价）→ 结算 T+1 收盘。上面每一笔的三个价都是这三天的实价。
+            </div>
             <div>· 落档之后不改。要改规则，就在新的一天改，历史留着当疤。</div>
             <div>· 盘中不落档。今天没收盘就落，等于不知道结局先写好答案。</div>
             <div>· 口径回算永远单独放、单独标。混进「落档战绩」就是拿事后聪明冒充当时判断。</div>
@@ -304,35 +348,8 @@ function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
 
   return (
     <div className="px-3 py-2">
-      {/* 三段时间线：一眼看到买入发生在哪天 */}
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="num text-xs">
-          <b className="text-fg">{p.date}</b>
-          <span className="text-muted"> 收盘挑</span>
-          <span className="text-muted"> → </span>
-          <b className="text-fg">{p.nextDate ?? "待定"}</b>
-          <span className="text-muted"> 开盘买 / 收盘结</span>
-        </span>
-        <span className="flex items-center gap-2 text-[12px] text-muted">
-          {p.source === "locked" ? (
-            <Tag tone="muted">落档 {bjTime(p.lockedAt)}</Tag>
-          ) : (
-            <Tag tone="warn">事后重算</Tag>
-          )}
-          {settled ? (
-            <span>
-              命中 {s!.hits}/{s!.n} · 追买 {s!.chases}/{s!.n} · 涨停 {s!.limitUps}
-            </span>
-          ) : boughtAny ? (
-            <span className="text-up">
-              今日已开盘买入 · 盘中截至 {bjTime(live?.asOf).slice(11)}
-            </span>
-          ) : (
-            <Tag tone="muted">待 T+1 收盘结算</Tag>
-          )}
-        </span>
-      </div>
-
+      {/* 股票在前（用户标注：先看到买了什么），日期与状态收成第二行小字。
+          结算口径挪到页底「这一页的规矩」，不再每期重复叮嘱。 */}
       <div className="mt-1.5 flex flex-col gap-1.5">
         {rows.map((r) => (
           <PickRow
@@ -347,6 +364,27 @@ function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
             compact={compact}
           />
         ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+        <span className="num">
+          <b className="text-fg">{p.date}</b> 收盘挑 → <b className="text-fg">{p.nextDate ?? "待定"}</b> 开盘买/收盘结
+        </span>
+        {p.source === "locked" ? (
+          <span>落档 {bjTime(p.lockedAt)}</span>
+        ) : (
+          <Tag tone="warn">事后重算</Tag>
+        )}
+        {settled ? (
+          <span>
+            命中 {s!.hits}/{s!.n} · 追买 {s!.chases}/{s!.n} · 涨停 {s!.limitUps}
+          </span>
+        ) : boughtAny ? (
+          <span className="text-up">
+            今日已开盘买入 · 盘中截至 {bjTime(live?.asOf).slice(11)}
+          </span>
+        ) : (
+          <span>待 T+1 收盘结算</span>
+        )}
       </div>
     </div>
   );
