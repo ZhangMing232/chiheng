@@ -14,7 +14,7 @@
  *    涨停跌停用 model.ts 的 limitTag（贴到板块涨跌停幅才算，留了 0.15 个点的缝）。
  */
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { SectionTabs, REVIEW_TABS } from "@/components/section-tabs";
 import { HeroStat } from "@/components/hero-stat";
@@ -219,15 +219,14 @@ function Review() {
             「大盘资金」的缩小版——同一批数在一页里摆三遍（HeroStat 的
             「两市资金」已经给了全市场主力净额）。复盘页只留结论数字，
             明细交给各自的专页。 */}
-        <Link
-          to="/flow"
-          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded border border-line bg-surface px-3.5 py-2 text-xs hover:bg-surface-2"
+        <div
+          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded border border-line bg-surface px-3.5 py-2 text-xs"
         >
           <span className="text-muted">
             资金：分市场主力净额、北向、行业与个股榜单、两融、期指
           </span>
           <span className="text-brand">去资金流向 →</span>
-        </Link>
+        </div>
         {/* 宏观是月频慢数据，和每日复盘节奏不同——默认折起来，要看出处再点开。
             2026-10-16 页面整理：慢数据不和每日数据混在同一屏。 */}
         <CollapsibleSection
@@ -304,7 +303,7 @@ function Review() {
           )}
           {journal.days.length > 0 ? (
             <p className="border-t border-line px-3 py-2 text-xs leading-relaxed text-muted">
-              明细在 <Link to="/strategies/positions" className="text-brand hover:underline">策略追踪</Link>。
+              明细在侧栏「策略 → 策略跟踪」。
               这里只做日内对照，不改任何账。
             </p>
           ) : null}

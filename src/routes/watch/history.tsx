@@ -153,7 +153,7 @@ function WatchHistoryPage() {
           <div className="px-3 py-2 text-[12px] leading-relaxed text-muted">
             最新在左 · 横看一行即该板位 3 日演变 · 点股名弹 K 线/涨停史，点行高亮它在 3 天出现的位置。
             <span className="text-fg">今天那一列只列名字</span>——封单额、开板次数、题材标签在{" "}
-            <Link to="/watch" className="text-brand hover:underline">今日梯队</Link>，同一批数不摆两遍。
+            「今日梯队」页签，同一批数不摆两遍。
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">

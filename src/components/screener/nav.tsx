@@ -150,9 +150,8 @@ const SIDEBAR: {
   {
     label: "行情",
     items: [
-      { to: "/watch", label: "连板天梯", icon: Grid3x3 },
-      { to: "/watch/history", label: "三日演变", icon: History },
-      { to: "/themes", label: "题材轮动", icon: FileText },
+      { to: "/watch", label: "盯盘", icon: Grid3x3 },
+      { to: "/themes", label: "题材与情绪", icon: FileText },
       { to: "/youzi", label: "游资席位", icon: Users },
       { to: "/flow", label: "资金流向", icon: Coins },
       { to: "/overseas", label: "全球行情", icon: Globe },
