@@ -2241,3 +2241,55 @@ export const getAgentState = createServerFn({ method: "GET" }).handler(async () 
     },
   };
 });
+
+// ── 定时任务清单 + 建议工单（口子②③，2026-11-14）──
+
+/** 任务清单 + 工单收件箱（/ai/agent 页的「自动化」区）。 */
+export const getAgentSchedules = createServerFn({ method: "GET" }).handler(async () => {
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, schedules: [], proposals: [] };
+  const { readAgentSchedules, readAgentProposals } = await import("@/lib/market/agent-schedules");
+  return { allowed: true as const, schedules: await readAgentSchedules(), proposals: await readAgentProposals() };
+});
+
+/** 改一条任务（开关/小时/预算）。主人专属。 */
+export const saveAgentSchedule = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const d = input as { id?: unknown; enabled?: unknown; hourLocal?: unknown; budgetCny?: unknown };
+    if (typeof d?.id !== "string" || !d.id) throw new Error("id 缺失");
+    if (typeof d.enabled !== "boolean") throw new Error("enabled 必须是布尔");
+    if (typeof d.hourLocal !== "number" || d.hourLocal < 0 || d.hourLocal > 23) throw new Error("hourLocal 必须是 0-23");
+    if (typeof d.budgetCny !== "number" || d.budgetCny <= 0) throw new Error("budgetCny 必须是正数");
+    return { id: d.id, enabled: d.enabled, hourLocal: d.hourLocal, budgetCny: d.budgetCny };
+  })
+  .handler(async ({ data }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人能改任务清单" };
+    const { readAgentSchedules, writeAgentSchedules } = await import("@/lib/market/agent-schedules");
+    const list = await readAgentSchedules();
+    const next = list.map((s) => (s.id === data.id ? { ...s, enabled: data.enabled, hourLocal: data.hourLocal, budgetCny: data.budgetCny } : s));
+    await writeAgentSchedules(next);
+    return { ok: true as const };
+  });
+
+/** 批准/驳回一条建议工单。批准 = 生成一条预填好的派活草稿（主人再去岗位页点发送）。 */
+export const decideAgentProposal = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const d = input as { id?: unknown; decision?: unknown };
+    if (typeof d?.id !== "string" || !d.id) throw new Error("id 缺失");
+    if (d.decision !== "approved" && d.decision !== "dismissed") throw new Error("decision 只能是 approved/dismissed");
+    return { id: d.id, decision: d.decision as "approved" | "dismissed" };
+  })
+  .handler(async ({ data }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人能批工单" };
+    const { readAgentProposals, writeAgentProposalsFile, decideProposal } = await import("@/lib/market/agent-schedules");
+    const list = await readAgentProposals();
+    const { list: next, changed } = decideProposal(list, data.id, data.decision);
+    if (!changed) return { ok: false as const, error: "工单不存在或已决定过" };
+    await writeAgentProposalsFile(next);
+    return { ok: true as const };
+  });

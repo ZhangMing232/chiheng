@@ -21,13 +21,17 @@ import { StateBlock } from "@/components/state-block";
 import { AISectionTabs, Section } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
-import { dispatchAgentJob, getAgentJobs, saveAgentBudget } from "@/lib/market/quotes.functions";
+import { dispatchAgentJob, getAgentJobs, getAgentSchedules, saveAgentBudget, saveAgentSchedule, decideAgentProposal } from "@/lib/market/quotes.functions";
 import type { AgentJob } from "@/lib/market/agent-jobs";
+import type { AgentSchedule, AgentProposal } from "@/lib/market/agent-schedules";
 
 export const Route = createFileRoute("/ai/agent")({
   loader: async () => {
-    const res = await getAgentJobs().catch(() => ({ allowed: false as const, jobs: [] as AgentJob[], budget: null }));
-    return { res, serverNow: Date.now() };
+    const [res, sched] = await Promise.all([
+      getAgentJobs().catch(() => ({ allowed: false as const, jobs: [] as AgentJob[], budget: null })),
+      getAgentSchedules().catch(() => ({ allowed: false as const, schedules: [] as AgentSchedule[], proposals: [] as AgentProposal[] })),
+    ]);
+    return { res, sched, serverNow: Date.now() };
   },
   component: AgentPage,
 });
@@ -36,6 +40,124 @@ const statusTone = (s: AgentJob["status"]): "up" | "down" | "warn" | "muted" =>
   s === "ok" ? "up" : s === "error" ? "down" : s === "budget-killed" ? "warn" : "muted";
 const statusLabel = (s: AgentJob["status"]): string =>
   s === "ok" ? "完成" : s === "error" ? "失败" : s === "budget-killed" ? "超预算终止" : "进行中";
+
+/** 一条定时任务：开关 + 小时 + 预算都在一行改。 */
+function ScheduleRow({ s }: { s: AgentSchedule }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [hour, setHour] = useState(String(s.hourLocal));
+  const [budget, setBudget] = useState(String(s.budgetCny));
+
+  const save = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      await saveAgentSchedule({
+        data: { id: s.id, enabled, hourLocal: Number(hour), budgetCny: Number(budget) },
+      });
+      await router.invalidate();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
+      <label className="flex cursor-pointer items-center gap-1.5 text-xs text-fg">
+        <input
+          type="checkbox"
+          checked={s.enabled}
+          disabled={busy}
+          onChange={(e) => void save(e.target.checked)}
+          className="accent-brand"
+        />
+        <span className="font-medium">{s.id}</span>
+      </label>
+      <span className="min-w-0 flex-1 basis-64 truncate text-[12px] text-muted" title={s.task}>{s.task}</span>
+      <span className="flex items-center gap-1 text-[12px] text-muted">
+        每天
+        <input
+          type="number"
+          min={0}
+          max={23}
+          value={hour}
+          onChange={(e) => setHour(e.target.value)}
+          onBlur={() => void save(s.enabled)}
+          className="w-14 rounded border border-line bg-surface-2 px-1.5 py-0.5 text-center font-mono text-[12px] text-fg focus:border-brand focus:outline-none"
+        />
+        点 · ≤¥
+        <input
+          type="number"
+          min={0.1}
+          step={0.5}
+          value={budget}
+          onChange={(e) => setBudget(e.target.value)}
+          onBlur={() => void save(s.enabled)}
+          className="w-16 rounded border border-line bg-surface-2 px-1.5 py-0.5 text-center font-mono text-[12px] text-fg focus:border-brand focus:outline-none"
+        />
+      </span>
+      {s.lastRunDay ? (
+        <span className="font-mono text-[12px] text-muted">
+          上次 {s.lastRunDay.slice(5)}{" "}
+          <Tag tone={s.lastStatus === "ok" ? "up" : s.lastStatus === "error" ? "down" : "warn"}>
+            {s.lastStatus === "ok" ? `¥${(s.lastCost ?? 0).toFixed(2)}` : s.lastStatus === "error" ? "失败" : "超预算"}
+          </Tag>
+        </span>
+      ) : (
+        <span className="text-[12px] text-muted">还没跑过</span>
+      )}
+    </div>
+  );
+}
+
+/** 一条建议工单：批准/驳回。 */
+function ProposalRow({ p }: { p: AgentProposal }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  const decide = async (decision: "approved" | "dismissed") => {
+    setBusy(true);
+    try {
+      await decideAgentProposal({ data: { id: p.id, decision } });
+      await router.invalidate();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tone = p.status === "pending" ? "warn" : p.status === "approved" ? "up" : "muted";
+  return (
+    <div className={`rounded border px-3 py-2 text-xs ${p.status === "pending" ? "border-warn bg-warn-soft" : "border-line bg-surface-2"}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-[12px] text-muted">
+          {p.at.slice(5, 16).replace("T", " ")} · 来自任务 {p.jobAt.slice(5, 16).replace("T", " ")}
+        </span>
+        <Tag tone={tone}>{p.status === "pending" ? "待拍板" : p.status === "approved" ? "已批准" : "已驳回"}</Tag>
+      </div>
+      <p className="mt-1 leading-relaxed text-fg">{p.finding}</p>
+      {p.suggestion ? <p className="mt-1 leading-relaxed text-muted">建议：{p.suggestion}</p> : null}
+      {p.status === "pending" ? (
+        <div className="mt-1.5 flex gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void decide("approved")}
+            className="rounded-full border border-line bg-brand px-2.5 py-1 text-[12px] text-white disabled:opacity-40"
+          >
+            批准（转派活草稿）
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void decide("dismissed")}
+            className="rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] text-muted disabled:opacity-40"
+          >
+            驳回
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function AgentPage() {
   const d = Route.useLoaderData();
@@ -234,6 +356,42 @@ function AgentPage() {
           )}
         </div>
       </Section>
+
+      {/* 定时任务清单 */}
+      {d.sched.allowed ? (
+        <Section
+          id="agent-schedules"
+          title="定时任务"
+          hint="预先登记的自动化（口子②）：每条独立开关 + 独立预算，每天最多跑一次。默认全部关闭——逐条审过再开。"
+        >
+          <div className="flex flex-col divide-y divide-line px-3.5 py-2">
+            {d.sched.schedules.map((s) => (
+              <ScheduleRow key={s.id} s={s} />
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
+      {/* 建议工单收件箱 */}
+      {d.sched.allowed ? (
+        <Section
+          id="agent-proposals"
+          title="建议工单"
+          hint="小机干活时「顺手发现」的问题（口子③）：批准后会生成一条预填派活草稿，你再去上面「派活」框里确认发送。驳回 = 不留痕的否决。"
+        >
+          <div className="px-3.5 py-3">
+            {d.sched.proposals.length === 0 ? (
+              <StateBlock kind="empty" title="没有工单" hint="小机发现问题时会写到这里等你拍板；它自己没有动手的入口。" />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {[...d.sched.proposals].reverse().slice(0, 10).map((p) => (
+                  <ProposalRow key={p.id} p={p} />
+                ))}
+              </div>
+            )}
+          </div>
+        </Section>
+      ) : null}
 
       <p className="mt-3 px-1 text-[12px] leading-relaxed text-warn">
         权力边界：小机有全操作权限（读改文件、跑命令），但账本和判决函数改动前必须先说明理由；

@@ -713,6 +713,25 @@ runSignalReview();
 runSignalTrack();
 runShortFormsScan();
 runPreflight();
+
+// ── 小机定时任务（2026-11-14）：每 60 秒扫一遍 agent-schedules.json，到点的派活 ──
+// 任务清单是主人逐条审过的（默认全关）；agent 自己没有派活入口（口子③只有工单）。
+// 挂 detached 子进程跑 tick——它可能 spawn headless agent 跑几分钟，不能阻塞主循环。
+let agentTickRunning = false;
+function runAgentScheduleTick() {
+  if (agentTickRunning) return; // 上一次还没跑完（agent 在干活），跳过本 tick
+  agentTickRunning = true;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "-e",
+      "import('/Volumes/colorful/chiheng/src/lib/market/agent-scheduler.ts').then(m => m.tickAgentSchedules()).then(r => { if (r.dispatched) console.log('[agent] 定时任务已派:', r.dispatched); }).catch(e => { console.error('[agent] tick 失败:', e?.message ?? e); process.exitCode = 1; })"],
+    { stdio: "inherit", cwd: process.cwd() },
+  );
+  child.on("exit", () => { agentTickRunning = false; });
+}
+const agentScheduleTimer = setInterval(runAgentScheduleTick, 60_000);
+void agentScheduleTimer;
+
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);
 // 两个都挂在同一个 60 秒 tick 上，别另起一个 timer：
