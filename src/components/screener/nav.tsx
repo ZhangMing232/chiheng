@@ -134,11 +134,9 @@ const SIDEBAR: {
   //   行情 → 看什么（盘面事实）
   //   研究 → 信什么（证据与验证）
   //   策略 → 管什么（规则与持仓）
-  //   我的 → 自己的对象（自选、快讯、提醒）
-  // 再加一组「系统」放设置、管家、AI——它们不是业务任务，不该占业务位。
-  // 原来的「盘前/盯盘/盘后/研究/资讯/进化/AI/设置」八组按时间分，
-  // 结果是同一件事被拆到两组：资金在「盘后」、题材也在「盘后」，
-  // 而「盯盘」组只有一项。分组跟着问题走，比跟着时钟走稳。
+  //   我的 → 自己的对象与系统工具（自选、快讯、AI、设置）
+  // 2026-11-14 按老板指示再调：快讯挪进「行情」（盯盘时看的盘面信息流），
+  // 「系统」组取消——AI 工作台和设置并进「我的」，侧栏从六组减到五组。
   {
     label: "今天",
     items: [
@@ -153,6 +151,7 @@ const SIDEBAR: {
       { to: "/themes", label: "题材与情绪", icon: FileText },
       { to: "/youzi", label: "游资席位", icon: Users },
       { to: "/flow", label: "资金流向", icon: Coins },
+      { to: "/news", label: "快讯", icon: Newspaper },
       { to: "/overseas", label: "全球行情", icon: Globe },
     ],
   },
@@ -176,12 +175,6 @@ const SIDEBAR: {
     label: "我的",
     items: [
       { to: "/my-stocks", label: "自选与持仓", icon: Star },
-      { to: "/news", label: "快讯", icon: Newspaper },
-    ],
-  },
-  {
-    label: "系统",
-    items: [
       { to: "/ai", label: "AI 工作台", icon: Sparkles },
       { to: "/settings", label: "设置与状态", icon: Settings },
     ],
