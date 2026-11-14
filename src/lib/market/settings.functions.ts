@@ -332,6 +332,34 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({ label: "判决功效", state: "warn", cadence: "weekly", detail: "读不到挑战者规则或账本", fix: null });
   }
 
+
+  // ⑨ 家族级方向学习（2026-11-14 方案 C）：池化变体样本按参数维度看方向。
+  // 单变体判决 12 笔判不出 3pp，池化后能——这是绕开判决功效墙的关键输入。
+  try {
+    const { learnDirection } = await import("./direction-learn.ts");
+    const book = await readJson<{ days?: { trades?: { variant?: string; style?: string; entry: number; exit: number | null }[] }[] }>(
+      "data/books/dev-user.json",
+    );
+    const trades = ((book?.days ?? []) as { trades?: { variant?: string; style?: string; entry: number; exit: number | null }[] }[])
+      .flatMap((day) => day?.trades ?? [])
+      .filter((t) => t && typeof t.exit === "number")
+      .map((t) => ({
+        variant: t.variant ?? null,
+        style: t.style ?? null,
+        ret: ((t.exit as number) - t.entry) / t.entry,
+      }));
+    const dir = learnDirection(trades, { champStyle: "value" });
+    rows.push({
+      label: "家族方向",
+      state: dir.advice ? "ok" : "warn",
+      cadence: "weekly",
+      detail: dir.advice ?? `变体 ${dir.totalVariantN} 笔 / 冠军 ${dir.totalChampN} 笔，数据还学不出方向`,
+      fix: dir.enoughData ? null : "继续攒已平仓变体样本（变体 ≥8 笔 / 冠军 ≥10 笔后可学）",
+    });
+  } catch {
+    rows.push({ label: "家族方向", state: "warn", cadence: "weekly", detail: "读不到账本", fix: null });
+  }
+
   return rows;
 }
 

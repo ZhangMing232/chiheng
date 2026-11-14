@@ -181,6 +181,15 @@ export type StrategyAIContext = {
    * 不传时回退到代码默认（只在测试/离线场景发生）。
    */
   rule?: { minTrades: number; promoteT: number; rejectT: number };
+  /**
+   * 家族级方向学习结论（2026-11-14 方案 C）。
+   *
+   * 单变体判决（12 笔）统计功效不足，但池化后按参数维度分组能看出方向
+   * （实测：持有天数=8 的变体池 13 笔相对冠军 +7.02pp）。这个结论直接告诉
+   * AI「往哪个方向提」，绕开了单挑框架的功效墙。
+   * null = 数据不够学（不编方向）。
+   */
+  directionAdvice?: string | null;
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -212,6 +221,14 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     `⚠️ 判决功效有限：单笔收益标准差约 10%，每侧 ${rule.minTrades} 笔只能检出 ≥11.5pp 的差异，` +
       `而改止损/持有期的典型效果约 3pp——**攒够也大概率判不出**。所以不要提「微小调整试试看」的提案，` +
       `要么改动足够大（≥11pp 量级）、要么指出当前判决本身的问题。`,
+    "",
+    ...(ctx.directionAdvice
+      ? [
+          `【家族级方向学习（用整批变体的池化样本按参数维度算出来的方向，不是单变体判决）】`,
+          ctx.directionAdvice,
+          `↑ 提案优先往「整体比冠军好」的方向提；标了「别再往这个方向提」的，除非你有新的证据（比如新因子组合、新市场状态），否则别碰。`,
+        ]
+      : []),
     "",
     `目前在实盘跑的策略：${ACTIVE_STYLES.map(styleName).join("、")}。`,
     "",
@@ -374,6 +391,25 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   } catch {
     lossLines = [];
   }
+  // 家族级方向学习（方案 C）：池化变体样本按参数维度看方向。
+  // 单变体判决 12 笔判不出 3pp，但池化后能——这是绕开功效墙的关键输入。
+  let directionAdvice: string | null = null;
+  try {
+    const { learnDirection } = await import("./direction-learn.ts");
+    const { readUserBook, OWNER_ID } = await import("./book-file.ts");
+    const book = await readUserBook<{ days?: { trades?: { variant?: string; style?: string; entry: number; exit: number | null }[] }[] }>(OWNER_ID);
+    const trades = ((book?.days ?? []) as { trades?: { variant?: string; style?: string; entry: number; exit: number | null }[] }[])
+      .flatMap((day) => day?.trades ?? [])
+      .filter((t) => t && typeof t.exit === "number")
+      .map((t) => ({
+        variant: t.variant ?? null,
+        style: t.style ?? null,
+        ret: ((t.exit as number) - t.entry) / t.entry,
+      }));
+    directionAdvice = learnDirection(trades, { champStyle: ACTIVE_STYLES[0] ?? "value" }).advice;
+  } catch {
+    directionAdvice = null; // 学不到就不喂，AI 照常跑
+  }
   const ctx: StrategyAIContext = {
     challengers: chalFile.list,
     gates: await readStrategyGates(),
@@ -385,6 +421,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     diagnosisHints,
     chalSampleLines,
     lossAttribLines: lossLines,
+    directionAdvice,
     // 真实判决规则（2026-11-14）：阈值是运行时数据，必须喂真实值给 AI，
     // 否则它会按写死的「30 笔」判断进度，决策全偏。
     rule: await loadChallengerRule(),
