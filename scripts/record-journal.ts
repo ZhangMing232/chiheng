@@ -939,7 +939,20 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
   // 收盘后落一份「当天 /today 信号 vs 账本真实成交」的快照，供以后扩样本。
   // 纯落盘：不写账本、不改建仓、失败只警告（和 gate-log 同款纪律）。
   if (phase.sealed && phase.date && isTradingDay(phase.date)) {
+    // stamp 去重：快照一天一份就够（收盘后账本基本定型）。没 stamp 的话记账进程
+    // 每分钟重读 reviewed.json + 重写 10KB 文件，一天 240 次纯浪费（2026-11-14 全仓过一遍发现）。
     try {
+      const recStamp = join(process.cwd(), "data", `.reconcile-snap-${phase.date}.stamp`);
+      let reconciled = false;
+      try {
+        await access(recStamp);
+        reconciled = true;
+      } catch {
+        /* 今天还没落 */
+      }
+      if (reconciled) {
+        /* 已落，跳过 */
+      } else {
       const { writeReconcileSnapshot } = await import("../src/lib/market/reconcile-snapshot.ts");
       let signals: Parameters<typeof writeReconcileSnapshot>[0]["signals"] = null;
       try {
@@ -971,6 +984,8 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
         })),
       });
       if (!out.path) console.warn(`[reconcile] ${phase.date} 快照没落：${out.reason}`);
+      else await writeFile(recStamp, String(Date.now()));
+      } // else reconciled
     } catch (err) {
       console.warn(`[reconcile] 快照写入异常：${(err as Error).message}`);
     }

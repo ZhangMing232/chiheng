@@ -7,6 +7,6 @@
 - id: agent-default-model
   name: "@deepseek-ai/dsh-agent-default-model"
   config:
-    provider: deepseek-official
-    model: deepseek-flash
+    provider: workbuddy3
+    model: glm-5.3-flash
     reasoningEffort: max

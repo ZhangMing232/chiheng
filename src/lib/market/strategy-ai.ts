@@ -29,6 +29,7 @@ export { MAX_RUNNING_PER_STYLE };
 import { readStrategyGates, type GatesFile } from "./strategy-gate.ts";
 import { ACTIVE_STYLES, RETIRED_STYLES, STYLES, STYLE_IDS, holdOf } from "./strategies.ts";
 import { RED_LINE_PROMPT } from "./red-line.ts";
+import { minDetectableEffectPp } from "./rule-power.ts";
 import { readMarketDegraded } from "./providers/index.ts";
 
 // ── 旋钮白名单 ──────────────────────────────────────────────────
@@ -190,6 +191,8 @@ export type StrategyAIContext = {
    * null = 数据不够学（不编方向）。
    */
   directionAdvice?: string | null;
+  /** 账本单笔收益标准差（真实算出的），供功效提示动态计算；null = 算不出就不提醒。 */
+  tradeSd?: number | null;
 };
 
 export function buildStrategyPrompt(ctx: StrategyAIContext): string {
@@ -218,9 +221,20 @@ export function buildStrategyPrompt(ctx: StrategyAIContext): string {
     `你在管理一个 A 股量化项目的策略参数进化。机制是冠军-挑战者：挑战者和冠军用同一套选股名单、只改出场参数，双方各攒够 ${rule.minTrades} 笔已平仓后 Welch t ≥ ${rule.promoteT} 且均值更高才转正，t ≤ ${rule.rejectT} 淘汰。`,
     // 功效提醒（2026-11-14）：让 AI 知道「攒够也大概率判不出来」，
     // 否则它会以为「再攒 12 笔就能定论」，不断提小改动消耗样本。
-    `⚠️ 判决功效有限：单笔收益标准差约 10%，每侧 ${rule.minTrades} 笔只能检出 ≥11.5pp 的差异，` +
-      `而改止损/持有期的典型效果约 3pp——**攒够也大概率判不出**。所以不要提「微小调整试试看」的提案，` +
-      `要么改动足够大（≥11pp 量级）、要么指出当前判决本身的问题。`,
+    // 标准差从真实账本动态传入（ctx.tradeSd），11.5pp 这个数不能写死——
+    // 账本继续攒，标准差会变；第 7 轮扫硬编码时正是这个教训的重演风险。
+    ...(ctx.tradeSd != null && ctx.tradeSd > 0
+      ? [
+          (() => {
+            const minPp = minDetectableEffectPp({ perSide: rule.minTrades, sd: ctx.tradeSd! });
+            return minPp == null
+              ? null
+              : `⚠️ 判决功效有限：单笔收益标准差约 ${(ctx.tradeSd! * 100).toFixed(1)}%，每侧 ${rule.minTrades} 笔只能检出 ≥${minPp.toFixed(1)}pp 的差异，` +
+                  `而改止损/持有期的典型效果约 3pp——**攒够也大概率判不出**。所以不要提「微小调整试试看」的提案，` +
+                  `要么改动足够大（≥${minPp.toFixed(0)}pp 量级）、要么指出当前判决本身的问题。`;
+          })(),
+        ]
+      : []),
     "",
     ...(ctx.directionAdvice
       ? [
@@ -394,6 +408,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
   // 家族级方向学习（方案 C）：池化变体样本按参数维度看方向。
   // 单变体判决 12 笔判不出 3pp，但池化后能——这是绕开功效墙的关键输入。
   let directionAdvice: string | null = null;
+  let tradeSd: number | null = null;
   try {
     const { learnDirection } = await import("./direction-learn.ts");
     const { readUserBook, OWNER_ID } = await import("./book-file.ts");
@@ -406,7 +421,14 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
         style: t.style ?? null,
         ret: ((t.exit as number) - t.entry) / t.entry,
       }));
-    directionAdvice = learnDirection(trades, { champStyle: ACTIVE_STYLES[0] ?? "value" }).advice;
+    const dir = learnDirection(trades, { champStyle: ACTIVE_STYLES[0] ?? "value" });
+    directionAdvice = dir.advice;
+    // 标准差从冠军笔算（变体是实验样本，标准差用全部已平仓更有代表性——用账本同款口径）
+    const allRets = trades.map((t) => t.ret);
+    if (allRets.length >= 30) {
+      const mean = allRets.reduce((a, b) => a + b, 0) / allRets.length;
+      tradeSd = Math.sqrt(allRets.reduce((a, b) => a + (b - mean) ** 2, 0) / (allRets.length - 1));
+    }
   } catch {
     directionAdvice = null; // 学不到就不喂，AI 照常跑
   }
@@ -422,6 +444,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     chalSampleLines,
     lossAttribLines: lossLines,
     directionAdvice,
+    tradeSd,
     // 真实判决规则（2026-11-14）：阈值是运行时数据，必须喂真实值给 AI，
     // 否则它会按写死的「30 笔」判断进度，决策全偏。
     rule: await loadChallengerRule(),
