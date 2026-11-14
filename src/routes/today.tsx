@@ -385,63 +385,6 @@ function DecisionPage() {
         </ScopeNote>
 
         <ZoneHeader
-          no="①"
-          title="昨收依据"
-          when="昨日 15:10–15:15 写入"
-          canAct={false}
-          warn="说明昨天钱在哪个题材、哪些票触了异动线；它不进今天挂单价"
-        />
-
-        {/* ── 当日主线 + 题材强度（2026-11-12 从总览 / 搬回：合并时漏了这两块）── */}
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="px-slash">THEMES // STRENGTH</span>
-          <span className="px-st wait">昨日 15:10</span>
-          <span className="h-px flex-1 bg-line" />
-          <span className="px-num text-[12px] text-muted">涨停家数多的在前 · 龙头 = 板内涨幅最高且没涨停的那只</span>
-        </div>
-
-        <div className="px-mod4 grid gap-0 border border-line bg-surface md:grid-cols-[minmax(0,240px)_1fr]">
-          {/* 当日主线：只写一个答案，不给备选 */}
-          <div className="border-b border-line px-4 py-3 md:border-b-0 md:border-r">
-            <div className="px-num text-[12px] tracking-widest text-brand">MAIN_LINE</div>
-            {hotThemes[0] ? (
-              <>
-                <div className="mt-1 text-xl font-bold leading-tight">{hotThemes[0].name}</div>
-                <div className="px-num mt-1 text-3xl font-bold text-brand">{hotThemes[0].limitUp}<span className="ml-1 text-[12px] font-normal text-muted">涨停</span></div>
-                <div className="mt-1 text-[12px] text-muted">
-                  均涨 {hotThemes[0].avg >= 0 ? "+" : ""}{hotThemes[0].avg.toFixed(1)}% · 成员 {hotThemes[0].n}
-                  {hotThemes[0].leader ? <> · 龙头 <b className="text-fg">{hotThemes[0].leader.name}</b> {hotThemes[0].leader.chg >= 0 ? "+" : ""}{hotThemes[0].leader.chg.toFixed(1)}%</> : null}
-                </div>
-              </>
-            ) : (
-              <div className="mt-2 text-sm text-muted">今天没有烧起来的题材。</div>
-            )}
-          </div>
-
-          {/* 题材强度：一格一只涨停，横条按最强题材归一化 */}
-          <div className="px-4 py-3">
-            <div className="px-num mb-1 text-[12px] tracking-widest text-brand">STRENGTH</div>
-            {hotThemes.length === 0 ? (
-              <div className="py-2 text-sm text-muted">题材热度还没算（theme-heat 收盘后跑）。</div>
-            ) : (
-              hotThemes.map((t) => {
-                const max = Math.max(1, ...hotThemes.map((x) => x.limitUp));
-                return (
-                  <div key={t.name} className="flex items-center gap-3 border-b border-dashed border-line py-1.5 last:border-0">
-                    <span className="w-28 shrink-0 truncate text-sm">{t.name}</span>
-                    <span className="h-2 min-w-0 flex-1 bg-line">
-                      <span className="block h-full bg-brand" style={{ width: `${(t.limitUp / max) * 100}%` }} />
-                    </span>
-                    <span className="px-num w-8 shrink-0 text-right text-sm text-fg">{t.limitUp}</span>
-                    <span className="px-num w-24 shrink-0 truncate text-right text-[12px] text-muted">{t.leader?.name ?? "—"}</span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        <ZoneHeader
           no="②"
           title="今晨定价"
           when="今日 09:26 竞价审核"
@@ -449,18 +392,15 @@ function DecisionPage() {
           warn="这一区的价是今早竞价定的；开盘后才拿到开盘价，收盘后它就不再变"
         />
 
-        {/* ── 两批票的来历：前瞻链 vs 信号链，互不相干 ──
-            用户原话：「页面东一个西一个」。把矩阵上方的分区说清：这一张表里混着
-            两套独立扫描出来的票，前瞻链是昨收落档、信号链是今早竞价审核，
-            两套各自选股、不互相引用，重合纯属巧合。不写清，用户会以为
-            「前瞻命中的票又被竞价审核复选了一遍」。 */}
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="px-slash">TWO_CHAINS</span>
-          <span className="px-st wait">两套独立扫描 · 重合是巧合不是联动</span>
-          <span className="h-px flex-1 bg-line" />
-          <span className="px-num text-[12px] text-muted">下面的矩阵把两批票放在同一张表里比，路列标了每只来自哪条链</span>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
+        {/* ── 两批票的来历：折叠进矩阵上方的一行说明（2026-11-14 第 13 轮）──
+            原来是一整块 143px 的说明 + 标题条，排在矩阵前面：用户打开「今天买什么」
+            要先读两段「两条链是什么」才看到票。信息不删，改成折叠。 */}
+        <details className="border border-line bg-surface">
+          <summary className="cursor-pointer select-none px-3 py-2 text-[12px] text-muted hover:text-fg">
+            <span className="px-num tracking-widest text-brand">TWO_CHAINS</span>
+            <span className="ml-2">两套独立扫描 · 重合是巧合不是联动（点开看两条链的来历）</span>
+          </summary>
+        <div className="grid gap-2 border-t border-line p-2 sm:grid-cols-2">
           <div className="border border-line bg-surface px-3 py-2">
             <div className="flex items-baseline gap-2">
               <span className="px-path text-muted"><PxIcon kind="rocket" color="#22e6ff" /> 前瞻链</span>
@@ -485,6 +425,7 @@ function DecisionPage() {
             </p>
           </div>
         </div>
+        </details>
 
         {/* ── 买入矩阵 ── */}
         <div className="flex flex-wrap items-center gap-3">
@@ -591,6 +532,63 @@ function DecisionPage() {
             「状态」是按当天日 K <b className="text-fg">事后重算的理论成交</b>；「账本」是记账进程
             <b className="text-fg">当时记下的真实成交</b>。两者口径不同，列在一起只为对得上号，
             本页不拿理论价冒充成交价，也不改任何买卖。
+          </div>
+        </div>
+
+        <ZoneHeader
+          no="①"
+          title="昨收依据"
+          when="昨日 15:10–15:15 写入"
+          canAct={false}
+          warn="说明昨天钱在哪个题材、哪些票触了异动线；它不进今天挂单价"
+        />
+
+        {/* ── 当日主线 + 题材强度（2026-11-12 从总览 / 搬回：合并时漏了这两块）── */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="px-slash">THEMES // STRENGTH</span>
+          <span className="px-st wait">昨日 15:10</span>
+          <span className="h-px flex-1 bg-line" />
+          <span className="px-num text-[12px] text-muted">涨停家数多的在前 · 龙头 = 板内涨幅最高且没涨停的那只</span>
+        </div>
+
+        <div className="px-mod4 grid gap-0 border border-line bg-surface md:grid-cols-[minmax(0,240px)_1fr]">
+          {/* 当日主线：只写一个答案，不给备选 */}
+          <div className="border-b border-line px-4 py-3 md:border-b-0 md:border-r">
+            <div className="px-num text-[12px] tracking-widest text-brand">MAIN_LINE</div>
+            {hotThemes[0] ? (
+              <>
+                <div className="mt-1 text-xl font-bold leading-tight">{hotThemes[0].name}</div>
+                <div className="px-num mt-1 text-3xl font-bold text-brand">{hotThemes[0].limitUp}<span className="ml-1 text-[12px] font-normal text-muted">涨停</span></div>
+                <div className="mt-1 text-[12px] text-muted">
+                  均涨 {hotThemes[0].avg >= 0 ? "+" : ""}{hotThemes[0].avg.toFixed(1)}% · 成员 {hotThemes[0].n}
+                  {hotThemes[0].leader ? <> · 龙头 <b className="text-fg">{hotThemes[0].leader.name}</b> {hotThemes[0].leader.chg >= 0 ? "+" : ""}{hotThemes[0].leader.chg.toFixed(1)}%</> : null}
+                </div>
+              </>
+            ) : (
+              <div className="mt-2 text-sm text-muted">今天没有烧起来的题材。</div>
+            )}
+          </div>
+
+          {/* 题材强度：一格一只涨停，横条按最强题材归一化 */}
+          <div className="px-4 py-3">
+            <div className="px-num mb-1 text-[12px] tracking-widest text-brand">STRENGTH</div>
+            {hotThemes.length === 0 ? (
+              <div className="py-2 text-sm text-muted">题材热度还没算（theme-heat 收盘后跑）。</div>
+            ) : (
+              hotThemes.map((t) => {
+                const max = Math.max(1, ...hotThemes.map((x) => x.limitUp));
+                return (
+                  <div key={t.name} className="flex items-center gap-3 border-b border-dashed border-line py-1.5 last:border-0">
+                    <span className="w-28 shrink-0 truncate text-sm">{t.name}</span>
+                    <span className="h-2 min-w-0 flex-1 bg-line">
+                      <span className="block h-full bg-brand" style={{ width: `${(t.limitUp / max) * 100}%` }} />
+                    </span>
+                    <span className="px-num w-8 shrink-0 text-right text-sm text-fg">{t.limitUp}</span>
+                    <span className="px-num w-24 shrink-0 truncate text-right text-[12px] text-muted">{t.leader?.name ?? "—"}</span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
