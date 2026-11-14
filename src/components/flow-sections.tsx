@@ -13,9 +13,10 @@
  *   拆页不改口径。
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { StockName } from "@/components/screener/stock-name";
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import * as echarts from "echarts";
 import { SectionTabs } from "@/components/section-tabs";
 import { Table, tdClass, thClass } from "@/components/terminal";
 import { fmtWan, signedPct, toneClass } from "@/lib/market/format";
@@ -23,6 +24,7 @@ import { readMarket, type FlowRow, type MarketPart, type NorthLeg } from "@/lib/
 import type { MarginRow } from "@/lib/market/margin";
 import { GapList } from "@/components/source-line";
 import type { FutBook } from "@/lib/market/index-futures";
+import { minuteCandles, hhmm } from "@/lib/market/minute-candles";
 import type { Trend } from "@/lib/market/types";
 import { marketBreadth, type Breadth } from "@/lib/market/slim-universe";
 import type { getCloseSnapshot } from "@/lib/market/tdx-daily.functions";
@@ -301,23 +303,61 @@ function trendDayLabel(date: string): string {
   return `${Number(match[1])}月${Number(match[2])}日`;
 }
 
-/** 大盘分时走势图，学财联社盯盘的分时线。灰虚线是昨收，板块标签是当前净流入靠前的行业快照。 */
+/** 大盘分时走势图：分时线（recharts）/ 5 分钟蜡烛（ECharts）双模式，默认分时。
+ *  蜡烛是从逐分钟快照价聚合的派生 OHLC（窗口首/末/极值），口径在脚注照实说。
+ *  灰虚线是昨收，板块标签是当前净流入靠前的行业快照。 */
 export function TrendChart({ trend, sectors }: { trend: Trend; sectors: FlowRow[] }) {
   const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState<"line" | "candle">("line");
   useEffect(() => setMounted(true), []);
   const last = trend.points[trend.points.length - 1]?.price ?? null;
   const up = trend.prevClose != null && last != null && last >= trend.prevClose;
   const chg = trend.prevClose != null && last != null && trend.prevClose > 0 ? (last / trend.prevClose - 1) * 100 : null;
   const tickInterval = Math.max(1, Math.floor(trend.points.length / 6));
   const tags = sectors.slice(0, 8);
+  // 蜡烛：5 分钟聚合；数据不足一窗时按钮禁用（不画残蜡烛）
+  const candles = minuteCandles(trend.points, 5);
+  const candleReady = candles.length >= 2;
+  const candleYRange = candleReady
+    ? (() => {
+        const lo = Math.min(...candles.map((c) => c.l), trend.prevClose ?? Infinity);
+        const hi = Math.max(...candles.map((c) => c.h), trend.prevClose ?? -Infinity);
+        const pad = (hi - lo) * 0.08 || 1;
+        return [lo - pad, hi + pad] as [number, number];
+      })()
+    : undefined;
   return (
     <section className="overflow-hidden rounded border border-line bg-surface">
       <div className="flex items-baseline justify-between gap-3 border-b border-line px-3.5 py-2">
         <div className="min-w-0">
           <h2 className="text-sm font-medium">大盘走势</h2>
-          <p className="mt-1 text-xs leading-relaxed text-muted">上证指数分时，{trendDayLabel(trend.date)}。灰虚线是昨收。板块标签是当前主力净流入靠前的行业（快照，不是历史回放）。</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            上证指数，{trendDayLabel(trend.date)}。{mode === "line" ? "分时线，灰虚线是昨收。" : "5 分钟蜡烛（由逐分钟快照价聚合：首=开、末=收、极值=高/低），灰虚线是昨收。"}板块标签是当前主力净流入靠前的行业（快照，不是历史回放）。
+          </p>
         </div>
-        {chg != null ? <span className={toneClass(chg) + " shrink-0 text-sm font-medium tabular-nums"}>{signedPct(chg)}</span> : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {chg != null ? <span className={toneClass(chg) + " text-sm font-medium tabular-nums"}>{signedPct(chg)}</span> : null}
+          <div className="flex overflow-hidden rounded border border-line" role="group" aria-label="走势图模式">
+            <button
+              type="button"
+              onClick={() => setMode("line")}
+              aria-pressed={mode === "line"}
+              className={"px-2 py-0.5 text-[12px] transition " + (mode === "line" ? "bg-brand-soft text-brand-text" : "text-muted hover:text-fg")}
+            >
+              分时
+            </button>
+            <button
+              type="button"
+              onClick={() => candleReady && setMode("candle")}
+              aria-pressed={mode === "candle"}
+              disabled={!candleReady}
+              title={candleReady ? "5 分钟蜡烛" : "分钟数据不足，画不出蜡烛"}
+              className={"px-2 py-0.5 text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 " + (mode === "candle" ? "bg-brand-soft text-brand-text" : "text-muted hover:text-fg")}
+            >
+              蜡烛
+            </button>
+          </div>
+        </div>
       </div>
       {tags.length > 0 ? (
         <div className="flex flex-wrap gap-1.5 border-b border-line px-3.5 py-2">
@@ -329,28 +369,94 @@ export function TrendChart({ trend, sectors }: { trend: Trend; sectors: FlowRow[
         </div>
       ) : null}
       <div className="h-52">
-        {mounted ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trend.points} margin={{ top: 8, right: 10, left: 10, bottom: 0 }}>
-              {trend.prevClose != null ? <ReferenceLine y={trend.prevClose} stroke="var(--color-muted)" strokeDasharray="4 4" /> : null}
-              <XAxis
-                dataKey="time"
-                tick={{ fontSize: 10, fill: "var(--color-muted)" }}
-                tickFormatter={(value: string) => `${value.slice(0, 2)}:${value.slice(2)}`}
-                interval={tickInterval}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis hide domain={["auto", "auto"]} />
-              <Line type="monotone" dataKey="price" stroke={up ? "var(--color-up)" : "var(--color-down)"} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
+        {mode === "line" ? (
+          mounted ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trend.points} margin={{ top: 8, right: 10, left: 10, bottom: 0 }}>
+                {trend.prevClose != null ? <ReferenceLine y={trend.prevClose} stroke="var(--color-muted)" strokeDasharray="4 4" /> : null}
+                <XAxis
+                  dataKey="time"
+                  tick={{ fontSize: 10, fill: "var(--color-muted)" }}
+                  tickFormatter={(value: string) => `${value.slice(0, 2)}:${value.slice(2)}`}
+                  interval={tickInterval}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis hide domain={["auto", "auto"]} />
+                <Line type="monotone" dataKey="price" stroke={up ? "var(--color-up)" : "var(--color-down)"} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted">正在画分时</div>
+          )
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-muted">正在画分时</div>
+          <MinuteCandleEChart candles={candles} prevClose={trend.prevClose} yRange={candleYRange} />
         )}
       </div>
     </section>
   );
+}
+
+/** 5 分钟蜡烛渲染（ECharts）。颜色读 CSS 变量与全站 token 同源（同 kline-chart 的做法）。 */
+function MinuteCandleEChart({ candles, prevClose, yRange }: { candles: ReturnType<typeof minuteCandles>; prevClose: number | null; yRange?: [number, number] | undefined }) {
+  const host = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = host.current;
+    if (!el || candles.length < 2) return;
+    const upColor = getComputedStyle(document.documentElement).getPropertyValue("--color-up").trim() || "#f2495c";
+    const downColor = getComputedStyle(document.documentElement).getPropertyValue("--color-down").trim() || "#0bb97b";
+    const line = getComputedStyle(document.documentElement).getPropertyValue("--color-line").trim() || "#242f45";
+    const muted = getComputedStyle(document.documentElement).getPropertyValue("--color-muted").trim() || "#8b95a6";
+    const chart = echarts.init(el);
+    chart.setOption({
+      animation: false,
+      grid: { left: 8, right: 10, top: 12, bottom: 20 },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "cross" },
+        valueFormatter: (v: unknown) => (typeof v === "number" ? v.toFixed(2) : "—"),
+      },
+      xAxis: {
+        type: "category",
+        data: candles.map((c) => hhmm(c.time)),
+        axisLine: { lineStyle: { color: line } },
+        axisLabel: { color: muted, fontSize: 10 },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        scale: true,
+        min: yRange?.[0],
+        max: yRange?.[1],
+        axisLabel: { color: muted, fontSize: 10, formatter: (v: number) => v.toFixed(0) },
+        splitLine: { lineStyle: { color: line, opacity: 0.4 } },
+      },
+      series: [
+        ...(prevClose != null
+          ? [{
+              type: "line" as const,
+              data: candles.map(() => prevClose),
+              symbol: "none" as const,
+              lineStyle: { color: muted, type: "dashed" as const, width: 1 },
+              silent: true,
+              tooltip: { show: false },
+            }]
+          : []),
+        {
+          type: "candlestick",
+          data: candles.map((c) => [c.o, c.c, c.l, c.h]),
+          itemStyle: { color: upColor, color0: downColor, borderColor: upColor, borderColor0: downColor },
+        },
+      ],
+    });
+    const ro = new ResizeObserver(() => chart.resize());
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      chart.dispose();
+    };
+  }, [candles, prevClose, yRange]);
+  if (candles.length < 2) return <div className="flex h-full items-center justify-center text-sm text-muted">分钟数据不足，画不出蜡烛</div>;
+  return <div ref={host} className="h-full w-full" />;
 }
 
 export function Market({ parts }: { parts: MarketPart[] }) {
