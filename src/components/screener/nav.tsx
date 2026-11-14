@@ -33,7 +33,6 @@ import {
   Image,
   LayoutDashboard,
   LayoutList,
-  LineChart,
   Menu,
   Newspaper,
   RefreshCw,
@@ -327,7 +326,6 @@ function SideNav() {
           );
         })}
       </nav>
-      {narrow ? null : <SystemStatus />}
       <button
         type="button"
         onClick={toggleNarrow}
@@ -345,16 +343,7 @@ function SideNav() {
 }
 
 /**
- * 侧栏底部的系统状态块（对齐参考图「系统状态」区）。
- * 全部接真实数据源，不编假数：
- * - 系统状态 / 上次记账：data/recorder.json（经 getRecorder），5 分钟没更新算超时。
- * - 数据延迟：行情快照时间戳 universe.asOf（getUniverse 返回），延迟 = now - asOf。
- * - 因子待验：因子队列里还没过关、仍在管道中的条目数（pending + tested，来自 getFactorQueue）。
- * - AI 今日轮数：ai-log 里 at 落在今天（本地日期）的闭环次数（来自 getAILog）。
- * 之前占位的「计算节点 12/16」是效果图的假数，代码里无此数据源，已撤掉。
- */
-/**
- * 系统状态数据源（侧栏底部块与全局底部状态条共用同一份查询，两处数字永不打架）。
+ * 系统状态数据源（全局底部状态条共用，两处数字永不打架）。
  * 全部接真实数据源，不编假数：
  * - 系统状态 / 上次记账：data/recorder.json（经 getRecorder），5 分钟没更新算超时。
  * - 数据延迟：行情快照时间戳 universe.asOf（getUniverse 返回），延迟 = now - asOf。
@@ -394,7 +383,6 @@ function useSysStatus() {
   const fresh = at != null && serverNow - at < 5 * 60_000;
   const online = ok && fresh;
   const dotClass = online ? "bg-down" : ok ? "bg-warn" : "bg-up";
-  const stateText = online ? "运行中" : ok ? "心跳超时" : "离线";
   const asOf = uni?.asOf ?? null;
   const delaySec = asOf != null ? Math.max(0, Math.round((serverNow - asOf) / 1000)) : null;
   const entries = data?.queue?.entries ?? [];
@@ -407,7 +395,7 @@ function useSysStatus() {
   const gateValues = Object.values(data?.gates?.gates ?? {});
   const gatesOff = gateValues.filter((g) => g.state === "disabled").length;
   const gatesParole = gateValues.filter((g) => g.state === "paroled").length;
-  return { online, ok, beat, stateText, dotClass, delaySec, pending, entries, todayRounds, allEntries, gatesOff, gatesParole };
+  return { online, ok, beat, dotClass, delaySec, pending, entries, todayRounds, allEntries, gatesOff, gatesParole };
 }
 
 /** 状态点的辉光（效果图签名）：运行中绿光、异常红光、降级琥珀光。 */
@@ -418,69 +406,55 @@ function dotGlow(dotClass: string): string {
   return "";
 }
 
-function SystemStatus() {
-  const s = useSysStatus();
-  return (
-    <div className="mt-auto shrink-0 space-y-1.5 border-t border-sidebar-line px-4 py-3 text-xs">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-muted">
-          <span className={"h-2 w-2 rounded-full " + s.dotClass + " " + dotGlow(s.dotClass)} aria-hidden />
-          系统状态
-        </span>
-        <span className={s.online ? "text-down" : "text-muted"}>{s.stateText}</span>
-      </div>
-      <div className="flex items-center justify-between text-muted">
-        <span>上次记账</span>
-        <span className="tabular-nums">{s.beat}</span>
-      </div>
-      <div className="flex items-center justify-between text-muted">
-        <span>数据延迟</span>
-        <span className="tabular-nums">{s.delaySec != null ? `${s.delaySec}s` : "—"}</span>
-      </div>
-      <div className="flex items-center justify-between text-muted">
-        <span>因子待验</span>
-        <span className="tabular-nums">{s.entries.length ? `${s.pending} 只` : "—"}</span>
-      </div>
-      <div className="flex items-center justify-between text-muted">
-        <span>AI 今日</span>
-        <span className="tabular-nums">{s.allEntries.length ? `${s.todayRounds} 轮` : "—"}</span>
-      </div>
-    </div>
-  );
-}
-
 /**
- * 全局底部状态条（重设计效果图签名件，桌面端常驻）：
- * 系统状态 · 数据接口 · 行情延迟 · 策略引擎 · 风控闸门 + 查看详细日志入口。
- * 数据和侧栏底部块同源（useSysStatus），不编数——闸门那格「N 套停用」来自
- * strategy-gates.json，没有文件就是已就绪。
+ * 全局底部状态条（重设计效果图签名件，桌面端常驻），也是全站唯一的状态出口：
+ * 系统状态 · 数据接口 · 行情延迟 · 策略引擎 · 风控闸门，宽屏再加
+ * 上次记账 · 因子待验 · AI 今日 + 查看详细日志入口。
+ *
+ * 2026-11-14 合并：侧栏底部原来还有一块 5 行的 SystemStatus，其中
+ * 「系统状态」「数据延迟」和这条完全重复（同一个 useSysStatus 数据源）。
+ * 用户点出来之后收成一处——块删了，它独有的三格（上次记账/因子待验/AI 今日）
+ * 搬到这里，中等屏宽放不下就先藏，宽屏(xl)再露。
+ *
+ * 数据全接真实源，不编数——闸门那格「N 套停用」来自 strategy-gates.json，
+ * 没有文件就是已就绪。
  */
 function StatusBar() {
   const s = useSysStatus();
-  const linkCls = "inline-flex min-h-6 items-center gap-1 py-1 text-muted transition-colors hover:text-fg";
   return (
     <footer
       className="sticky bottom-0 z-20 hidden border-t border-sidebar-line bg-sidebar/95 backdrop-blur-md md:block"
       role="contentinfo"
       aria-label="系统状态条"
     >
-      <div className="flex h-8 items-center gap-5 px-4 text-[12px] text-muted">
-        <span className="flex items-center gap-1.5">
+      <div className="flex h-8 items-center gap-5 overflow-x-auto px-4 text-[12px] text-muted scroll-slim">
+        <span className="flex shrink-0 items-center gap-1.5">
           <span className={"h-1.5 w-1.5 rounded-full " + s.dotClass + " " + dotGlow(s.dotClass)} aria-hidden />
           系统状态
         </span>
-        <span>
+        <span className="shrink-0">
           数据接口: <span className={s.delaySec != null && s.delaySec < 120 ? "text-down" : "text-warn"}>{s.delaySec != null && s.delaySec < 120 ? "正常" : "延迟"}</span>
         </span>
-        <span className="tabular-nums">行情延迟: {s.delaySec != null ? `${s.delaySec}s` : "—"}</span>
-        <span>
+        <span className="shrink-0 tabular-nums">行情延迟: {s.delaySec != null ? `${s.delaySec}s` : "—"}</span>
+        <span className="shrink-0">
           策略引擎: <span className={s.online ? "text-down" : "text-warn"}>{s.online ? "正常" : s.ok ? "心跳超时" : "离线"}</span>
         </span>
-        <span>
+        <span className="shrink-0">
           风控闸门: <span className={s.gatesOff === 0 ? "text-down" : "text-warn"}>{s.gatesOff === 0 ? "已就绪" : `${s.gatesOff} 套停用${s.gatesParole > 0 ? ` · ${s.gatesParole} 套假释` : ""}`}</span>
         </span>
-        <span className="ml-auto text-muted">查看详细日志
-          <span aria-hidden>→</span></span>
+        {/* 以下三格原在侧栏底部块，2026-11-14 合并进这里——同源(s.beat/pending/todayRounds)，
+            避免「系统状态 + 延迟」两处重复出现。
+            中等屏宽（md~xl）放不下 8 项，先只留上面五个运行状态；宽屏(xl+)再露这三格，
+            不然会挤成横向滚动条、后半截根本看不见。 */}
+        <span className="hidden shrink-0 tabular-nums xl:inline">上次记账: {s.beat}</span>
+        <span className="hidden shrink-0 tabular-nums xl:inline">因子待验: {s.entries.length ? `${s.pending} 只` : "—"}</span>
+        <span className="hidden shrink-0 tabular-nums xl:inline">AI 今日: {s.allEntries.length ? `${s.todayRounds} 轮` : "—"}</span>
+        <Link
+          to="/settings"
+          className="ml-auto hidden min-h-6 shrink-0 items-center gap-1 py-1 text-muted transition-colors hover:text-fg xl:inline-flex"
+        >
+          查看详细日志<span aria-hidden>→</span>
+        </Link>
       </div>
     </footer>
   );
