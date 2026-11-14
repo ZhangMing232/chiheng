@@ -97,7 +97,7 @@ function FlowOverviewPage() {
       {book ? (
         <>
           <PosterButton draw={() => drawFlowPoster(book)} />
-          <Overview tape={book.tape} parts={book.market} north={book.north} breadth={breadth} hasBreadth={hasBreadth} />
+          <Overview tape={book.tape} parts={book.market} north={book.north} breadth={breadth} hasBreadth={hasBreadth} northDegraded={book.northDegraded} />
           {trend ? <TrendChart trend={trend} sectors={book.sectorsIn} /> : <p className="text-sm text-muted">分时暂时拉不下来，刷新重试。</p>}
           <Market parts={book.market} />
         </>

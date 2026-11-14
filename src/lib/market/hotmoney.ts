@@ -85,10 +85,20 @@ async function pull(report: string, date: string): Promise<Raw[]> {
   const url =
     "https://datacenter-web.eastmoney.com/api/data/v1/get?columns=SECURITY_CODE,OPERATEDEPT_NAME,NET" +
     `&pageSize=500&pageNumber=1&reportName=${report}&filter=${filter}&sortColumns=NET&sortTypes=-1&source=WEB&client=WEB`;
-  const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/stock/lhb.html" },
-    signal: AbortSignal.timeout(12_000),
-  });
+  // 东财单源，抖一下别立刻放弃：超时/网络错等 3 秒重试一次（龙虎榜一天才拉一次，值得救）。
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/stock/lhb.html" },
+      signal: AbortSignal.timeout(12_000),
+    });
+  } catch {
+    await new Promise((r) => setTimeout(r, 3_000));
+    res = await fetch(url, {
+      headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/stock/lhb.html" },
+      signal: AbortSignal.timeout(12_000),
+    });
+  }
   if (!res.ok) return [];
   const body = (await res.json()) as { result?: { data?: Raw[] } };
   return Array.isArray(body.result?.data) ? body.result.data : [];

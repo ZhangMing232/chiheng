@@ -217,7 +217,7 @@ export function North({ legs }: { legs: NorthLeg[] }) {
 }
 
 /** 概览统计排，学财联社盯盘那排数字：涨跌家数、两市成交额、主力、北向。 */
-export function Overview({ tape, parts, north, breadth, hasBreadth }: { tape: { name: string; amount: number; prevAmount?: number | null }[]; parts: MarketPart[]; north: NorthLeg[]; breadth: Breadth; hasBreadth: boolean }) {
+export function Overview({ tape, parts, north, breadth, hasBreadth, northDegraded }: { tape: { name: string; amount: number; prevAmount?: number | null }[]; parts: MarketPart[]; north: NorthLeg[]; breadth: Breadth; hasBreadth: boolean; northDegraded?: boolean }) {
   const amount = tape.reduce((total, row) => total + row.amount, 0);
   const prevAmount = tape.every((row) => row.prevAmount != null) ? tape.reduce((total, row) => total + (row.prevAmount ?? 0), 0) : null;
   const delta = prevAmount == null ? null : amount - prevAmount;
@@ -271,7 +271,9 @@ export function Overview({ tape, parts, north, breadth, hasBreadth }: { tape: { 
         <div className={tile}>
           <div className={label}>北向成交额</div>
           <div className={value}>{northTotal > 0 ? fmtWan(northTotal) : "—"}</div>
-          <div className={foot + " truncate"}>{north.length > 0 ? north.map((leg) => `${leg.name} ${fmtWan(leg.amount)}`).join(" · ") : "盘中净流入不再公布"}</div>
+          <div className={foot + " truncate"}>
+            {north.length > 0 ? north.map((leg) => `${leg.name} ${fmtWan(leg.amount)}`).join(" · ") : northDegraded ? "北向成交额暂时拉不到（东财单源降级，重试过）" : "盘中净流入不再公布"}
+          </div>
         </div>
       </div>
     </section>

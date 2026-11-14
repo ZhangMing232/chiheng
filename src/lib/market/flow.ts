@@ -91,6 +91,8 @@ export type FlowBook = {
   market: MarketPart[];
   tape: MarketTape[];
   asOf: number;
+  /** 北向腿的降级标注：拉不到且重试也没救回来 = true（页面显示「单源降级」而非空着装没事）。 */
+  northDegraded?: boolean;
 };
 
 type Raw = Record<string, unknown>;
@@ -134,6 +136,16 @@ function take(list: Raw[], kind: "sector" | "stock", limit: number): FlowRow[] {
   return rows;
 }
 
+/** 一条请求：超时后等 3 秒重试一次——东财偶尔抖一下，直接放弃会把北向标成降级。 */
+async function fetchRetry(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    await new Promise((r) => setTimeout(r, 3_000));
+    return fetch(url, init);
+  }
+}
+
 async function loadNorth(): Promise<NorthLeg[]> {
   const legs: { type: string; name: string }[] = [
     { type: "001", name: "沪股通" },
@@ -145,7 +157,7 @@ async function loadNorth(): Promise<NorthLeg[]> {
         "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_MUTUAL_DEAL_HISTORY" +
         "&columns=TRADE_DATE,DEAL_AMT,LEAD_STOCKS_NAME" +
         `&filter=(MUTUAL_TYPE=%22${leg.type}%22)&pageNumber=1&pageSize=1&sortColumns=TRADE_DATE&sortTypes=-1`;
-      const res = await fetch(url, {
+      const res = await fetchRetry(url, {
         headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
         signal: AbortSignal.timeout(12_000),
       });
@@ -281,6 +293,9 @@ export async function loadFlow(): Promise<FlowBook> {
     market,
     tape,
     asOf: Date.now(),
+    // 北向是东财单源（免费备源全线探尽不可行：新浪端点退役、交易所接口无公开文档），
+    // 拉不到就明说降级，不空着装没事。
+    northDegraded: north.length === 0,
   };
   cache = { at: book.asOf, book };
   return book;

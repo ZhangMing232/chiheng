@@ -670,6 +670,33 @@ function runShortFormsScan() {
   });
 }
 
+// ── 全市场公告事件流（15:40）：巨潮按日拉问询函/减持/业绩预告/立案/质押，
+// 落盘 data/announcements/<date>.json——监管雷达和绝望底仓复核的事件过滤原料。
+// 巨潮是证监会指定披露平台（第一档合规源），一天 3 页串行请求无压力。
+// 跨重启去重看 data/announcements/<date>.json 是否已落。
+let announcementsRanDay = "";
+function runAnnouncementsFetch() {
+  const day = new Date().toLocaleDateString("sv-SE");
+  if (announcementsRanDay === day) return;
+  if (!isMarketOpen(day)) return; // 休市没有新公告
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 40)) return;
+  if (existsSync(join(ROOT, "data", "announcements", `${day}.json`))) {
+    announcementsRanDay = day;
+    return;
+  }
+  announcementsRanDay = day;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/fetch-announcements.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("exit", (code) => {
+    if (code) console.error("公告事件流采集失败，手动跑 fetch-announcements.ts 补");
+  });
+}
+
 // ── 早盘自检（9:20，borrow-list B1）：9:26 买入单推送前把管道体检一遍推微信。
 // 「为什么不推」类问题的根治是透明不是猜——缺件点名，每天必响，静默只留给服务没开。
 // 跨重启去重看 data/signals/preflight.json 的 date，跟其它每日任务同一套规矩。
@@ -712,6 +739,7 @@ runSignalGen();
 runSignalReview();
 runSignalTrack();
 runShortFormsScan();
+runAnnouncementsFetch();
 runPreflight();
 
 // ── 小机定时任务（2026-11-14）：每 60 秒扫一遍 agent-schedules.json，到点的派活 ──
@@ -753,6 +781,7 @@ const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
+const announcementsTimer = setInterval(runAnnouncementsFetch, 60_000);
 const preflightTimer = setInterval(runPreflight, 60_000);
 
 /**

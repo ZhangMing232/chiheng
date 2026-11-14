@@ -179,6 +179,23 @@ export const ENDPOINTS: Endpoint[] = [
     fetcher: "cninfo.ts:loadCninfoAnnouncements",
   },
   {
+    id: "cninfo.event-stream",
+    title: "巨潮全市场事件流（问询/减持/预告/立案/质押，每日采集）",
+    source: "cninfo",
+    market: "a",
+    compliance: "official",
+    kind: "announcement",
+    critical: false,
+    unit: "毫秒时间戳（北京时间）",
+    traps: [
+      "两条端点路实测差异：hisAnnouncement/query 的 category 代码体系复杂（含公告子类太杂）**弃用**；fulltextSearch/full 按 searchkey+日期搜全市场 2026-11-14 实测通（命中 7 条事件），见 announcements.ts:fetchEventStream",
+      "标题带 `<em>` 高亮标签，stripEm 先剥再匹配（announcements.ts:stripEm）",
+      "事件类目按标题关键词匹配（五类：问询/减持/预告/立案/质押），命中多个取最靠前——是**近似分类**不是巨潮官方分类",
+      "一天 3 页 × 100 条扫描（242 点全市场日公告约 300 条，3 页覆盖）——**不足一窗的尾页丢给下次**；收盘后 15:40 采集一次，stamp 去重看 data/announcements/<date>.json 是否已落（home-server.mjs:runAnnouncementsFetch）",
+    ],
+    fetcher: "announcements.ts:fetchEventStream / scripts/fetch-announcements.ts",
+  },
+  {
     id: "eastmoney.announcement",
     title: "东财公告（巨潮的兜底源）",
     source: "eastmoney",
