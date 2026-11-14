@@ -99,3 +99,37 @@ test("gateJob：空账本 + 0 预算任务也放行（闸门只看上限不是�
   const v = gateJob([], DEFAULT_BUDGET, 0.01, "2026-11-14", "2026-11");
   assert.equal(v.allowed, true);
 });
+
+// ── 总开关（IO，用 CHIHENG_DATA_DIR 指向临时目录实测读写）──
+import { readMasterSwitch, writeMasterSwitch } from "./agent-jobs.ts";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+test("readMasterSwitch：没文件 = 默认开", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-sw-"));
+  const prev = process.env.CHIHENG_DATA_DIR;
+  process.env.CHIHENG_DATA_DIR = dir;
+  try {
+    const sw = await readMasterSwitch();
+    assert.equal(sw.enabled, true);
+  } finally {
+    if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
+    else process.env.CHIHENG_DATA_DIR = prev;
+  }
+});
+
+test("readMasterSwitch：写 off 读回 off，再写 on 读回 on", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-sw-"));
+  const prev = process.env.CHIHENG_DATA_DIR;
+  process.env.CHIHENG_DATA_DIR = dir;
+  try {
+    await writeMasterSwitch(false);
+    assert.equal((await readMasterSwitch()).enabled, false);
+    await writeMasterSwitch(true);
+    assert.equal((await readMasterSwitch()).enabled, true);
+  } finally {
+    if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
+    else process.env.CHIHENG_DATA_DIR = prev;
+  }
+});

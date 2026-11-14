@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "@tanstack/react-router";
 import { getAgentState } from "@/lib/market/quotes.functions";
 
-type PetState = "sleep" | "calling" | "done" | "error";
+type PetState = "sleep" | "calling" | "done" | "error" | "off";
 
 type AgentStatePayload = {
   state: PetState;
@@ -79,9 +79,10 @@ export function AgentPet() {
     } catch { /* 隐私模式存不了就算了 */ }
   };
 
-  // 气泡可见性：error 常驻；calling/done 悬停或 10 秒内新状态才显示；sleep 只悬停
+  // 气泡可见性：error/off 常驻；calling/done 悬停或 10 秒内新状态才显示；sleep 只悬停
   const bubbleVisible =
     st.state === "error" ||
+    st.state === "off" ||
     (st.state !== "sleep" && (hover || Date.now() - (q.dataUpdatedAt ?? 0) < 10_000)) ||
     (st.state === "sleep" && hover);
 
@@ -96,7 +97,7 @@ export function AgentPet() {
       {bubbleVisible && st.detail ? (
         <div className="relative max-w-[260px] rounded border border-line bg-surface px-3 py-2 shadow-pop">
           <p className="text-xs leading-relaxed text-muted">
-            {st.state === "error" ? <span className="font-medium text-down">{st.detail}</span> : st.detail}
+          {st.state === "error" || st.state === "off" ? <span className="font-medium text-muted">{st.detail}</span> : st.detail}
           </p>
           <Link
             to={goTo}
@@ -118,7 +119,7 @@ export function AgentPet() {
       ) : null}
       <button
         type="button"
-        aria-label={`小机：${st.state === "sleep" ? "待命中" : st.state === "calling" ? "任务进行中" : st.state === "done" ? "刚完成任务" : "异常"}`}
+        aria-label={`小机：${st.state === "sleep" ? "待命中" : st.state === "calling" ? "任务进行中" : st.state === "done" ? "刚完成任务" : st.state === "off" ? "已停用" : "异常"}`}
         onClick={() => setHover((h) => !h)}
         className="drop-shadow-[0_4px_0_rgba(0,0,0,0.4)] transition-transform hover:scale-105 active:scale-95"
       >
@@ -145,9 +146,11 @@ function PetSvg({ state }: { state: PetState }) {
         ? "var(--color-brand-text)"
         : state === "done"
           ? "var(--color-down)"
-          : "var(--color-up)"; // error
-  const accent = state === "error" ? "var(--color-up)" : "var(--color-brand-text)";
-  const antenna = state === "sleep" ? "opacity-40" : state === "error" ? "pet-blink" : "";
+          : state === "off"
+            ? "var(--color-muted)"
+            : "var(--color-up)"; // error
+  const accent = state === "error" ? "var(--color-up)" : state === "off" ? "var(--color-muted)" : "var(--color-brand-text)";
+  const antenna = state === "sleep" ? "opacity-40" : state === "error" ? "pet-blink" : state === "off" ? "opacity-20" : "";
   return (
     <svg width="56" height="56" viewBox="0 0 26 26" aria-hidden="true">
       <g shapeRendering="crispEdges">

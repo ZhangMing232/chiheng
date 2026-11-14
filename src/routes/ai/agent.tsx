@@ -21,14 +21,14 @@ import { StateBlock } from "@/components/state-block";
 import { AISectionTabs, Section } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
-import { dispatchAgentJob, getAgentJobs, getAgentSchedules, saveAgentBudget, saveAgentSchedule, decideAgentProposal } from "@/lib/market/quotes.functions";
+import { dispatchAgentJob, getAgentJobs, getAgentSchedules, saveAgentBudget, saveAgentSchedule, decideAgentProposal, setAgentMasterSwitch } from "@/lib/market/quotes.functions";
 import type { AgentJob } from "@/lib/market/agent-jobs";
 import type { AgentSchedule, AgentProposal } from "@/lib/market/agent-schedules";
 
 export const Route = createFileRoute("/ai/agent")({
   loader: async () => {
     const [res, sched] = await Promise.all([
-      getAgentJobs().catch(() => ({ allowed: false as const, jobs: [] as AgentJob[], budget: null })),
+      getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: true, at: "" }, jobs: [] as AgentJob[], budget: null })),
       getAgentSchedules().catch(() => ({ allowed: false as const, schedules: [] as AgentSchedule[], proposals: [] as AgentProposal[] })),
     ]);
     return { res, sched, serverNow: Date.now() };
@@ -170,6 +170,8 @@ function AgentPage() {
     d.res.budget ? `${d.res.budget.perTaskCny},${d.res.budget.perDayCny},${d.res.budget.perMonthCny}` : "",
   );
   const [budgetMsg, setBudgetMsg] = useState<string | null>(null);
+  const [masterBusy, setMasterBusy] = useState(false);
+  const masterOn = d.res.master?.enabled ?? true;
 
   const running = d.res.jobs.filter((j) => j.status === "running");
   const done = d.res.jobs.filter((j) => j.status !== "running");
@@ -179,6 +181,17 @@ function AgentPage() {
   const spentMonth = done
     .filter((j) => j.at.slice(0, 7) === new Date(d.serverNow).toISOString().slice(0, 7))
     .reduce((a, j) => a + (j.cost?.cny ?? 0), 0);
+
+  /** 总开关：一个布尔管全部三个口子。 */
+  const toggleMaster = async (next: boolean) => {
+    setMasterBusy(true);
+    try {
+      await setAgentMasterSwitch({ data: { enabled: next } });
+      await router.invalidate();
+    } finally {
+      setMasterBusy(false);
+    }
+  };
 
   const dispatch = async () => {
     if (!task.trim() || busy) return;
@@ -242,6 +255,30 @@ function AgentPage() {
         ]}
       />
       <AISectionTabs />
+
+      {/* 总开关：一个布尔管全部三个口子 */}
+      <div
+        className={
+          "mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded border px-3.5 py-2.5 " +
+          (masterOn ? "border-ai-line bg-ai-soft" : "border-warn/50 bg-warn-soft")
+        }
+      >
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-fg">
+          <input
+            type="checkbox"
+            checked={masterOn}
+            disabled={masterBusy}
+            onChange={(e) => void toggleMaster(e.target.checked)}
+            className="size-4 accent-brand"
+          />
+          小机在岗
+        </label>
+        <span className="text-[12px] text-muted">
+          {masterOn
+            ? "总开关开着：手动派活 / 定时任务 / 工单执行都按各自的闸走（关掉单个口子去下面各自的区块）。"
+            : "总开关关了：三个口子全部停——派活被拒、定时调度空转、桌宠灰态下岗。定时任务的清单和账本原样保留，重开后照旧。"}
+        </span>
+      </div>
 
       {/* 状态灯 + 派活 */}
       <Section

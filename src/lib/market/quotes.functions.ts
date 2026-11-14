@@ -2131,8 +2131,9 @@ export const getAgentJobs = createServerFn({ method: "GET" }).handler(async () =
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { userId, isOwner } = await requirePrincipal();
   if (!isOwner) return { allowed: false as const, jobs: [], budget: null };
-  const { readAgentJobs, readAgentBudget, DEFAULT_BUDGET } = await import("@/lib/market/agent-jobs");
-  return { allowed: true as const, jobs: await readAgentJobs(), budget: await readAgentBudget().catch(() => DEFAULT_BUDGET) };
+  const { readAgentJobs, readAgentBudget, DEFAULT_BUDGET, readMasterSwitch } = await import("@/lib/market/agent-jobs");
+  const master = await readMasterSwitch();
+  return { allowed: true as const, master, jobs: await readAgentJobs(), budget: await readAgentBudget().catch(() => DEFAULT_BUDGET) };
 });
 
 /** 派一次活（manual）：预算闸 → spawn headless → 回填账本。 */
@@ -2148,6 +2149,11 @@ export const dispatchAgentJob = createServerFn({ method: "POST" })
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { userId, isOwner } = await requirePrincipal();
   if (!isOwner) return { ok: false as const, error: "只有主人能派活" };
+  // 总开关（口子①）：off 时手动派活也拒——一个开关管全部三个口子。
+  const { readMasterSwitch } = await import("@/lib/market/agent-jobs");
+  if (!(await readMasterSwitch()).enabled) {
+    return { ok: false as const, error: "小机已被总开关停用——去 /ai/agent 页顶部打开再派" };
+  }
   const task = String(data.task ?? "").trim();
   if (!task) return { ok: false as const, error: "任务描述是空的" };
   if (task.length > 2000) return { ok: false as const, error: "任务描述太长（>2000 字），拆成几步派" };
@@ -2201,7 +2207,12 @@ export const getAgentState = createServerFn({ method: "GET" }).handler(async () 
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { userId, isOwner } = await requirePrincipal();
   if (!isOwner) return { allowed: false as const, state: null };
-  const { readAgentJobs } = await import("@/lib/market/agent-jobs");
+  const { readAgentJobs, readMasterSwitch } = await import("@/lib/market/agent-jobs");
+  const master = await readMasterSwitch();
+  // 总开关 off = 小机「下岗」：桌宠降级为灰态，不再显示任务状态（账本还在，岗位页可查）。
+  if (!master.enabled) {
+    return { allowed: true as const, master, state: { state: "off" as const, detail: "小机已被总开关停用", runningTask: null, lastCost: null, jobsToday: 0 } };
+  }
   const jobs = await readAgentJobs();
   const now = Date.now();
   const running = jobs.find((j) => j.status === "running");
@@ -2232,6 +2243,7 @@ export const getAgentState = createServerFn({ method: "GET" }).handler(async () 
   }
   return {
     allowed: true as const,
+    master,
     state: {
       state,
       detail,
@@ -2291,5 +2303,21 @@ export const decideAgentProposal = createServerFn({ method: "POST" })
     const { list: next, changed } = decideProposal(list, data.id, data.decision);
     if (!changed) return { ok: false as const, error: "工单不存在或已决定过" };
     await writeAgentProposalsFile(next);
+    return { ok: true as const };
+  });
+
+/** 小机总开关（主人专属）：off = 三个口子全部拒活，桌宠降级灰态。 */
+export const setAgentMasterSwitch = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const d = input as { enabled?: unknown };
+    if (typeof d?.enabled !== "boolean") throw new Error("enabled 必须是布尔");
+    return { enabled: d.enabled };
+  })
+  .handler(async ({ data }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人能动总开关" };
+    const { writeMasterSwitch } = await import("@/lib/market/agent-jobs");
+    await writeMasterSwitch(data.enabled);
     return { ok: true as const };
   });

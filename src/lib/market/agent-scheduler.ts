@@ -34,6 +34,9 @@ export async function tickAgentSchedules(
   now: Date = new Date(),
   runTask: (opts: { task: string; scheduleId: string; budgetCny: number }) => Promise<{ ok: boolean; status: "ok" | "error" | "budget-killed"; cost?: number; error?: string; answer?: string; jobAt: string }> = runViaRunner,
 ): Promise<TickResult> {
+  // 总开关（口子②）：off = 整个 tick 直接空转，连清单都不读。
+  const { readMasterSwitch } = await import("./agent-jobs.ts");
+  if (!(await readMasterSwitch()).enabled) return { dispatched: null, skipped: 0, checked: 0 };
   const { readAgentSchedules, writeAgentSchedules } = await import("./agent-schedules.ts");
   const { readAgentJobs, readAgentBudget, appendAgentJob, updateAgentJob } = await import("./agent-jobs.ts");
   const schedules = await readAgentSchedules();

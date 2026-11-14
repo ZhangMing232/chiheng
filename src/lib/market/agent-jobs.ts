@@ -24,6 +24,7 @@ function dataDir(): string {
 
 const jobsPath = () => posixJoin(dataDir(), "agent-jobs.json");
 const budgetPath = () => posixJoin(dataDir(), "agent-budget.json");
+const switchPath = () => posixJoin(dataDir(), "agent-master-switch.json");
 
 // ── 数据结构 ────────────────────────────────────────────────────
 
@@ -163,4 +164,30 @@ export async function writeAgentBudget(budget: AgentBudget): Promise<void> {
   const { mkdir, writeFile } = await fsApi();
   await mkdir(dataDir(), { recursive: true });
   await writeFile(budgetPath(), JSON.stringify(budget, null, 2));
+}
+
+// ── 总开关（2026-11-14 用户要求）：一个数字管全部三个口子 ──────────────
+// off = 手动派活/定时调度/工单执行全拒（桌宠降级为灰色「已停用」）；
+// on  = 恢复各口子自己的开关状态。文件不存在 = on（默认开放，各口子自己管自己）。
+
+export type MasterSwitch = { enabled: boolean; at: string; by?: string };
+
+export async function readMasterSwitch(): Promise<MasterSwitch> {
+  try {
+    const { readFile } = await fsApi();
+    const parsed = JSON.parse(await readFile(switchPath(), "utf8")) as { enabled?: unknown; at?: unknown; by?: unknown };
+    if (typeof parsed.enabled === "boolean") {
+      return { enabled: parsed.enabled, at: typeof parsed.at === "string" ? parsed.at : "", by: typeof parsed.by === "string" ? parsed.by : undefined };
+    }
+  } catch {
+    // 没有文件 = 默认开。
+  }
+  return { enabled: true, at: "" };
+}
+
+export async function writeMasterSwitch(enabled: boolean): Promise<void> {
+  const { mkdir, writeFile } = await fsApi();
+  await mkdir(dataDir(), { recursive: true });
+  const doc: MasterSwitch = { enabled, at: new Date().toISOString(), by: "owner" };
+  await writeFile(switchPath(), JSON.stringify(doc, null, 2));
 }
