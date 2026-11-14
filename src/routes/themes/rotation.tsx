@@ -69,7 +69,7 @@ function RotationPage() {
   const maxDown = Math.max(1, ...down.map((r) => r.limitUp));
 
   return (
-    <Frame wide>
+    <Frame wide decorHeader={false}>
       <SectionTabs ariaLabel="题材" tabs={THEME_TABS} />
       <PixelHeader label="THEMES // ROTATION" meta="涨停家数比昨天多才算扩散" />
       <div className="flex flex-col gap-3">

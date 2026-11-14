@@ -126,7 +126,7 @@ function AIUsagePage() {
 
   if (!usage.allowed) {
     return (
-      <Frame wide aside="AI 管理 · Token 用量">
+      <Frame wide aside="AI 管理 · Token 用量" decorHeader={false}>
         <AISectionTabs />
         <p className="rounded border border-line bg-surface px-3.5 py-3 text-xs text-muted">只有主人账号能看用量监控。</p>
       </Frame>
@@ -139,7 +139,7 @@ function AIUsagePage() {
   const layerName = (l: string): string => (l === "factor" ? "因子" : l === "strategy" ? "策略" : l === "genome" ? "基因组" : l === "test" ? "测试" : l === "agent" ? "诊断" : l);
 
   return (
-    <Frame wide aside="AI 管理 · Token 用量">
+    <Frame wide aside="AI 管理 · Token 用量" decorHeader={false}>
     <PixelHeader label="AI // USAGE" meta="调用与花费 · 每轮多少 token、多少钱" />
     <PixelSummary
       label="AI // USAGE · TOTALS"

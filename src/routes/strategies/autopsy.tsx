@@ -114,7 +114,7 @@ function AutopsyPage() {
   const { summary, verdicts } = Route.useLoaderData();
 
   return (
-    <Frame aside="策略" wide>
+    <Frame aside="策略" wide decorHeader={false}>
       <Panel title="失败归因" note="亏在哪、为什么亏——按退出原因拆，用因果解释，不给买卖建议。">
         <div className="flex flex-col gap-4 px-4 py-3">
           <PixelHeader label="STRATEGY // AUTOPSY" meta="失败归因 · 亏在哪一步" />

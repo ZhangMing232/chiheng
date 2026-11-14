@@ -23,7 +23,7 @@ export const Route = createFileRoute("/flow/margin")({
 function FlowMarginPage() {
   const { margin } = Route.useLoaderData();
   return (
-    <Frame wide aside="资金流向 · 两融">
+    <Frame wide aside="资金流向 · 两融" decorHeader={false}>
       <FlowSectionTabs />
       <PixelHeader label="FLOW // DERIVED · MARGIN" meta="两融余额是 T-1 口径，不是实时" />
       <PixelSummary

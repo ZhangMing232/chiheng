@@ -53,7 +53,7 @@ function FactorBucketsPage() {
   const rows = useMemo(() => factorRows(runs.batch?.rows ?? []), [runs.batch]);
 
   return (
-    <Frame wide aside="因子发掘 · 分档明细">
+    <Frame wide aside="因子发掘 · 分档明细" decorHeader={false}>
       <PixelHeader label="FACTORS // BUCKETS" meta="分档明细 · 单调性有没有" />
       <PixelSummary
         label="FACTORS // BUCKETS"

@@ -52,7 +52,7 @@ function HotMoneyPage() {
 
   return (
     <>
-    <Frame wide>
+    <Frame wide decorHeader={false}>
       <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
       <PixelHeader label="HOTMONEY // TRACK" meta="龙虎榜席位 · 跟买 5 日口径" />
       <PosterButton draw={() => drawHotPoster({ date, seats })} />

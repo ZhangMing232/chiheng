@@ -49,6 +49,7 @@ function FlowStocksPage() {
           <span className="text-[12px]">今天没有个股资金榜</span>
         )
       }
+      decorHeader={false}
     >
       <FlowSectionTabs />
       <PixelHeader label="FLOW // STOCKS" meta="个股主力净流入 · 腾讯资金榜，约一分钟更新" />

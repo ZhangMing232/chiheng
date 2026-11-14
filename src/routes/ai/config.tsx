@@ -49,7 +49,7 @@ function AIConfigPage() {
 
   if (!ai.allowed) {
     return (
-      <Frame wide aside="AI 管理 · 接口配置">
+      <Frame wide aside="AI 管理 · 接口配置" decorHeader={false}>
         <AISectionTabs />
         <p className="rounded border border-line bg-surface px-3.5 py-3 text-xs text-muted">只有主人账号能配置 AI 接口。</p>
       </Frame>
@@ -95,7 +95,7 @@ function AIConfigPage() {
   const priced = usage.stats;
 
   return (
-    <Frame wide aside="AI 管理 · 接口配置">
+    <Frame wide aside="AI 管理 · 接口配置" decorHeader={false}>
     <PixelHeader label="AI // CONFIG" meta="模型与额度 · 改的是研究层，不动实盘" />
     <PixelSummary
       label="AI // CONFIG"

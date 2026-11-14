@@ -78,6 +78,7 @@ function FlowOverviewPage() {
           <span className="text-[12px]">资金榜暂不可用</span>
         )
       }
+      decorHeader={false}
     >
       <FlowSectionTabs />
       <PixelHeader label="FLOW // OVERVIEW" meta="主力 ≠ 机构 · 北向没有盘中净流入" />

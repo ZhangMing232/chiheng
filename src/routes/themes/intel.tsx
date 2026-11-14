@@ -35,7 +35,7 @@ function IntelPage() {
 
   return (
     <>
-    <Frame wide>
+    <Frame wide decorHeader={false}>
       <SectionTabs ariaLabel="题材" tabs={THEME_TABS} />
       <PixelHeader label="INTEL // MAPPING" meta="新闻 → 题材 → 个股，映射是模型给的，会错" />
       <div className="flex flex-col gap-3">

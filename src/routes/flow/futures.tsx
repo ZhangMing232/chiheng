@@ -25,7 +25,7 @@ export const Route = createFileRoute("/flow/futures")({
 function FlowFuturesPage() {
   const { futures } = Route.useLoaderData();
   return (
-    <Frame wide aside="资金流向 · 期指">
+    <Frame wide aside="资金流向 · 期指" decorHeader={false}>
       <FlowSectionTabs />
       <PixelHeader label="FLOW // DERIVED · FUTURES" meta="期指基差看升贴水，别当方向信号" />
       <PixelSummary

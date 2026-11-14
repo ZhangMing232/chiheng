@@ -38,7 +38,7 @@ function SeatsPage() {
 
   if (!data) {
     return (
-      <Frame wide>
+      <Frame wide decorHeader={false}>
         <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
         <PixelHeader label="HOTMONEY // SEATS" meta="席位历史 · 样本 ≥20 笔才给结论" />
         <Panel title="席位档案">
@@ -62,6 +62,7 @@ function SeatsPage() {
           {data.sourceFirst} → {data.sourceLast} · {data.sourceDays} 天 · {data.seats.length} 个席位
         </span>
       }
+      decorHeader={false}
     >
       <SectionTabs ariaLabel="游资与席位" tabs={YOUZI_TABS} />
       <PixelHeader label="HOTMONEY // SEATS" meta="席位历史 · 样本 ≥20 笔才给结论" />

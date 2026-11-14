@@ -39,7 +39,7 @@ export const Route = createFileRoute("/factors/attrib")({
 function FactorAttribPage() {
   const { diag } = Route.useLoaderData();
   return (
-    <Frame wide aside="因子发掘 · 缩量归因">
+    <Frame wide aside="因子发掘 · 缩量归因" decorHeader={false}>
       <PixelHeader label="FACTORS // ATTRIBUTION" meta="失败归因 · 没过的话坏在哪" />
       <PixelSummary
         label="FACTORS // ATTRIB"

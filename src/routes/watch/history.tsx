@@ -118,7 +118,7 @@ function WatchHistoryPage() {
   const dates = [...ladder.dates].reverse();
   if (dates.length === 0) {
     return (
-      <Frame wide>
+      <Frame wide decorHeader={false}>
         <SectionTabs ariaLabel="盯盘" tabs={WATCH_TABS} />
         <PixelHeader label="WATCH // 3-DAY" meta="三日演变 · 哪一档在加厚、哪一档在断档" />
         <Panel title="三日板位演变"><StateBlock kind="empty" title="还没算" hint="ladder-3day.ts 跑一次就有。" /></Panel>
@@ -145,7 +145,7 @@ function WatchHistoryPage() {
   };
 
   return (
-    <Frame wide>
+    <Frame wide decorHeader={false}>
       <SectionTabs ariaLabel="盯盘" tabs={WATCH_TABS} />
       <PixelHeader label="WATCH // 3-DAY" meta="三日演变 · 哪一档在加厚、哪一档在断档" />
       <div className="flex flex-col gap-3">

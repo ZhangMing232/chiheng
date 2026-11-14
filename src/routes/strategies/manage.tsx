@@ -54,7 +54,7 @@ function ArenaStrategies() {
   function tabClass(active: boolean) { return "rounded border px-2 py-1 text-xs transition " + (active ? "border-brand text-fg" : "border-line text-muted hover:text-fg"); }
 
   return (
-    <Frame aside="策略" wide>
+    <Frame aside="策略" wide decorHeader={false}>
       <Panel title="策略管理" note="AI 帮写表达式 + 手工输入，保存后可在选股和回测里用。">
         <div className="flex flex-col gap-4 px-4 py-3">
           <PixelHeader label="STRATEGY // MANAGE" meta="我的策略 · 自然语言或表达式，落库前先校验" />

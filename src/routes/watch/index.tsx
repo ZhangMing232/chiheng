@@ -198,6 +198,7 @@ function WatchTodayPage() {
             : `${date} 收盘归档 · 封住 ${up.length} · 炸板 ${broken.length}`}
         </span>
       }
+      decorHeader={false}
     >
       <SectionTabs ariaLabel="盯盘" tabs={WATCH_TABS} />
 

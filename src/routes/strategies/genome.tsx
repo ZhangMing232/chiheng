@@ -64,7 +64,7 @@ function GenomePage() {
   const styles = Object.entries(strategyVerdicts);
 
   return (
-    <Frame wide>
+    <Frame wide decorHeader={false}>
       <PixelHeader label="STRATEGY // GENOME" meta="参数与基因视图 · 变体判赢也未必有现役席位" />
       <PixelSummary
         label="STRATEGY // GENOME"

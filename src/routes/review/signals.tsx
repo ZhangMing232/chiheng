@@ -52,7 +52,7 @@ function SignalsPage() {
 
   if (!data) {
     return (
-      <Frame wide aside="信号">
+      <Frame wide aside="信号" decorHeader={false}>
         {tabs}
         <Panel title="涨停 / 炸板 / 跌停" note="没拉到">
           <StateBlock kind="empty" title="东财没返回" hint="三个池都是空的。稍后再试，或者换个交易日。" />
@@ -76,7 +76,7 @@ function SignalsPage() {
   ) : null;
 
   return (
-    <Frame wide aside="信号">
+    <Frame wide aside="信号" decorHeader={false}>
       {tabs}
       {summaryBlock}
       <Panel title="今日信号" note={`${data.date}${data.sealed ? " · 已收盘，数据已定" : " · 盘中，数据未定"}`}>

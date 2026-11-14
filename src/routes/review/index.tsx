@@ -132,6 +132,7 @@ function Review() {
           )}
         </div>
       }
+      decorHeader={false}
     >
       {/* 2026-10-21 整合：复盘和信号同属「复盘」区（/review 下两个子页面），
           顶部给二级 tab，和信号子页是同一组。 */}

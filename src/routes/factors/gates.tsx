@@ -52,7 +52,7 @@ function FactorGatesPage() {
   const rows = useMemo(() => factorRows(runs.batch?.rows ?? []), [runs.batch]);
 
   return (
-    <Frame wide aside="因子发掘 · 6 关判决">
+    <Frame wide aside="因子发掘 · 6 关判决" decorHeader={false}>
       <PixelHeader label="FACTORS // GATES" meta="六关门控 · 每道闸卡在哪" />
       <PixelSummary
         label="FACTORS // GATES"

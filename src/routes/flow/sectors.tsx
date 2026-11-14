@@ -88,7 +88,7 @@ function SectorsPage() {
   // 一个是月度。两页各占一个 tab，用户要来回点才知道差别。
   if (view === "live") {
     return (
-      <Frame wide aside="资金流向 · 方向 · 实时">
+      <Frame wide aside="资金流向 · 方向 · 实时" decorHeader={false}>
         <FlowSectionTabs />
         <PixelHeader label="FLOW // DIRECTION" meta="实时行业榜（分钟级）与月度温度计是两种口径" />
         <div className="mb-2 flex items-center justify-between gap-2">
@@ -109,7 +109,7 @@ function SectorsPage() {
 
   if (!table || table.rows.length === 0) {
     return (
-      <Frame wide aside="板块">
+      <Frame wide aside="板块" decorHeader={false}>
         <FlowSectionTabs />
         <PixelHeader label="FLOW // DIRECTION" meta="月度温度计 · 东财三级行业" />
         <div className="mb-2"><FlowDirectionTabs live={false} /></div>
@@ -141,6 +141,7 @@ function SectorsPage() {
           </span>
         )
       }
+      decorHeader={false}
     >
       <FlowSectionTabs />
       <PixelHeader label="FLOW // DIRECTION" meta="月度温度计 · 东财三级行业 · 不是行业景气度" />

@@ -42,7 +42,7 @@ function FactorFlowPage() {
   const { diag } = Route.useLoaderData();
   const flowGroups = useMemo(() => flowStress(diag.flowProbe), [diag.flowProbe]);
   return (
-    <Frame wide aside="因子发掘 · 资金流探路">
+    <Frame wide aside="因子发掘 · 资金流探路" decorHeader={false}>
       <PixelHeader label="FACTORS // EXPLORE" meta="外部因子探路 · 借鉴来的能不能用" />
       <PixelSummary
         label="FACTORS // EXPLORE"

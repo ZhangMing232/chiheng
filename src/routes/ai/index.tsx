@@ -238,7 +238,7 @@ function AIConsolePage() {
   const layerName = (l: string): string => (l === "factor" ? "因子" : l === "agent" ? "诊断" : l === "genome" ? "基因组" : "策略");
 
   return (
-    <Frame wide aside="AI 管理 · AI 控制中枢">
+    <Frame wide aside="AI 管理 · AI 控制中枢" decorHeader={false}>
       <PixelHeader label="AI // WORKBENCH" meta="AI 只在研究层跑，不直接下单" />
       <PixelSummary
         label="AI // NOW"

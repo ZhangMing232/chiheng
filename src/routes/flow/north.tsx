@@ -23,7 +23,7 @@ export const Route = createFileRoute("/flow/north")({
 function FlowNorthPage() {
   const { book } = Route.useLoaderData();
   return (
-    <Frame wide aside="资金流向 · 北向">
+    <Frame wide aside="资金流向 · 北向" decorHeader={false}>
       <FlowSectionTabs />
       <PixelHeader label="FLOW // DERIVED · NORTH" meta="北向只有成交额，净买入盘中不再公布" />
       <PixelSummary

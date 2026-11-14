@@ -401,6 +401,7 @@ function FactorsIndexPage() {
           <span className="text-[12px]">这批没有因子通过全部六关</span>
         )
       }
+      decorHeader={false}
     >
       <PixelHeader label="FACTORS // LAB" meta="研究层验证，不产生实盘信号" />
       <h1 className="font-display text-xl font-medium tracking-wide">因子实验室</h1>

@@ -117,7 +117,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     icon: LayoutDashboard,
     purpose: "今天的账、信号和钱，一屏看完",
     hue: "brand",
-    ornament: "pulse-wave",
   },
   "/butler": {
     title: "大管家",
@@ -138,7 +137,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     icon: Gauge,
     purpose: "全市场一张快照：指数、广度、资金",
     hue: "blue",
-    ornament: "trend-spark",
   },
   "/review": {
     title: "每日复盘",
@@ -178,7 +176,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     icon: Target,
     purpose: "今天该不该动手：先过闸门，再看结论",
     hue: "blue",
-    ornament: "gate-badges",
   },
   // 2026-11-11 晚：多股同屏（/grid）+ 连板天梯（/ladder）合成一个盯盘（/watch）。
   // 两页原本读同一份三池快照、同一套板位分档、同一份涨停原因，只是格子 vs 表格。
@@ -188,14 +185,12 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     icon: LayoutGrid,
     purpose: "今天的板位位置，和三天怎么变过来的",
     hue: "blue",
-    ornament: "ladder-rungs",
   },
   "/cycle": {
     title: "情绪周期",
     icon: Activity,
     purpose: "今天处在哪个阶段，历史上这个阶段之后怎么走",
     hue: "blue",
-    ornament: "pulse-wave",
   },
   // 2026-11-11 三页合一（市场情报 / 题材轮动 / 题材简报）。
   // 配置表的键跟着路由走：/themes/intel 这类子页靠前缀匹配继承这一条。
@@ -204,7 +199,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     icon: RefreshCw,
     purpose: "消息从哪来 → 钱在往哪去 → 里面哪几只",
     hue: "blue",
-    ornament: "evidence-chain",
   },
   // 2026-11-11 两页合一（游资追踪 / 席位档案）。
   "/youzi": {
@@ -238,7 +232,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/strategies/screener": {
     title: "策略",
     icon: ListFilter,
-        ornament: "gate-badges",
     purpose: "按规则筛出候选股，只给名单不给结论",
     hue: "violet",
   },
@@ -276,19 +269,16 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     icon: Scale,
     purpose: "多空各找证据，谁的论据硬听谁的",
     hue: "amber",
-    ornament: "debate-split",
   },
   "/reports": {
     title: "研报库",
     icon: FileText,
-        ornament: "evidence-chain",
     purpose: "存下来的研判，可以并排比",
     hue: "amber",
   },
   "/notes": {
     title: "笔记",
     icon: NotebookPen,
-        ornament: "evidence-chain",
     purpose: "自己的判断，随手记下来",
     hue: "amber",
   },
@@ -296,14 +286,12 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/my-stocks": {
     title: "自选与持仓",
     icon: Star,
-        ornament: "quote-tape",
     purpose: "自选和持仓，都在这儿",
     hue: "green",
   },
   "/inbox": {
     title: "提醒",
     icon: Bell,
-        ornament: "alert-timeline",
     purpose: "该看没看的提醒，都堆在这",
     hue: "green",
   },
@@ -317,7 +305,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/admin": {
     title: "管理系统",
     icon: Users,
-        ornament: "tier-ladder",
     purpose: "用户和档位，站长自己看",
     hue: "green",
   },
@@ -327,7 +314,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     icon: BrainCircuit,
     purpose: "AI 只能提议，判决永远归预注册函数",
     hue: "violet",
-    ornament: "gate-badges",
   },
   "/symbol": {
     title: "个股",
@@ -345,7 +331,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   "/membership": {
     title: "会员",
     icon: CreditCard,
-        ornament: "tier-ladder",
     purpose: "档位、定价、怎么开通",
     hue: "brand",
   },

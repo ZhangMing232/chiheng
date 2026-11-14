@@ -124,6 +124,7 @@ function OverviewPage() {
           <span className="text-[12px]">资金榜暂不可用</span>
         )
       }
+      decorHeader={false}
     >
       <SectionTabs ariaLabel="复盘" tabs={REVIEW_TABS} />
       <PixelHeader label="REVIEW // BREADTH" meta="涨跌分布 · 广度回答的是『多数票在涨还是多数在跌』" />

@@ -165,6 +165,10 @@ export function DecorOrnament({
   children?: ReactNode;
 }) {
   if (!kind) return null;
+  // **没有真实数据的装饰件不渲染**：配置表里写了 ornament 但页面没传
+  // ornamentContent 的，只会落一句静态空标签（如「连板梯队」），跟页面自己的
+  // PixelHeader 抢位置还毫无信息量。没数据就彻底不画，不硬凑。
+  if (children == null) return null;
   return (
     <div aria-hidden className="relative z-[1] flex items-center gap-2 px-0.5 pt-0.5">
       <OrnamentBody kind={kind}>{children}</OrnamentBody>

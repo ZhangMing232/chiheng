@@ -32,7 +32,7 @@ export const Route = createFileRoute("/factors/baseline")({
 function FactorBaselinePage() {
   const { baseline } = Route.useLoaderData();
   return (
-    <Frame wide aside="因子发掘 · 基线原文">
+    <Frame wide aside="因子发掘 · 基线原文" decorHeader={false}>
       <PixelHeader label="FACTORS // BASELINE" meta="基线证据 · 对照组本身是什么" />
       <PixelSummary
         label="FACTORS // BASELINE"
