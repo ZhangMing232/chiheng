@@ -58,6 +58,7 @@ export function AISectionTabs() {
       ariaLabel="AI 管理"
       tabs={[
         { to: "/ai", label: "AI 控制中枢" },
+        { to: "/ai/agent", label: "Agent 岗位" },
         { to: "/ai/config", label: "接口配置" },
         { to: "/ai/usage", label: "Token 用量" },
         { to: "/ai/rules", label: "闸门与判据" },

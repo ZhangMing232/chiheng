@@ -54,6 +54,7 @@ import { Route as TodayRouteImport } from './routes/today'
 import { Route as WatchRouteImport } from './routes/watch'
 import { Route as YouziRouteImport } from './routes/youzi'
 import { Route as AiIndexRouteImport } from './routes/ai/index'
+import { Route as AiAgentRouteImport } from './routes/ai/agent'
 import { Route as AiConfigRouteImport } from './routes/ai/config'
 import { Route as AiRulesRouteImport } from './routes/ai/rules'
 import { Route as AiUsageRouteImport } from './routes/ai/usage'
@@ -324,6 +325,11 @@ const YouziRoute = YouziRouteImport.update({
 const AiIndexRoute = AiIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AiRoute,
+} as any)
+const AiAgentRoute = AiAgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
   getParentRoute: () => AiRoute,
 } as any)
 const AiConfigRoute = AiConfigRouteImport.update({
@@ -602,6 +608,7 @@ export interface FileRoutesByFullPath {
   '/today': typeof TodayRoute
   '/watch': typeof WatchRouteWithChildren
   '/youzi': typeof YouziRouteWithChildren
+  '/ai/agent': typeof AiAgentRoute
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
@@ -688,6 +695,7 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/symbol': typeof SymbolRoute
   '/today': typeof TodayRoute
+  '/ai/agent': typeof AiAgentRoute
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
@@ -782,6 +790,7 @@ export interface FileRoutesById {
   '/today': typeof TodayRoute
   '/watch': typeof WatchRouteWithChildren
   '/youzi': typeof YouziRouteWithChildren
+  '/ai/agent': typeof AiAgentRoute
   '/ai/config': typeof AiConfigRoute
   '/ai/rules': typeof AiRulesRoute
   '/ai/usage': typeof AiUsageRoute
@@ -877,6 +886,7 @@ export interface FileRouteTypes {
     | '/today'
     | '/watch'
     | '/youzi'
+    | '/ai/agent'
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
@@ -963,6 +973,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/symbol'
     | '/today'
+    | '/ai/agent'
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
@@ -1056,6 +1067,7 @@ export interface FileRouteTypes {
     | '/today'
     | '/watch'
     | '/youzi'
+    | '/ai/agent'
     | '/ai/config'
     | '/ai/rules'
     | '/ai/usage'
@@ -1476,6 +1488,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiIndexRouteImport
       parentRoute: typeof AiRoute
     }
+    '/ai/agent': {
+      id: '/ai/agent'
+      path: '/agent'
+      fullPath: '/ai/agent'
+      preLoaderRoute: typeof AiAgentRouteImport
+      parentRoute: typeof AiRoute
+    }
     '/ai/config': {
       id: '/ai/config'
       path: '/config'
@@ -1802,6 +1821,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AiRouteChildren {
+  AiAgentRoute: typeof AiAgentRoute
   AiConfigRoute: typeof AiConfigRoute
   AiRulesRoute: typeof AiRulesRoute
   AiUsageRoute: typeof AiUsageRoute
@@ -1809,6 +1829,7 @@ interface AiRouteChildren {
 }
 
 const AiRouteChildren: AiRouteChildren = {
+  AiAgentRoute: AiAgentRoute,
   AiConfigRoute: AiConfigRoute,
   AiRulesRoute: AiRulesRoute,
   AiUsageRoute: AiUsageRoute,

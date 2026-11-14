@@ -30,3 +30,5 @@ harness/home/.anonymous-user-id
 harness/home/settings.yaml.imported
 harness/home/logs/
 harness/home/storages/
+harness/home/sessions/
+harness/home/.env

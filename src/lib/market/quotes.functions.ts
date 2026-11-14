@@ -2121,3 +2121,76 @@ export const saveUserStrategies = createServerFn({ method: "POST" })
     await mkdir(dataPath("data", "strategies"), { recursive: true });
     await writeFile(dataPath("data", "strategies", "user-defined.json"), JSON.stringify(data, null, 2));
   });
+
+// ── 常驻 agent（「小机」）管理区（2026-11-14，用户拍板全操作 + 预算闸门）──
+// 默认待命：没有派活就没有进程、零消耗。三个口子：手动派活 / 定时任务（下轮）/
+// 主动建议（只能进工单等人批）。全操作权限配 DSH_PERMISSION_MODE + .env key。
+
+/** agent 管理面板的数据：账本 + 预算 + 是否有任务在跑。非主人只回 allowed: false。 */
+export const getAgentJobs = createServerFn({ method: "GET" }).handler(async () => {
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, jobs: [], budget: null };
+  const { readAgentJobs, readAgentBudget, DEFAULT_BUDGET } = await import("@/lib/market/agent-jobs");
+  return { allowed: true as const, jobs: await readAgentJobs(), budget: await readAgentBudget().catch(() => DEFAULT_BUDGET) };
+});
+
+/** 派一次活（manual）：预算闸 → spawn headless → 回填账本。 */
+export const dispatchAgentJob = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const d = input as { task?: unknown };
+    const task = typeof d?.task === "string" ? d.task.trim() : "";
+    if (!task) throw new Error("任务描述是空的");
+    if (task.length > 2000) throw new Error("任务描述太长（>2000 字），拆成几步派");
+    return { task };
+  })
+  .handler(async ({ data }) => {
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { ok: false as const, error: "只有主人能派活" };
+  const task = String(data.task ?? "").trim();
+  if (!task) return { ok: false as const, error: "任务描述是空的" };
+  if (task.length > 2000) return { ok: false as const, error: "任务描述太长（>2000 字），拆成几步派" };
+  const { readAgentJobs, readAgentBudget, appendAgentJob, updateAgentJob } = await import("@/lib/market/agent-jobs");
+  const { runAgentTask } = await import("@/lib/market/agent-runner");
+  const budget = await readAgentBudget();
+  const jobsForGate = await readAgentJobs();
+  const result = await runAgentTask({
+    task,
+    trigger: "manual",
+    budget,
+    jobsForGate,
+    onRejected: async (reason) => {
+      const { sendPushPlus } = await import("@/lib/market/push");
+      await sendPushPlus("小机派活被预算闸拦下", reason).catch(() => false);
+    },
+    onStarted: async (job) => {
+      await appendAgentJob(job);
+    },
+    onFinished: async (finished) => {
+      await updateAgentJob(finished.at, finished);
+    },
+  });
+  return { ok: result.ok, answer: result.answer, error: result.error, tokens: result.tokens };
+});
+/** 改预算（主人拍板）。写入 agent-budget.json，立即生效。 */
+export const saveAgentBudget = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const d = input as Partial<{ perTaskCny: unknown; perDayCny: unknown; perMonthCny: unknown }>;
+    const nums = [d?.perTaskCny, d?.perDayCny, d?.perMonthCny];
+    if (nums.some((n) => typeof n !== "number" || !Number.isFinite(n) || n <= 0)) {
+      throw new Error("预算必须是正数");
+    }
+    if ((d.perDayCny as number) < (d.perTaskCny as number) || (d.perMonthCny as number) < (d.perDayCny as number)) {
+      throw new Error("预算档位要递增：单任务 ≤ 单日 ≤ 单月");
+    }
+    return { perTaskCny: d.perTaskCny as number, perDayCny: d.perDayCny as number, perMonthCny: d.perMonthCny as number };
+  })
+  .handler(async ({ data }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { userId, isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人能改预算" };
+    const { writeAgentBudget } = await import("@/lib/market/agent-jobs");
+    await writeAgentBudget({ perTaskCny: data.perTaskCny, perDayCny: data.perDayCny, perMonthCny: data.perMonthCny });
+    return { ok: true as const };
+  });
