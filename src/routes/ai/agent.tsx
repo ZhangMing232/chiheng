@@ -21,17 +21,17 @@ import { StateBlock } from "@/components/state-block";
 import { AISectionTabs, Section } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
-import { dispatchAgentJob, getAgentJobs, getAgentSchedules, saveAgentBudget, saveAgentSchedule, decideAgentProposal, setAgentMasterSwitch } from "@/lib/market/quotes.functions";
+import { dispatchAgentJob, getAgentJobs, getAgentSchedules, saveAgentBudget, saveAgentSchedule } from "@/lib/market/quotes.functions";
 import type { AgentJob } from "@/lib/market/agent-jobs";
-import type { AgentSchedule, AgentProposal } from "@/lib/market/agent-schedules";
+import type { AgentSchedule } from "@/lib/market/agent-schedules";
 
 export const Route = createFileRoute("/ai/agent")({
   loader: async () => {
     const [res, sched] = await Promise.all([
       getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: true, at: "" }, jobs: [] as AgentJob[], budget: null })),
-      getAgentSchedules().catch(() => ({ allowed: false as const, schedules: [] as AgentSchedule[], proposals: [] as AgentProposal[] })),
+      getAgentSchedules().catch(() => ({ allowed: false as const, schedules: [] as AgentSchedule[], proposals: [] })),
     ]);
-    return { res, sched, serverNow: Date.now() };
+    return { res, schedules: sched.schedules, serverNow: Date.now() };
   },
   component: AgentPage,
 });
@@ -109,55 +109,6 @@ function ScheduleRow({ s }: { s: AgentSchedule }) {
   );
 }
 
-/** 一条建议工单：批准/驳回。 */
-function ProposalRow({ p }: { p: AgentProposal }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  const decide = async (decision: "approved" | "dismissed") => {
-    setBusy(true);
-    try {
-      await decideAgentProposal({ data: { id: p.id, decision } });
-      await router.invalidate();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const tone = p.status === "pending" ? "warn" : p.status === "approved" ? "up" : "muted";
-  return (
-    <div className={`rounded border px-3 py-2 text-xs ${p.status === "pending" ? "border-warn bg-warn-soft" : "border-line bg-surface-2"}`}>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-[12px] text-muted">
-          {p.at.slice(5, 16).replace("T", " ")} · 来自任务 {p.jobAt.slice(5, 16).replace("T", " ")}
-        </span>
-        <Tag tone={tone}>{p.status === "pending" ? "待拍板" : p.status === "approved" ? "已批准" : "已驳回"}</Tag>
-      </div>
-      <p className="mt-1 leading-relaxed text-fg">{p.finding}</p>
-      {p.suggestion ? <p className="mt-1 leading-relaxed text-muted">建议：{p.suggestion}</p> : null}
-      {p.status === "pending" ? (
-        <div className="mt-1.5 flex gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void decide("approved")}
-            className="rounded-full border border-line bg-brand px-2.5 py-1 text-[12px] text-white disabled:opacity-40"
-          >
-            批准（转派活草稿）
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void decide("dismissed")}
-            className="rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] text-muted disabled:opacity-40"
-          >
-            驳回
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 function AgentPage() {
   const d = Route.useLoaderData();
@@ -170,8 +121,6 @@ function AgentPage() {
     d.res.budget ? `${d.res.budget.perTaskCny},${d.res.budget.perDayCny},${d.res.budget.perMonthCny}` : "",
   );
   const [budgetMsg, setBudgetMsg] = useState<string | null>(null);
-  const [masterBusy, setMasterBusy] = useState(false);
-  const masterOn = d.res.master?.enabled ?? true;
 
   const running = d.res.jobs.filter((j) => j.status === "running");
   const done = d.res.jobs.filter((j) => j.status !== "running");
@@ -181,17 +130,6 @@ function AgentPage() {
   const spentMonth = done
     .filter((j) => j.at.slice(0, 7) === new Date(d.serverNow).toISOString().slice(0, 7))
     .reduce((a, j) => a + (j.cost?.cny ?? 0), 0);
-
-  /** 总开关：一个布尔管全部三个口子。 */
-  const toggleMaster = async (next: boolean) => {
-    setMasterBusy(true);
-    try {
-      await setAgentMasterSwitch({ data: { enabled: next } });
-      await router.invalidate();
-    } finally {
-      setMasterBusy(false);
-    }
-  };
 
   const dispatch = async () => {
     if (!task.trim() || busy) return;
@@ -232,7 +170,7 @@ function AgentPage() {
 
   if (!d.res.allowed) {
     return (
-      <Frame aside="AI 管理 · Agent 岗位" decorHeader={false}>
+      <Frame wide aside="AI · 岗位" decorHeader={false}>
         <AISectionTabs />
         <div className="mt-3">
           <StateBlock kind="empty" title="主人账号登录后可管理小机" hint="派活、看账、调预算都是主人专属。" />
@@ -242,7 +180,7 @@ function AgentPage() {
   }
 
   return (
-    <Frame aside="AI 管理 · Agent 岗位" decorHeader={false}>
+    <Frame wide aside="AI · 岗位" decorHeader={false}>
       <PixelHeader label="AGENT // STATION" meta="默认待命 · 没有任务就没有进程、零消耗" />
       <PixelSummary
         label="AGENT // NOW"
@@ -255,30 +193,6 @@ function AgentPage() {
         ]}
       />
       <AISectionTabs />
-
-      {/* 总开关：一个布尔管全部三个口子 */}
-      <div
-        className={
-          "mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded border px-3.5 py-2.5 " +
-          (masterOn ? "border-ai-line bg-ai-soft" : "border-warn/50 bg-warn-soft")
-        }
-      >
-        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-fg">
-          <input
-            type="checkbox"
-            checked={masterOn}
-            disabled={masterBusy}
-            onChange={(e) => void toggleMaster(e.target.checked)}
-            className="size-4 accent-brand"
-          />
-          小机在岗
-        </label>
-        <span className="text-[12px] text-muted">
-          {masterOn
-            ? "总开关开着：手动派活 / 定时任务 / 工单执行都按各自的闸走（关掉单个口子去下面各自的区块）。"
-            : "总开关关了：三个口子全部停——派活被拒、定时调度空转、桌宠灰态下岗。定时任务的清单和账本原样保留，重开后照旧。"}
-        </span>
-      </div>
 
       {/* 状态灯 + 派活 */}
       <Section
@@ -395,37 +309,16 @@ function AgentPage() {
       </Section>
 
       {/* 定时任务清单 */}
-      {d.sched.allowed ? (
+      {d.schedules.length >= 0 && d.res.allowed ? (
         <Section
           id="agent-schedules"
           title="定时任务"
           hint="预先登记的自动化（口子②）：每条独立开关 + 独立预算，每天最多跑一次。默认全部关闭——逐条审过再开。"
         >
           <div className="flex flex-col divide-y divide-line px-3.5 py-2">
-            {d.sched.schedules.map((s) => (
+            {d.schedules.map((s) => (
               <ScheduleRow key={s.id} s={s} />
             ))}
-          </div>
-        </Section>
-      ) : null}
-
-      {/* 建议工单收件箱 */}
-      {d.sched.allowed ? (
-        <Section
-          id="agent-proposals"
-          title="建议工单"
-          hint="小机干活时「顺手发现」的问题（口子③）：批准后会生成一条预填派活草稿，你再去上面「派活」框里确认发送。驳回 = 不留痕的否决。"
-        >
-          <div className="px-3.5 py-3">
-            {d.sched.proposals.length === 0 ? (
-              <StateBlock kind="empty" title="没有工单" hint="小机发现问题时会写到这里等你拍板；它自己没有动手的入口。" />
-            ) : (
-              <div className="flex flex-col gap-2">
-                {[...d.sched.proposals].reverse().slice(0, 10).map((p) => (
-                  <ProposalRow key={p.id} p={p} />
-                ))}
-              </div>
-            )}
           </div>
         </Section>
       ) : null}

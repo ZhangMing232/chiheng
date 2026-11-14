@@ -377,9 +377,8 @@ function ChallengerPanel({
         </CollapsibleSection>
       ) : null}
       <p className="mt-2 border-t border-line pt-2 text-xs">
-        <Link to="/ai" className="text-brand hover:underline">
-          AI 提名挑战者、配接口 → AI 管理页
-        </Link>
+        <Link to="/ai" className="text-brand hover:underline">小机</Link>
+          （AI 提名挑战者、配接口 → 小机的岗位/大脑页）
       </p>
     </Panel>
   );

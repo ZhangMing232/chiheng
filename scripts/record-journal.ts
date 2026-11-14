@@ -1066,7 +1066,20 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     const dueGenome = autoLayerDue(todayAuto, "genome");
     // 诊断（observe 层）跟着第一轮跑：任一层要跑且今天还没诊断过才诊断。
     const dueDiagnosis = (dueFactor || dueStrategy || dueGenome) && !todayAuto.some((e) => e.layer === "agent");
-    if (prefs.autoEvolve && config && (dueFactor || dueStrategy || dueGenome)) {
+    // 小机总开关（2026-11-14）：off = 自动进化也停。用户口径「AI 是一个整体」——
+    // 一个总闸断全部（手动派活/定时任务/工单/反思链条），不留双开关各管各的口子。
+    let masterOn = true;
+    try {
+      const { readMasterSwitch } = await import("../src/lib/market/agent-jobs.ts");
+      masterOn = (await readMasterSwitch()).enabled;
+    } catch (masterErr) {
+      // 读不到开关（文件坏了/模块挂了）按「开」算——反思链条不该被一个辅助文件炸掉。
+      console.error(`${time} 读小机总开关失败（按开处理）:`, masterErr);
+    }
+    if (!masterOn) {
+      console.log(`${time} 小机总开关关闭，自动进化本轮跳过（不想跑反思链条也去 /ai 关「自动进化」）`);
+    }
+    if (prefs.autoEvolve && masterOn && config && (dueFactor || dueStrategy || dueGenome)) {
       // 熔断器：已断电的状态直接跳过（开关应该已被关掉，这里是双保险 + 审计）。
       const { readBreaker, nextBreakerState, writeBreaker, BREAKER_RULE } = await import(
         "../src/lib/market/evolve-breaker.ts"

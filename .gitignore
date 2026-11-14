@@ -32,3 +32,4 @@ harness/home/logs/
 harness/home/storages/
 harness/home/sessions/
 harness/home/.env
+harness/home/profiles/headless/

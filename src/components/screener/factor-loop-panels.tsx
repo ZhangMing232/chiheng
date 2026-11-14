@@ -481,7 +481,7 @@ export function FactorLoopPanels() {
         </div>
       </Section>
       <p className="px-1 text-[12px] text-muted">
-        AI 接口配置、Token 用量与自动进化开关在「<Link to="/ai" className="text-brand-text underline-offset-2 hover:underline">接入 AI</Link>」页。
+        AI 接口与例行开关在「<Link to="/ai" className="text-brand-text underline-offset-2 hover:underline">小机</Link>」页。
       </p>
     </div>
   );

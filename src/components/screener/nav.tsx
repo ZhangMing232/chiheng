@@ -20,7 +20,6 @@ import {
   CalendarRange,
   CheckCircle2,
   Compass,
-  Bot,
   ChevronDown,
   Coins,
   FileSearch,
@@ -128,7 +127,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/watch/history" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/overseas" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/watch/history" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/overseas" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   // 2026-11-13 按设计稿重排：五组，和 design/redesign-2026-11 的侧栏一致。
   //   今天 → 干什么（决策）
@@ -184,7 +183,6 @@ const SIDEBAR: {
     label: "系统",
     items: [
       { to: "/ai", label: "AI 工作台", icon: Sparkles },
-      { to: "/butler", label: "大管家", icon: Bot },
       { to: "/settings", label: "设置与状态", icon: Settings },
     ],
   },
@@ -509,8 +507,8 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "区间统计", keywords: "interval 区间 涨幅 统计 板块", to: "/interval" },
   { label: "因子实验室", keywords: "factors 因子", to: "/factors" },
   { label: "回测", keywords: "backtest", to: "/backtest" },
-  { label: "AI 工作台", keywords: "ai 智能", to: "/ai" },
-  { label: "大管家", keywords: "butler", to: "/butler" },
+  { label: "AI 工作台", keywords: "ai 智能 小机 agent 对话 派活", to: "/ai" },
+  { label: "和小机聊聊（对话）", keywords: "butler 对话 chat 聊天", to: "/ai/chat" },
   { label: "接口配置", keywords: "接口与模型 ai config 配置 token 工作台 tab", to: "/ai/config" },
   { label: "设置", keywords: "settings", to: "/settings" },
 ];
