@@ -12,6 +12,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { HotkeyProvider } from "@/lib/ui/hotkeys";
 import { SymbolDrawer } from "@/components/screener/symbol-drawer";
+import { AgentPet } from "@/components/ai-pet";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "赤轨 · 策略实验台";
@@ -59,6 +60,8 @@ export const Route = createRootRoute({
               <Outlet />
               {/* 抽屉挂在路由根：任意页面点股票名都能开，不用穿过四层 Provider */}
               <SymbolDrawer />
+              {/* 小机桌宠：旁观者浮层，任意页面在场外待命（不进任何面板；主人可见） */}
+              <AgentPet />
             </HotkeyProvider>
           </QueryClientProvider>
         </AuthProvider>

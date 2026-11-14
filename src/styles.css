@@ -736,3 +736,15 @@ main tbody tr:hover td.sticky {
 .pulse-once {
   animation: ch-pulse-once 1.6s ease-out 3;
 }
+
+/* ── 小机桌宠（2026-11-14）：旁观者浮层的四个动画 ───────────────────
+ * 全部只动 opacity/transform；prefers-reduced-motion 一律关停。 */
+.pet-blink { animation: pet-blink 1s steps(2) infinite; }
+@keyframes pet-blink { 50% { opacity: 0.25; } }
+.pet-arm { animation: pet-arm 0.5s steps(2) infinite; }
+@keyframes pet-arm { 50% { transform: translateY(-1px); } }
+.pet-zzz { animation: pet-zzz 2.4s ease-in-out infinite; }
+@keyframes pet-zzz { 0% { opacity: 0; transform: translateY(2px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-5px); } }
+@media (prefers-reduced-motion: reduce) {
+  .pet-blink, .pet-arm, .pet-zzz { animation: none; }
+}

@@ -2194,3 +2194,50 @@ export const saveAgentBudget = createServerFn({ method: "POST" })
     await writeAgentBudget({ perTaskCny: data.perTaskCny, perDayCny: data.perDayCny, perMonthCny: data.perMonthCny });
     return { ok: true as const };
   });
+
+/** 小机桌宠的状态源：把任务账本算成五档状态（sleep/calling/done/error）。
+ *  纯读取；桌宠只是渲染器，没数据就显示睡觉——页面不编状态。 */
+export const getAgentState = createServerFn({ method: "GET" }).handler(async () => {
+  const { requirePrincipal } = await import("@/lib/auth/verify.server");
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, state: null };
+  const { readAgentJobs } = await import("@/lib/market/agent-jobs");
+  const jobs = await readAgentJobs();
+  const now = Date.now();
+  const running = jobs.find((j) => j.status === "running");
+  const lastDone = [...jobs].reverse().find((j) => j.status === "ok" && j.endedAt);
+  const lastError = [...jobs].reverse().find((j) => j.status === "error" || j.status === "budget-killed");
+  // 状态机（agent-pet.tsx 侧做超时降级）：running 且账本 10 分钟没回填 = 疑似中断。
+  // 实际上账本只有进程结束才回填——所以 running 超过 10 分钟一律按「疑似中断」报。
+  let state: "sleep" | "calling" | "done" | "error" = "sleep";
+  let detail: string | null = null;
+  if (running) {
+    const mins = Math.round((now - new Date(running.at).getTime()) / 60_000);
+    if (mins > 10) {
+      state = "error";
+      detail = `卡住了 · ${mins} 分钟没动静（疑似中断，去 /ai/agent 看账本）`;
+    } else {
+      state = "calling";
+      detail = `任务中 · ${mins} 分钟：${running.task.slice(0, 40)}`;
+    }
+  } else if (lastError && lastDone && new Date(lastError.endedAt ?? lastError.at) > new Date(lastDone.endedAt ?? lastDone.at)) {
+    state = "error";
+    detail = lastError.error?.slice(0, 80) ?? "上次任务失败";
+  } else if (lastDone) {
+    const doneAge = now - new Date(lastDone.endedAt ?? lastDone.at).getTime();
+    if (doneAge < 30 * 60_000) {
+      state = "done";
+      detail = `本轮完成 · 花了 ¥${(lastDone.cost?.cny ?? 0).toFixed(2)}（${Math.round(doneAge / 60_000)} 分钟前）`;
+    }
+  }
+  return {
+    allowed: true as const,
+    state: {
+      state,
+      detail,
+      runningTask: running?.task ?? null,
+      lastCost: lastDone?.cost?.cny ?? null,
+      jobsToday: jobs.filter((j) => j.at.slice(0, 10) === new Date(now).toISOString().slice(0, 10)).length,
+    },
+  };
+});
