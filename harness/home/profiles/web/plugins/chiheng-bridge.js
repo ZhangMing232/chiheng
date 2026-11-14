@@ -27,7 +27,7 @@ module.exports = {
   apply(ctx) {
     const llm = ctx.get('llm')
     const agentDefaultModel = ctx.get('agentDefaultModel')
-    const FALLBACK = { provider: 'workbuddy3', model: 'glm-5.3-flash' }
+    const FALLBACK = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
     const CORS = {
       'Access-Control-Allow-Origin': '*',
