@@ -111,8 +111,9 @@ function AccountChip() {
  * 这轮动了什么（对照上一版 5 组）：
  *   - 新增「总览」组承载首页（当前指向 /，P0-4 首页落地后由新首页接管）
  *   - 「资讯」独立成组：快讯 / 消息提醒 / 自媒体图文（老板拍板：studio 保持独立入口）
- *   - 「进化」从「策略因子」改名并收编策略看板：策略看板 / 因子实验室 / 回测
- *     （挑战者、进化日志两个入口等 P0-6 的独立页落地后再加，不挂死链）
+ *   - 「进化」从「策略因子」改名并收编策略看板：策略看板 / 因子实验室
+ *     （回测审计 2026-11-14 起收进因子实验室工作台，侧栏不再单列平级入口；
+ *      挑战者、进化日志两个入口等 P0-6 的独立页落地后再加，不挂死链）
  *   - AI 从底部 pinned 单链扩成整组：工作台 / 大管家 / 接口与模型 / 行为边界
  *     （2026-11-06 收敛：接口与模型、行为边界都是 /ai 页内 tab，侧栏不再单列；
  *      现为 工作台 / 大管家 两项。下面「保留的三条老原则」第 1 条即此依据。）
@@ -128,7 +129,7 @@ function AccountChip() {
  */
 const SIDEBAR: {
   label: string;
-  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/watch/history" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/overseas" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/backtest" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
+  items: { to: "/" | "/today" | "/decision" | "/huiyan" | "/watch" | "/watch/history" | "/review" | "/flow" | "/youzi" | "/themes" | "/cycle" | "/interval" | "/rs" | "/my-stocks" | "/news" | "/overseas" | "/strategies/screener" | "/strategies/positions" | "/factors" | "/ai" | "/butler" | "/settings"; label: string; icon: LucideIcon }[];
 }[] = [
   // 2026-11-13 按设计稿重排：五组，和 design/redesign-2026-11 的侧栏一致。
   //   今天 → 干什么（决策）
@@ -171,7 +172,6 @@ const SIDEBAR: {
       { to: "/strategies/screener", label: "策略选股", icon: LayoutList },
       { to: "/strategies/positions", label: "策略跟踪", icon: Star },
       { to: "/factors", label: "因子实验室", icon: FlaskConical },
-      { to: "/backtest", label: "回测审计", icon: LineChart },
     ],
   },
   {
@@ -202,6 +202,12 @@ function navHit(path: string) {
   for (const group of SIDEBAR) {
     const item = group.items.find((entry) => entry.to !== "/" && path.startsWith(entry.to + "/"));
     if (item) return { group: group.label, ...item };
+  }
+  // 回测审计三页（/backtest、/strategies/genome、/strategies/autopsy）收编进
+  // 「因子实验室」工作台：从侧栏看它们就是因子实验室的一部分，激活态归到这一项。
+  if (path.startsWith("/backtest") || path.startsWith("/strategies/genome") || path.startsWith("/strategies/autopsy")) {
+    const lab = SIDEBAR.flatMap((g) => g.items).find((i) => i.to === "/factors");
+    if (lab) return { group: "策略", ...lab };
   }
   return null;
 }

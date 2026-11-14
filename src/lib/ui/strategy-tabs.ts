@@ -10,12 +10,6 @@
  * 这份常量是唯一出处：五个页面（screener/positions/signals/manage/autopsy）
  * 都渲染同一条 tab，谁也不会漏更新。
  */
-export const STRATEGY_TABS: { to: string; label: string }[] = [
-  { to: "/strategies/screener", label: "策略选股" },
-  { to: "/strategies/positions", label: "策略跟踪" },
-  { to: "/backtest", label: "回测审计" },
-];
-
 /**
  * 2026-11-12 二次收口（用户：页面太多，来回都是那几个内容）。
  *
@@ -31,7 +25,15 @@ export const SCREENER_SUB_TABS: { to: string; label: string }[] = [
   { to: "/strategies/manage", label: "我的策略" },
 ];
 
+/**
+ * 「回测审计」工作台（/backtest、/strategies/genome、/strategies/autopsy 三页共用）。
+ *
+ * 2026-11-14 收编进「因子实验室」：侧栏「策略」组不再单列「回测审计」平级入口，
+ * 它和因子发掘六页同属一个工作台。这里第一个 tab 是「因子实验室」本身，
+ * 点它直接切回因子六页——「回测审计」在因子实验室里，而不是和它对等的两块。
+ */
 export const BACKTEST_SUB_TABS: { to: string; label: string }[] = [
+  { to: "/factors", label: "因子实验室" },
   { to: "/backtest", label: "运行与比较" },
   { to: "/strategies/genome", label: "策略基因组" },
   { to: "/strategies/autopsy", label: "失败归因" },
