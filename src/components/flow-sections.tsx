@@ -13,7 +13,7 @@
  *   拆页不改口径。
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StockName } from "@/components/screener/stock-name";
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import * as echarts from "echarts";
@@ -317,17 +317,18 @@ export function TrendChart({ trend, sectors }: { trend: Trend; sectors: FlowRow[
   const chg = trend.prevClose != null && last != null && trend.prevClose > 0 ? (last / trend.prevClose - 1) * 100 : null;
   const tickInterval = Math.max(1, Math.floor(trend.points.length / 6));
   const tags = sectors.slice(0, 8);
-  // 蜡烛：5 分钟聚合；数据不足一窗时按钮禁用（不画残蜡烛）
-  const candles = minuteCandles(trend.points, 5);
+  // 蜡烛：5 分钟聚合；数据不足一窗时按钮禁用（不画残蜡烛）。
+  // useMemo 稳定引用（2026-11-15 复检补）：父级 60s 轮询/切主题时的重渲染不该
+  // 让 ECharts 实例整只 dispose 重建。
+  const candles = useMemo(() => minuteCandles(trend.points, 5), [trend.points]);
   const candleReady = candles.length >= 2;
-  const candleYRange = candleReady
-    ? (() => {
-        const lo = Math.min(...candles.map((c) => c.l), trend.prevClose ?? Infinity);
-        const hi = Math.max(...candles.map((c) => c.h), trend.prevClose ?? -Infinity);
-        const pad = (hi - lo) * 0.08 || 1;
-        return [lo - pad, hi + pad] as [number, number];
-      })()
-    : undefined;
+  const candleYRange = useMemo<[number, number] | undefined>(() => {
+    if (!candleReady) return undefined;
+    const lo = Math.min(...candles.map((c) => c.l), trend.prevClose ?? Infinity);
+    const hi = Math.max(...candles.map((c) => c.h), trend.prevClose ?? -Infinity);
+    const pad = (hi - lo) * 0.08 || 1;
+    return [lo - pad, hi + pad];
+  }, [candles, candleReady, trend.prevClose]);
   return (
     <section className="overflow-hidden rounded border border-line bg-surface">
       <div className="flex items-baseline justify-between gap-3 border-b border-line px-3.5 py-2">
@@ -399,24 +400,50 @@ export function TrendChart({ trend, sectors }: { trend: Trend; sectors: FlowRow[
   );
 }
 
+/** 读当前主题的语义色（深浅/摸鱼模式切换后要重读，见下面的监听）。 */
+function readChartColors() {
+  const css = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  return {
+    upColor: css("--color-up", "#f2495c"),
+    downColor: css("--color-down", "#0bb97b"),
+    line: css("--color-line", "#242f45"),
+    muted: css("--color-muted", "#8b95a6"),
+  };
+}
+
 /** 5 分钟蜡烛渲染（ECharts）。颜色读 CSS 变量与全站 token 同源（同 kline-chart 的做法）。 */
 function MinuteCandleEChart({ candles, prevClose, yRange }: { candles: ReturnType<typeof minuteCandles>; prevClose: number | null; yRange?: [number, number] | undefined }) {
   const host = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<echarts.ECharts | null>(null);
   useEffect(() => {
     const el = host.current;
     if (!el || candles.length < 2) return;
-    const upColor = getComputedStyle(document.documentElement).getPropertyValue("--color-up").trim() || "#f2495c";
-    const downColor = getComputedStyle(document.documentElement).getPropertyValue("--color-down").trim() || "#0bb97b";
-    const line = getComputedStyle(document.documentElement).getPropertyValue("--color-line").trim() || "#242f45";
-    const muted = getComputedStyle(document.documentElement).getPropertyValue("--color-muted").trim() || "#8b95a6";
+    const colors = readChartColors();
+    const { upColor, downColor, line, muted } = colors;
     const chart = echarts.init(el);
+    chartRef.current = chart;
     chart.setOption({
       animation: false,
       grid: { left: 8, right: 10, top: 12, bottom: 20 },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "cross" },
-        valueFormatter: (v: unknown) => (typeof v === "number" ? v.toFixed(2) : "—"),
+        // candlestick 的值是 [o,c,l,h] 数组，通用 valueFormatter 会显示「—」；
+        // 自定义 formatter 按 seriesType 分别输出（2026-11-15 复检补）。
+        formatter: (params: unknown) => {
+          const arr = Array.isArray(params) ? params : [params];
+          const rows = arr as { seriesType?: string; data?: unknown; value?: unknown; axisValue?: string; marker?: string; seriesName?: string }[];
+          const lines: string[] = [String(rows[0]?.axisValue ?? "")];
+          for (const p of rows) {
+            if (p.seriesType === "candlestick") {
+              const v = (Array.isArray(p.data) ? p.data : Array.isArray(p.value) ? p.value : []) as number[];
+              if (v.length >= 4) lines.push(`${p.marker ?? ""}开 ${v[0]?.toFixed(2)}　收 ${v[1]?.toFixed(2)}　低 ${v[2]?.toFixed(2)}　高 ${v[3]?.toFixed(2)}`);
+            } else if (p.seriesType === "line") {
+              lines.push(`${p.marker ?? ""}${p.seriesName ?? "昨收"} ${typeof p.value === "number" ? p.value.toFixed(2) : ""}`);
+            }
+          }
+          return lines.join("<br/>");
+        },
       },
       xAxis: {
         type: "category",
@@ -452,8 +479,26 @@ function MinuteCandleEChart({ candles, prevClose, yRange }: { candles: ReturnTyp
     });
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(el);
+    // 主题/红绿/摸鱼模式切换时只更新颜色，不重建实例（2026-11-15 复检补）。
+    const refreshColors = () => {
+      const c = readChartColors();
+      chart.setOption({
+        xAxis: { axisLine: { lineStyle: { color: c.line } }, axisLabel: { color: c.muted } },
+        yAxis: { axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.line, opacity: 0.4 } } },
+        series: [
+          ...(prevClose != null ? [{ type: "line" as const, lineStyle: { color: c.muted } }] : []),
+          { type: "candlestick" as const, itemStyle: { color: c.upColor, color0: c.downColor, borderColor: c.upColor, borderColor0: c.downColor } },
+        ],
+      });
+    };
+    window.addEventListener("chiheng-theme-change", refreshColors);
+    const mo = new MutationObserver(refreshColors);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-scheme", "data-slack"] });
     return () => {
       ro.disconnect();
+      mo.disconnect();
+      window.removeEventListener("chiheng-theme-change", refreshColors);
+      chartRef.current = null;
       chart.dispose();
     };
   }, [candles, prevClose, yRange]);

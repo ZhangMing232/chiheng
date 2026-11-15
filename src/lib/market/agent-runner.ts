@@ -18,6 +18,7 @@
 
 import type { AgentJob, AgentBudget } from "./agent-jobs.ts";
 import { FALLBACK_FACTS, buildAgentSystemPrompt } from "./agent-charter.ts";
+import { referencePriceOf } from "./ai-prices.ts";
 import { DEFAULT_BUDGET, budgetExceeded } from "./agent-jobs.ts";
 
 const fsApi = () => import("node:fs/promises");
@@ -76,15 +77,10 @@ export type SpawnResult = {
   sessionId?: string;
 };
 
-/** token → 元。参考价同 ai-prices.ts 的 deepseek 官方价；模型名对不上按 flash 计。 */
+/** token → 元。单价统一走 ai-prices.ts 的参考价目表（不另抄一份，防漂移）。 */
 export function costOfTokens(input: number, output: number, model: string): { cny: number; estimated: boolean } {
-  // deepseek 官方谷时价（元/百万 token），与 src/lib/market/ai-prices.ts 保持一致。
-  const table: Record<string, { p: number; c: number }> = {
-    "deepseek-flash": { p: 1.1, c: 4.3 },
-    "deepseek-v4-pro": { p: 4.7, c: 14.1 },
-  };
-  const price = table[model] ?? table["deepseek-flash"];
-  return { cny: (input / 1e6) * price.p + (output / 1e6) * price.c, estimated: true };
+  const price = referencePriceOf(model) ?? { prompt: 1.1, completion: 4.3 }; // 查不到按 flash 兜底
+  return { cny: (input / 1e6) * price.prompt + (output / 1e6) * price.completion, estimated: true };
 }
 
 /**
@@ -182,7 +178,6 @@ export async function runAgentTask(opts: {
       },
     );
     // 留句柄给外部 stopAgentTask（当前轮不接 UI，句柄先不暴露）。
-    void child;
   });
 
   const endedAt = new Date().toISOString();
@@ -197,6 +192,27 @@ export async function runAgentTask(opts: {
     ...(result.sessionId ? { sessionId: result.sessionId } : {}),
   };
   await opts.onFinished?.(finished);
+
+  // 顺手发现 → 工单入箱（2026-11-15 补全链路）：agent 回答末尾按约定写「顺手发现：…」
+  // 时，抽取成工单等人拍板。agent 自己没有派活入口，批准也只生成草稿。
+  if (result.answer) {
+    try {
+      const { extractFindings, appendAgentProposal } = await import("./agent-schedules.ts");
+      const finding = extractFindings(result.answer);
+      if (finding) {
+        await appendAgentProposal({
+          id: `proposal-${finished.at}`,
+          at: new Date().toISOString(),
+          jobAt: finished.at,
+          finding: finding.replace(/^顺手发现[:：]?\s*/, ""),
+          suggestion: "详见本次任务回答；批准后把建议内容粘到「岗位」页派活框确认发送。",
+          status: "pending",
+        });
+      }
+    } catch {
+      // 工单写失败不影响任务本身。
+    }
+  }
   return result;
 }
 

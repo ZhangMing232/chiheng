@@ -166,23 +166,49 @@ export async function writeAgentBudget(budget: AgentBudget): Promise<void> {
   await writeFile(budgetPath(), JSON.stringify(budget, null, 2));
 }
 
-// ── 总开关（2026-11-14 用户要求）：一个数字管全部三个口子 ──────────────
-// off = 手动派活/定时调度/工单执行全拒（桌宠降级为灰色「已停用」）；
-// on  = 恢复各口子自己的开关状态。文件不存在 = on（默认开放，各口子自己管自己）。
+// ── 总开关（2026-11-14 用户要求）：一个布尔管全部口子 ──────────────────
+// off = 所有 AI 调用与派活全拒（桌宠降级为灰色「已停用」）；
+// on  = 恢复各口子自己的开关状态。文件不存在 = on（首次部署/历史默认）。
+// 2026-11-15 全仓复检修正：读盘失败或文件损坏一律 fail-closed（按关处理），
+// 不再「读不到就默认开」——未知状态下宁可不跑，也不在没把握时花钱。
 
-export type MasterSwitch = { enabled: boolean; at: string; by?: string };
+export type MasterSwitch = {
+  enabled: boolean;
+  at: string;
+  by?: string;
+  /** 状态来源：missing=文件不存在（默认开）/ read-failed=读失败 / corrupt=内容损坏；正常解析时无此字段。 */
+  reason?: "missing" | "read-failed" | "corrupt";
+};
 
 export async function readMasterSwitch(): Promise<MasterSwitch> {
+  let raw: string;
   try {
     const { readFile } = await fsApi();
-    const parsed = JSON.parse(await readFile(switchPath(), "utf8")) as { enabled?: unknown; at?: unknown; by?: unknown };
+    raw = await readFile(switchPath(), "utf8");
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException | undefined)?.code;
+    if (code === "ENOENT") return { enabled: true, at: "", reason: "missing" };
+    return { enabled: false, at: "", reason: "read-failed" };
+  }
+  try {
+    const parsed = JSON.parse(raw) as { enabled?: unknown; at?: unknown; by?: unknown };
     if (typeof parsed.enabled === "boolean") {
-      return { enabled: parsed.enabled, at: typeof parsed.at === "string" ? parsed.at : "", by: typeof parsed.by === "string" ? parsed.by : undefined };
+      return {
+        enabled: parsed.enabled,
+        at: typeof parsed.at === "string" ? parsed.at : "",
+        ...(typeof parsed.by === "string" ? { by: parsed.by } : {}),
+      };
     }
   } catch {
-    // 没有文件 = 默认开。
+    // 落到下面按 corrupt 处理。
   }
-  return { enabled: true, at: "" };
+  // 文件存在但不是合法开关（损坏/半截写）= fail-closed。
+  return { enabled: false, at: "", reason: "corrupt" };
+}
+
+/** 统一闸门：只有明确读到 enabled=true 才放行。所有 AI 调用入口都走这一句。 */
+export async function isAgentOn(): Promise<boolean> {
+  return (await readMasterSwitch()).enabled;
 }
 
 export async function writeMasterSwitch(enabled: boolean): Promise<void> {

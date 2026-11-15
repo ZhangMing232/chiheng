@@ -101,8 +101,8 @@ test("gateJob：空账本 + 0 预算任务也放行（闸门只看上限不是�
 });
 
 // ── 总开关（IO，用 CHIHENG_DATA_DIR 指向临时目录实测读写）──
-import { readMasterSwitch, writeMasterSwitch } from "./agent-jobs.ts";
-import { mkdtemp } from "node:fs/promises";
+import { readMasterSwitch, writeMasterSwitch, isAgentOn } from "./agent-jobs.ts";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -128,6 +128,66 @@ test("readMasterSwitch：写 off 读回 off，再写 on 读回 on", async () => 
     assert.equal((await readMasterSwitch()).enabled, false);
     await writeMasterSwitch(true);
     assert.equal((await readMasterSwitch()).enabled, true);
+  } finally {
+    if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
+    else process.env.CHIHENG_DATA_DIR = prev;
+  }
+});
+
+// ── 总开关 fail-closed（2026-11-15 全仓复检补）──
+test("readMasterSwitch：文件损坏 = 关 + reason=corrupt（不默认开）", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-sw-"));
+  const prev = process.env.CHIHENG_DATA_DIR;
+  process.env.CHIHENG_DATA_DIR = dir;
+  try {
+    await writeFile(join(dir, "agent-master-switch.json"), '{ "enabled": ');
+    const sw = await readMasterSwitch();
+    assert.equal(sw.enabled, false);
+    assert.equal(sw.reason, "corrupt");
+    assert.equal(await isAgentOn(), false);
+  } finally {
+    if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
+    else process.env.CHIHENG_DATA_DIR = prev;
+  }
+});
+
+test("readMasterSwitch：文件存在但 enabled 不是布尔 = 关 + reason=corrupt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-sw-"));
+  const prev = process.env.CHIHENG_DATA_DIR;
+  process.env.CHIHENG_DATA_DIR = dir;
+  try {
+    await writeFile(join(dir, "agent-master-switch.json"), '{"enabled":"yes"}');
+    assert.equal((await readMasterSwitch()).enabled, false);
+  } finally {
+    if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
+    else process.env.CHIHENG_DATA_DIR = prev;
+  }
+});
+
+test("readMasterSwitch：没文件 = 开 + reason=missing（首次部署默认）", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-sw-"));
+  const prev = process.env.CHIHENG_DATA_DIR;
+  process.env.CHIHENG_DATA_DIR = dir;
+  try {
+    const sw = await readMasterSwitch();
+    assert.equal(sw.enabled, true);
+    assert.equal(sw.reason, "missing");
+    assert.equal(await isAgentOn(), true);
+  } finally {
+    if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
+    else process.env.CHIHENG_DATA_DIR = prev;
+  }
+});
+
+test("isAgentOn：只有明确 enabled=true 才放行", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-sw-"));
+  const prev = process.env.CHIHENG_DATA_DIR;
+  process.env.CHIHENG_DATA_DIR = dir;
+  try {
+    await writeMasterSwitch(false);
+    assert.equal(await isAgentOn(), false);
+    await writeMasterSwitch(true);
+    assert.equal(await isAgentOn(), true);
   } finally {
     if (prev === undefined) delete process.env.CHIHENG_DATA_DIR;
     else process.env.CHIHENG_DATA_DIR = prev;

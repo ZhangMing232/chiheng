@@ -19,7 +19,9 @@ import { scheduleDue } from "./agent-schedules.ts";
 let lastDispatchAt = 0;
 const COOLDOWN_MS = 30_000;
 
-/** 是否正在冷却（导出给测试/页面提示用）。 */
+/** 是否正在冷却（保留给调用方查询；2026-11-15 复检：跨 tick 冷却由 home-server
+ *  的 agentTickRunning 单进程防重入负责——模块级内存每 60s 新 spawn 会归零，
+ *  不可靠。同 tick 内的串行由 tickAgentSchedules 的 dispatched 变量保证）。 */
 export function inCooldown(now = Date.now()): boolean {
   return now - lastDispatchAt < COOLDOWN_MS;
 }
@@ -38,7 +40,7 @@ export async function tickAgentSchedules(
   const { readMasterSwitch } = await import("./agent-jobs.ts");
   if (!(await readMasterSwitch()).enabled) return { dispatched: null, skipped: 0, checked: 0 };
   const { readAgentSchedules, writeAgentSchedules } = await import("./agent-schedules.ts");
-  const { readAgentJobs, readAgentBudget, appendAgentJob, updateAgentJob } = await import("./agent-jobs.ts");
+  const { updateAgentJob } = await import("./agent-jobs.ts");
   const schedules = await readAgentSchedules();
   const day = now.toLocaleDateString("sv-SE"); // 本地 YYYY-MM-DD
   const hour = now.getHours();
@@ -50,8 +52,10 @@ export async function tickAgentSchedules(
       skipped += 1;
       continue;
     }
-    if (dispatched || inCooldown(now.getTime())) {
-      // 一次 tick 只派一条（agent 串行）；其余的留给下个 tick。
+    // 一次 tick 只派一条（agent 串行）；其余的留给下个 tick。
+    // 不再查 inCooldown 模块内存——home-server 每 60s 新 spawn 会让它归零，
+    // 且 lastDispatchAt 会污染同进程内的后续调用（测试里暴露过）。
+    if (dispatched) {
       skipped += 1;
       continue;
     }
@@ -59,6 +63,8 @@ export async function tickAgentSchedules(
     dispatched = s.id;
     const r = await runTask({ task: s.task, scheduleId: s.id, budgetCny: s.budgetCny });
     await updateAgentJob(r.jobAt, { status: r.status, endedAt: new Date().toISOString(), ...(r.cost != null ? { cost: { cny: r.cost, estimated: true } } : {}), ...(r.error ? { error: r.error } : {}), ...(r.answer ? { answer: r.answer.slice(0, 4000) } : {}) });
+    // 只有真正跑成（ok + status=ok）才消耗当天名额；失败留给下个 tick 补跑。
+    if (!r.ok || r.status !== "ok") continue;
     const next = (await readAgentSchedules()).map((x) =>
       x.id === s.id ? { ...x, lastRunDay: day, lastStatus: r.status, lastCost: r.cost } : x,
     );
@@ -70,11 +76,28 @@ export async function tickAgentSchedules(
 /** 默认执行实现：走 agent-runner（真正 spawn headless）。 */
 async function runViaRunner(opts: { task: string; scheduleId: string; budgetCny: number }): Promise<{ ok: boolean; status: "ok" | "error" | "budget-killed"; cost?: number; error?: string; answer?: string; jobAt: string }> {
   const { runAgentTask } = await import("./agent-runner.ts");
-  const { readAgentJobs, readAgentBudget, appendAgentJob } = await import("./agent-jobs.ts");
-  void readAgentJobs;
+  const { readAgentJobs, readAgentBudget, appendAgentJob, gateJob } = await import("./agent-jobs.ts");
   const budget = await readAgentBudget();
   const jobsForGate = await readAgentJobs();
-  const at = new Date().toISOString();
+  // 预算闸在写 running 账之前判（2026-11-15 复检补）：被拒就不该留一条 error 账、
+  // 也不该占用当天名额。runAgentTask 内还有同一道闸（防御式重复，无害）。
+  const nowIso = new Date().toISOString();
+  const gate = gateJob(jobsForGate, budget, budget.perTaskCny, nowIso.slice(0, 10), nowIso.slice(0, 7));
+  if (!gate.allowed) {
+    // 被预算闸拦下也记一条账（可审计），但状态就是 budget-killed，不写 running 再改。
+    await appendAgentJob({
+      at: nowIso,
+      task: opts.task,
+      trigger: "scheduled",
+      scheduleId: opts.scheduleId,
+      budgetCny: budget.perTaskCny,
+      status: "budget-killed",
+      endedAt: nowIso,
+      error: gate.reason,
+    });
+    return { ok: false, status: "budget-killed", error: gate.reason, jobAt: nowIso };
+  }
+  const at = nowIso;
   const job = {
     at,
     task: opts.task,

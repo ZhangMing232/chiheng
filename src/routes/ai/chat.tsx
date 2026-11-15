@@ -20,7 +20,7 @@ import { askButler, clearButlerHistory, getAgentJobs, getButlerHistory, getChall
 import { ACTIVE_STYLES, STYLES } from "@/lib/market/strategies";
 import { Bot, Send, ChartLine, Wallet, FlaskConical, Database } from "lucide-react";
 import type { IndexQuote } from "@/lib/market/types";
-import { AISectionTabs, Section } from "@/components/ai-panels";
+import { AISectionTabs } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
 import { Link } from "@tanstack/react-router";
 
@@ -52,10 +52,10 @@ export const Route = createFileRoute("/ai/chat")({
       getRecorder().catch(() => ({ at: null as number | null, ok: true })),
       getChallengers().catch(() => ({ list: [] as { id: string; status: string; name?: string }[], champions: {} })),
       getButlerHistory().catch(() => [] as { role: "user" | "butler"; text: string; at: string }[]),
-      getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: true, at: "" }, jobs: [], budget: null })),
+      getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: false, at: "", reason: "read-failed" as const }, jobs: [], budget: null })),
     ]);
-    // 总开关：off = 对话档也停（一个员工一个总闸）。非主人读不到 master，按开算（开关只在岗位/概览页可见）。
-    const masterOn = !masterRes.allowed || (masterRes.master?.enabled ?? true);
+    // 总开关：off = 对话档也停。读不到/未知一律按关算（fail-closed），不靠「非主人」绕过。
+    const masterOn = masterRes.master?.enabled === true;
     const trades = journal.days.flatMap((d) => d.trades);
     const open = trades.filter((t) => t.exit == null).length;
     // 账本按上海日记账（day.date），今天的成交按日期对；近 7 天柱 = 逐日数笔数

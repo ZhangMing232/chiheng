@@ -19,6 +19,7 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { sendPushPlus } from "@/lib/market/push";
+import { loadEventStream } from "@/lib/market/announcements";
 
 type PoolItem = {
   id: string; name: string; price: number; cap: number;
@@ -59,6 +60,26 @@ fired.sort((a, b) => b.pct - a.pct);
 
 // ② 池子刷新：重扫收紧包络，找新入圈的
 const today = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
+// 事件流（2026-11-15 接下游）：近 7 天全市场公告事件，按代码归集。
+// 用途：绝望底仓是「捡便宜」逻辑，捡到被立案/问询的便宜是灾难——周报里显式点名，
+// 不自动剔除（观察机制不替人做决定），但必须让人一眼看到。
+const eventByCode = new Map<string, { label: string; title: string; date: string }[]>();
+for (let back = 0; back < 7; back++) {
+  const d = new Date(Date.now() + 8 * 3_600_000 - back * 86_400_000).toISOString().slice(0, 10);
+  const book = await loadEventStream(d);
+  if (!book) continue;
+  for (const e of book.events) {
+    // 归一到 6 位代码（巨潮给 secCode，不带 sh/sz 前缀）
+    const code = e.code.replace(/^(sh|sz|bj)/i, "");
+    const hit = /^(investigation|inquiry|reduction)$/.test(e.category);
+    if (!hit) continue; // 质押/业绩预告不点名，只留立案/问询/减持
+    const label = e.category === "investigation" ? "立案/处罚" : e.category === "inquiry" ? "问询/关注函" : "减持";
+    const arr = eventByCode.get(code) ?? [];
+    if (!arr.some((x) => x.title === e.title)) arr.push({ label, title: e.title, date: e.date });
+    eventByCode.set(code, arr);
+  }
+}
+const flagged = (id: string) => eventByCode.get(id.replace(/^(sh|sz|bj)/i, "")) ?? [];
 const inPool = new Set(pool.map((p) => p.id));
 const newcomers: PoolItem[] = [];
 const kdir = "data/backtest/kline";
@@ -98,6 +119,18 @@ if (basket.picks.length) {
 }
 if (events.length) lines.push("事件：" + events.join("；"));
 lines.push("纪律：止损/目标/120 天到期才是出场事件，中间的涨跌只是过程。");
+// 负面事件点名（公告事件流下游）：篮子里 + 新入圈里命中立案/问询/减持的票，人眼先验。
+const riskLines: string[] = [];
+for (const { p } of fired) {
+  for (const ev of flagged(p.id)) riskLines.push(`  ⚠️ 篮子 ${p.name}（${p.id}）近 7 天有「${ev.label}」：${ev.title.slice(0, 40)}（${ev.date}）`);
+}
+for (const n of newcomers.slice(0, 10)) {
+  for (const ev of flagged(n.id)) riskLines.push(`  ⚠️ 新入圈 ${n.name}（${n.id}）近 7 天有「${ev.label}」：${ev.title.slice(0, 40)}（${ev.date}）`);
+}
+if (riskLines.length) {
+  lines.push(`公告事件提醒（${riskLines.length} 条，捡便宜前先看是不是被立案/问询/减持）：`);
+  lines.push(...riskLines.slice(0, 12));
+}
 if (newcomers.length) {
   lines.push("新入圈（本周进入收紧包络）：");
   for (const n of newcomers.slice(0, 10)) lines.push(`  ${n.name}（${n.id}）距高${n.距高}% 漂移${n.drift60}%`);

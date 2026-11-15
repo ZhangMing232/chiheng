@@ -16,7 +16,7 @@
 import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { Table, tdClass, thClass, Tag } from "@/components/terminal";
+import { Table, thClass, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { AISectionTabs, Section } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
@@ -28,7 +28,7 @@ import type { AgentSchedule } from "@/lib/market/agent-schedules";
 export const Route = createFileRoute("/ai/agent")({
   loader: async () => {
     const [res, sched] = await Promise.all([
-      getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: true, at: "" }, jobs: [] as AgentJob[], budget: null })),
+      getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: false, at: "", reason: "read-failed" as const }, jobs: [] as AgentJob[], budget: null })),
       getAgentSchedules().catch(() => ({ allowed: false as const, schedules: [] as AgentSchedule[], proposals: [] })),
     ]);
     return { res, schedules: sched.schedules, serverNow: Date.now() };
@@ -309,7 +309,7 @@ function AgentPage() {
       </Section>
 
       {/* 定时任务清单 */}
-      {d.schedules.length >= 0 && d.res.allowed ? (
+      {d.res.allowed ? (
         <Section
           id="agent-schedules"
           title="定时任务"

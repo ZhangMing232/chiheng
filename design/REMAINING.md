@@ -8,28 +8,26 @@
 
 ## 0. 今天到哪了（一句话）
 
-> 🔴 **2026-11-13 现状**（下面 10-23 那段是历史快照，别当成今天）：
-> 11-12 晚~11-13 早做了一次**整站改版**（50 个会话外提交、+6064/−2213 行），
-> 侧栏从八组重排成**五组 + 系统**、`/` 变纯 307 → 新的核心页 `/today`、
-> 整站换**像素赛博**默认深色主题、子页收进 tab（策略 5→3 / 因子 6→1 / 资金 8→4）、
-> `/inbox` 下线、买入单推送改到早上 9:20、PushConfig 搬进 `/settings`。
-> 改动归档见 `design/DECISIONS.md` 最后一节，界面真源 `design/redesign-2026-11/`，
-> 现行页面清单与推送通道边界见 `PROJECT.md` §3 / §7。
+> 🔴 **2026-11-15 现状（本轮复检+补窟窿后）**：`origin/main` 同步到 `ca28a1e` 之前，
+> 11-13~11-15 又落了大量机制：小机常驻 agent（总开关/定时任务/工单/桌宠/六 tab AI 板块重整）、
+> AI 板块打散重组（概览/对话/岗位/大脑/账目/法条）、巨潮全市场事件流、分时蜡烛双模式、
+> 东财单点降级可观测、侧栏六组减五组。
+> **2026-11-15 全仓复检只检查（三份并行审查 + 主审）查出总开关软闸、事件流时区/
+> 覆盖率/零下游、重整入口丢失等真 bug，随后按顺序全部补上**：
+> ① 总开关服务端硬闸（统一 isAgentOn、fail-closed、所有 AI server fn/CLI/前端未知态按关）；
+> ② 巨潮事件流（北京时间 +8h、按 5 类目分别查翻完所有页、负向过滤、原子落盘、
+>    自然日补采、接进 despair-watch/regulatory-radar、registry 文案）；
+> ③ 重整丢失入口补回（手动进化/诊断、规则回验、VT 工具入大脑页、六项健康环、
+>    工单审批按钮 + 顺手发现自动入箱）；
+> ④ serve.log 加日期前缀、补 1:1 测试、清未用 import、刷文档与 WATCH 验收项。
 >
-> **工程状态（2026-11-13 22:40 实测，本轮收尾后）**：8787 在跑且 `.output` 是
-> **11-13 22:13 的新构建**（`npm run build:mac` + `mac:restart` 后已上线，
-> `scope-note-C3vfusMW.js` 已渲染）；typecheck 干净 · `check:client` **97 个 JS** 干净 ·
-> **`npm test` 1333/1333** · `reconcile-p2.ts` 可复跑；8787 / 3080 DSH 全 200、记账心跳正常。
-> **策略结论没变**：`ACTIVE_STYLES=["value"]` 一套，`strategy-verdicts.json` 仍是
-> 11 套聚类 t 全在 ±2 内、无可部署 alpha——这轮改版一行研究层都没动。
+> **工程状态（2026-11-15 收尾后实测）**：typecheck 0 · 全量测试 **1481 全绿** ·
+> `check:client` 98 个 JS 干净 · 8787 各路由 200 · git 与 origin 同步。
+> **策略结论没变**：`ACTIVE_STYLES=["value"]` 一套，无可部署 alpha。
+> 小机总开关当前 **off（保持断电）**（`data/agent-master-switch.json: enabled=false`），
+> 例行子开关 `autoEvolve=false`，三条定时任务全关——零 AI 调用、零扣费。
 >
-> **已推送**：`origin/main` 已同步到 **`dbddb39`**（11-13 22:4x push，含 `eb3b6bb`）；
-> 本轮新增 `design/P2-RECONCILE-REPORT.md`、`scripts/reconcile-p2.ts`、
-> `src/components/scope-note.tsx`、`src/lib/market/daily-reconcile.ts(+test)` 与
-> `scripts/mac.sh` 的 restart 修复。**P2 两链合一已评估裁决「不做」**（见
-> `design/P2-RECONCILE-REPORT.md`），不再列为待拍板。
->
-> 下面 10-23 那段是历史快照，别当成今天。
+> 下面 11-13 / 10-23 两段是**历史快照**，别当成今天。
 
 护栏齐了、研究流水线跑通、SOP 6/6、数据 D1-D10 落地（含宏观四块/事件驱动东财 6 类）、
 港美行情接入、GitHub 已同步。**973 测试全绿**（2026-10-23）。Vibe-Research 对齐两轮，

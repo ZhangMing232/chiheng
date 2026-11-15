@@ -23,26 +23,30 @@ import {
   deleteAIProfile,
   getAIStatus,
   getAIUsage,
+  getVTToolsStatus,
   setActiveAIProfile,
 } from "@/lib/market/quotes.functions";
 import { AISectionTabs, ProfileModal, messageOf, type AIStatusPayload, type UsagePayload } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
+import { CollapsibleSection } from "@/components/collapsible";
+import { StateBlock } from "@/components/state-block";
 
 export const Route = createFileRoute("/ai/config")({
   loader: async () => {
-    const [ai, usage] = await Promise.all([
+    const [ai, usage, vt] = await Promise.all([
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] })),
       getAIUsage().catch((): UsagePayload => ({ allowed: false, entries: [], stats: null })),
+      getVTToolsStatus().catch(() => ({ allowed: false as const })),
     ]);
     // 「近 7 天」窗口的基准时刻随 loader 数据序列化，SSR 与 hydration 用同一个值。
-    return { ai, usage, serverNow: Date.now() };
+    return { ai, usage, vt, serverNow: Date.now() };
   },
   component: AIConfigPage,
 });
 
 function AIConfigPage() {
-  const { ai, usage, serverNow } = Route.useLoaderData();
+  const { ai, usage, vt, serverNow } = Route.useLoaderData();
   const router = useRouter();
   const [modal, setModal] = useState<null | "new" | (typeof ai.profiles)[number]>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -211,6 +215,45 @@ function AIConfigPage() {
           </p>
         </div>
       </GlowPanel>
+
+      {/* VT 工具矿山：2026-11-15 从旧 /ai 控制中枢补回，归入「大脑」页（它给 AI 当外挂工具） */}
+      {vt.allowed ? (
+        <CollapsibleSection
+          className="mt-3 overflow-hidden rounded border border-line bg-surface"
+          storageKey="ai-vt-tools-2026-11"
+          defaultOpen={false}
+          headerClassName="border-b border-line px-3.5 py-2"
+          header={
+            <span>
+              <span className="text-sm font-medium">VT 工具矿山</span>
+              <span className="ml-2 text-xs text-muted">
+                {vt.status.online ? `在线 · ${vt.status.toolCount} 个只读研究工具` : "离线"}
+              </span>
+            </span>
+          }
+        >
+          <div className="px-3.5 py-3">
+            {vt.status.online ? (
+              <div>
+                <p className="mb-2 text-xs text-muted">Vibe-Trading 的 MCP server（stdio 子进程随用随起），检测于 {vt.status.checkedAt.slice(11, 19)}。</p>
+                <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {vt.status.tools.slice(0, 24).map((t: { name: string; description?: string }) => (
+                    <p key={t.name} className="truncate text-[12px] text-muted" title={t.description}>
+                      <span className="font-mono text-foreground">{t.name}</span>
+                      {t.description ? ` — ${t.description.slice(0, 40)}` : ""}
+                    </p>
+                  ))}
+                </div>
+                {vt.status.toolCount > 24 ? <p className="mt-1 text-[12px] text-muted">… 共 {vt.status.toolCount} 个，其余略</p> : null}
+              </div>
+            ) : (
+              <StateBlock kind="empty" title="VT 工具离线" hint={`${vt.status.error ?? "未知原因"}。venv 路径可用 CHIHENG_VT_MCP_HOME 环境变量改。`} />
+            )}
+          </div>
+        </CollapsibleSection>
+      ) : (
+        <div className="mt-3"><StateBlock kind="empty" title="工具状态未知" hint="主人账号登录后自动检测。" /></div>
+      )}
 
       {ai.configured ? null : <p className="mt-2 text-[12px] text-warn">当前没有启用中的档案——闭环和自动进化都不会跑，先启用一套。</p>}
       {message ? <p className="mt-2 text-xs text-muted">{message}</p> : null}

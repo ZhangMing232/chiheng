@@ -136,14 +136,28 @@ function take(list: Raw[], kind: "sector" | "stock", limit: number): FlowRow[] {
   return rows;
 }
 
-/** 一条请求：超时后等 3 秒重试一次——东财偶尔抖一下，直接放弃会把北向标成降级。 */
-async function fetchRetry(url: string, init: RequestInit): Promise<Response> {
+/** 北向降级判定（纯函数）：一条腿都没有 = 拉不到；只有一条也有数据，不算降级。 */
+export function isNorthDegraded(north: NorthLeg[]): boolean {
+  return north.length === 0;
+}
+
+/** 一条请求：网络错 / 超时 / 5xx / 429 都等 3 秒重试一次，每次用**独立的**超时 signal
+ *  （复用同一个已 abort 的 signal 会让第二次立即失败——2026-11-15 复检修正）。
+ *  东财偶尔抖一下或限流，直接放弃会把北向标成降级。 */
+async function fetchRetry(url: string, headers: Record<string, string>, timeoutMs = 12_000): Promise<Response> {
+  const attempt = () => fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+  let res: Response;
   try {
-    return await fetch(url, init);
-  } catch (err) {
+    res = await attempt();
+  } catch {
     await new Promise((r) => setTimeout(r, 3_000));
-    return fetch(url, init);
+    return attempt();
   }
+  if (res.status >= 500 || res.status === 429) {
+    await new Promise((r) => setTimeout(r, 3_000));
+    return attempt();
+  }
+  return res;
 }
 
 async function loadNorth(): Promise<NorthLeg[]> {
@@ -157,10 +171,7 @@ async function loadNorth(): Promise<NorthLeg[]> {
         "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_MUTUAL_DEAL_HISTORY" +
         "&columns=TRADE_DATE,DEAL_AMT,LEAD_STOCKS_NAME" +
         `&filter=(MUTUAL_TYPE=%22${leg.type}%22)&pageNumber=1&pageSize=1&sortColumns=TRADE_DATE&sortTypes=-1`;
-      const res = await fetchRetry(url, {
-        headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
-        signal: AbortSignal.timeout(12_000),
-      });
+      const res = await fetchRetry(url, { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" });
       if (!res.ok) return null;
       const body = (await res.json()) as { result?: { data?: { TRADE_DATE?: string; DEAL_AMT?: number; LEAD_STOCKS_NAME?: string }[] } };
       const row = body.result?.data?.[0];
@@ -293,9 +304,8 @@ export async function loadFlow(): Promise<FlowBook> {
     market,
     tape,
     asOf: Date.now(),
-    // 北向是东财单源（免费备源全线探尽不可行：新浪端点退役、交易所接口无公开文档），
-    // 拉不到就明说降级，不空着装没事。
-    northDegraded: north.length === 0,
+    // 北向是东财单源（免费备源全线探尽不可行），拉不到就明说降级，不空着装没事。
+    northDegraded: isNorthDegraded(north),
   };
   cache = { at: book.asOf, book };
   return book;

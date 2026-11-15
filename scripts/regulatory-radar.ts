@@ -13,6 +13,7 @@
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { loadEventStream } from "@/lib/market/announcements";
 
 const UA = "Mozilla/5.0";
 const OUT = "data/history/regulatory";
@@ -82,8 +83,19 @@ async function main() {
     await new Promise((r) => setTimeout(r, 150));
   }
 
+  // 3b. 公告事件流（2026-11-15 接下游）：当天全市场事件，按代码挂到偏离行上。
+  // "已达/临近"异动线 + 同期被问询/立案，是监管关注的高风险组合，报告里显式标。
+  const eventBook = await loadEventStream(date);
+  const eventByCode = new Map<string, { category: string; title: string }[]>();
+  for (const e of eventBook?.events ?? []) {
+    const code = e.code.replace(/^(sh|sz|bj)/i, "");
+    const arr = eventByCode.get(code) ?? [];
+    if (!arr.some((x) => x.title === e.title)) arr.push({ category: e.category, title: e.title });
+    eventByCode.set(code, arr);
+  }
+
   // 3. 逐只算偏离值
-  const rows: { code: string; name: string; streak: string; dev: number; threshold: number; level: "已达" | "临近" | "正常" }[] = [];
+  const rows: { code: string; name: string; streak: string; dev: number; threshold: number; level: "已达" | "临近" | "正常"; events: { category: string; title: string }[] }[] = [];
   for (const s of snap.limitUp) {
     const id = s.id;
     if (!id) continue;
@@ -106,6 +118,7 @@ async function main() {
       dev,
       threshold: thr * 100,
       level,
+      events: eventByCode.get(id.replace(/^(sh|sz|bj)/i, "")) ?? [],
     });
   }
 
@@ -120,10 +133,14 @@ async function main() {
   const levelNames = { 已达: "🟧 已达异动线", 临近: "🟡 临近异动线", 正常: "—" } as const;
   for (const r of rows.filter((x) => x.level !== "正常").slice(0, 30)) {
     console.log(`  ${levelNames[r.level]} ${r.name}(${r.code}) ${r.streak} · 3日偏离 ${(r.dev * 100).toFixed(1)}%/${r.threshold.toFixed(0)}%`);
+    if (r.events.length) {
+      for (const ev of r.events.slice(0, 2)) console.log(`      📄 同期公告事件[${ev.category}]：${ev.title.slice(0, 38)}`);
+    }
   }
   const reached = rows.filter((r) => r.level === "已达").length;
   const near = rows.filter((r) => r.level === "临近").length;
-  console.log(`\n已达 ${reached} 只 · 临近 ${near} 只 · 已落盘 ${OUT}/${date}.json`);
+  const withEvents = rows.filter((r) => r.events.length > 0).length;
+  console.log(`\n已达 ${reached} 只 · 临近 ${near} 只 · 命中公告事件 ${withEvents} 只 · 已落盘 ${OUT}/${date}.json`);
 }
 
 main().catch((e) => {

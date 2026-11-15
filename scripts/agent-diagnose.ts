@@ -8,6 +8,13 @@
  */
 
 import { runAgentDiagnosis } from "@/lib/market/agent-loop";
+import { isAgentOn } from "@/lib/market/agent-jobs";
+
+// 总开关硬闸（2026-11-15 全仓复检补）：CLI 也不能绕过总闸直接花钱。
+if (!(await isAgentOn())) {
+  console.error("小机已被总开关停用，本轮诊断跳过。去 /ai 概览页打开「小机在岗」再跑。");
+  process.exit(0);
+}
 
 const { ok, diagnosis, error } = await runAgentDiagnosis("manual");
 

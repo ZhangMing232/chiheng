@@ -37,7 +37,7 @@ cd /Volumes/colorful/chiheng
 npm run serve        # 启动服务（正式网页 http://127.0.0.1:8787，前台，窗口别关）
 npm run preflight    # 开盘前自检：11 项检查 + 退出码（0 就绪 / 1 有阻塞 / 2 休市）
 npm run build:mac    # 改了前端之后必须 build 才可见（8787 跑的是 .output 产物）
-npm test             # 1,324 条测试（2026-11-13 实测，两段共约 20 秒）
+npm test             # 1,470+ 条测试（2026-11-15 实测，两段共约 20 秒）
 npm run lint         # 0 error（既有 warning 数量见当期输出）
 ```
 
@@ -101,7 +101,7 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 （`localStorage chiheng-theme`）；新增 `PixelHeader` / `PixelSummary` 两个组件，
 标题块与摘要块已覆盖全站。旧的「浅底 + 蓝主色 #1677ff」口径已过时。
 
-规模（2026-11-13）：704 提交 · 92 个路由文件 / 149 个脚本 · 1,324 条测试。
+规模（2026-11-15）：740+ 提交 · 94 个路由文件 / 150+ 个脚本 · 1,470+ 条测试。
 提交有闸门：pre-commit 跑 typecheck、pre-push 跑全量测试（`.githooks/`，
 `git config core.hooksPath` 已指向它）。
 
@@ -196,13 +196,13 @@ data/                 全部运行时数据，**不在 git 里**，每天 23:30 
 
 ---
 
-## 7. 当前状态（2026-11-13 深夜实测）
+## 7. 当前状态（2026-11-15 实测；下面 11-13 深夜那几行是历史快照）
 
 | 项 | 状态 |
 |---|---|
 | 服务 | **在跑**：8787 HTTP 200，`.output` 是 11-13 深夜的新构建（双页头收口 + huiyan 重排已上线）。launchd 三件（serve / tunnel / backup 23:30）沿用；`com.chiheng.verdict` 11-06 已 bootout，每日判决走 `record-journal` 收盘封印段的 `auto-verdict.ts`。详见 `design/REMAINING.md` §13 |
-| 测试 | **1,341 / 1,341 全绿** · typecheck 干净 · `check:client` 97 个 JS 干净 · 冒烟 **0 FAIL** |
-| git | **origin/main 已同步 `9695506`**。11-13 晚五个提交：对账+ScopeNote+归档（dbddb39）、P2 四条（0715088）、UI 根因修复（80700d6）、双页头收口（ffb2d02）、huiyan 重排（9695506） |
+| 测试 | **1,473 / 1,473 全绿** · typecheck 干净 · `check:client` 98 个 JS 干净（2026-11-15 收尾实测） |
+| git | **origin/main 已同步（2026-11-15 收尾后）；历史：`9695506`**。11-13 晚五个提交：对账+ScopeNote+归档（dbddb39）、P2 四条（0715088）、UI 根因修复（80700d6）、双页头收口（ffb2d02）、huiyan 重排（9695506） |
 | 数据链路 | 记账心跳正常；`data/reconcile/<date>.json` 每日收盘后自动落对账快照（11-13 起新增）；`limit-pools` 归档 15 天、`closes` 303、`forecast` 4 |
 | 策略 | 现役 `ACTIVE_STYLES = ["value"]` 一套；breakout 被闸门 disabled（10-29 起，「全池 t=-2.35 无 alpha」）。已下线 4 套只结算历史仓。**研究结论未因这次改版变化**：`strategy-verdicts.json` 11 套聚类 t 全在 ±2 内，无可部署 alpha |
 | 对账裁决 | **P2「两链合一」已评估并裁决不做**（5 日实测 31 笔差异 = 16 挑战者实验 + 15 盘中新增，0 丢单）。`/today` 短线腿标「观察·不建仓」；策略追踪「今日对照」带三类归因标签。详见 `design/P2-RECONCILE-REPORT.md` |

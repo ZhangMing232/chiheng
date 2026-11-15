@@ -226,7 +226,10 @@ process.on("unhandledRejection", (err) => {
 const rules = await readRules();
 const prefs = await readPrefs();
 const phase = sessionPhase();
-const time = formatClock(Date.now());
+// 日志前缀带完整日期（2026-11-15 补）：serve.log 跨天追加写，旧格式只有 HH:MM，
+// 9.8 万行叠在一起分不清哪天——11-14 晚把历史周五的「AI 自动进化」误读成当晚，
+// 就是这个坑。用上海时区 YYYY-MM-DD HH:MM，WATCH 清单「看 15:12 之后的行」才查得准。
+const time = `${new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10)} ${formatClock(Date.now())}`;
 const alerts = await readAlerts();
 let alertsChanged = false;
 
@@ -1068,16 +1071,15 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     const dueDiagnosis = (dueFactor || dueStrategy || dueGenome) && !todayAuto.some((e) => e.layer === "agent");
     // 小机总开关（2026-11-14）：off = 自动进化也停。用户口径「AI 是一个整体」——
     // 一个总闸断全部（手动派活/定时任务/工单/反思链条），不留双开关各管各的口子。
-    let masterOn = true;
+    let masterOn = false; // fail-closed：读不到/损坏一律按关，宁可不跑也不在没把握时花钱
     try {
-      const { readMasterSwitch } = await import("../src/lib/market/agent-jobs.ts");
-      masterOn = (await readMasterSwitch()).enabled;
+      const { isAgentOn } = await import("../src/lib/market/agent-jobs.ts");
+      masterOn = await isAgentOn();
     } catch (masterErr) {
-      // 读不到开关（文件坏了/模块挂了）按「开」算——反思链条不该被一个辅助文件炸掉。
-      console.error(`${time} 读小机总开关失败（按开处理）:`, masterErr);
+      console.error(`${time} 读小机总开关失败（按关处理，本轮不跑自动进化）:`, masterErr);
     }
     if (!masterOn) {
-      console.log(`${time} 小机总开关关闭，自动进化本轮跳过（不想跑反思链条也去 /ai 关「自动进化」）`);
+      console.log(`${time} 小机总开关关闭或状态未知，自动进化本轮跳过`);
     }
     if (prefs.autoEvolve && masterOn && config && (dueFactor || dueStrategy || dueGenome)) {
       // 熔断器：已断电的状态直接跳过（开关应该已被关掉，这里是双保险 + 审计）。

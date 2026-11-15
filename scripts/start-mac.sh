@@ -14,7 +14,7 @@ NODE="/Users/zhangweimin/nodejs/bin/node"
 PORT="${PORT:-8787}"
 
 if [ ! -f "$ROOT/scripts/home-server.mjs" ]; then
-  echo "$(date '+%H:%M') 找不到 $ROOT/scripts/home-server.mjs，可能是硬盘没插上" >> "$ROOT/data/serve.log" 2>&1
+  echo "$(date '+%Y-%m-%d %H:%M') 找不到 $ROOT/scripts/home-server.mjs，可能是硬盘没插上" >> "$ROOT/data/serve.log" 2>&1
   exit 1
 fi
 

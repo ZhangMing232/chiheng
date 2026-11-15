@@ -15,6 +15,14 @@ import { existsSync, readdirSync, statSync, readFileSync, writeFileSync, unlinkS
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// 日志前缀带完整日期（2026-11-15 补）：serve.log 跨天追加写，旧格式只有 HH:MM 或
+// 无前缀，几万行叠一起分不清哪天。统一给本进程自己的 console 输出加上海日期。
+const logPrefix = () => `[${new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10)} ${new Date().toLocaleTimeString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit" })}]`;
+const rawLog = console.log.bind(console);
+const rawError = console.error.bind(console);
+console.log = (...args) => rawLog(logPrefix(), ...args);
+console.error = (...args) => rawError(logPrefix(), ...args);
+
 const entry = ".output/server/index.mjs";
 if (!existsSync(entry)) {
   console.error("还没有本机构建。在项目目录运行：npm install && npm run build:mac");
@@ -670,31 +678,46 @@ function runShortFormsScan() {
   });
 }
 
-// ── 全市场公告事件流（15:40）：巨潮按日拉问询函/减持/业绩预告/立案/质押，
-// 落盘 data/announcements/<date>.json——监管雷达和绝望底仓复核的事件过滤原料。
-// 巨潮是证监会指定披露平台（第一档合规源），一天 3 页串行请求无压力。
-// 跨重启去重看 data/announcements/<date>.json 是否已落。
-let announcementsRanDay = "";
+// ── 全市场公告事件流（15:40 起，按自然日补采）：巨潮按事件类目各查一次、翻完所有页，
+// 原子落盘 data/announcements/<date>.json。巨潮是证监会指定披露平台（第一档合规源）。
+// 2026-11-15 复检修正：公告周末也有（实测周六 800 条），不再用 isMarketOpen 跳过；
+// 补采最近 3 个自然日（含周末/节假日），失败清标记下个 tick 重试；
+// 去重看账本 JSON 结构有效（loadEventStream 会拒半截 JSON），而不是 existsSync。
+let announcementsRunning = false;
 function runAnnouncementsFetch() {
-  const day = new Date().toLocaleDateString("sv-SE");
-  if (announcementsRanDay === day) return;
-  if (!isMarketOpen(day)) return; // 休市没有新公告
+  if (announcementsRunning) return;
   const hour = new Date().getHours();
   const min = new Date().getMinutes();
   if (hour < 15 || (hour === 15 && min < 40)) return;
-  if (existsSync(join(ROOT, "data", "announcements", `${day}.json`))) {
-    announcementsRanDay = day;
-    return;
+  announcementsRunning = true;
+  // 补采最近 3 天（含今天）：倒序，一天一个子进程；脚本内部自己校验已有账本跳过。
+  const days = [];
+  for (let back = 0; back < 3; back++) {
+    const d = new Date(Date.now() - back * 86_400_000);
+    days.push(d.toLocaleDateString("sv-SE"));
   }
-  announcementsRanDay = day;
-  const child = spawn(
-    process.execPath,
-    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/fetch-announcements.ts"],
-    { stdio: "inherit" },
-  );
-  child.on("exit", (code) => {
-    if (code) console.error("公告事件流采集失败，手动跑 fetch-announcements.ts 补");
-  });
+  let idx = 0;
+  const next = () => {
+    if (idx >= days.length) {
+      announcementsRunning = false;
+      return;
+    }
+    const day = days[idx++];
+    const child = spawn(
+      process.execPath,
+      ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/fetch-announcements.ts", day],
+      { stdio: "inherit" },
+    );
+    child.on("error", (err) => {
+      console.error(`公告事件流 ${day} 拉起失败:`, err.message);
+      next(); // 失败也继续补采下一天，并让本轮标记在最后清掉，下个 tick 会重试
+    });
+    child.on("close", (code) => {
+      if (code) console.error(`公告事件流 ${day} 采集失败（exit ${code}），下个 tick 重试`);
+      next();
+    });
+  };
+  next();
 }
 
 // ── 早盘自检（9:20，borrow-list B1）：9:26 买入单推送前把管道体检一遍推微信。
@@ -758,7 +781,6 @@ function runAgentScheduleTick() {
   child.on("exit", () => { agentTickRunning = false; });
 }
 const agentScheduleTimer = setInterval(runAgentScheduleTick, 60_000);
-void agentScheduleTimer;
 
 const klineRefreshTimer = setInterval(runKlineRefresh, 60_000);
 const tdxDailyTimer = setInterval(runTdxDaily, 60_000);

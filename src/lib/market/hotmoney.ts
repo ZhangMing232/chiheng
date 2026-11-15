@@ -32,7 +32,7 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function shortSeat(name: string): string {
+export function shortSeat(name: string): string {
   return name
     .replace(/股份有限公司/g, "")
     .replace(/有限责任公司/g, "")
@@ -50,7 +50,7 @@ function tidy(label: string): string {
     .replace(/^有限公司|^股份/, "");
 }
 
-function placeOf(name: string): string {
+export function placeOf(name: string): string {
   if (name.includes("试验区")) return "自贸区";
   const cityStreet = name.match(new RegExp(`(${CITIES})([\\u4e00-\\u9fa5]{1,6}(?:路|街|大道|巷|里))`));
   if (cityStreet) return tidy(cityStreet[1] + cityStreet[2]);
@@ -85,19 +85,20 @@ async function pull(report: string, date: string): Promise<Raw[]> {
   const url =
     "https://datacenter-web.eastmoney.com/api/data/v1/get?columns=SECURITY_CODE,OPERATEDEPT_NAME,NET" +
     `&pageSize=500&pageNumber=1&reportName=${report}&filter=${filter}&sortColumns=NET&sortTypes=-1&source=WEB&client=WEB`;
-  // 东财单源，抖一下别立刻放弃：超时/网络错等 3 秒重试一次（龙虎榜一天才拉一次，值得救）。
+  // 东财单源，抖一下/限流别立刻放弃：网络错、5xx、429 都等 3 秒重试一次；
+  // 每次独立 AbortSignal.timeout（复用已 abort 的 signal 会让第二次立即失败）。
+  const headers = { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/stock/lhb.html" };
+  const attempt = () => fetch(url, { headers, signal: AbortSignal.timeout(12_000) });
   let res: Response;
   try {
-    res = await fetch(url, {
-      headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/stock/lhb.html" },
-      signal: AbortSignal.timeout(12_000),
-    });
+    res = await attempt();
   } catch {
     await new Promise((r) => setTimeout(r, 3_000));
-    res = await fetch(url, {
-      headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/stock/lhb.html" },
-      signal: AbortSignal.timeout(12_000),
-    });
+    res = await attempt();
+  }
+  if (res.status >= 500 || res.status === 429) {
+    await new Promise((r) => setTimeout(r, 3_000));
+    res = await attempt();
   }
   if (!res.ok) return [];
   const body = (await res.json()) as { result?: { data?: Raw[] } };

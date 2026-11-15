@@ -18,16 +18,18 @@
 import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
-import { Table, tdClass, thClass, Tag } from "@/components/terminal";
+import { Table, thClass, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { CollapsibleSection } from "@/components/collapsible";
-import { GlowPanel, HealthRing, MiniBars, Pipeline, type PipelineStage } from "@/components/ai-kit";
+import { GlowPanel, HealthRing, Pipeline, type PipelineStage } from "@/components/ai-kit";
 import { AISectionTabs, Section, type AIStatusPayload } from "@/components/ai-panels";
 import { PixelHeader } from "@/components/pixel-header";
-import { PixelSummary } from "@/components/pixel-summary";
 import {
   applyRuleChange,
   rejectRuleChange,
+  runEvolve,
+  runAgentDiagnose,
+  decideAgentProposal,
   getAgentJobs,
   getAgentSchedules,
   getAIStatus,
@@ -57,7 +59,7 @@ export const Route = createFileRoute("/ai/")({
       getAIStatus().catch((): AIStatusPayload => ({ allowed: false, configured: false, baseUrl: null, model: null, keyTail: null, autoEvolve: false, activeId: null, profiles: [], fallbackOrder: [] })),
       getAILog().catch((): { allowed: boolean; entries: AILogEntry[] } => ({ allowed: false, entries: [] })),
       getAIUsage().catch((): { allowed: false; entries: AIUsageEntry[]; stats: null } => ({ allowed: false, entries: [], stats: null })),
-      getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: true, at: "" }, jobs: [] as AgentJob[], budget: null })),
+      getAgentJobs().catch(() => ({ allowed: false as const, master: { enabled: false, at: "", reason: "read-failed" as const }, jobs: [] as AgentJob[], budget: null })),
       getAgentSchedules().catch(() => ({ allowed: false as const, schedules: [], proposals: [] as AgentProposal[] })),
       getAgentDiagnosis().catch(() => null),
       getPendingRuleChanges().catch(() => ({ pending: [], log: [] })),
@@ -93,8 +95,10 @@ function AIOverviewPage() {
   const router = useRouter();
   const [masterBusy, setMasterBusy] = useState(false);
   const [ruleBusy, setRuleBusy] = useState<string | null>(null);
+  const [evolveBusy, setEvolveBusy] = useState<"evolve" | "diagnose" | null>(null);
+  const [proposalBusy, setProposalBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const masterOn = d.master?.enabled ?? true;
+  const masterOn = d.master?.enabled === true;
 
   const toggleMaster = async (next: boolean) => {
     setMasterBusy(true);
@@ -115,6 +119,55 @@ function AIOverviewPage() {
       await router.invalidate();
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "保存失败");
+    }
+  };
+
+  /** 批准/驳回一条工单。批准只是记状态，会生成派活草稿文本（去岗位页确认发送才算派）。 */
+  const decideProposal = async (p: AgentProposal, decision: "approved" | "dismissed") => {
+    setProposalBusy(p.id);
+    setMsg(null);
+    try {
+      await decideAgentProposal({ data: { id: p.id, decision } });
+      setMsg(decision === "approved"
+        ? `已批准。派活草稿：「${p.suggestion || p.finding}」——去「岗位」页粘贴到派活框确认发送。`
+        : "已驳回。");
+      await router.invalidate();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "操作失败");
+    } finally {
+      setProposalBusy(null);
+    }
+  };
+
+  /** 手动跑一轮完整进化（旧版入口补回；总开关 off 时由 server fn 直接拒）。 */
+  const runEvolveOnce = async () => {
+    setEvolveBusy("evolve");
+    setMsg(null);
+    try {
+      const res = await runEvolve();
+      const part = (label: string, r: { ok: boolean; proposed: number; error?: string }) =>
+        `${label} ${r.ok ? `进 ${r.proposed} 个` : `没跑成（${r.error ?? "?"}）`}`;
+      setMsg(`${part("因子层", res.factor)} · ${part("策略层", res.strategy)} · ${part("基因组层", res.genome)}`);
+      await router.invalidate();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "运行失败");
+    } finally {
+      setEvolveBusy(null);
+    }
+  };
+
+  /** 手动跑一轮全局诊断（旧版入口补回）。 */
+  const runDiagnoseOnce = async () => {
+    setEvolveBusy("diagnose");
+    setMsg(null);
+    try {
+      const res = await runAgentDiagnose();
+      setMsg(res.ok ? `诊断完成：${res.diagnosis?.summary ?? ""}` : `诊断失败（${res.error ?? "?"}）`);
+      await router.invalidate();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "运行失败");
+    } finally {
+      setEvolveBusy(null);
     }
   };
 
@@ -150,8 +203,11 @@ function AIOverviewPage() {
     { icon: <CircleDashed size={16} />, step: "03", title: "策略层", desc: "提名挑战者", metric: "每日例行动作", done: todayRoutine.some((e) => e.layer === "strategy") },
     { icon: <CircleDashed size={16} />, step: "04", title: "基因组层", desc: "产策略 spec", metric: "每日例行动作", done: todayRoutine.some((e) => e.layer === "genome") },
   ];
+  const recent = (d.usage.entries ?? []).filter((e) => e.at >= new Date(d.serverNow - 7 * DAY).toISOString().slice(0, 10));
+  const successRate = recent.length > 0 ? Math.round((recent.filter((e) => e.ok).length / recent.length) * 100) : null;
   const checks = [
     { label: "在岗", ok: masterOn, detail: masterOn ? "总开关开着" : "总开关关闭——全部口子停" },
+    { label: "模型服务", ok: d.ai.configured && (recent.length === 0 || (successRate ?? 0) >= 50), detail: !d.ai.configured ? "没有启用中的接口档案" : recent.length === 0 ? "已配置（近 7 天无调用）" : `近 7 天成功率 ${successRate}%（${recent.length} 次）` },
     { label: "例行", ok: d.ai.autoEvolve, detail: d.ai.autoEvolve ? "交易日 15:03 自动跑" : "例行已关（子开关）" },
     { label: "记账", ok: d.recorder.at != null && d.serverNow - d.recorder.at < 5 * 60_000, detail: d.recorder.at ? `${Math.round((d.serverNow - d.recorder.at) / 60_000)} 分钟前` : "还没跑" },
     { label: "行情", ok: d.indexCount > 0, detail: d.indexCount > 0 ? `拿得到 ${d.indexCount} 个指数` : "还没拉到" },
@@ -188,11 +244,11 @@ function AIOverviewPage() {
       {/* 健康总览 */}
       <GlowPanel className="mt-3">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-5 py-4">
-          <HealthRing value={score} hint={`五个真实检查项：${checks.map((c) => `${c.label} ${c.ok ? "✓" : "✗"}`).join(" · ")}`} />
+          <HealthRing value={score} hint={`${checks.length} 个真实检查项：${checks.map((c) => `${c.label} ${c.ok ? "✓" : "✗"}`).join(" · ")}`} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-lg font-medium text-fg">{masterOn ? "小机在岗" : "小机下岗"}</p>
-              <Tag tone={masterOn ? "up" : "warn"}>{checks.filter((c) => c.ok).length}/5 检查项通过</Tag>
+              <Tag tone={masterOn ? "up" : "warn"}>{checks.filter((c) => c.ok).length}/{checks.length} 检查项通过</Tag>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {checks.map((c) => (
@@ -231,6 +287,25 @@ function AIOverviewPage() {
               交易日 15:03 自动跑例行（子开关）
             </label>
             <span className="text-[12px] text-muted">判定数据：挑战者 {running} 在跑 / {judged} 已判</span>
+            {/* 手动入口（重整时丢过，2026-11-15 补回）：总开关 off 时按钮禁用，server fn 另有硬闸。 */}
+            <div className="ml-auto flex gap-2">
+              <button
+                type="button"
+                disabled={!masterOn || !d.ai.configured || evolveBusy !== null}
+                onClick={() => void runEvolveOnce()}
+                className="rounded bg-brand px-2.5 py-1 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {evolveBusy === "evolve" ? "进化中…" : "跑一轮完整进化"}
+              </button>
+              <button
+                type="button"
+                disabled={!masterOn || !d.ai.configured || evolveBusy !== null}
+                onClick={() => void runDiagnoseOnce()}
+                className="rounded border border-brand px-2.5 py-1 text-[12px] font-medium text-brand disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {evolveBusy === "diagnose" ? "诊断中…" : "跑一轮全局诊断"}
+              </button>
+            </div>
           </div>
           {masterOn ? (
             <>
@@ -286,6 +361,36 @@ function AIOverviewPage() {
                 ) : null}
               </div>
             </CollapsibleSection>
+          ) : null}
+          {/* 规则变更审计 + 回验结论（重整时 d.effects 拉了不渲染，2026-11-15 补回）。 */}
+          {d.rules.log.length > 0 ? (
+            <div className="mt-3 border-t border-line pt-2">
+              <p className="mb-1 text-[12px] font-medium text-muted">
+                最近规则变更审计
+                <span className="ml-2 font-normal">· 右侧是改完之后的回验结论（观察期满才有）</span>
+              </p>
+              <ul className="flex flex-col gap-1 text-[12px] text-muted">
+                {d.rules.log.slice(0, 8).map((a, i) => {
+                  const fx = (d.effects as { at: string; key: string; verdict: string; reason: string; revertAdvice: string | null }[])
+                    .filter((e) => e.at === a.at && e.key === a.key)[0];
+                  const tone = fx?.verdict === "effective" ? "text-up" : fx?.verdict === "ineffective" ? "text-warn" : "text-muted";
+                  const label = fx == null ? "还没回验"
+                    : fx.verdict === "effective" ? "有效·保留"
+                      : fx.verdict === "ineffective" ? "无效·建议回滚"
+                        : fx.verdict === "pending" ? "观察中" : "样本不足";
+                  return (
+                    <li key={`${a.at}-${a.key}-${i}`} className="flex flex-wrap items-baseline gap-x-2 tabular-nums">
+                      <span>{a.at.slice(0, 16).replace("T", " ")} · {a.mode === "auto" ? "自动" : a.mode === "approved" ? "人工批准" : "驳回"} · {a.key} {a.from}→{a.to}</span>
+                      <span className={"shrink-0 font-medium " + tone} title={fx?.reason ?? ""}>[{label}]</span>
+                      {fx?.revertAdvice ? <span className="text-[11px] text-muted">{fx.revertAdvice}</span> : null}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+                回验判据：改动后 ≥10 个交易日 + 前后各 ≥30 笔 + 差值超 ±0.3pp 噪声区才下结论。「无效」只给回滚建议，不会自动改回去。
+              </p>
+            </div>
           ) : null}
         </div>
       </Section>
@@ -352,6 +457,26 @@ function AIOverviewPage() {
                   </div>
                   <p className="mt-1 leading-relaxed text-fg">{p.finding}</p>
                   {p.suggestion ? <p className="mt-0.5 text-muted">建议：{p.suggestion}</p> : null}
+                  {p.status === "pending" ? (
+                    <div className="mt-1.5 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={proposalBusy === p.id}
+                        onClick={() => void decideProposal(p, "approved")}
+                        className="rounded-full border border-line bg-brand px-2.5 py-0.5 text-[12px] text-white disabled:opacity-40"
+                      >
+                        批准（生成派活草稿）
+                      </button>
+                      <button
+                        type="button"
+                        disabled={proposalBusy === p.id}
+                        onClick={() => void decideProposal(p, "dismissed")}
+                        className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-[12px] text-muted disabled:opacity-40"
+                      >
+                        驳回
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

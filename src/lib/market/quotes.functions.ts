@@ -361,6 +361,11 @@ export const askButler = createServerFn({ method: "POST" })
     return { q, history };
   })
   .handler(async ({ data }) => {
+    // 总开关硬闸：off 时连问答档都不许发出去（服务端判决，不靠 UI 隐藏）。
+    const { isAgentOn } = await import("@/lib/market/agent-jobs");
+    if (!(await isAgentOn())) {
+      return { ok: false as const, error: "小机已被总开关停用——去 /ai 概览页打开「小机在岗」再聊" };
+    }
     const { askButler } = await import("@/lib/market/butler");
     const { requireUserId } = await import("@/lib/auth/verify.server");
     const { appendMessages } = await import("@/lib/market/conversation-store");
@@ -1038,7 +1043,18 @@ export const testAIProfile = createServerFn({ method: "POST" })
  * AI 额度闸（design/MEMBERSHIP.md §四）：非主人按 plan 限每日次数，过闸先记账再跑。
  * 计数按上海自然日；失败的调用也计（刷重试不免费）。主人（admin）无限、不计。
  */
+/** 统一总开关硬闸（2026-11-15 全仓复检补）：所有会产生 AI 调用的入口都先过这一句。
+ *  fail-closed：读不到/损坏/明确关闭一律拒绝，不在没把握时花钱。 */
+async function assertAgentOn(): Promise<void> {
+  const { isAgentOn } = await import("@/lib/market/agent-jobs");
+  if (!(await isAgentOn())) {
+    throw new Error("小机已被总开关停用——去 /ai 概览页打开「小机在岗」再使用");
+  }
+}
+
 async function aiGate(user: { userId: string; isOwner: boolean; plan: string | null }, kind: "evolve" | "diagnose"): Promise<void> {
+  // 总开关先闸：主人也一样，off 时任何进化/诊断调用都不许发出去。
+  await assertAgentOn();
   if (user.isOwner) return;
   const { assertAIQuota, bumpAIQuota } = await import("@/lib/auth/quota");
   const { shanghaiDate } = await import("@/lib/market/session");
@@ -1335,6 +1351,11 @@ export const saveAIPrefs = createServerFn({ method: "POST" })
     return { autoEvolve: d.autoEvolve };
   })
   .handler(async ({ data }) => {
+    // 总开关：off 时不许通过偏好开关把自动进化重新打开（否则总闸形同虚设）。
+    const { isAgentOn } = await import("@/lib/market/agent-jobs");
+    if (data.autoEvolve && !(await isAgentOn())) {
+      return { ok: false as const, autoEvolve: false, error: "小机已被总开关停用——先在 /ai 概览页打开「小机在岗」" };
+    }
     const { requirePrincipal } = await import("@/lib/auth/verify.server");
     const { writeAIPrefs } = await import("@/lib/market/ai-prefs");
     const { resetBreaker } = await import("@/lib/market/evolve-breaker");
@@ -2126,13 +2147,13 @@ export const saveUserStrategies = createServerFn({ method: "POST" })
 // 默认待命：没有派活就没有进程、零消耗。三个口子：手动派活 / 定时任务（下轮）/
 // 主动建议（只能进工单等人批）。全操作权限配 DSH_PERMISSION_MODE + .env key。
 
-/** agent 管理面板的数据：账本 + 预算 + 是否有任务在跑。非主人只回 allowed: false。 */
+/** agent 管理面板的数据：账本 + 预算 + 是否有任务在跑。非主人回 allowed:false + 开关状态（只读，不暴露账本）。 */
 export const getAgentJobs = createServerFn({ method: "GET" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
-  const { userId, isOwner } = await requirePrincipal();
-  if (!isOwner) return { allowed: false as const, jobs: [], budget: null };
   const { readAgentJobs, readAgentBudget, DEFAULT_BUDGET, readMasterSwitch } = await import("@/lib/market/agent-jobs");
   const master = await readMasterSwitch();
+  const { userId, isOwner } = await requirePrincipal();
+  if (!isOwner) return { allowed: false as const, master, jobs: [], budget: null };
   return { allowed: true as const, master, jobs: await readAgentJobs(), budget: await readAgentBudget().catch(() => DEFAULT_BUDGET) };
 });
 

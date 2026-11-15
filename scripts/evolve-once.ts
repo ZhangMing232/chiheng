@@ -13,6 +13,14 @@
 import { runEvolveLoop } from "@/lib/market/evolve";
 import { FACTORS } from "@/lib/market/factors";
 import { readFactorRuns } from "@/lib/market/factor-runs-file";
+import { isAgentOn } from "@/lib/market/agent-jobs";
+
+// 总开关硬闸（2026-11-15 全仓复检补）：CLI 也不能绕过总闸直接花钱。
+// 想临时跑一轮做验证，去 /ai 概览页打开「小机在岗」，跑完再关。
+if (!(await isAgentOn())) {
+  console.error("小机已被总开关停用，本轮进化跳过。去 /ai 概览页打开「小机在岗」再跑。");
+  process.exit(0);
+}
 
 const { agent, factor, strategy, genome } = await runEvolveLoop(
   { readRows: readFactorRuns, existingFactors: FACTORS.map((f) => ({ id: f.id, name: f.name })) },
