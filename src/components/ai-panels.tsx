@@ -1,15 +1,14 @@
 /**
  * 这个文件是干什么的：
- * 「AI 管理」区（/ai 下）各子页面共用的部件：区块外壳 Section、接口档案编辑弹窗
- * （ProfileModal）、闸门与判据（RulesSection），以及这一区统一的二级 tab。
- * 接口配置卡片和 Token 用量的页面本体在各自路由文件里（2026-11-06 按新效果图重排）。
+ * AI 工作台（/ai 下）各子页面共用的部件：区块外壳 Section、接口档案编辑弹窗
+ * （ProfileModal）、法条面板（RulesSection），以及这一区统一的二级 tab。
  *
  * 你需要知道的：
- * - 2026-10-21 AI 管理页从「本地状态的 PageTabs」改成真实子页面
- *   （/ai/ AI 控制中枢、/ai/config 接口配置、/ai/usage Token 用量、/ai/rules 闸门与判据），
- *   刷新、书签都落在具体子页。
+ * - 2026-11-14 AI 板块重整：AI = 小机一个员工，六个 tab 各管一摊——
+ *   概览 / 对话 / 岗位 / 大脑 / 账目 / 法条（见 AISectionTabs）。
+ * - 2026-10-21 起子页面是真实路由（刷新、书签都落在具体子页），不是本地 state。
  * - apiKey 是密钥：服务端只回尾四位，完整值不出服务端；配置入口只给主人账号。
- * - 闸门与判据的数值运行时才从常量拼（system-rules.ts），这里不写字面量——
+ * - 法条面板的数值运行时才从常量拼（system-rules.ts），这里不写字面量——
  *   防止面板数字和代码常量脱钩。
  */
 
@@ -44,7 +43,7 @@ export type AIStatusPayload = {
   fallbackOrder: string[];
 };
 
-/** Token 用量的 loader 形状（getAIUsage 的返回）。 */
+/** 账目页的 loader 形状（getAIUsage 的返回）。 */
 export type UsagePayload = { allowed: boolean; entries: AIUsageEntry[]; stats: UsageStats | null };
 
 export function messageOf(error: unknown): string {
@@ -55,7 +54,7 @@ export function messageOf(error: unknown): string {
 export function AISectionTabs() {
   return (
     <SectionTabs
-      ariaLabel="AI 管理"
+      ariaLabel="AI 工作台"
       tabs={[
         { to: "/ai", label: "概览" },
         { to: "/ai/chat", label: "对话" },
@@ -283,7 +282,7 @@ export function ProfileModal({ editing, onClose }: { editing: ProfileStatus | nu
 }
 
 /**
- * 闸门与判据面板：五组预登记阈值（数据审计/熔断/衰减/挑战者/策略闸门）的当前值。
+ * 法条面板：五组预登记阈值（数据审计/熔断/衰减/挑战者/策略闸门）的当前值。
  * 低频参考内容，按 UI 标准默认收起；summary 行给每组的「最要害一个数」，
  * 展开后是「判据 · 当前值 · 超了会怎样」三列。数值运行时才从常量拼（system-rules.ts），
  * 这里不写字面量——防止面板数字和代码常量脱钩。
@@ -296,7 +295,7 @@ export function RulesSection({ groups }: { groups: RuleGroup[] }) {
       defaultOpen={false}
       header={
         <span>
-          <span className="text-sm font-medium">闸门与判据</span>
+          <span className="text-sm font-medium">法条 · 预登记判据</span>
           <span className="ml-2 text-xs text-muted">
             熔断连续 {groups.find((g) => g.id === "breaker")?.entries[0]?.value ?? "—"} · 共 {groups.length} 组
           </span>

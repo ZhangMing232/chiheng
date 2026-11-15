@@ -45,8 +45,15 @@ class LazyPGliteDriver implements Driver {
   private client: Client | undefined;
   private connection: PGliteConnection | undefined;
   private queue: Array<(con: PGliteConnection) => void> = [];
+  // node --experimental-strip-types 是 strip-only，不支持 TS 参数属性
+  // （constructor(private readonly x)）——网页/Vite 没事，但记账进程和
+  // import-hygiene 测试在 node 侧加载会直接报「parameter property not supported」。
+  // 改成显式字段赋值（2026-11-15 补）。
+  private readonly getClient: () => Promise<Client> | Client;
 
-  constructor(private readonly getClient: () => Promise<Client> | Client) {}
+  constructor(getClient: () => Promise<Client> | Client) {
+    this.getClient = getClient;
+  }
 
   async init(): Promise<void> {
     this.client = await this.getClient();
@@ -114,7 +121,11 @@ class LazyPGliteDriver implements Driver {
 }
 
 class PGliteConnection implements DatabaseConnection {
-  constructor(private readonly client: Client) {}
+  private readonly client: Client;
+
+  constructor(client: Client) {
+    this.client = client;
+  }
 
   async executeQuery<O>(compiledQuery: CompiledQuery): Promise<QueryResult<O>> {
     const result = await this.client.query(compiledQuery.sql, [

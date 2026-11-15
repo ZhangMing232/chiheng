@@ -2,7 +2,7 @@
  * 这个文件是干什么的：
  * AI token 用量账本（data/ai-usage.json）。每次调 AI 接口（因子闭环 / 策略闭环 /
  * 连通性测试）都把响应里的 usage 字段记下来：prompt / completion / total tokens、
- * 耗时、成败、用的哪套模型。/ai 页的「Token 用量监控」区块从这里出统计。
+ * 耗时、成败、用的哪套模型。/ai 账目页从这里出统计。
  *
  * 你需要知道的：
  * 1. 记录发生在 callAI（factor-queue.ts）内部——所有调用都逃不掉这张账，

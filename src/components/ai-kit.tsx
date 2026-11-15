@@ -188,7 +188,7 @@ export function StackedArea({
   const lineColors = ["var(--color-ai)", "var(--color-warn)", "var(--color-up)"];
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={"Token 用量趋势，" + series.map((s) => s.name).join("、")}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={"AI 调用量趋势，" + series.map((s) => s.name).join("、")}>
         {[0.25, 0.5, 0.75, 1].map((f) => (
           <line key={f} x1="0" x2={W} y1={y(max * f)} y2={y(max * f)} stroke="var(--color-line)" strokeWidth="1" />
         ))}

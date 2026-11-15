@@ -1,11 +1,11 @@
 /**
  * 这个文件是干什么的：
- * 「AI 管理」区的「接口配置」子页（/ai/config）。多套接口档案并存、启用一套
+ * AI 工作台的「大脑」子页（/ai/config，原「接口配置」）。多套接口档案并存、启用一套
  * 跑所有闭环（因子层 / 策略层 / 自动进化共用）。
  *
  * 你需要知道的：
  * - 2026-11-06 按 AI 区新效果图重排：顶部真实统计卡 + 每套档案一张供应商卡
- *   （延迟/成功率来自 Token 用量账按模型聚合，调用过才有数，没调用写「还没调用过」，
+ *   （延迟/成功率来自账目页的调用账按模型聚合，调用过才有数，没调用写「还没调用过」，
  *   不编一个 99.8%）。效果图里的「在线/386ms/¥0.012」是拍脑袋数字，不抄。
  * - apiKey 是密钥：服务端只回尾四位，完整值不出服务端；配置入口只给主人账号。
  * - 选服务商预设后只填 API key 即可；单价留空自动按内置参考价填入。
@@ -53,7 +53,7 @@ function AIConfigPage() {
 
   if (!ai.allowed) {
     return (
-      <Frame wide aside="AI 管理 · 接口配置" decorHeader={false}>
+      <Frame wide aside="AI · 大脑" decorHeader={false}>
         <AISectionTabs />
         <p className="rounded border border-line bg-surface px-3.5 py-3 text-xs text-muted">只有主人账号能配置 AI 接口。</p>
       </Frame>
@@ -99,7 +99,7 @@ function AIConfigPage() {
   const priced = usage.stats;
 
   return (
-    <Frame wide aside="AI 管理 · 接口配置" decorHeader={false}>
+    <Frame wide aside="AI · 大脑" decorHeader={false}>
     <PixelHeader label="AI // CONFIG" meta="模型与额度 · 改的是研究层，不动实盘" />
     <PixelSummary
       label="AI // CONFIG"

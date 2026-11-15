@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 「大管家」对话的落盘。AI 答过的、用户问过的，要能事后查，而且刷新不能丢。
+ * 「小机对话」的落盘。AI 答过的、用户问过的，要能事后查，而且刷新不能丢。
  *
  * 为什么单独一套、不复用 report-store：
  * 报告是「一次性研判产物」（七阶段 + AI 综合），对话是「流式多轮问答」，两种
@@ -74,7 +74,7 @@ export async function loadHistory(userId: string, root = process.cwd()): Promise
   }
 }
 
-/** 追加一批消息（通常是一轮：用户一条 + 大管家一条）。落盘时补上当前时间。 */
+/** 追加一批消息（通常是一轮：用户一条 + 小机一条）。落盘时补上当前时间。 */
 export async function appendMessages(
   userId: string,
   turns: ChatTurn[],

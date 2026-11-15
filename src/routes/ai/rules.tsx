@@ -1,10 +1,10 @@
 /**
  * 这个文件是干什么的：
- * 「AI 管理」区的「闸门与判据」子页（/ai/rules）。五组预登记阈值
+ * AI 工作台的「法条」子页（/ai/rules）。五组预登记阈值
  * （数据审计/熔断/衰减/挑战者/策略闸门）的当前值，只读。
  *
  * 你需要知道的：
- * - 2026-10-21 由 AI 管理整页拆出（原来是本地状态的 PageTabs）。
+ * - 2026-10-21 由旧 AI 管理整页拆出（原来是本地状态的 PageTabs）。
  * - 数值运行时才从常量拼（system-rules.ts），页面不写字面量——防止面板数字
  *   和代码常量脱钩。改阈值要到对应文件改常量提交（改规则要带理由）。
  */
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/ai/rules")({
 function AIRulesPage() {
   const { rules } = Route.useLoaderData();
   return (
-    <Frame wide aside="AI 管理 · 闸门与判据" decorHeader={false}>
+    <Frame wide aside="AI · 法条" decorHeader={false}>
     <PixelHeader label="AI // RULES" meta="系统规则 · 谁能改、改了记在哪" />
       <AISectionTabs />
       {rules ? <RulesSection groups={rules.groups} /> : <StateBlock kind="empty" title="闸门规则没读到" />}

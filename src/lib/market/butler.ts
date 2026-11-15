@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 「大管家」—— 常驻 AI 助手。它每次回答前先读一遍项目当前状态（指数 / 涨跌分布 /
+ * 小机的对话档（原「大管家」，历史名）—— 问答助手。它每次回答前先读一遍项目当前状态（指数 / 涨跌分布 /
  * 账本 / 挑战者），把状态作为上下文喂给 DeepSeek HARNESS（DSH），再回答用户。
  *
  * 你需要知道的：
@@ -18,7 +18,7 @@ import { readWatchlist } from "./watchlist.ts";
 import { callDSH } from "./chiheng-dsh-client.ts";
 import type { ChatTurn } from "./conversation-store.ts";
 
-/** 大管家的系统提示：中文、简洁、只基于给定状态、不编数、不给投资建议。 */
+/** 对话档的系统提示（保留「大管家」人格设定，改名会改变回答风格）：中文、简洁、只基于给定状态、不编数、不给投资建议。 */
 const BUTLER_SYSTEM = [
   "你是赤轨的「大管家」，一个 A 股量化研究工具里的常驻 AI 助手。",
   "回答用户关于项目状态、行情、持仓、策略、因子、回测、自选、新闻等问题。",
@@ -116,6 +116,7 @@ export async function buildButlerContext(): Promise<string> {
 /** 把历史对话压成一段文字，作为上下文喂给 DSH（DSH 只收单轮 system+user，没有多轮字段）。 */
 function renderHistory(history: ChatTurn[]): string {
   if (history.length === 0) return "";
+  // 历史对话前缀沿用「大管家」（老记录里就是这个角色名，改了会让模型读旧历史时对不上）。
   const lines = history.map((m) => `${m.role === "user" ? "用户" : "大管家"}：${m.text}`);
   return `【对话历史（较早的在前，仅作上下文，不必重复回答）】\n${lines.join("\n")}\n`;
 }

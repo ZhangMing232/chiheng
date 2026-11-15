@@ -155,7 +155,7 @@ function SettingsPage() {
             ))}
             <tr className="border-b border-line/60">
               <td className={tdClass("text-left text-muted")}>AI 接入</td>
-              <td className={tdClass("text-left")}>接口配置、进化控制台、Token 用量</td>
+              <td className={tdClass("text-left")}>大脑、岗位、账目</td>
               <td className={tdClass("text-left text-muted")}>
                 接入 AI
               </td>

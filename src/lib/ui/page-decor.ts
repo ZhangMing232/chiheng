@@ -46,7 +46,6 @@ import {
   Scale,
   ScanSearch,
   Settings,
-  Sparkles,
   Star,
   Table,
   Target,
@@ -116,12 +115,6 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
     title: "主控台",
     icon: LayoutDashboard,
     purpose: "今天的账、信号和钱，一屏看完",
-    hue: "brand",
-  },
-  "/butler": {
-    title: "大管家",
-    icon: Sparkles,
-    purpose: "问它，它先读一遍项目现状再答",
     hue: "brand",
   },
   "/studio": {
@@ -310,7 +303,7 @@ export const PAGE_DECOR: Record<string, PageDecor> = {
   },
 
   "/ai": {
-    title: "AI 管理",
+    title: "小机 · AI 工作台",
     icon: BrainCircuit,
     purpose: "AI 只能提议，判决永远归预注册函数",
     hue: "violet",

@@ -25,7 +25,7 @@ test("🔴 功能组色相必须一致：同一组的页面共用一个色相", 
   // 侧栏的五个功能组：组名 → 该组所有一级页面的色相必须相同。
   // 底纹的意义就是「一眼知道在哪一组」——组内色相不一致等于没有底纹。
   const groups: Record<string, string[]> = {
-    工作台: ["/", "/butler", "/studio"],
+    工作台: ["/", "/studio"],
     市场: ["/overview", "/review", "/flow", "/news", "/overseas"],
     策略因子: ["/strategies/screener", "/factors", "/backtest"],
     研究: ["/research", "/debate", "/reports", "/notes"],
@@ -108,4 +108,9 @@ test("🔴 没有侧栏入口的页面也要有标题（不能依赖 navHit）",
     assert.ok(decor, `${path} 没有装饰配置`);
     assert.ok(decor!.title.length > 0, `${path} 标题为空`);
   }
+});
+
+test("已重定向的旧路由不该再有装饰条目（/butler → /ai/chat）", () => {
+  assert.equal(PAGE_DECOR["/butler"], undefined);
+  assert.ok(PAGE_DECOR["/ai"], "新的 AI 工作台入口应有装饰");
 });

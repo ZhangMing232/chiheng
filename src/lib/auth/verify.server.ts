@@ -7,10 +7,10 @@
  */
 
 import { getRequest } from "@tanstack/react-start/server";
-import { gateIdentityEnabled } from "./gate-identity.server";
-import { auth, authConfigured } from "./server";
-import { mayUseDevUser } from "./dev-user-policy";
-import { isAdmin } from "./plan";
+import { gateIdentityEnabled } from "./gate-identity.server.ts";
+import { auth, authConfigured } from "./server.ts";
+import { mayUseDevUser } from "./dev-user-policy.ts";
+import { isAdmin } from "./plan.ts";
 
 /**
  * Server-side session resolution (server-only).

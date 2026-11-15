@@ -112,9 +112,9 @@ function AccountChip() {
  *   - 「进化」从「策略因子」改名并收编策略看板：策略看板 / 因子实验室
  *     （回测审计 2026-11-14 起收进因子实验室工作台，侧栏不再单列平级入口；
  *      挑战者、进化日志两个入口等 P0-6 的独立页落地后再加，不挂死链）
- *   - AI 从底部 pinned 单链扩成整组：工作台 / 大管家 / 接口与模型 / 行为边界
- *     （2026-11-06 收敛：接口与模型、行为边界都是 /ai 页内 tab，侧栏不再单列；
- *      现为 工作台 / 大管家 两项。下面「保留的三条老原则」第 1 条即此依据。）
+ *   - AI 从底部 pinned 单链扩成整组，2026-11-14 重整后收成「AI 工作台」一个入口，
+ *     下挂六个 tab（概览 / 对话 / 岗位 / 大脑 / 账目 / 法条）；原「大管家」并入对话页，
+ *     /butler 保留重定向。侧栏不再单列 AI 子页。
  *   - admin / membership 按方案藏出侧栏（直链可达，会员功能落地后再亮出）
  *   - 板块、日历、模拟持仓维持重定向现状：它们的真实页面在资金流向/复盘/策略追踪下，
  *     侧栏不再单列，避免和二级子页撞车
@@ -502,7 +502,7 @@ const COMMANDS: { label: string; keywords: string; to: string; search?: Record<s
   { label: "回测", keywords: "backtest", to: "/backtest" },
   { label: "AI 工作台", keywords: "ai 智能 小机 agent 对话 派活", to: "/ai" },
   { label: "和小机聊聊（对话）", keywords: "butler 对话 chat 聊天", to: "/ai/chat" },
-  { label: "接口配置", keywords: "接口与模型 ai config 配置 token 工作台 tab", to: "/ai/config" },
+  { label: "大脑（接口与模型）", keywords: "接口与模型 ai config 配置 token 大脑 tab", to: "/ai/config" },
   { label: "设置", keywords: "settings", to: "/settings" },
 ];
 

@@ -69,26 +69,32 @@ test("🔴 @/ 别名不许带 .ts 后缀（alias 会拼成双扩展名，node �
 test("🔴 被 node 跑的 serverFn 文件必须真能被加载（import 路径错了当场炸）", async () => {
   // 上一轮踩的坑：quotes.functions.ts 的 import 错了，759 条测试全绿、
   // 网页正常，只有记账进程每分钟崩。所以逐个 import 一遍这些文件。
-  // 全部 *.functions.ts：记账进程（home-server → record-journal）和页面 loader
-  // 都会加载它们，import 路径错了就是运行时炸。**枚举而不是 glob**——
-  // glob 出来的列表如果自己错了，测试会 silently 变松。
-  const files = [
-    "alerts.functions",
-    "industry.functions",
-    "notes.functions",
-    "overseas-list.functions",
-    "quotes.functions",
-    "reports.functions",
-    "settings.functions",
-    "watchlist.functions",
-  ];
+  // **目录枚举**（2026-11-15 补）：原先手写 8 个，实际有 19 个 *.functions.ts，
+  // 漏测的 11 个里就包括数据源加固改过的 events.functions / macro.functions——
+  // 手写清单自己过期，测试就 silently 变松。改成 readdir 全量 + 下限断言。
+  // 两个例外：admin.functions / journal-merge.functions 会经 verify.server →
+  // db.ts 触发 PGLite bootstrap 顶层副作用（测试环境 unhandledRejection），
+  // 它们由 preflight / 记账进程在真实环境加载，这里只静态校验 import 路径。
+  const SKIP_EXEC = new Set(["admin.functions.ts", "journal-merge.functions.ts"]);
+  const { readdir } = await import("node:fs/promises");
+  const dir = join(ROOT, "src", "lib", "market");
+  const names = (await readdir(dir)).filter((f) => f.endsWith(".functions.ts"));
+  assert.ok(names.length >= 15, `*.functions.ts 只枚举到 ${names.length} 个，目录读错了？`);
   const failed: string[] = [];
-  for (const name of files) {
+  for (const file of names) {
+    const name = file.replace(/\.ts$/, "");
     try {
-      await import(`@/lib/market/${name}`);
+      if (SKIP_EXEC.has(file)) {
+        // 静态扫：这些文件的 import 路径由下面第一个测试（@/…ts）覆盖，
+        // 这里额外确认文件存在、能被 alias 解析。
+        const resolved = import.meta.resolve(`@/lib/market/${name}`);
+        await readFile(resolved.replace("file://", ""));
+      } else {
+        await import(`@/lib/market/${name}`);
+      }
     } catch (error) {
       failed.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  assert.deepEqual(failed, [], `这些 serverFn 文件加载不了：\n${failed.join("\n")}`);
+  assert.deepEqual(failed, [], `这些 serverFn 文件加载/解析不了：\n${failed.join("\n")}`);
 });

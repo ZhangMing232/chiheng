@@ -341,7 +341,7 @@ export const getBreadth = createServerFn({ method: "GET" }).handler(async () => 
   return { up, down, flat, limitUp, limitDown, buckets, total: universe.quotes.length, asOf: universe.asOf, source: universe.source };
 });
 
-/** 大管家问答。POST { q, history } → { ok, answer } 或 { ok:false, error }。
+/** 小机问答（对话档）。POST { q, history } → { ok, answer } 或 { ok:false, error }。
  *  history 是这轮之前的对话（仅作 AI 上下文，不重复落盘）；本轮问答成功后按用户存档。 */
 export const askButler = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
@@ -372,7 +372,7 @@ export const askButler = createServerFn({ method: "POST" })
     try {
       const userId = await requireUserId();
       const answer = await askButler(data.q, { history: data.history });
-      // 落盘：本轮用户提问 + 大管家回答。失败不影响本轮回答，但要照实说。
+      // 落盘：本轮用户提问 + 小机回答。失败不影响本轮回答，但要照实说。
       await appendMessages(userId, [
         { role: "user", text: data.q },
         { role: "butler", text: answer },
@@ -383,14 +383,14 @@ export const askButler = createServerFn({ method: "POST" })
     }
   });
 
-/** 读本人（按用户隔离）的大管家历史对话。没有 = 空数组，不报错。 */
+/** 读本人（按用户隔离）的小机对话历史。没有 = 空数组，不报错。 */
 export const getButlerHistory = createServerFn({ method: "GET" }).handler(async () => {
   const { requireUserId } = await import("@/lib/auth/verify.server");
   const { loadHistory } = await import("@/lib/market/conversation-store");
   return loadHistory(await requireUserId());
 });
 
-/** 清空本人的大管家对话。 */
+/** 清空本人的小机对话。 */
 export const clearButlerHistory = createServerFn({ method: "POST" }).handler(async () => {
   const { requireUserId } = await import("@/lib/auth/verify.server");
   const { clearHistory } = await import("@/lib/market/conversation-store");
@@ -874,7 +874,7 @@ export const getPushStatus = createServerFn({ method: "GET" }).handler(async () 
 /** 待验队列（AI/人工预登记的因子 + 淘汰状态）。 */
 export const getFactorQueue = createServerFn({ method: "GET" }).handler(async () => readQueue());
 
-/** AI 接口配置状态：档案列表（key 只回尾号）+ 启用中那套 + 自动进化开关。谁都能调，非主人只回 allowed: false。 */
+/** 大脑页接口档案状态：档案列表（key 只回尾号）+ 启用中那套 + 自动进化开关。谁都能调，非主人只回 allowed: false。 */
 export const getAIStatus = createServerFn({ method: "GET" }).handler(async () => {
   const { requirePrincipal } = await import("@/lib/auth/verify.server");
   const { readAIPrefs } = await import("@/lib/market/ai-prefs");

@@ -1,6 +1,6 @@
 /**
  * 这个文件是干什么的：
- * 「AI 管理」区的「Token 用量」子页（/ai/usage）。每次调 AI 自动记账：
+ * AI 工作台的「账目」子页（/ai/usage，原「Token 用量」）。每次调 AI 自动记账：
  * 输入/输出/总 tokens、耗时、成败、哪条链路（因子/策略/测试）烧的，
  * 外加按现价估算的费用。
  *
@@ -126,7 +126,7 @@ function AIUsagePage() {
 
   if (!usage.allowed) {
     return (
-      <Frame wide aside="AI 管理 · Token 用量" decorHeader={false}>
+      <Frame wide aside="AI · 账目" decorHeader={false}>
         <AISectionTabs />
         <p className="rounded border border-line bg-surface px-3.5 py-3 text-xs text-muted">只有主人账号能看用量监控。</p>
       </Frame>
@@ -139,7 +139,7 @@ function AIUsagePage() {
   const layerName = (l: string): string => (l === "factor" ? "因子" : l === "strategy" ? "策略" : l === "genome" ? "基因组" : l === "test" ? "测试" : l === "agent" ? "诊断" : l);
 
   return (
-    <Frame wide aside="AI 管理 · Token 用量" decorHeader={false}>
+    <Frame wide aside="AI · 账目" decorHeader={false}>
     <PixelHeader label="AI // USAGE" meta="调用与花费 · 每轮多少 token、多少钱" />
     <PixelSummary
       label="AI // USAGE · TOTALS"
@@ -154,7 +154,7 @@ function AIUsagePage() {
       <AISectionTabs />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h1 className="font-display text-xl font-medium tracking-wide">Token 用量</h1>
+          <h1 className="font-display text-xl font-medium tracking-wide">调用账目</h1>
           <p className="mt-0.5 text-xs text-muted">
             监控 AI 调用的 token 消耗、费用与性能。账本共 {entries.length} 条，接口不返回 usage 就记 0，不瞎编。
           </p>
@@ -199,7 +199,7 @@ function AIUsagePage() {
 
       <div className="mt-3 grid items-start gap-3 xl:grid-cols-[1fr_360px]">
         {/* 近 7/30 天堆叠面积 */}
-        <Section id="usage-trend" title={`近 ${range} 天 Token 用量`} hint="按上海日聚合；输入 = prompt，输出 = completion。">
+        <Section id="usage-trend" title={`近 ${range} 天调用量`} hint="按上海日聚合；输入 = prompt，输出 = completion。">
           <div className="px-3.5 py-3">
             <StackedArea
               series={[
