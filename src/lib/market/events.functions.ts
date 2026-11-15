@@ -26,6 +26,7 @@ import {
   type HolderTrade,
   type Survey,
 } from "./events.ts";
+import { eastmoneyFetch } from "./eastmoney-fetch.ts";
 
 const REPORT = "RPT_PUBLIC_OP_NEWPREDICT";
 const COLUMNS = [
@@ -75,12 +76,9 @@ export const getForecasts = createServerFn({ method: "GET" })
         pageSize: String(data.limit),
         pageNumber: "1",
       }).toString();
-      const res = await fetch(url, {
-        headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!res.ok) return { ...empty, why: `东财 HTTP ${res.status}` };
-      const body = (await res.json()) as { result?: { data?: Record<string, unknown>[] } };
+      const got = await eastmoneyFetch(url.toString(), { timeoutMs: 20_000 });
+      if (!got.ok) return { ...empty, why: `东财 ${got.error}` };
+      const body = (await got.res.json()) as { result?: { data?: Record<string, unknown>[] } };
       const raw = body.result?.data;
       if (!Array.isArray(raw)) return { ...empty, why: "东财没返回 data（接口结构变了或被限流）" };
       // **全市场 0 行 = 接口坏了**，不是「今天没预告」——别显示成空页
@@ -137,12 +135,9 @@ async function fetchEvent(cfg: EventFetch): Promise<{ rows: Record<string, unkno
     pageSize: String(Math.min(cfg.limit, 500)),
     pageNumber: "1",
   }).toString();
-  const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) return { rows: [], why: `东财 HTTP ${res.status}` };
-  const body = (await res.json()) as { code?: number; message?: string; result?: { data?: Record<string, unknown>[] } };
+  const got = await eastmoneyFetch(url.toString(), { timeoutMs: 20_000 });
+  if (!got.ok) return { rows: [], why: `东财 ${got.error}` };
+  const body = (await got.res.json()) as { code?: number; message?: string; result?: { data?: Record<string, unknown>[] } };
   const rows = body.result?.data;
   if (!Array.isArray(rows)) return { rows: [], why: `东财没返回 data（code=${body.code} ${body.message ?? ""}）` };
   // 纪律 1：全市场 0 行 = 接口坏了，不是「今天没有」

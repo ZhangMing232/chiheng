@@ -75,7 +75,8 @@ export function upcomingLifts(rows: LiftRow[], today: string, withinDays = 90): 
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
-const HEADERS = { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" };
+import { eastmoneyFetch } from "./eastmoney-fetch.ts";
+
 const BASE = "https://datacenter-web.eastmoney.com/api/data/v1/get";
 const TTL_MS = 60 * 60_000;
 const holderCache = new Map<string, { at: number; points: HolderPoint[] }>();
@@ -88,9 +89,9 @@ export async function fetchHolders(code: string, limit = 8): Promise<HolderPoint
   const url =
     `${BASE}?reportName=RPT_HOLDERNUM_DET&columns=SECURITY_CODE,SECURITY_NAME_ABBR,END_DATE,HOLDER_NUM,HOLDER_NUM_RATIO` +
     `&pageSize=50&pageNumber=1&sortColumns=END_DATE&sortTypes=-1&filter=${encodeURIComponent(`(SECURITY_CODE="${code}")`)}&source=WEB&client=WEB`;
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(12_000) });
-  if (!res.ok) throw new Error(`股东户数 HTTP ${res.status}`);
-  const body = (await res.json()) as { result?: { data?: Raw[] } };
+  const got = await eastmoneyFetch(url);
+  if (!got.ok) throw new Error(`股东户数 ${got.error}`);
+  const body = (await got.res.json()) as { result?: { data?: Raw[] } };
   const points = parseHolders(body.result?.data ?? []);
   holderCache.set(code, { at: Date.now(), points });
   return points.slice(0, limit);
@@ -103,9 +104,9 @@ export async function fetchLifts(code: string): Promise<LiftRow[]> {
   const url =
     `${BASE}?reportName=RPT_LIFT_STAGE&columns=SECURITY_CODE,SECURITY_NAME_ABBR,FREE_DATE,FREE_SHARES_TYPE,FREE_SHARES,LIFT_MARKET_CAP,FREE_RATIO` +
     `&pageSize=200&pageNumber=1&sortColumns=FREE_DATE&sortTypes=1&filter=${encodeURIComponent(`(SECURITY_CODE="${code}")`)}&source=WEB&client=WEB`;
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(12_000) });
-  if (!res.ok) throw new Error(`解禁表 HTTP ${res.status}`);
-  const body = (await res.json()) as { result?: { data?: Raw[] } };
+  const got = await eastmoneyFetch(url);
+  if (!got.ok) throw new Error(`解禁表 ${got.error}`);
+  const body = (await got.res.json()) as { result?: { data?: Raw[] } };
   const rows = (body.result?.data ?? []).map(parseLift).filter((r): r is LiftRow => r != null);
   liftCache.set(code, { at: Date.now(), rows });
   return rows;

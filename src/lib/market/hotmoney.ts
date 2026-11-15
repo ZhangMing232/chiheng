@@ -6,6 +6,8 @@
  * 金额是万元，正是净买、负是净卖。收盘后才有，大约五分钟更新一次。
  */
 
+import { eastmoneyFetch } from "./eastmoney-fetch.ts";
+
 /** 席位买过的一只股票。netWan 是净额，万元，正是净买、负是净卖。 */
 export type HotStock = { name: string; netWan: number };
 
@@ -85,23 +87,9 @@ async function pull(report: string, date: string): Promise<Raw[]> {
   const url =
     "https://datacenter-web.eastmoney.com/api/data/v1/get?columns=SECURITY_CODE,OPERATEDEPT_NAME,NET" +
     `&pageSize=500&pageNumber=1&reportName=${report}&filter=${filter}&sortColumns=NET&sortTypes=-1&source=WEB&client=WEB`;
-  // 东财单源，抖一下/限流别立刻放弃：网络错、5xx、429 都等 3 秒重试一次；
-  // 每次独立 AbortSignal.timeout（复用已 abort 的 signal 会让第二次立即失败）。
-  const headers = { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/stock/lhb.html" };
-  const attempt = () => fetch(url, { headers, signal: AbortSignal.timeout(12_000) });
-  let res: Response;
-  try {
-    res = await attempt();
-  } catch {
-    await new Promise((r) => setTimeout(r, 3_000));
-    res = await attempt();
-  }
-  if (res.status >= 500 || res.status === 429) {
-    await new Promise((r) => setTimeout(r, 3_000));
-    res = await attempt();
-  }
-  if (!res.ok) return [];
-  const body = (await res.json()) as { result?: { data?: Raw[] } };
+  const got = await eastmoneyFetch(url, { headers: { referer: "https://data.eastmoney.com/stock/lhb.html" } });
+  if (!got.ok) return [];
+  const body = (await got.res.json()) as { result?: { data?: Raw[] } };
   return Array.isArray(body.result?.data) ? body.result.data : [];
 }
 
@@ -110,13 +98,10 @@ export async function namesOf(date: string): Promise<Map<string, string>> {
   const url =
     "https://datacenter-web.eastmoney.com/api/data/v1/get?columns=SECURITY_CODE,SECURITY_NAME_ABBR" +
     `&pageSize=500&pageNumber=1&reportName=RPT_DAILYBILLBOARD_DETAILSNEW&filter=${filter}&source=WEB&client=WEB`;
-  const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
-    signal: AbortSignal.timeout(12_000),
-  });
+  const got = await eastmoneyFetch(url);
   const map = new Map<string, string>();
-  if (!res.ok) return map;
-  const body = (await res.json()) as { result?: { data?: Raw[] } };
+  if (!got.ok) return map;
+  const body = (await got.res.json()) as { result?: { data?: Raw[] } };
   for (const row of body.result?.data ?? []) {
     const code = String(row.SECURITY_CODE ?? "");
     const name = String(row.SECURITY_NAME_ABBR ?? "").trim();
@@ -129,12 +114,9 @@ async function latestDate(): Promise<string> {
   const url =
     "https://datacenter-web.eastmoney.com/api/data/v1/get?columns=TRADE_DATE&pageSize=1&pageNumber=1" +
     "&reportName=RPT_BILLBOARD_DAILYDETAILSBUY&sortColumns=TRADE_DATE&sortTypes=-1&source=WEB&client=WEB";
-  const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
-    signal: AbortSignal.timeout(12_000),
-  });
-  if (!res.ok) return "";
-  const body = (await res.json()) as { result?: { data?: { TRADE_DATE?: string }[] } };
+  const got = await eastmoneyFetch(url);
+  if (!got.ok) return "";
+  const body = (await got.res.json()) as { result?: { data?: { TRADE_DATE?: string }[] } };
   return String(body.result?.data?.[0]?.TRADE_DATE ?? "").slice(0, 10);
 }
 

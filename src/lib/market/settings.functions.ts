@@ -360,6 +360,32 @@ async function healthRows(root: string): Promise<HealthRow[]> {
     rows.push({ label: "家族方向", state: "warn", cadence: "weekly", detail: "读不到账本", fix: null });
   }
 
+  // ⑪ 东财通道（2026-11-15 数据源加固）：registry 里 20/36 端点来自东财，
+  // 统一包装器记录连续失败次数，达到阈值就在这里点亮，不再等下游页面数字变旧才发现。
+  try {
+    const { readEmHealth, isDegraded, EM_FAILURE_THRESHOLD } = await import("./eastmoney-fetch.ts");
+    const h = await readEmHealth();
+    const degraded = isDegraded(h);
+    const fails = h?.consecutiveFailures ?? 0;
+    rows.push({
+      label: "东财通道",
+      state: degraded ? "bad" : fails > 0 ? "warn" : "ok",
+      cadence: "daily",
+      detail: degraded
+        ? `连续失败 ${fails} 次（≥${EM_FAILURE_THRESHOLD} 降级）：${h?.lastError ?? "未知错误"}；最近一次失败 ${h?.lastFailureAt?.slice(0, 16).replace("T", " ") ?? "—"}`
+        : fails > 0
+          ? `抖动 ${fails} 次已自愈（${h?.lastError ?? ""}），未达降级线`
+          : h
+            ? `正常，最近成功 ${h.lastSuccessAt?.slice(0, 16).replace("T", " ") ?? "—"}`
+            : "还没有调用记录（统一包装器 11-15 上线）",
+      fix: degraded
+        ? "东财大面积限流/改版：资金面、龙虎榜、两融、港美行情会一起变旧。别硬拉重试（会加深 WAF 限制），等一会儿或看 data/eastmoney-health.json"
+        : null,
+    });
+  } catch {
+    rows.push({ label: "东财通道", state: "warn", cadence: "daily", detail: "读不到健康账", fix: null });
+  }
+
   return rows;
 }
 

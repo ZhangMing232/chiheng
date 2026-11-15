@@ -37,6 +37,7 @@ import { noticeOf, sourceLabel } from "../src/lib/market/data-status.ts";
 import { readRules } from "../src/lib/market/rules-file.ts";
 import { hardGate } from "../src/lib/market/journal-book.ts";
 import { OWNER_ID, bookPath } from "../src/lib/market/book-file.ts";
+import { eastmoneyFetch, recordEmOutcome } from "../src/lib/market/eastmoney-fetch.ts";
 import { snapshotAge } from "../src/lib/market/format.ts";
 
 type Level = "ok" | "warn" | "block" | "note";
@@ -143,6 +144,36 @@ async function probeSource(): Promise<{ ok: boolean; ms: number; reason: string 
   }
 }
 
+/**
+ * 东财通道探源（2026-11-15 数据源加固）：registry 里 20/36 端点来自东财，
+ * WAF 一抖资金面/龙虎榜/两融/港美行情会一起变旧，页面却照常显示缓存。
+ * 用最轻的 LPR 端点问一句（columns 只要一列、pageSize=1），不制造请求量。
+ * 结果同时写进 eastmoney-health.json，settings 体检页据此点亮「东财通道」。
+ */
+async function probeEastmoney(): Promise<{ ok: boolean; ms: number; reason: string }> {
+  const started = Date.now();
+  const url = "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPTA_WEB_RATE&columns=TRADE_DATE&pageSize=1&pageNumber=1&sortColumns=TRADE_DATE&sortTypes=-1";
+  const got = await eastmoneyFetch(url, { timeoutMs: 5_000, retries: 0 });
+  const ms = Date.now() - started;
+  if (!got.ok) {
+    await recordEmOutcome(false, got.error);
+    return { ok: false, ms, reason: got.error };
+  }
+  try {
+    const body = (await got.res.json()) as { success?: boolean; result?: { data?: unknown[] } };
+    // 东财可能回 200 但 result=null（限流/改版），只判状态码不够。
+    if (!Array.isArray(body.result?.data) || body.result.data.length === 0) {
+      await recordEmOutcome(false, "返回内容为空（可能被限流/改版）");
+      return { ok: false, ms, reason: "返回内容为空（可能被限流/改版）" };
+    }
+    await recordEmOutcome(true);
+    return { ok: true, ms, reason: "" };
+  } catch {
+    await recordEmOutcome(false, "响应不是合法 JSON");
+    return { ok: false, ms, reason: "响应不是合法 JSON" };
+  }
+}
+
 /** src 目录里最新一个文件的 mtime。用来和 .output 比。 */
 function newestUnder(dir: string): number {
   let newest = 0;
@@ -225,6 +256,18 @@ async function checkAll(): Promise<{ checks: Check[]; trading: boolean; level: L
     fix: src.ok
       ? undefined
       : "记账要拉 K 线，源挂了会结算卡住。等一会儿重跑本命令；持续不通就别硬拉（每次重拉都可能加深 WAF 限制）",
+  });
+
+  // 8.6 东财通道探源（与腾讯 canary 互补）：东财占全部数据源的 56%，
+  // 挂了会让资金/龙虎榜/两融/港美行情集体变旧，必须开盘前就知道。
+  const em = await probeEastmoney();
+  checks.push({
+    name: "东财通道",
+    level: em.ok ? "ok" : "warn",
+    value: em.ok ? `应答正常（${em.ms}ms）` : `探不到：${em.reason}`,
+    fix: em.ok
+      ? undefined
+      : "东财限流/改版：资金面、龙虎榜、两融、港美行情会一起变旧。别硬拉重试；看 /settings 体检页「东财通道」行与 data/eastmoney-health.json",
   });
 
   // 8 记账心跳（阈值和页面 RecordLine 对齐：3 分钟）

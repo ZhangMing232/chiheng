@@ -18,6 +18,7 @@
 import { parsePool, summarize, type LimitUpRow, type SignalSummary } from "./limit-up.ts";
 import { rateLimitOf } from "./fetch-policy.ts";
 import { shanghaiDate } from "./session.ts";
+import { eastmoneyFetch } from "./eastmoney-fetch.ts";
 
 const UA = "Mozilla/5.0";
 const UT = "7eea3edcaed734bea9cbfc24409ed989";
@@ -37,13 +38,13 @@ async function fetchPool(endpoint: string, sort: string, date: string): Promise<
     sort,
     date,
   }).toString();
-  const res = await fetch(url, {
-    headers: { "user-agent": UA, referer: "https://quote.eastmoney.com/" },
-    signal: AbortSignal.timeout(15000),
+  const got = await eastmoneyFetch(url.toString(), {
+    headers: { referer: "https://quote.eastmoney.com/" },
+    timeoutMs: 15_000,
   });
-  if (!res.ok) return null;
+  if (!got.ok) return null;
   try {
-    return await res.json();
+    return await got.res.json();
   } catch {
     return null;
   }

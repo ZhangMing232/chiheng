@@ -105,7 +105,7 @@ export const ENDPOINTS: Endpoint[] = [
       "**不含北交所**（348 只只在新浪有），两边口径必须一致，否则同一策略在两个源上选出不同的票，见 providers/index.ts:26-35",
       "全市场只数 < 4000 视为拉取失败——残缺名单比报错更危险，因为下游会当成'市场就这么大'，见 providers/index.ts:19 MIN_UNIVERSE",
       "批量分页拉久了会被 WAF 挡 501（历史事故：缓存是旧的、页面照常显示、**无任何预警**，等到结算卡住才发现），分页逻辑见 providers/tencent.ts:fetchPage",
-      "**注意**：preflight.ts 刻意保持纯本地不联网（见其文件头第 1 条），所以**没有运行时的源健康探测**——WAF 挡了只能等下游出错才发现。这是赤轨相对 Vibe loader_health.py 的一处真实缺口",
+      "**历史坑（2026-11-15 已补）**：原先 preflight.ts 纯本地不联网、无运行时源健康探测，WAF 挡了只能等下游出错才发现；现 preflight 有腾讯 canary + 东财探源两行（见 preflight.ts:probeEastmoney），20 个东财端点统一走 eastmoney-fetch.ts 包装器：重试/429 退避/连续失败计数，settings 体检页「东财通道」行按失败次数降级——**差异：以前 WAF 挡了没有预警，现在连续 3 次失败才点亮 bad**",
     ],
     fetcher: "providers/tencent.ts:fetchTencentUniverse",
   },

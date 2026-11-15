@@ -9,9 +9,9 @@
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { eastmoneyFetch } from "../src/lib/market/eastmoney-fetch.ts";
 
 const BASE = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-const HEADERS = { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" };
 
 type Raw = Record<string, unknown>;
 
@@ -25,9 +25,9 @@ async function pull(report: string, date: string): Promise<Raw[]> {
   const url =
     `${BASE}?columns=SECURITY_CODE,OPERATEDEPT_NAME,NET&pageSize=500&pageNumber=1` +
     `&reportName=${report}&filter=${filter}&sortColumns=NET&sortTypes=-1&source=WEB&client=WEB`;
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(12_000) });
-  if (!res.ok) return [];
-  const body = (await res.json()) as { result?: { data?: Raw[] } };
+  const got = await eastmoneyFetch(url);
+  if (!got.ok) return [];
+  const body = (await got.res.json()) as { result?: { data?: Raw[] } };
   return Array.isArray(body.result?.data) ? body.result.data : [];
 }
 
@@ -36,10 +36,10 @@ async function namesOf(date: string): Promise<Map<string, string>> {
   const url =
     `${BASE}?columns=SECURITY_CODE,SECURITY_NAME_ABBR&pageSize=500&pageNumber=1` +
     `&reportName=RPT_DAILYBILLBOARD_DETAILSNEW&filter=${filter}&source=WEB&client=WEB`;
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(12_000) });
+  const got = await eastmoneyFetch(url);
   const map = new Map<string, string>();
-  if (!res.ok) return map;
-  const body = (await res.json()) as { result?: { data?: Raw[] } };
+  if (!got.ok) return map;
+  const body = (await got.res.json()) as { result?: { data?: Raw[] } };
   for (const row of body.result?.data ?? []) {
     const code = String(row.SECURITY_CODE ?? "");
     const name = String(row.SECURITY_NAME_ABBR ?? "").trim();

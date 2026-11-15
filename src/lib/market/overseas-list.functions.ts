@@ -29,6 +29,7 @@ import { secidOf } from "./providers/overseas.ts";
 import { parseQuote, type OverseasQuote } from "./providers/overseas.ts";
 import { currencyLabelOf } from "./markets.ts";
 import { OVERSEAS_INDICES, parseOverseasIndexBatch, type OverseasIndexQuote } from "@/lib/market/overseas-index-batch";
+import { eastmoneyFetch } from "./eastmoney-fetch.ts";
 
 const UA = "Mozilla/5.0";
 const LIST_URL = "https://push2.eastmoney.com/api/qt/clist/get";
@@ -38,13 +39,13 @@ const KLINE_URL = "https://push2.eastmoney.com/api/qt/stock/kline/get";
 const FS: Record<OverseasMarket, string> = { hk: "m:116", us: "m:105,m:106,m:107" };
 
 async function getJson(url: string): Promise<unknown> {
-  const res = await fetch(url, {
-    headers: { "user-agent": UA, referer: "https://quote.eastmoney.com/" },
-    signal: AbortSignal.timeout(15000),
+  const got = await eastmoneyFetch(url, {
+    headers: { referer: "https://quote.eastmoney.com/" },
+    timeoutMs: 15_000,
   });
-  if (!res.ok) return null;
+  if (!got.ok) return null;
   try {
-    return await res.json();
+    return await got.res.json();
   } catch {
     return null;
   }

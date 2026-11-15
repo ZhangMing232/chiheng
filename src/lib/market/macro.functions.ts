@@ -30,6 +30,7 @@ import {
   type YieldPoint,
 } from "./macro.ts";
 import { ttlOf } from "@/lib/market/fetch-policy";
+import { eastmoneyFetch } from "./eastmoney-fetch.ts";
 
 const CHINABOND_URL = "https://yield.chinabond.com.cn/cbweb-pbc-web/pbc/historyQuery";
 /** 官网超过 1 年静默返回 0 行，180 天留足余量。 */
@@ -159,12 +160,9 @@ export const getLpr = createServerFn({ method: "GET" }).handler(async (): Promis
       pageSize: "200",
       pageNumber: "1",
     }).toString();
-    const res = await fetch(url, {
-      headers: { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) throw new Error(`东财 HTTP ${res.status}`);
-    const body = (await res.json()) as { result?: { data?: Record<string, unknown>[] } };
+    const got = await eastmoneyFetch(url.toString(), { timeoutMs: 20_000 });
+    if (!got.ok) throw new Error(`东财 ${got.error}`);
+    const body = (await got.res.json()) as { result?: { data?: Record<string, unknown>[] } };
     const rows = body.result?.data ?? [];
     const { points } = parseLpr(rows);
     const lpr = lprSnapshotOf(points);

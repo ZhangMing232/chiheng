@@ -90,7 +90,8 @@ export function marginSummary(book: MarginBook): {
   return { totalRzyeYi: rzye / 1e8, totalRzjmeYi: rzjme / 1e8, withRatio };
 }
 
-const HEADERS = { "user-agent": "Mozilla/5.0", referer: "https://data.eastmoney.com/" };
+import { eastmoneyFetch } from "./eastmoney-fetch.ts";
+
 const COLUMNS = "DATE,SCODE,SECNAME,RZYE,RZJME,RQYE,RZYEZB,SZ,SPJ,ZDF";
 const BASE = "https://datacenter-web.eastmoney.com/api/data/v1/get";
 
@@ -99,9 +100,9 @@ export async function latestMarginDate(): Promise<string> {
   const url =
     `${BASE}?reportName=RPTA_WEB_RZRQ_GGMX&columns=DATE&pageSize=1&pageNumber=1` +
     "&sortColumns=DATE&sortTypes=-1&source=WEB&client=WEB";
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(12_000) });
-  if (!res.ok) return "";
-  const body = (await res.json()) as { result?: { data?: { DATE?: string }[] } };
+  const got = await eastmoneyFetch(url);
+  if (!got.ok) return "";
+  const body = (await got.res.json()) as { result?: { data?: { DATE?: string }[] } };
   return String(body.result?.data?.[0]?.DATE ?? "").slice(0, 10);
 }
 
@@ -123,8 +124,8 @@ async function pullPage(filter: string, page: number): Promise<{ pages: number; 
   const url =
     `${BASE}?reportName=RPTA_WEB_RZRQ_GGMX&columns=${COLUMNS}&pageSize=500&pageNumber=${page}` +
     `&filter=${filter}&sortColumns=RZYE&sortTypes=-1&source=WEB&client=WEB`;
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`两融第 ${page} 页 HTTP ${res.status}`);
-  const body = (await res.json()) as { result?: { pages?: number; data?: Raw[] } };
+  const got = await eastmoneyFetch(url, { timeoutMs: 15_000 });
+  if (!got.ok) throw new Error(`两融第 ${page} 页 ${got.error}`);
+  const body = (await got.res.json()) as { result?: { pages?: number; data?: Raw[] } };
   return { pages: body.result?.pages ?? 1, data: Array.isArray(body.result?.data) ? body.result.data : [] };
 }
