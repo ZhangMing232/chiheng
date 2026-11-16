@@ -112,12 +112,18 @@ const runResearchPage = createServerFn({ method: "GET" })
       await saveKnowledge(knowledgeFromReport(report, reportId, quote, valuation), userId).catch(() => {});
     }
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
-    // AI 综合。caller 里读档案 + 调 callAI + 记账；任何异常都由 runAiSynthesis 接住
-    const ai = await runAiSynthesis(report.stages, report.symbol, report.name, async (prompt) => {
-      const cfg = await readAIConfig();
-      if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
-      return callAI(cfg, prompt, { layer: "research", trigger: "manual" });
-    }, evidenceIds);
+    // AI 综合。总开关 off 时传 null 跳过（runAiSynthesis 原生支持 skipped，不花钱）。
+    // 2026-11-16 止血：research/debate 的 loader 原先无条件调 AI——打开带 ?q= 的页面
+    // 就扣费，今天下午因此烧了 ~¥12。总开关是唯一真闸口，所有花钱入口都要过。
+    const { isAgentOn } = await import("@/lib/market/agent-jobs");
+    const aiCaller = (await isAgentOn())
+      ? async (prompt: string) => {
+          const cfg = await readAIConfig();
+          if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
+          return callAI(cfg, prompt, { layer: "research", trigger: "manual" });
+        }
+      : null;
+    const ai = await runAiSynthesis(report.stages, report.symbol, report.name, aiCaller, evidenceIds);
 
     return { q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照", report, ai };
   });

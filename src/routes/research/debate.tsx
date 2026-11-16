@@ -67,11 +67,16 @@ const runDebatePage = createServerFn({ method: "GET" })
     const report = runResearch({ quote, articles: news.articles, valuation });
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
 
-    const caller = async (prompt: string) => {
-      const cfg = await readAIConfig();
-      if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
-      return callAI(cfg, prompt, { layer: "debate", trigger: "manual" });
-    };
+    // 总开关 off 时传 null 跳过 AI（runDebate 原生支持 skipped，不花钱）。
+    // 2026-11-16 止血：辩论页 loader 原先无条件调两方 AI，打开页面就扣费。
+    const { isAgentOn } = await import("@/lib/market/agent-jobs");
+    const caller = (await isAgentOn())
+      ? async (prompt: string) => {
+          const cfg = await readAIConfig();
+          if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
+          return callAI(cfg, prompt, { layer: "debate", trigger: "manual" });
+        }
+      : null;
     const debate = await runDebate(report.stages, report.symbol, report.name, caller, evidenceIds);
     return { q, ...debate, name: report.name, why: null };
   });
