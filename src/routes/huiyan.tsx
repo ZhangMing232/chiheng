@@ -22,6 +22,7 @@ import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getForecast, type ForecastPeriod, type ForecastOutcome, type ForecastLiveRow } from "@/lib/market/archive.functions";
 import { PixelHeader } from "@/components/pixel-header";
+import { FILL_STATUS_LABEL, type FilledStatus } from "@/lib/market/fill-status";
 
 export const Route = createFileRoute("/huiyan")({
   loader: async () => await getForecast(),
@@ -87,7 +88,7 @@ function HuiyanPage() {
                       → 现 {(lr?.last ?? "—")}{lr?.pctFromBuy != null ? ` (${(lr.pctFromBuy * 100).toFixed(2)}%)` : ""}
                     </span>
                     <span className={"px-st ml-auto " + (noBuy ? "no" : lr?.buyPrice != null ? "ok" : "wait")}>
-                      {noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "已成交" : "待开盘"}
+                      {lr?.status ? FILL_STATUS_LABEL[lr.status] : noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "已成交" : "待开盘"}
                     </span>
                   </div>
                 );

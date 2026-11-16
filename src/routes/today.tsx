@@ -24,6 +24,7 @@ import { getForecast, type ForecastPeriod } from "@/lib/market/archive.functions
 import { getFlow } from "@/lib/market/quotes.functions";
 import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
 import { splitMatrixRows } from "@/lib/market/matrix-split";
+import { FILL_STATUS_LABEL, fillStatusTone, type FilledStatus } from "@/lib/market/fill-status";
 import { reconcileDay, reconcileSummary, sixDigitCode, type ReconcileDay, type ReconcileSignal } from "@/lib/market/daily-reconcile";
 
 
@@ -277,16 +278,21 @@ function DecisionPage() {
   const liveByCode = new Map((fp?.live?.rows ?? []).map((r) => [r.code, r]));
   for (const k of fp?.picks ?? []) {
     const lr = liveByCode.get(k.code);
+    // 五态（2026-11-16）：新文件带 status，历史文件没有就回退旧三态——
+    // 停牌/数据缺失不再被糊成「待开盘」。
+    const st: FilledStatus | null = (lr as { status?: FilledStatus } | undefined)?.status ?? null;
     const noBuy = lr?.buyFilled === false;
+    const statusText = st ? FILL_STATUS_LABEL[st] : noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "成交" : "待开盘";
+    const statusTone = st ? fillStatusTone(st) : noBuy ? "no" : lr?.buyPrice != null ? "ok" : "wait";
     rows.push({
       path: "前瞻", pathTone: "text-muted",
       name: k.name, code: k.code.replace(/^(sh|sz|bj)/, ""), id: k.code,
       price: lr?.buyPrice != null ? lr.buyPrice.toFixed(2) : k.basis.close.toFixed(2),
-      priceNote: lr?.buyPrice != null ? "今开" : "选股价 · 待开盘",
+      priceNote: lr?.buyPrice != null ? "今开" : st === "suspended" ? "停牌" : st === "missing" ? "无数据" : "选股价",
       why: `${k.rule} · ${k.basis.streak}板${lr?.fillNote ? ` · ${lr.fillNote}` : ""}`,
-      status: noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "成交" : "待开盘",
-      statusTone: noBuy ? "no" : lr?.buyPrice != null ? "ok" : "wait",
-      dead: noBuy, exit: "当日收盘",
+      status: statusText,
+      statusTone,
+      dead: noBuy || st === "suspended" || st === "missing", exit: "当日收盘",
       ...bookCell(k.code),
     });
   }

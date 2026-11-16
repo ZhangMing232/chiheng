@@ -12,6 +12,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
+import type { FilledStatus } from "./fill-status.ts";
 
 // ─────────────────────────── 前瞻回验 ───────────────────────────
 
@@ -63,6 +64,9 @@ export type ForecastLiveRow = {
   pctFromBuy: number | null;
   limitUpPrice: number | null;
   buyFilled: boolean | null;
+  /** 五态细分（2026-11-16 加，见 fill-status.ts）：filled/unfillable/suspended/pending/missing。
+   *  历史文件没有这个字段，读的时候按 undefined 处理、回退旧三态。 */
+  status?: FilledStatus;
   fillNote: string | null;
 };
 /**

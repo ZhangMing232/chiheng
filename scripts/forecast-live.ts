@@ -23,6 +23,7 @@
 
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { judgeFill, buyFilledOf, type FilledStatus } from "../src/lib/market/fill-status.ts";
 
 const OUT = "data/history/forecast";
 const LIVE = join(OUT, "live");
@@ -52,9 +53,12 @@ type LiveRow = {
   pctFromBuy: number | null;
   /** 涨停价（按 T 日收盘 + 板块限幅算），一字板判定要用 */
   limitUpPrice: number | null;
-  /** 能不能买到：false = 一字涨停，开盘挂单排不进；true = 能；null = 还没开盘 */
+  /** 能不能买到：false = 一字涨停或停牌，true = 能，null = 还没开盘/数据缺失（兼容旧字段） */
   buyFilled: boolean | null;
-  /** 为什么买不进 / 为什么要打折看，页面直接显示 */
+  /** 五态细分（2026-11-16 加）：filled/unfillable/suspended/pending/missing。
+   *  停牌不再冒充「待开盘」——见 fill-status.ts 的说明。 */
+  status: FilledStatus;
+  /** 为什么买不进 / 为什么要打折看 / 为什么没数据，页面直接显示 */
   fillNote: string | null;
 };
 export type LiveFile = {
@@ -65,6 +69,28 @@ export type LiveFile = {
   final: boolean;
   rows: LiveRow[];
 };
+
+/** 实时快照的成交量（股）。停牌日为 0——这是判停牌的硬证据。
+ *  腾讯快照格式：v_sh605255="1~名称~代码~现价~昨收~今开~成交量(手)~..." 第 7 个字段是成交量（手）。
+ *  拿不到/格式变了返回 null（不编 0，0 有特定含义=停牌）。 */
+async function fetchSnapshotVolume(code: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://web.sqt.gtimg.cn/utf8/q=${code}`, {
+      headers: HEADERS,
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    const m = text.match(/="([^"]*)"/);
+    if (!m) return null;
+    const fields = m[1].split("~");
+    if (fields.length < 7) return null;
+    const lots = Number(fields[6]);
+    return Number.isFinite(lots) ? lots * 100 : null; // 手 → 股
+  } catch {
+    return null;
+  }
+}
 
 async function fetchBars(code: string): Promise<Bar[]> {
   const url = `https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=${code},day,,,${GTIMG_LOOKBACK}`;
@@ -101,6 +127,13 @@ function limitRatio(code: string): number {
   if (code.startsWith("bj")) return 0.3;
   if (bare.startsWith("300") || bare.startsWith("301") || bare.startsWith("688") || bare.startsWith("689")) return 0.2;
   return 0.1;
+}
+
+/** 是否已过开盘时间（9:30）。纯时间判断，供 judgeFill 用。 */
+function isAfterOpenNow(): boolean {
+  const now = new Date();
+  const hm = now.getHours() * 60 + now.getMinutes();
+  return hm >= 9 * 60 + 30;
 }
 
 function isClosedNow(): boolean {
@@ -142,23 +175,18 @@ async function main() {
       const usable = nx && nx.o > 0 ? nx : null;
       const prevClose = i >= 0 ? bars[i].c : null;
       const upPrice = prevClose != null ? Math.round(prevClose * (1 + limitRatio(pick.code)) * 100) / 100 : null;
-      // 一字涨停：开盘就在涨停价，而且全天最低也是涨停价——没有低于涨停价的成交，挂单排不进。
-      // 开盘涨停但盘中开过板（最低 < 涨停价）算买得到，但成交价低于开盘价，得标出来。
-      let buyFilled: boolean | null = null;
-      let fillNote: string | null = null;
-      if (usable && upPrice != null) {
-        if (usable.o >= upPrice - 0.005) {
-          if (usable.l >= upPrice - 0.005) {
-            buyFilled = false;
-            fillNote = `${upPrice.toFixed(2)} 一字涨停，开盘挂单排不进（全天最低就是涨停价）`;
-          } else {
-            buyFilled = true;
-            fillNote = `开盘涨停后开板（最低 ${usable.l.toFixed(2)}），成交价低于开盘价`;
-          }
-        } else {
-          buyFilled = true;
-        }
-      }
+      // 没有今日 bar 时才需要查快照判停牌（有 bar 就是在正常交易，省一次请求）。
+      const snapshotVolume = usable ? null : await fetchSnapshotVolume(pick.code);
+      // 五态判定统一走纯函数（2026-11-16）：停牌不再被当成「待开盘」。
+      const verdict = judgeFill({
+        bar: usable ? { o: usable.o, c: usable.c, h: usable.h, l: usable.l } : null,
+        snapshotVolume,
+        afterOpen: isAfterOpenNow(),
+        afterClose: closed,
+        limitUpPrice: upPrice,
+      });
+      const buyFilled = buyFilledOf(verdict.status);
+      const fillNote = verdict.note;
       rows.push({
         code: pick.code,
         name: pick.name,
@@ -170,12 +198,14 @@ async function main() {
         pctFromBuy: usable && usable.o > 0 ? usable.c / usable.o - 1 : null,
         limitUpPrice: upPrice,
         buyFilled,
+        status: verdict.status,
         fillNote,
       });
     }
 
-    // 一只都没拿到买入价（T+1 还没开盘 / 接口挂了）就写 nextDate=null，页面继续显示「待定」。
-    const anyBuy = rows.some((r) => r.buyPrice != null);
+    // anyBuy 口径（2026-11-16 修）：只要有一只拿到买入价，或某只已判停牌/一字板
+    // （都是「今天已有明确结论」），就算已开盘——不能因为停牌股没买价就把整期打回「待定」。
+    const anyBuy = rows.some((r) => r.buyPrice != null || r.status === "suspended" || r.status === "unfillable");
     const payload: LiveFile = {
       date: p.date,
       nextDate: anyBuy ? nextDate : null,
@@ -185,8 +215,12 @@ async function main() {
     };
     await writeFile(join(LIVE, `${p.date}.json`), JSON.stringify(payload, null, 2));
     const bought = rows.filter((r) => r.buyPrice != null).length;
+    const suspended = rows.filter((r) => r.status === "suspended").length;
+    const missing = rows.filter((r) => r.status === "missing").length;
     console.log(
       `[forecast-live] ${p.date} → ${payload.nextDate ?? "待定"}｜已开盘 ${bought}/${rows.length} 只` +
+        (suspended ? `｜停牌 ${suspended}` : "") +
+        (missing ? `｜数据缺失 ${missing}` : "") +
         (payload.final ? "｜已收盘" : ""),
     );
   }
