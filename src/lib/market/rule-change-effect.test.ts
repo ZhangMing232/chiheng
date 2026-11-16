@@ -12,6 +12,7 @@ import {
   MIN_DAYS_AFTER,
   MIN_TRADES_PER_SIDE,
   EFFECT_THRESHOLD_PP,
+  tradingDayCalendar,
 } from "./rule-change-effect.ts";
 
 const base = { at: "2026-11-01T00:00:00.000Z", key: "earlyRejectDays", from: 15, to: 30 };
@@ -96,4 +97,26 @@ test("回验报告带上原始 from/to，便于事后追", () => {
   assert.equal(r.to, 30);
   assert.equal(r.evaluatedAt, "2026-11-20T00:00:00.000Z");
   assert.equal(r.at, base.at);
+});
+
+
+// 2026-11-16 修：回验观察期必须用真实交易日日历，不能用「账本里有成交的日子」。
+test("tradingDayCalendar：跳过周末，11-05→11-11 是 5 个交易日", () => {
+  const days = tradingDayCalendar("2026-11-05", "2026-11-11");
+  assert.equal(days.length, 5);
+  assert.deepEqual(days, ["2026-11-05", "2026-11-06", "2026-11-09", "2026-11-10", "2026-11-11"]);
+});
+
+test("tradingDayCalendar：改动日之后的天数按日历数，不受账本成交日影响", () => {
+  const days = tradingDayCalendar("2026-11-05", "2026-11-16");
+  const after = days.filter((d) => d > "2026-11-05");
+  // 11-06/09/10/11/12/13/16 = 7 个交易日（账本只有 7 个成交日曾让 daysAfter 卡在 7，
+  // 但那是巧合；这里从日历数出，11-17 之后自然到 8、11-18 到 9）
+  assert.equal(after.length, 7);
+  assert.ok(after.includes("2026-11-16"));
+  assert.ok(!after.includes("2026-11-14"), "周末不是交易日");
+});
+
+test("tradingDayCalendar：非法区间返回空，不抛错", () => {
+  assert.deepEqual(tradingDayCalendar("2026-11-16", "2026-11-05"), []);
 });

@@ -1414,13 +1414,18 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
     }
     if (!done) {
       const { readRuleChangeLog } = await import("../src/lib/market/optimize.ts");
-      const { pollRuleChangeEffect, appendRuleChangeEffect, MIN_DAYS_AFTER } = await import(
+      const { pollRuleChangeEffect, appendRuleChangeEffect, tradingDayCalendar, MIN_DAYS_AFTER } = await import(
         "../src/lib/market/rule-change-effect.ts"
       );
       const changes = (await readRuleChangeLog()).slice(0, 8);
       const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
       const allTrades = (ownerBook?.days ?? []).flatMap((d) => d.trades);
-      const tradingDays = [...new Set((ownerBook?.days ?? []).map((d) => d.date))].sort();
+      // 2026-11-16 修：交易日必须用日历（isTradingDay），不能用「账本里有成交的日子」——
+      // 后者 11-05→11-16 只有 7 天，daysAfter 永远 7，回验卡 pending 到不了 10 天观察期。
+      // 日历覆盖到今天+1（让最新一条改动也能被数到），成交样本仍只来自 ownerBook。
+      const calendarEnd = new Date(Date.now() + 8 * 3_600_000 + 86_400_000).toISOString().slice(0, 10);
+      const earliestChange = (changes[changes.length - 1]?.at ?? `${phase.date}`).slice(0, 10);
+      const tradingDays = tradingDayCalendar(earliestChange, calendarEnd);
       let evaluated = 0;
       for (const c of changes) {
         const effect = await pollRuleChangeEffect({

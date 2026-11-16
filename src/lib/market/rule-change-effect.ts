@@ -24,6 +24,7 @@
 
 import { readFile, appendFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
+import { isTradingDay } from "./session.ts";
 
 function dataDir(): string {
   return process.env.CHIHENG_DATA_DIR ?? join(process.cwd(), "data");
@@ -210,6 +211,26 @@ export async function pollRuleChangeEffect(args: {
   const after = trades.filter((t) => afterDays.includes(t.entryDate)).map((t) => t.ret);
 
   return evaluateRuleChangeEffect({ at, key, from, to, before, after, daysAfter: afterDays.length });
+}
+
+/**
+ * 生成 [from, to] 之间的真实交易日列表（含两端判断由调用方决定）。
+ * 2026-11-16 修：原先调用方传的是「账本里有交易的日子」当 tradingDays——
+ * 从 11-05 到 11-16 账本只有 7 个成交日，daysAfter 永远算 7，回验卡在 pending
+ * 到不了 10 天观察期。交易日必须来自日历（isTradingDay），与有没有成交无关。
+ */
+export function tradingDayCalendar(from: string, to: string): string[] {
+  if (!(from <= to)) return [];
+  const out: string[] = [];
+  const cursor = new Date(`${from}T12:00:00+08:00`);
+  const end = new Date(`${to}T12:00:00+08:00`);
+  // 上限 366 天，防 from 填错（如空串/1970）导致几万次循环。
+  for (let i = 0; i < 366 && cursor <= end; i++) {
+    const iso = cursor.toISOString().slice(0, 10);
+    if (isTradingDay(iso)) out.push(iso);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
 }
 
 /** 把回验结果追加落盘。同一 (at,key) 重复回验覆盖旧结论——结论会随样本增长变。 */
