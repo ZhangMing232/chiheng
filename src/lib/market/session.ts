@@ -112,6 +112,17 @@ export function shanghaiDate(now = Date.now()): string {
   }).format(new Date(now));
 }
 
+/** 上海时间的小时（0-23）。定时任务按上海时区判点，不用运行机本地时区。
+ *  2026-11-16 补：和 shanghaiDate 同一口径，避免跨时区部署错点。 */
+export function shanghaiHour(now = Date.now()): number {
+  const s = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Shanghai",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(now));
+  return Number(s);
+}
+
 function entryOf(date: string, weekday: string, mins: number): "none" | "open" | "close" {
   if (!isTradingDay(date, weekday)) return "none";
   if (mins >= 9 * 60 + 25 && mins <= 9 * 60 + 30) return "open";

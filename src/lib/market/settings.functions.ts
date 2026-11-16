@@ -224,7 +224,9 @@ async function healthRows(root: string): Promise<HealthRow[]> {
   // ⑤ AI 闭环：昨天有没有真的跑过。连续失败说明 API/key 有问题。
   const aiLog = await readJson<{ entries?: { at?: string; trigger?: string; ok?: boolean }[] }>("data/ai-log.json");
   const entries = aiLog?.entries ?? [];
-  const today = new Date().toISOString().slice(0, 10);
+  // 上海日（2026-11-16 修）：UTC 日在 00-08 点把昨天的账当今天，显示假 warn。
+  const { shanghaiDate } = await import("./session.ts");
+  const today = shanghaiDate();
   const todayAuto = entries.filter((e) => (e.at ?? "").slice(0, 10) === today && e.trigger === "auto");
   const fails = todayAuto.filter((e) => e.ok === false).length;
   rows.push({

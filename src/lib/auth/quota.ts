@@ -72,14 +72,28 @@ function dataDir(): string {
 
 const quotaPath = () => join(dataDir(), "ai-quota.json");
 
-/** 全量计数表。文件不在/坏了 → 空表，绝不抛错（闸不能因为账本挂了把人锁死）。 */
+/** 全量计数表。文件**不存在**（新部署）→ 空表；存在但读不了/坏了 → 抛错（fail-closed）。
+ *  2026-11-16 修：原先一律 catch 返回 {}，账本损坏期间额度被当成 0 全额放行——
+ *  「闸不能因为账本挂了把人锁死」方向反了：宁可明确报错让人修账，也不能静默放行。
+ *  注意：owner 走 aiGate 的 isOwner 分支，不查额度表，所以 fail-closed 只影响会员。 */
 export async function readQuotaTable(): Promise<Record<string, QuotaState>> {
+  let raw: string;
   try {
-    const parsed = JSON.parse(await readFile(quotaPath(), "utf8")) as { byUser?: unknown };
-    if (!parsed.byUser || typeof parsed.byUser !== "object") return {};
+    raw = await readFile(quotaPath(), "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException | undefined)?.code === "ENOENT") return {};
+    console.error("[ai-quota] 账本读取失败（fail-closed）:", (err as Error).message);
+    throw new Error("AI 额度账本暂时读不到，为安全起见已暂停调用；请稍后重试或联系管理员");
+  }
+  try {
+    const parsed = JSON.parse(raw) as { byUser?: unknown };
+    if (!parsed.byUser || typeof parsed.byUser !== "object") {
+      throw new Error("byUser 字段缺失或格式错误");
+    }
     return parsed.byUser as Record<string, QuotaState>;
-  } catch {
-    return {};
+  } catch (err) {
+    console.error("[ai-quota] 账本解析失败（fail-closed）:", (err as Error).message);
+    throw new Error("AI 额度账本格式异常，为安全起见已暂停调用；请稍后重试或联系管理员");
   }
 }
 

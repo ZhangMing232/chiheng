@@ -1300,14 +1300,27 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
         await access(stamp);
       } catch {
         await mkdir(stampDir, { recursive: true });
-        await writeFile(stamp, String(Date.now()));
         const logFd = openSync(join(stampDir, "auto-verdict.log"), "a");
-        const child = spawn(
-          process.execPath,
-          ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/auto-verdict.ts"],
-          { cwd: process.cwd(), detached: true, stdio: ["ignore", logFd, logFd] },
-        );
+        // 2026-11-16 修：stamp 在 spawn 成功**之后**写。原先先写 stamp 再 spawn，
+        // 若 spawn 失败/子进程入口前崩溃，stamp 已存在 → 当天判决永久静默跳过、
+        // 无重试无推送。现在失败清 stamp、下个 tick 重试。
+        let child;
+        try {
+          child = spawn(
+            process.execPath,
+            ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/auto-verdict.ts"],
+            { cwd: process.cwd(), detached: true, stdio: ["ignore", logFd, logFd] },
+          );
+        } catch (spawnErr) {
+          console.error(`${time} 判决回测 spawn 失败（不写 stamp，下轮重试）:`, spawnErr);
+          throw spawnErr;
+        }
+        child.on("error", (err) => {
+          console.error(`${time} 判决回测子进程错误（下轮重试）:`, err.message);
+          import("node:fs/promises").then((fs) => fs.unlink(stamp).catch(() => {}));
+        });
         child.unref();
+        await writeFile(stamp, String(Date.now()));
         console.log(
           `${time} 判决回测已异步启动（${phase.date}）` +
             `——待验因子 ${hasPendingFactor ? "有" : "无"}，待判策略 ${hasPendingGenome ? "有" : "无"}`,

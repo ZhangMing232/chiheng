@@ -42,8 +42,10 @@ export async function tickAgentSchedules(
   const { readAgentSchedules, writeAgentSchedules } = await import("./agent-schedules.ts");
   const { updateAgentJob } = await import("./agent-jobs.ts");
   const schedules = await readAgentSchedules();
-  const day = now.toLocaleDateString("sv-SE"); // 本地 YYYY-MM-DD
-  const hour = now.getHours();
+  // 上海日/时（2026-11-16 修）：原先按运行机本地时区，跨时区部署会错日/错点。
+  const { shanghaiDate, shanghaiHour } = await import("./session.ts");
+  const day = shanghaiDate(now.getTime());
+  const hour = shanghaiHour(now.getTime());
 
   let dispatched: string | null = null;
   let skipped = 0;

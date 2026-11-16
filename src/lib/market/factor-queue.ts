@@ -623,7 +623,7 @@ export async function callAIWithFallback(prompt: string, meta: AIMeta = {}): Pro
     const dshTimeout = meta.timeoutMs ?? AI_SINGLE_TIMEOUT_MS;
     try {
       const { callDSH } = await import("./chiheng-dsh-client.ts");
-      const text = await callDSH(prompt, { timeoutMs: dshTimeout });
+      const text = await callDSH(prompt, { timeoutMs: dshTimeout, layer, trigger });
       attempts.push({ index: 1, profileId: "dsh", timeoutMs: dshTimeout, ms: Date.now() - dshStart, ok: true, errorKind: null });
       await finish(true, "dsh");
       return text;

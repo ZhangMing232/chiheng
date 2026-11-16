@@ -32,6 +32,7 @@ import { loadBoardMonthly, loadIndustry } from "@/lib/market/industry-store";
 import { finestIndustry } from "@/lib/market/industry";
 import { loadValuationHistory, valuationPosition, rankPhrase, type ValuationPosition } from "@/lib/market/pe-history";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
+import { readActiveMeta } from "@/lib/market/ai-profiles";
 import { saveResearchReport } from "@/lib/market/reports.functions";
 import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
 import { qParam } from "@/lib/search-params";
@@ -105,11 +106,8 @@ async function buildResearchReport(q: string) {
       industry,
       boardMonthly,
     });
-    // 研判完自动归档（覆盖旧的）——这样下次研判同一只票能核对这次的预警
-    if (quote) {
-      const reportId = `research-${quote.id}-${Date.now().toString(36)}`;
-      await saveKnowledge(knowledgeFromReport(report, reportId, quote, valuation), userId).catch(() => {});
-    }
+    // 2026-11-16 修：归档写盘从 GET 移除（GET 不该有副作用，刷新/预取都会写）。
+    // 只在显式点「生成 AI 研判」的 POST 里归档，见 runResearchAI。
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
     return { q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照", report, evidenceIds };
 }
@@ -140,10 +138,25 @@ export const runResearchAI = createServerFn({ method: "POST" })
       async (prompt: string) => {
         const cfg = await readAIConfig();
         if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
-        return callAI(cfg, prompt, { layer: "research", trigger: "manual" });
+        // 价格快照入账（2026-11-16 修）：之前只传 layer/trigger，ai-usage 的
+        // cost 全记 0，主账看不到真实花费。readActiveMeta 把档案价带进来。
+        const meta = await readActiveMeta();
+        return callAI(cfg, prompt, {
+          layer: "research", trigger: "manual",
+          ...(meta ? { profileId: meta.profileId, pricePromptPerM: meta.pricePromptPerM, priceCompletionPerM: meta.priceCompletionPerM } : {}),
+        });
       },
       built.evidenceIds,
     );
+    // 只在真正做了 AI 研判（POST、花钱）后才归档——GET 纯读。
+    if (built.quote && built.valuation) {
+      const { requireUserId } = await import("@/lib/auth/verify.server");
+      const reportId = `research-${built.quote.id}-${Date.now().toString(36)}`;
+      await saveKnowledge(
+        knowledgeFromReport(built.report!, reportId, built.quote, built.valuation),
+        await requireUserId(),
+      ).catch(() => {});
+    }
     return { ok: true as const, error: null, ai };
   });
 

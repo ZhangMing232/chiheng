@@ -114,6 +114,7 @@ module.exports = {
               })
               let out = ''
               let reasoning = ''
+              let usage = null
               for await (const c of llm.stream({
                 provider,
                 model,
@@ -123,6 +124,7 @@ module.exports = {
               })) {
                 if (c && c.type === 'text-delta' && c.text) out += c.text
                 else if (c && c.type === 'reasoning-delta' && c.text) reasoning += c.text
+                else if (c && c.type === 'usage') usage = c // 真实 token 用量（2026-11-16 加，供赤轨侧精确记账）
               }
               out = String(out || '').trim()
               // 正文与思考分离：赤轨要的是干净 JSON 正文，思考（reasoning）单独返回、不进正文，
@@ -132,6 +134,7 @@ module.exports = {
                 text: out,
                 empty: !out,
                 reasoning: reasoning.trim() || undefined,
+                usage: usage || undefined,
               })
             }
 

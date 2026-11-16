@@ -103,7 +103,10 @@ export async function runAgentTask(opts: {
 }): Promise<SpawnResult> {
   const { execFile } = await cpApi();
   const now = new Date();
-  const day = now.toISOString().slice(0, 10); // 简化：日/月口径按 UTC 日切，和 ai-usage 的今天口径一致
+  // 上海日（2026-11-16 修）：原先按 UTC 日切，上海 00:00-08:00 的预算算到昨天，
+  // 和额度闸/定时任务的「今天」对不上。统一走 session.ts 的 shanghaiDate。
+  const { shanghaiDate } = await import("./session.ts");
+  const day = shanghaiDate(now.getTime());
   const month = day.slice(0, 7);
 
   // 预算闸门：拒绝就不拉进程。

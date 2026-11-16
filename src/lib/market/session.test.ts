@@ -14,7 +14,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DAY_BAR_READY_MINUTES, dayBarReady, isTradingDay } from "@/lib/market/session";
+import { DAY_BAR_READY_MINUTES, dayBarReady, isTradingDay, shanghaiDate, shanghaiHour } from "@/lib/market/session";
 
 /** 用带 +08:00 的字面量造时刻，不受本机时区影响。 */
 const at = (iso: string): number => Date.parse(`${iso}+08:00`);
@@ -40,4 +40,18 @@ test("休市日恒 true：今天没有这根 K 线，谈不上定型", () => {
 
 test("缓冲就是 5 分钟，写死在这里方便改的时候看见影响面", () => {
   assert.equal(DAY_BAR_READY_MINUTES, 15 * 60 + 5);
+});
+
+
+// 2026-11-16 补：跨日 00:00-08:00 的「今天」必须是上海日，不是 UTC 日。
+test("shanghaiDate：UTC 前一天但上海已是今天的时刻，返回上海日", () => {
+  // UTC 2026-11-15T16:00:00Z = 上海 2026-11-16 00:00
+  assert.equal(new Date("2026-11-15T16:00:00Z").toISOString().slice(0, 10), "2026-11-15", "UTC 日是昨天");
+  assert.equal(shanghaiDate(Date.parse("2026-11-15T16:00:00Z")), "2026-11-16", "上海日已是今天");
+});
+
+test("shanghaiHour：上海 00-07 点时 UTC 还是前一天，小时按上海算", () => {
+  assert.equal(shanghaiHour(Date.parse("2026-11-15T16:30:00Z")), 0, "上海 00:30");
+  assert.equal(shanghaiHour(Date.parse("2026-11-15T23:30:00Z")), 7, "上海 07:30");
+  assert.equal(shanghaiHour(Date.parse("2026-11-16T01:30:00Z")), 9, "上海 09:30");
 });

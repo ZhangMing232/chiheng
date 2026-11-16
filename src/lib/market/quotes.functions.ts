@@ -415,6 +415,12 @@ export const generateStudioCaption = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }) => {
+    // 2026-11-16 修（ai-poster.ts 注释自认的洞）：文案生成也烧主人的接口额度，
+    // 必须和 AI 海报/设计沟通同口径——只有主人账号能跑，不然任何登录用户
+    // 都能消耗主人的 DeepSeek 额度。
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "AI 文案只有主人账号能生成（烧的是主人的接口额度）" };
     const { generateCaption } = await import("@/lib/market/studio");
     try {
       return { ok: true as const, text: await generateCaption(data.genre, data.topic, data.platform, data.extra) };

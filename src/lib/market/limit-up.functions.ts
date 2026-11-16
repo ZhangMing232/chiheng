@@ -159,7 +159,8 @@ export const getWatchDay = createServerFn({ method: "GET" })
  * 东财 push2ex 实测支持历史日期，但只留最近约三周；再往前返回空，
  * 这时明确报「接口没返回」，不写空档、不让页面显示成「那天没涨停」。
  */
-export const backfillWatchDay = createServerFn({ method: "GET" })
+// POST（2026-11-16 修）：这个函数会拉外部 API + 写归档，GET 可被预取/缓存，语义错了。
+export const backfillWatchDay = createServerFn({ method: "POST" })
   .validator((input: unknown): { date: string } => {
     const v = (input ?? {}) as Record<string, unknown>;
     return { date: isIsoDay(v.date) ? v.date : "" };

@@ -31,7 +31,7 @@ const SYSTEM = "你是一个严谨的量化研究助理。只输出要求的 JSO
  */
 export async function callDSH(
   prompt: string,
-  opts: { system?: string; provider?: string; model?: string; timeoutMs?: number } = {},
+  opts: { system?: string; provider?: string; model?: string; timeoutMs?: number; layer?: string; trigger?: "manual" | "auto" | "test" } = {},
 ): Promise<string> {
   // 统一总闸（2026-11-16 架构收口）：这是 DSH 桥接路的唯一 HTTP 出口，
   // 小机对话 / 海报文案 / 因子表达式 / callAIWithFallback 全走这里。
@@ -53,10 +53,43 @@ export async function callDSH(
     }),
   });
   if (!res.ok) throw new Error(`DSH 桥接 HTTP ${res.status}`);
-  const data = (await res.json()) as { ok?: boolean; text?: string; empty?: boolean; error?: string };
+  const data = (await res.json()) as {
+    ok?: boolean; text?: string; empty?: boolean; error?: string;
+    provider?: string; model?: string;
+    /** 桥接插件透传的 DSH 真实 usage（2026-11-16 加）；拿不到就是 null，不编。 */
+    usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | null;
+  };
   if (data.ok === false) throw new Error(`DSH 桥接失败：${data.error ?? "unknown"}`);
   if (data.empty || typeof data.text !== "string" || !data.text.trim()) {
     throw new Error("DSH 返回里没有内容");
+  }
+  // 真实 usage 入账（2026-11-16 修）：原先 DSH 路径在 ai-usage 里一笔都没有，
+  // 账本只覆盖直连，走桥接的因子/策略/诊断/海报/对话全是盲区。
+  // 桥接拿不到 usage（老版本插件）就**不记账**——不编估算冒充真实花费。
+  if (data.usage && typeof data.usage.inputTokens === "number" && typeof data.usage.outputTokens === "number") {
+    try {
+      const { appendAIUsage, costOfTokens } = await import("./ai-usage.ts");
+      const { referencePriceOf } = await import("./ai-prices.ts");
+      const model = data.model ?? data.provider ?? "dsh-bridge";
+      const price = referencePriceOf(model);
+      await appendAIUsage({
+        at: new Date().toISOString(),
+        layer: opts.layer ?? "bridge",
+        trigger: opts.trigger ?? "manual",
+        model,
+        profileId: null,
+        pricePromptPerM: null,
+        priceCompletionPerM: null,
+        promptTokens: data.usage.inputTokens,
+        completionTokens: data.usage.outputTokens,
+        totalTokens: data.usage.totalTokens ?? data.usage.inputTokens + data.usage.outputTokens,
+        cost: costOfTokens(data.usage.inputTokens, data.usage.outputTokens, price?.prompt ?? null, price?.completion ?? null),
+        ms: 0, // 桥接没回耗时，不编
+        ok: true,
+      });
+    } catch {
+      // 记账失败不影响调用结果（和直连口径一致）
+    }
   }
   return data.text;
 }

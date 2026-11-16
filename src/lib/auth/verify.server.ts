@@ -110,7 +110,14 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
   let user: VerifiedUser | null = null;
   try {
     user = await getSessionUser(bearerToken);
-  } catch {
+  } catch (err) {
+    // 2026-11-16 修：原先静默吞异常→无库时落 dev-user（isOwner=true），
+    // 验证出错反而拿到主人权限、零日志（fail-open）。现在：有真实库/身份配置
+    // 一律 fail-closed；纯本机 dev 的已知 getSession 抛仍回落，但必须留日志。
+    console.error("[auth] getSession 异常（按无身份处理）:", err instanceof Error ? err.message : String(err));
+    if (databaseConfigured || gateIdentityEnabled()) {
+      throw new UnauthorizedError();
+    }
     user = null;
   }
   if (user) return user.id;
@@ -146,7 +153,14 @@ export async function requirePrincipal(bearerToken?: string): Promise<Principal>
   let user: VerifiedUser | null = null;
   try {
     user = await getSessionUser(bearerToken);
-  } catch {
+  } catch (err) {
+    // 2026-11-16 修：原先静默吞异常→无库时落 dev-user（isOwner=true），
+    // 验证出错反而拿到主人权限、零日志（fail-open）。现在：有真实库/身份配置
+    // 一律 fail-closed；纯本机 dev 的已知 getSession 抛仍回落，但必须留日志。
+    console.error("[auth] getSession 异常（按无身份处理）:", err instanceof Error ? err.message : String(err));
+    if (databaseConfigured || gateIdentityEnabled()) {
+      throw new UnauthorizedError();
+    }
     user = null;
   }
   if (user) return { userId: user.id, isOwner: isAdmin(user.plan), plan: user.plan };

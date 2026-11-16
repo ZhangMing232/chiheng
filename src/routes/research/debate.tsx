@@ -23,6 +23,7 @@ import { runDebate, type DebateSide } from "@/lib/market/debate";
 import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history";
 import { getSymbolNews, getUniverse } from "@/lib/market/quotes.functions";
 import { callAI, readAIConfig } from "@/lib/market/factor-queue";
+import { readActiveMeta } from "@/lib/market/ai-profiles";
 
 export const Route = createFileRoute("/research/debate")({
   validateSearch: (search: Record<string, unknown>) => ({ q: qParam(search) }),
@@ -112,7 +113,11 @@ export const runDebateAI = createServerFn({ method: "POST" })
       async (prompt: string) => {
         const cfg = await readAIConfig();
         if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
-        return callAI(cfg, prompt, { layer: "debate", trigger: "manual" });
+        const meta = await readActiveMeta(); // 价格快照入账（2026-11-16 修）
+        return callAI(cfg, prompt, {
+          layer: "debate", trigger: "manual",
+          ...(meta ? { profileId: meta.profileId, pricePromptPerM: meta.pricePromptPerM, priceCompletionPerM: meta.priceCompletionPerM } : {}),
+        });
       },
       evidenceIds,
     );
