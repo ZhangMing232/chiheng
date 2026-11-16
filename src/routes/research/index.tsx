@@ -54,18 +54,17 @@ import type { StockArticle } from "@/lib/market/news";
  * 客户端导航时经 RPC 到服务端执行——2026-10-17 之前写在 loader 里，
  * SPA 导航会让它在浏览器里跑、fs 一调就整页报错（同 /backtest 的教训）。
  */
-const runResearchPage = createServerFn({ method: "GET" })
-  .validator((q: unknown) => (typeof q === "string" ? q.trim().slice(0, 20) : ""))
-  .handler(async ({ data: q }) => {
+/** 只组装规则报告，**不调 AI**（AI 已移到显式 POST 按钮，GET 打开页面不该花钱）。 */
+async function buildResearchReport(q: string) {
     if (!q) {
-      return { q: "", quote: null, articles: [] as StockArticle[], valuation: null, why: null as string | null, ai: null };
+      return { q: "", quote: null, articles: [] as StockArticle[], valuation: null, why: null as string | null, report: null, evidenceIds: [] as string[] };
     }
     const [news, uni] = await Promise.all([
       getSymbolNews({ data: { q } }).catch(() => null),
       getUniverse({ data: { refresh: false } }).catch(() => null),
     ]);
     if (!news) {
-      return { q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来", ai: null };
+      return { q, quote: null, articles: [] as StockArticle[], valuation: null, why: "资讯接口暂时拉不下来", report: null, evidenceIds: [] as string[] };
     }
     const quote: Quote | null = uni?.quotes.find((row) => row.id === news.picked?.id) ?? null;
     // 身份在这里解析：下面的知识库是按人落盘的，读写都要带本人 id。
@@ -112,20 +111,40 @@ const runResearchPage = createServerFn({ method: "GET" })
       await saveKnowledge(knowledgeFromReport(report, reportId, quote, valuation), userId).catch(() => {});
     }
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
-    // AI 综合。总开关 off 时传 null 跳过（runAiSynthesis 原生支持 skipped，不花钱）。
-    // 2026-11-16 止血：research/debate 的 loader 原先无条件调 AI——打开带 ?q= 的页面
-    // 就扣费，今天下午因此烧了 ~¥12。总开关是唯一真闸口，所有花钱入口都要过。
-    const { isAgentOn } = await import("@/lib/market/agent-jobs");
-    const aiCaller = (await isAgentOn())
-      ? async (prompt: string) => {
-          const cfg = await readAIConfig();
-          if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
-          return callAI(cfg, prompt, { layer: "research", trigger: "manual" });
-        }
-      : null;
-    const ai = await runAiSynthesis(report.stages, report.symbol, report.name, aiCaller, evidenceIds);
+    return { q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照", report, evidenceIds };
+}
 
-    return { q, quote, articles: news.articles, valuation, why: quote ? null : "找到资讯但没拿到这只票的行情快照", report, ai };
+/** GET loader：只出规则报告，零 AI 调用（打开页面不花钱）。 */
+const runResearchPage = createServerFn({ method: "GET" })
+  .validator((q: unknown) => (typeof q === "string" ? q.trim().slice(0, 20) : ""))
+  .handler(async ({ data: q }) => {
+    const built = await buildResearchReport(q);
+    return { ...built, ai: null as AiSynthesis | null };
+  });
+
+/** 显式按钮：点「生成 AI 研判」才调，主人 + 总开关双重闸。 */
+export const runResearchAI = createServerFn({ method: "POST" })
+  .validator((q: unknown) => (typeof q === "string" ? q.trim().slice(0, 20) : ""))
+  .handler(async ({ data: q }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人账号能调用 AI", ai: null };
+    const { isAgentOn } = await import("@/lib/market/agent-jobs");
+    if (!(await isAgentOn())) return { ok: false as const, error: "小机已被总开关停用——去 /ai 概览页打开再生成", ai: null };
+    const built = await buildResearchReport(q);
+    if (!built.report) return { ok: false as const, error: built.why ?? "没有可研判的数据", ai: null };
+    const ai = await runAiSynthesis(
+      built.report.stages,
+      built.report.symbol,
+      built.report.name,
+      async (prompt: string) => {
+        const cfg = await readAIConfig();
+        if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
+        return callAI(cfg, prompt, { layer: "research", trigger: "manual" });
+      },
+      built.evidenceIds,
+    );
+    return { ok: true as const, error: null, ai };
   });
 
 export const Route = createFileRoute("/research/")({
@@ -152,11 +171,37 @@ function ResearchPage() {
   const [saved, setSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [tab, setTab] = useState<"structured" | "raw" | "data" | "log">("structured");
-  useEffect(() => setValue(search.q), [search.q]);
+  const [ai, setAi] = useState<AiSynthesis | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  useEffect(() => {
+    setValue(search.q);
+    setAi(null);       // 换股票时清掉上一只的 AI 结果
+    setAiError(null);
+  }, [search.q]);
+
+  /** AI 综合要点按钮才跑（2026-11-16 根治：GET loader 不花钱）。 */
+  async function generateAI() {
+    if (!search.q || aiBusy) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const res = await runResearchAI({ data: search.q });
+      if (res.ok) {
+        setAi(res.ai);
+        setTab("log"); // 出结果自动切到日志 tab
+      } else {
+        setAiError(res.error ?? "生成失败");
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "生成失败");
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   // 报告在 loader 里算好（那里还要顺手跑 AI 综合）。q 为空时没有报告。
   const report = data.report ?? runResearch({ quote: data.quote, articles: data.articles, valuation: data.valuation });
-  const ai = data.ai;
   // AI 正文里出现的证据 id 只有在账本里真实存在才可点（linkify 内部也校验，双保险）。
   const knownEvidenceIds = new Set(collectEvidence(report.stages).map((e) => e.id));
 
@@ -344,6 +389,20 @@ function ResearchPage() {
                 {t.label}
               </button>
             ))}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!search.q || aiBusy}
+              onClick={() => void generateAI()}
+              className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {aiBusy ? "AI 研判中（约 1 分钟）…" : ai ? "重新生成 AI 研判" : "生成 AI 研判（消耗额度）"}
+            </button>
+            <span className="text-[12px] text-muted">
+              {aiBusy ? "正在调用模型，请留在本页" : ai ? `上次生成：${(ai.ms / 1000).toFixed(1)} 秒` : "规则结论已出；AI 综合需手动触发才扣费"}
+            </span>
+            {aiError ? <span className="text-xs text-down">{aiError}</span> : null}
           </div>
           {tab === "structured" ? <StructuredView stages={report.stages} gaps={report.gaps} /> : null}
           {tab === "raw" ? <RawInfo articles={data.articles} /> : null}

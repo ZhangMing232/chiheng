@@ -62,23 +62,61 @@ const runDebatePage = createServerFn({ method: "GET" })
     const quote = uni?.quotes.find((row) => row.id === news.picked!.id) ?? null;
     if (!quote) return { ...empty, name: news.picked.name, why: "找到资讯但没拿到行情快照" };
 
+    // GET loader 只出规则报告，**不调 AI**（2026-11-16 根治：打开页面不该花钱）。
     const history = await loadValuationHistory(quote.code).catch(() => null);
     const valuation = valuationPosition(history);
     const report = runResearch({ quote, articles: news.articles, valuation });
     const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
+    // 用 skipped 侧占位——页面本来就会渲染 skipped 状态。
+    const skippedSides: DebateSide[] = (["bull", "bear"] as const).map((role) => ({
+      role, label: role === "bull" ? "多方" : "空方", status: "skipped" as const,
+      text: null, why: "要点「生成多空辩论」按钮才会调用 AI", refs: [], chain: null,
+      blocked: 0, numbersReplaced: 0, ms: 0,
+    }));
+    return {
+      q,
+      sides: skippedSides,
+      evidenceCount: evidenceIds.length,
+      name: report.name,
+      why: null,
+      // 传给 POST 用（不回客户端也行，POST 会重算；这里只给按钮判断用）。
+      symbol: report.symbol,
+      stages: report.stages,
+      evidenceIds,
+    };
+  });
 
-    // 总开关 off 时传 null 跳过 AI（runDebate 原生支持 skipped，不花钱）。
-    // 2026-11-16 止血：辩论页 loader 原先无条件调两方 AI，打开页面就扣费。
+/** 显式按钮：点「生成多空辩论」才调两方 AI，主人 + 总开关双闸。 */
+export const runDebateAI = createServerFn({ method: "POST" })
+  .validator((q: unknown) => (typeof q === "string" ? q.trim().slice(0, 20) : ""))
+  .handler(async ({ data: q }) => {
+    const { requirePrincipal } = await import("@/lib/auth/verify.server");
+    const { isOwner } = await requirePrincipal();
+    if (!isOwner) return { ok: false as const, error: "只有主人账号能调用 AI", sides: [] as DebateSide[] };
     const { isAgentOn } = await import("@/lib/market/agent-jobs");
-    const caller = (await isAgentOn())
-      ? async (prompt: string) => {
-          const cfg = await readAIConfig();
-          if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
-          return callAI(cfg, prompt, { layer: "debate", trigger: "manual" });
-        }
-      : null;
-    const debate = await runDebate(report.stages, report.symbol, report.name, caller, evidenceIds);
-    return { q, ...debate, name: report.name, why: null };
+    if (!(await isAgentOn())) return { ok: false as const, error: "小机已被总开关停用——去 /ai 概览页打开再生成", sides: [] as DebateSide[] };
+    // 重算规则报告（POST 独立执行，不依赖 GET 的内存）
+    const [news, uni] = await Promise.all([
+      getSymbolNews({ data: { q } }).catch(() => null),
+      getUniverse({ data: { refresh: false } }).catch(() => null),
+    ]);
+    if (!news?.picked) return { ok: false as const, error: "没找到这只票", sides: [] as DebateSide[] };
+    const quote = uni?.quotes.find((row) => row.id === news.picked!.id) ?? null;
+    if (!quote) return { ok: false as const, error: "找到资讯但没拿到行情快照", sides: [] as DebateSide[] };
+    const { loadValuationHistory, valuationPosition } = await import("@/lib/market/pe-history");
+    const history = await loadValuationHistory(quote.code).catch(() => null);
+    const report = runResearch({ quote, articles: news.articles, valuation: valuationPosition(history) });
+    const evidenceIds = collectEvidence(report.stages).map((e) => e.id);
+    const debate = await runDebate(
+      report.stages, report.symbol, report.name,
+      async (prompt: string) => {
+        const cfg = await readAIConfig();
+        if (!cfg) throw new Error("没有配置可用的 AI 档案（/ai 页可以配）");
+        return callAI(cfg, prompt, { layer: "debate", trigger: "manual" });
+      },
+      evidenceIds,
+    );
+    return { ok: true as const, error: null, sides: debate.sides, evidenceCount: debate.evidenceCount, name: report.name };
   });
 
 function SideCard({ side }: { side: DebateSide }) {
@@ -124,7 +162,31 @@ function DebatePage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [value, setValue] = useState(search.q);
-  useEffect(() => setValue(search.q), [search.q]);
+  const [sides, setSides] = useState<DebateSide[] | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  useEffect(() => {
+    setValue(search.q);
+    setSides(null);      // 换股票清掉上一场的辩论
+    setAiError(null);
+  }, [search.q]);
+
+  async function generateDebate() {
+    if (!search.q || aiBusy) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const res = await runDebateAI({ data: search.q });
+      if (res.ok) setSides(res.sides);
+      else setAiError(res.error ?? "生成失败");
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "生成失败");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  const shownSides = sides ?? data.sides;
 
   return (
     <Frame
@@ -135,16 +197,16 @@ function DebatePage() {
         // （ok / refused / failed / skipped）——有一方没跑出来就说出来，
         // 不能只显示"看起来辩过了"。
         value: data.evidenceCount > 0 ? `${data.evidenceCount} 条证据` : null,
-        tone: data.sides?.every((side) => side.status === "ok")
+        tone: shownSides.every((side) => side.status === "ok")
           ? "ok"
-          : data.sides?.some((side) => side.status === "ok")
+          : shownSides.some((side) => side.status === "ok")
             ? "warn"
             : "neutral",
       }}
       ornamentContent={
-        data.sides ? (
+        shownSides.length > 0 ? (
           <span className="text-[12px] tabular-nums">
-            {data.sides
+            {shownSides
               .map((side) => `${side.label} ${side.status === "ok" ? "已出" : side.status === "refused" ? "拒答" : side.status === "skipped" ? "跳过" : "失败"}`)
               .join(" · ")}
           </span>
@@ -173,9 +235,21 @@ function DebatePage() {
               type="submit"
               className="shrink-0 rounded bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
             >
-              开始辩论
+              查这只票（免费）
+            </button>
+            <button
+              type="button"
+              disabled={!search.q || aiBusy}
+              onClick={() => void generateDebate()}
+              className="shrink-0 rounded border border-brand px-3 py-1.5 text-sm font-medium text-brand transition hover:bg-brand hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {aiBusy ? "辩论中（约 1 分钟）…" : "生成 AI 辩论（消耗额度）"}
             </button>
           </form>
+          <p className="mt-2 text-[12px] text-muted">
+            {aiBusy ? "正在调用模型，请留在本页" : "查票免费；AI 辩论需点按钮才花钱。规则证据在下方照常显示。"}
+            {aiError ? <span className="ml-2 text-down">{aiError}</span> : null}
+          </p>
         </div>
       </Panel>
 
@@ -189,7 +263,7 @@ function DebatePage() {
         </Panel>
       ) : null}
 
-      {data.q && data.sides.length === 0 ? (
+      {data.q && shownSides.length === 0 ? (
         <Panel title="这只票没法辩">
           <StateBlock
             kind="error"
@@ -199,7 +273,7 @@ function DebatePage() {
         </Panel>
       ) : null}
 
-      {data.sides.length === 2 ? (
+      {shownSides.length === 2 ? (
         <>
           <div className="grid gap-2 lg:grid-cols-2">
             <SideCard side={data.sides[0]!} />
