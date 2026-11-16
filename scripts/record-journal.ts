@@ -47,6 +47,7 @@ import { matchPrefs } from "../src/lib/market/prefs.ts";
 import { loadIndices, loadKline, loadUniverse } from "../src/lib/market/quotes.functions.ts";
 import { HOLD_SESSIONS, limitTag, planExit } from "../src/lib/market/model.ts";
 import { ACTIVE_STYLES, DEEP_SCAN_TOP, deepScanChallengerBuy, holdOf, RETIRED_STYLES, STYLES, styleOf, takeBuys, takeChallengerBuy, watchList } from "../src/lib/market/strategies.ts";
+import { planForesightBuys } from "../src/lib/market/foresight-book.ts";
 import { loadAvoidIndex } from "../src/lib/market/lhb-avoid-index.server.ts";
 import { loadRelay } from "../src/lib/market/sectors.ts";
 import { formatClock, isTradingDay, sessionPhase, dayBarReady } from "../src/lib/market/session.ts";
@@ -119,6 +120,97 @@ const backupDir = join(homedir(), "chiheng-backup");
  * 对首个有记录交易日归一。按日去重（同一天重跑覆盖旧点），最多留 500 个交易日。
  */
 type NavPoint = { date: string; nav: number; index: number | null };
+
+
+/** 上海时区 HH:MM（补买写账时标 signalTime 用）。 */
+function clockNow(): string {
+  return new Date(Date.now() + 8 * 3_600_000).toISOString().slice(11, 16);
+}
+
+/**
+ * 前瞻腿补买（2026-11-16）：补「买入日已过、但当时没买到账本」的前瞻票。
+ * 为什么单独一个函数：主买入段被 `!phase.sealed` 包着，收盘后整段不跑；
+ * 而功能上线当天已经过了买入时点，不补买这期 pick 就永远进不了账本。
+ * 只在「买入日 ≤ 今天 ≤ 买入日+3 个交易日」内补，不做无限回溯。
+ */
+async function runForesightCatchup(userId: string, days: Day[], bookDate: string): Promise<{ days: Day[]; changed: boolean }> {
+  if (!bookDate) return { days, changed: false };
+  try {
+    const { readFile, readdir } = await import("node:fs/promises");
+    const fdir = join(process.cwd(), "data", "history", "forecast");
+    const files = (await readdir(fdir).catch(() => [] as string[]))
+      .filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f))
+      .sort()
+      .reverse();
+    const shiftDate = (d: string, back: number): string => {
+      const dt = new Date(`${d}T00:00:00Z`);
+      dt.setUTCDate(dt.getUTCDate() - back);
+      return dt.toISOString().slice(0, 10);
+    };
+    const allowed = new Set<string>();
+    for (let i = 0; i <= 3; i++) allowed.add(shiftDate(bookDate, i));
+
+    const alreadyHeld = new Set(days.flatMap((d) => d.trades).filter((t) => t.exit == null).map((t) => t.id));
+    const alreadyTagged = new Set(
+      days.flatMap((day) =>
+        day.trades.filter((t) => t.variant === "foresight").map((t) => `${t.id}@${day.date}`),
+      ),
+    );
+
+    let next = days;
+    let changed = false;
+    for (const f of files) {
+      let period: { date?: string; nextDate?: string | null; picks?: { code: string; name: string; basis?: { close?: number } }[] };
+      try {
+        period = JSON.parse(await readFile(join(fdir, f), "utf8"));
+      } catch {
+        continue;
+      }
+      const buyDate = period.nextDate;
+      if (!buyDate || !allowed.has(buyDate)) continue;
+      const picks = (period.picks ?? []).map((p) => ({ code: p.code, name: p.name, pickPrice: p.basis?.close ?? null }));
+      if (picks.length === 0) continue;
+
+      // 开盘价从买入日那根 K 线取
+      const { loadKline } = await import("../src/lib/market/quotes.functions.ts");
+      const openPrices = new Map<string, number | null>();
+      for (const p of picks) {
+        try {
+          const kl = await loadKline(p.code);
+          const bar = kl.bars.find((b) => b.date === buyDate);
+          openPrices.set(p.code, bar && bar.o > 0 ? bar.o : null);
+        } catch {
+          openPrices.set(p.code, null);
+        }
+      }
+      const plans = planForesightBuys(picks, openPrices, alreadyHeld);
+      for (const plan of plans) {
+        const key = `${plan.id}@${buyDate}`;
+        if (alreadyTagged.has(key)) continue;
+        alreadyTagged.add(key);
+        alreadyHeld.add(plan.id);
+        const trade: Trade = {
+          id: plan.id, code: plan.code, name: plan.name, entry: plan.entry,
+          stop: plan.stop, target: plan.target, style: plan.style, hold: plan.hold,
+          exit: null, exitDate: null, variant: plan.variant,
+        };
+        const idx = next.findIndex((d) => d.date === buyDate);
+        if (idx >= 0) {
+          next = next.map((d, i) => (i === idx ? { ...d, trades: [...d.trades, trade] } : d));
+        } else {
+          next = [{ date: buyDate, savedAt: Date.now(), signalTime: clockNow(), status: "locked" as const, ruleVersion: 1, indexEntry: null, indexExit: null, trades: [trade] }, ...next].slice(0, 80);
+        }
+        changed = true;
+        console.log(`bought-foresight-catchup ${userId} ${buyDate} ${trade.name} ${trade.code} @ ${trade.entry}（补买，买入日开盘价）`);
+      }
+      break; // 只补最近一期
+    }
+    return { days: next, changed };
+  } catch (err) {
+    console.error(`前瞻腿补买失败（不影响记账）:`, err);
+    return { days, changed: false };
+  }
+}
 
 async function appendNav(userId: string, point: NavPoint) {
   let all: Record<string, NavPoint[]> = {};
@@ -735,6 +827,7 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
         console.log(`bought-challenge ${userId} ${phase.date} ${chal.id} ${trade.name}${deepScan ? "（深扫）" : ""}`);
       }
     }
+
     if (additions.length > 0) {
       const next: Day = existing
         ? { ...existing, savedAt: Date.now(), trades: [...existing.trades, ...additions] }
@@ -816,6 +909,16 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
           ].join("\n"),
         );
       }
+    }
+  }
+
+  // 前瞻腿补买（2026-11-16）：放在 sealed 判断之外——功能上线当天已过买入时点，
+  // 不补买这期 pick 就永远进不了账本（收益也就永远算不出来）。
+  if (canBuy && phase.date) {
+    const catchup = await runForesightCatchup(userId, days, phase.date);
+    if (catchup.changed) {
+      days = catchup.days;
+      changed = true;
     }
   }
 
