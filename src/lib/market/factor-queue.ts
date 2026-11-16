@@ -593,6 +593,13 @@ export function nextAttemptTimeout(budgetMs: number, spentMs: number): number {
 }
 
 export async function callAIWithFallback(prompt: string, meta: AIMeta = {}): Promise<string> {
+  // 统一总闸（2026-11-16 架构收口）：这是全项目唯一的「发 AI 请求」总出口，
+  // 总开关在这里判一次，所有上层入口（研究/辩论/小机/进化/诊断/派活）全覆盖。
+  // 之前在每个入口各加 isAgentOn 是散装打补丁——每补一次就漏一个，已证明不可行。
+  const { isAgentOn } = await import("./agent-jobs.ts");
+  if (!(await isAgentOn())) {
+    throw new Error("[AI 总开关] 小机已停用——去 /ai 概览页打开「小机在岗」再调用 AI");
+  }
   const { appendAIAttemptRound, classifyAIError } = await import("./ai-attempts.ts");
   const layer = meta.layer ?? "unknown";
   const trigger = meta.trigger ?? "manual";
@@ -667,6 +674,12 @@ export async function callAIWithFallback(prompt: string, meta: AIMeta = {}): Pro
 /** OpenAI 兼容 /chat/completions 调用。factor 层和 strategy 层共用。
  *  每次调用的 token 用量 + 计价钱包快照自动记进 ai-usage.json，调用方不用管。 */
 export async function callAI(config: AIConfig, prompt: string, meta: AIMeta = {}): Promise<string> {
+  // 统一总闸（2026-11-16）：研究/辩论页直接调 callAI 绕过 callAIWithFallback，
+  // 所以这条最底层也必须有闸。off 时**不发任何 HTTP、不记任何账**（没请求就没账）。
+  const { isAgentOn } = await import("./agent-jobs.ts");
+  if (!(await isAgentOn())) {
+    throw new Error("[AI 总开关] 小机已停用——去 /ai 概览页打开「小机在岗」再调用 AI");
+  }
   const { costOfTokens } = await import("./ai-usage.ts");
   // 熔断：同一句话连着失败就别再发了。学 Vibe-Trading 的 Research Workflow，
   // 它那边的原话是 "an identical call is refused from its SECOND failure onward"——

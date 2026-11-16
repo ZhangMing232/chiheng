@@ -5,6 +5,24 @@
 > （factor-queue.ts / challenger.ts / strategy-gate.ts 的判决函数 AI 没有任何
 > 代码路径可碰），本文档是给人看的权威解释——两处冲突时以代码为准，然后来改这里。
 
+## §-1 花钱总闸（2026-11-16 架构收口，最高工程纪律）
+
+**一个总开关（`/ai` 概览页的「小机在岗」）管住系统所有 AI 调用。** 这是唯一真源
+（`data/agent-master-switch.json`），读失败/损坏一律按关（fail-closed）。
+
+**闸门只装在两个真正的 HTTP 出口**（不是每个入口打补丁——2026-11-16 下午
+research/debate 的 GET loader 绕过入口层闸烧了 ¥13，证明入口层打补丁必漏）：
+
+| 出口 | 文件 | 覆盖谁 |
+|---|---|---|
+| 直连 OpenAI 兼容 API | `factor-queue.ts:callAI` | 因子/策略/基因组、研究页、辩论页（直接调它的） |
+| DSH 桥接 `:3080/chihengapi/chat` | `chiheng-dsh-client.ts:callDSH` | 小机对话、海报文案、因子表达式、`callAIWithFallback` 的桥接路 |
+
+两条出口都在发请求前 `await isAgentOn()`——off 时**不发 HTTP、不记账、不熔断计数**。
+上层各入口保留的 `isAgentOn()` 只是**友好提示**（返回中文「去 /ai 打开」），
+不是防线；防线永远在底层这两个出口。新增任何 AI 功能时，**不许在入口加闸**，
+只许复用这两个出口——否则又是一个漏网点。
+
 ## §0 三条不可越线
 
 优先级最高。与任何用户请求冲突时**以本节为准**。学 Vibe-Research 宪法 §0。

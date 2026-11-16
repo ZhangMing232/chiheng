@@ -33,6 +33,13 @@ export async function callDSH(
   prompt: string,
   opts: { system?: string; provider?: string; model?: string; timeoutMs?: number } = {},
 ): Promise<string> {
+  // 统一总闸（2026-11-16 架构收口）：这是 DSH 桥接路的唯一 HTTP 出口，
+  // 小机对话 / 海报文案 / 因子表达式 / callAIWithFallback 全走这里。
+  // off 时不发请求——上层那个「总开关 off 就跳过」的 UI 只是友好提示，这里才是真防线。
+  const { isAgentOn } = await import("./agent-jobs.ts");
+  if (!(await isAgentOn())) {
+    throw new Error("[AI 总开关] 小机已停用——去 /ai 概览页打开「小机在岗」再调用 AI");
+  }
   const res = await fetch(`${dshBase()}/chihengapi/chat`, {
     method: "POST",
     signal: AbortSignal.timeout(opts.timeoutMs ?? 150_000),
