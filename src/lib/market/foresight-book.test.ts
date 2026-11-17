@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  planForesightBuys, isForesightTrade, indexBookForesight, fillPriceOf,
+  planForesightBuys, isForesightTrade, indexBookForesight, fillPriceOf, strategyLabelOf,
   FORESIGHT_HOLD, FORESIGHT_STOP_PCT, FORESIGHT_TARGET_PCT, type BuyDayBar,
 } from "./foresight-book.ts";
 
@@ -145,4 +145,11 @@ test("indexBookForesight：同一 code 同日多笔取最后一笔", () => {
   ] }];
   const m = indexBookForesight(days as never);
   assert.equal(m.get("sz002148@2026-11-16")!.entry, 8.80);
+});
+
+test("strategyLabelOf：foresight 显示「前瞻验证」而非借用的 relay「次日补涨」", () => {
+  const relayName = (id: string) => (id === "relay" ? "次日补涨" : id);
+  assert.equal(strategyLabelOf({ variant: "foresight", style: "relay" }, relayName), "前瞻验证");
+  assert.equal(strategyLabelOf({ variant: undefined, style: "relay" }, relayName), "次日补涨");
+  assert.equal(strategyLabelOf({ variant: "value-stop10", style: "value" }, relayName), "value");
 });

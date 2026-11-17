@@ -165,3 +165,18 @@ export function indexBookForesight(
   }
   return out;
 }
+
+
+/**
+ * 交易的策略显示名。foresight 腿虽然借用了 style=relay（避免扩封闭枚举），
+ * 但它不是「次日补涨」——是「前瞻验证 · 当日收盘卖」，必须按真身显示，
+ * 否则持仓页策略列会把前瞻票误标成次日补涨（2026-11-17 用户截图发现）。
+ * 传 styleNameOf（STYLES 查表函数）进去，避免本模块依赖 UI 层。
+ */
+export function strategyLabelOf(
+  trade: { variant?: string | null; style?: string },
+  styleNameOf: (style: string) => string,
+): string {
+  if (isForesightTrade(trade)) return "前瞻验证";
+  return styleNameOf((trade as { style?: string }).style ?? "");
+}

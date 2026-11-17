@@ -48,6 +48,7 @@ import { loadValuationHistory, valuationPosition } from "@/lib/market/pe-history
 import { healthChecks } from "@/lib/market/portfolio-health";
 import { PixelHeader } from "@/components/pixel-header";
 import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
+import { strategyLabelOf } from "@/lib/market/foresight-book";
 
 export const Route = createFileRoute("/strategies/positions")({
   loader: async () => {
@@ -245,7 +246,7 @@ function TradeTable({
                 {fmtPrice(levels.target)} / {fmtPrice(levels.stop)}
               </td>
               <td data-l="策略" data-opt className={tdClass("hidden text-muted md:table-cell")}>
-                {STYLES.find((s) => s.id === styleOf(row as never))?.name ?? "—"}
+                {strategyLabelOf(row as never, (id) => STYLES.find((s) => s.id === id)?.name ?? "—")}
               </td>
             </tr>
           );
@@ -400,14 +401,15 @@ function XrayPanel({ groups, openRows }: { groups: ReturnType<typeof groupByDay>
   for (const row of openRows) {
     const style = styleOf(row as never);
     if (!style) continue;
-    const name = STYLES.find((item) => item.id === style)?.name ?? style;
-    const bucket = buckets.get(style) ?? { name, count: 0, chgSum: 0, chgN: 0 };
+    // foresight 借用 relay 的 style，但统计上必须单列（否则混进「次日补涨」桶）。
+    const name = strategyLabelOf(row as never, (id) => STYLES.find((item) => item.id === id)?.name ?? id);
+    const bucket = buckets.get(name) ?? { name, count: 0, chgSum: 0, chgN: 0 };
     bucket.count += 1;
     if (row.live?.chg != null) {
       bucket.chgSum += row.live.chg;
       bucket.chgN += 1;
     }
-    buckets.set(style, bucket);
+    buckets.set(name, bucket);
   }
   const styles = [...buckets.values()].sort((a, b) => b.count - a.count);
   const maxCount = Math.max(1, ...styles.map((bucket) => bucket.count));
@@ -728,10 +730,11 @@ function Positions() {
       if (row.ret == null) continue;
       const style = styleOf(row as never);
       if (!style) continue;
-      const name = STYLES.find((item) => item.id === style)?.name ?? style;
-      const bucket = buckets.get(style) ?? { name, rets: [] };
+      // foresight 单列，不混进 relay「次日补涨」（2026-11-17）。
+      const name = strategyLabelOf(row as never, (id) => STYLES.find((item) => item.id === id)?.name ?? id);
+      const bucket = buckets.get(name) ?? { name, rets: [] };
       bucket.rets.push(row.ret);
-      buckets.set(style, bucket);
+      buckets.set(name, bucket);
     }
     return [...buckets.entries()].map(([style, { name, rets }]) => {
       const wins = rets.filter((ret) => ret > 0).length;
