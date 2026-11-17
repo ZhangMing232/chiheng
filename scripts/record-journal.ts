@@ -94,6 +94,8 @@ type Trade = {
    * 悄悄混进主样本，参数归因就脏了。
    */
   deepScan?: boolean;
+  /** 买入说明（foresight 专用）：开盘涨停后开板能成交 / 正常开盘等。老账没有=不显示。 */
+  note?: string;
 };
 
 type Day = {

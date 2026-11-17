@@ -493,6 +493,11 @@ function PickRow({
           <span className="text-muted">· {book.reason}</span>
         </div>
       ) : null}
+      {/* 开板买入说明（2026-11-17）：涨停价买入为什么能成交，必须写明——
+          一字板已在建仓时跳过，能记进来的开盘涨停都是盘中开过板的。 */}
+      {book?.note ? (
+        <div className="mt-0.5 text-[12px] leading-snug text-brand-text">{book.note}</div>
+      ) : null}
       {fillNote ? <div className="mt-0.5 text-[12px] leading-snug text-muted">{fillNote}</div> : null}
     </div>
   );

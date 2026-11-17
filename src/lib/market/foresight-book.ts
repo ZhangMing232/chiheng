@@ -131,6 +131,8 @@ export type BookForesight = {
   /** 已平仓的真实收益（含 ±5%/10% 风控），未平为 null。 */
   ret: number | null;
   reason: string | null;
+  /** 买入说明（开板能成交等），老账没有为 null。 */
+  note: string | null;
 };
 
 /**
@@ -140,7 +142,7 @@ export type BookForesight = {
  * 「账本模拟收益」两套口径，各自标清，不再让两个数打架。
  */
 export function indexBookForesight(
-  days: { date: string; trades: { id?: string; code?: string; variant?: string | null; entry: number; exit?: number | null; exitDate?: string | null }[] }[],
+  days: { date: string; trades: { id?: string; code?: string; variant?: string | null; entry: number; exit?: number | null; exitDate?: string | null; note?: string | null }[] }[],
 ): Map<string, BookForesight> {
   const out = new Map<string, BookForesight>();
   for (const day of days) {
@@ -157,6 +159,7 @@ export function indexBookForesight(
         exitDay: t.exitDate ?? null,
         ret: exit != null && t.entry > 0 ? exit / t.entry - 1 : null,
         reason: exit != null ? "账本模拟（±5%/10% 风控）" : "持仓中",
+        note: (t as { note?: string | null }).note ?? null,
       });
     }
   }
