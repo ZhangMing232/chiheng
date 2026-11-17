@@ -16,18 +16,23 @@ import type { SignalCandidate, SignalReviewed, SignalTrackItem, SignalTrackSumma
 import { StockName } from "@/components/screener/stock-name";
 
 function SignalCards({ title, signals, variant, date }: { title: string; signals: SignalCandidate[] | SignalReviewed[]; variant: "candidate" | "reviewed"; date?: string }) {
-  if (signals.length === 0) return null;
+  // 2026-11-17 修（用户拍板）：审核后的卡只留通过的；warn/skip 压缩成一行摘要，
+  // 不占卡片位——之前 20 张卡里 9 张是「竞价低开 N%」的未过审警告，把可执行的
+  // 11 张淹没了。
   const isReviewed = variant === "reviewed";
+  const shown = isReviewed ? signals.filter((x) => (x as SignalReviewed).verdict === "ok") : signals;
+  const rejected = isReviewed ? (signals as SignalReviewed[]).filter((x) => x.verdict !== "ok") : [];
+  if (shown.length === 0 && rejected.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5 text-xs text-muted">
         {isReviewed ? <CheckCircle size={12} className="text-up" /> : <Zap size={12} className="text-brand" />}
-        <span>{title} ({signals.length})</span>
+        <span>{title} ({shown.length})</span>
         {date ? <span className="text-muted">· {date}</span> : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {signals.map((s, i) => {
+        {shown.map((s, i) => {
           const r = s as SignalReviewed;
           const hasReview = isReviewed && r.verdict;
           return (
@@ -69,6 +74,21 @@ function SignalCards({ title, signals, variant, date }: { title: string; signals
             </div>
           );
         })}
+        {rejected.length > 0 ? (
+          <details className="text-[12px] text-muted">
+            <summary className="cursor-pointer select-none">
+              另有 {rejected.length} 只未过审（竞价异常，默认收起）
+            </summary>
+            <div className="mt-1 flex flex-col gap-0.5 pl-2">
+              {rejected.map((x) => (
+                <div key={x.id} className="flex flex-wrap items-baseline gap-x-2">
+                  <StockName id={x.id} name={x.name} source={null} />
+                  <span className="text-warn">{x.verdictReason}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
       </div>
     </div>
   );
@@ -165,7 +185,14 @@ export function SignalFollowBoard({ data }: { data: SignalBoardData }) {
       {hasSignals ? (
         <div className="flex flex-col gap-4">
           <SignalCards title="竞价审核后可执行" signals={reviewed} variant="reviewed" date={date} />
-          <SignalCards title="收盘初筛候选" signals={candidates} variant="candidate" date={data.tracking?.signalDate} />
+          <details className="text-xs text-muted">
+            <summary className="cursor-pointer select-none">
+              收盘初筛候选 ({candidates.length})——昨天的原料，审核结果看上面
+            </summary>
+            <div className="mt-2">
+              <SignalCards title="收盘初筛候选" signals={candidates} variant="candidate" date={data.tracking?.signalDate} />
+            </div>
+          </details>
         </div>
       ) : (
         <div className="rounded border border-line bg-surface2 py-12 text-center text-sm text-muted">
