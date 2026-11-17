@@ -58,6 +58,27 @@ async function main() {
       lines.push(`  已平 ${t.name} ${t.entry}→${t.exit} ${ret >= 0 ? "+" : ""}${ret.toFixed(2)}% (${t.exitDate})`);
     }
   }
+  // 链路健康段（2026-11-18 加）：今天两变体各该尝试买 1 笔，没买到要写原因——
+  // 12 天判决期里任何一天静默断链都会少 1 个样本，堆积起来判决就不可信。
+  try {
+    const today = new Date().toLocaleDateString("sv-SE");
+    const log = await readFile(join(process.cwd(), "data", "serve.log"), "utf8").catch(() => "");
+    const todayLines = log.split("\n").filter((l) => l.startsWith(today));
+    const health: string[] = [];
+    for (const v of VARIANTS) {
+      const bought = todayLines.some((l) => l.includes(`bought-challenge ${OWNER_ID} ${today}`) && l.includes(v));
+      const skipped = todayLines.filter((l) => l.includes(`challenger-skip ${OWNER_ID} ${today} ${v}`)).map((l) => l.slice(l.indexOf(v) + v.length + 1, l.indexOf(v) + v.length + 61));
+      if (bought) health.push(`✓ ${v} 今日已建仓`);
+      else if (skipped.length) health.push(`⚠ ${v} 今日未建仓：${skipped[0]}`);
+      else if (new Date().getHours() < 15) health.push(`… ${v} 今日还没到买入窗口`);
+      else health.push(`⚠ ${v} 今日无建仓记录也无跳过日志——查名单是否为空`);
+    }
+    lines.push("──────────────────");
+    lines.push("链路健康：");
+    for (const h of health) lines.push(`  ${h}`);
+  } catch {
+    // 健康段失败不影响主推送
+  }
   lines.push("──────────────────");
   lines.push(`D-RESUME 预登记实验（design/RESUME-DOWN-SHAPES）：攒满 12 笔/变体走 Welch 判决。`);
   lines.push("本推送是实验进度，不是买入建议。");
