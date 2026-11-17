@@ -331,14 +331,56 @@ function DecisionPage() {
         price: skip ? "不追高·放弃" : String(sig.order?.price ?? sig.buyPrice),
         priceNote: skip ? "" : observeOnly ? "观察" : sig.fill?.status === "filled" ? "竞价价" : "可买",
         why: sig.order?.basis ?? sig.order?.skipReason ?? sig.reason.slice(0, 28),
-        status: observeOnly ? "观察·不建仓" : skip ? "放弃" : sig.fill?.status === "filled" ? "成交" : sig.fill?.status === "missed" ? "未成交" : "待判定",
-        statusTone: observeOnly ? "wait" : skip ? "no" : sig.fill?.status === "filled" ? "ok" : sig.fill?.status === "missed" ? "no" : "wait",
+        // 2026-11-17 修：信号快照是 09:26 冻结的，账本后来真买了它不回填——
+        // 同一行「待判定」+「已买」自相矛盾。账本有这笔时状态列以账本为准。
+        status: observeOnly
+          ? "观察·不建仓"
+          : skip
+            ? "放弃"
+            : (bookByCode.get(sixDigitCode(sig.code)) || (holdingByCode.get(sixDigitCode(sig.code)) != null))
+              ? "已成交"
+              : sig.fill?.status === "filled"
+                ? "成交"
+                : sig.fill?.status === "missed"
+                  ? "未成交"
+                  : "待判定",
+        statusTone: observeOnly
+          ? "wait"
+          : skip
+            ? "no"
+            : (bookByCode.get(sixDigitCode(sig.code)) || (holdingByCode.get(sixDigitCode(sig.code)) != null))
+              ? "ok"
+              : sig.fill?.status === "filled"
+                ? "ok"
+                : sig.fill?.status === "missed"
+                  ? "no"
+                  : "wait",
         dead: skip,
         exit: sig.holdDays ? `第 ${sig.holdDays} 日` : "按纪律",
         ...bookCell(sig.code),
         observeOnly: observeOnly || undefined,
       });
     }
+  }
+  // 2026-11-17 加：账本买了但本页没提的票（挑战者腿、名单截断的第 9 名之后）
+  // 补成一行——原来只在脚注写个数，用户在策略跟踪页看到持仓却在本页找不到，对不上。
+  for (const t of reconcile.bookOnly) {
+    const key = sixDigitCode(t.code);
+    const held = holdingByCode.get(key);
+    rows.push({
+      path: "账本补充",
+      pathTone: "text-muted",
+      name: t.name, code: t.code, id: (t as { id?: string }).id ?? key,
+      price: t.entry.toFixed(2),
+      priceNote: "买入价",
+      why: t.variant ? (t.variant === "foresight" ? "前瞻验证腿" : `挑战者 ${t.variant}`) : "冠军腿 · 本页名单未列",
+      status: held != null ? "已成交" : "已平仓",
+      statusTone: "ok",
+      dead: false,
+      exit: "按纪律",
+      book: `已买 ${t.entry.toFixed(2)}`,
+      bookTone: "ok",
+    });
   }
   // 观察行（短线·已淘汰策略）既不算「可买」也不算「放弃」——它不是今天的买入计划。
   const buyable = rows.filter((r) => !r.dead && !r.observeOnly).length;
