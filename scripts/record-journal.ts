@@ -494,12 +494,18 @@ if (phase.date) {
     let chalChanged = false;
     for (const chal of chalFile.list) {
       if (chal.status !== "running") continue;
-      // D-RESUME 豁免变体：判决样本从解冻日起算；冠军对照照旧全量（value 冠军一直在跑）。
+      // D-RESUME 豁免变体：判决样本从解冻日起算。
       const chalRets = (dresExempt.has(chal.id) && retsByBucketSince
         ? retsByBucketSince
         : retsByBucket
       ).get(`${chal.style}:${chal.id}`) ?? [];
-      const champRets = retsByBucket.get(`${chal.style}:champion`) ?? [];
+      // 2026-11-17 D-RESUME 对照基准修正（预登记文档原文「对照基准 = value 冠军同期」）：
+      // 已淘汰家族的 own-champion 基准有两问题——trend:champion 只有 10 笔 < minTrades
+      // 判决永远 none；rebound:champion 66 笔全是高位接盘的 -11.78%，基准过松
+      // （亏得比它少就算赢）。改用现役 value 冠军同期收益作对照。
+      const champRets = dresExempt.has(chal.id)
+        ? (retsByBucket.get(`value:champion`) ?? [])
+        : retsByBucket.get(`${chal.style}:champion`) ?? [];
       const decision = judgeChallenger(
         champRets,
         chalRets,
