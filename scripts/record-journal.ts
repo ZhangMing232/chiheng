@@ -166,7 +166,17 @@ async function runForesightCatchup(userId: string, days: Day[], bookDate: string
       } catch {
         continue;
       }
-      const buyDate = period.nextDate;
+      // 2026-11-17 修：落档文件的 nextDate 有时是 null（如 11-16 那期），
+      // 但 live 衍生文件里已经算出 nextDate=11-17——以 live 为准，否则这期票
+      // 「页面显示成交、账本永远不买」（用户截图发现的真问题）。
+      let buyDate = period.nextDate;
+      const livePath = join(fdir, "live", f);
+      if (!buyDate) {
+        try {
+          const live = JSON.parse(await readFile(livePath, "utf8")) as { nextDate?: string | null };
+          if (live.nextDate) buyDate = live.nextDate;
+        } catch { /* 没有 live 就维持 null */ }
+      }
       if (!buyDate || !allowed.has(buyDate)) continue;
       const picks = (period.picks ?? []).map((p) => ({ code: p.code, name: p.name, pickPrice: p.basis?.close ?? null }));
       if (picks.length === 0) continue;
