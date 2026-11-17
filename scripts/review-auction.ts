@@ -131,7 +131,8 @@ async function main() {
         verdictReason = `竞价低开 ${Math.abs(gap).toFixed(1)}%，有更便宜的买入机会，但需确认不是利空`;
       } else if (gap >= -2 && gap <= 2) {
         verdict = "ok";
-        verdictReason = `交易窗口正常（竞价 ${auctionPrice} vs 挂单 ${s.buyPrice}，偏差 ${gap.toFixed(1)}%）`;
+        // 2026-11-17 修：卡片另有竞价行显示价格和涨跌，这里不再重复两个数字。
+        verdictReason = `窗口正常：竞价较挂单偏差 ${gap.toFixed(1)}%，可按竞价买入`;
       } else {
         verdict = "warn";
         verdictReason = `竞价 ${auctionPrice} vs 挂单 ${s.buyPrice}，偏差 ${gap.toFixed(1)}%，建议观望`;

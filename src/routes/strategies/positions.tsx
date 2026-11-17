@@ -96,6 +96,7 @@ export const Route = createFileRoute("/strategies/positions")({
       industry,
       peRanks,
       signals: {
+        date: (sigR as { date?: string }).date,
         candidates: sigC.signals,
         reviewed: sigR.signals,
         tracking: sigT,

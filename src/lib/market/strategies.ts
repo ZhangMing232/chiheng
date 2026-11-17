@@ -202,7 +202,10 @@ function valueOrder(quote: Quote): Order | null {
   if (!(stop < buy && buy < sell)) return null;
   return {
     score: Math.round(40 - quote.pe),
-    reasons: [`市盈率 ${quote.pe.toFixed(1)} 倍`, `市净率 ${quote.pb.toFixed(2)} 倍`, "按 15 倍市盈率买，22 倍卖"],
+    // 2026-11-17 修：去掉「按 15 倍买 22 倍卖」——它是低估值策略的固定规则，
+    // 每张候选卡都带一遍纯属重复（10 张卡 10 遍）；规则说明在 STYLES 的 hint 和
+    // 页头，卡片只留这只票特有的 PE/PB 数字。
+    reasons: [`市盈率 ${quote.pe.toFixed(1)} 倍`, `市净率 ${quote.pb.toFixed(2)} 倍`],
     buy,
     sell,
     stop,

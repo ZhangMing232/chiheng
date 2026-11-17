@@ -15,7 +15,7 @@ import { CollapsibleSection } from "@/components/collapsible";
 import type { SignalCandidate, SignalReviewed, SignalTrackItem, SignalTrackSummary, ShortFormsData } from "@/lib/market/quotes.functions";
 import { StockName } from "@/components/screener/stock-name";
 
-function SignalCards({ title, signals, variant }: { title: string; signals: SignalCandidate[] | SignalReviewed[]; variant: "candidate" | "reviewed" }) {
+function SignalCards({ title, signals, variant, date }: { title: string; signals: SignalCandidate[] | SignalReviewed[]; variant: "candidate" | "reviewed"; date?: string }) {
   if (signals.length === 0) return null;
   const isReviewed = variant === "reviewed";
 
@@ -24,6 +24,7 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
       <div className="flex items-center gap-1.5 text-xs text-muted">
         {isReviewed ? <CheckCircle size={12} className="text-up" /> : <Zap size={12} className="text-brand" />}
         <span>{title} ({signals.length})</span>
+        {date ? <span className="text-muted">· {date}</span> : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {signals.map((s, i) => {
@@ -47,13 +48,17 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
                 <span className="rounded bg-surface2 px-1 py-0.5 text-[12px]">{s.strategy}</span>
                 <span className="tabular-nums">挂 {s.buyPrice}</span>
               </div>
-              <p className="text-[12px] text-muted">{s.reason}</p>
+              {/* 2026-11-17 修：存量 JSON 里 reason 已写死「按 15 倍市盈率买，22 倍卖」
+                  等固定规则尾巴，每张卡重复。落档不改，显示层去掉固定尾巴。 */}
+              <p className="text-[12px] text-muted">{s.reason.replace(/，?按 15 倍市盈率买，22 倍卖/g, "")}</p>
               {hasReview && r.verdictReason && (
                 <p className={`text-[12px] ${r.verdict === "ok" ? "text-up" : "text-yellow-500"}`}>
                   {r.verdict === "ok" ? "✓ " : "⚠ "}{r.verdictReason}
                 </p>
               )}
-              {hasReview && r.auctionGap != null && (
+              {/* 2026-11-17 修：verdict=ok 时 verdictReason 已含竞价偏差，这行不再重复；
+                  warn/skip 时保留（那时 verdictReason 是文字说明、缺具体数字） */}
+              {hasReview && r.auctionGap != null && r.verdict !== "ok" && (
                 <div className="flex gap-2 text-[12px] text-muted">
                   <span>竞价 {r.auctionPrice}</span>
                   <span className={r.auctionGap > 0 ? "text-up" : "text-down"}>
@@ -141,6 +146,8 @@ function ShortFormsBoard({ data }: { data: ShortFormsData | null }) {
 }
 
 export type SignalBoardData = {
+  /** 竞价审核那天（reviewed.json 的 date）。卡片标题要写明，不然不知道挂单是哪天的。 */
+  date?: string;
   candidates: SignalCandidate[];
   reviewed: SignalReviewed[];
   tracking: { signalDate: string; trackedDate: string; summary: SignalTrackSummary | null; signals: SignalTrackItem[] } | null;
@@ -149,7 +156,7 @@ export type SignalBoardData = {
 
 /** 「跟单」子 tab 的完整内容：今日信号 → 战绩 → 观察。 */
 export function SignalFollowBoard({ data }: { data: SignalBoardData }) {
-  const { candidates, reviewed, tracking, forms } = data;
+  const { candidates, reviewed, tracking, forms, date } = data;
   const hasSignals = candidates.length > 0 || reviewed.length > 0;
 
   return (
@@ -157,8 +164,8 @@ export function SignalFollowBoard({ data }: { data: SignalBoardData }) {
       {/* 1. 今日信号：最该看的放最上 */}
       {hasSignals ? (
         <div className="flex flex-col gap-4">
-          <SignalCards title="竞价审核后可执行" signals={reviewed} variant="reviewed" />
-          <SignalCards title="收盘初筛候选" signals={candidates} variant="candidate" />
+          <SignalCards title="竞价审核后可执行" signals={reviewed} variant="reviewed" date={date} />
+          <SignalCards title="收盘初筛候选" signals={candidates} variant="candidate" date={data.tracking?.signalDate} />
         </div>
       ) : (
         <div className="rounded border border-line bg-surface2 py-12 text-center text-sm text-muted">
