@@ -19,6 +19,7 @@ import { getWatchlistFn, addWatchFn, removeWatchFn } from "@/lib/market/watchlis
 import { getUniverse } from "@/lib/market/quotes.functions";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
+import { StockName } from "@/components/screener/stock-name";
 
 export const Route = createFileRoute("/my-stocks")({
   loader: () => getWatchlistFn(),
@@ -144,9 +145,7 @@ function MyStocksPage() {
               {items.map((row) => (
                 <tr key={row.id} className="border-t border-line">
                   <td className={tdClass("text-left")}>
-                    <Link to="/symbol" search={{ q: row.code }} className="text-accent hover:underline">
-                      {row.name}
-                    </Link>
+                    <StockName id={row.id} name={row.name} source={null} className="text-accent hover:underline" />
                     <span className="ml-2 text-xs text-muted">{row.code}</span>
                   </td>
                   <td className={tdClass()}>{row.quote ? row.quote.price.toFixed(2) : "—"}</td>

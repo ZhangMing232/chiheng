@@ -17,6 +17,7 @@ import { SectionTabs, THEME_TABS } from "@/components/section-tabs";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getBrief } from "@/lib/market/quotes.functions";
+import { StockName } from "@/components/screener/stock-name";
 
 export const Route = createFileRoute("/themes/brief")({
   loader: async () => ({ brief: await getBrief().catch(() => null) }),
@@ -156,7 +157,7 @@ function BriefPage() {
                   <div key={`${s.id}-${i}`} className="border-b border-line py-1.5">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="flex min-w-0 items-baseline gap-1.5">
-                        <span className="truncate text-sm font-medium">{s.name}</span>
+                        <StockName id={s.id} name={s.name} source={null} className="truncate text-sm font-medium" />
                         <span className="num text-[12px] text-muted">{s.code}</span>
                         {s.streak > 1 ? <Tag tone="up">{s.streak}板</Tag> : null}
                       </span>

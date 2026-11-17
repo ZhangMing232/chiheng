@@ -197,10 +197,10 @@ function WatchHistoryPage() {
                                     <button
                                       key={r.id}
                                       type="button"
-                                      onClick={() => setHl((v) => (v === r.id ? null : r.id))}
+                                      onClick={() => { setHl((v) => (v === r.id ? null : r.id)); void openDetail(r.id); }}
                                       className={`rounded px-1 text-[12px] leading-snug ${active ? "bg-up-soft text-up" : "text-fg hover:bg-surface-2"}`}
                                     >
-                                      {r.name}
+                                      {loading === r.id ? "…" : r.name}
                                     </button>
                                   );
                                 }

@@ -213,7 +213,7 @@ export type SeatsPayload = {
   sourceLast: string;
   unresolved: number;
   seats: SeatRow[];
-  latest: { date: string; seats: { name: string; netWan: number; stocks: { name: string; netWan: number }[] }[] } | null;
+  latest: { date: string; seats: { name: string; netWan: number; stocks: { id?: string | null; name: string; netWan: number }[] }[] } | null;
 };
 
 export const getSeats = createServerFn({ method: "GET" }).handler(async (): Promise<SeatsPayload | null> => {

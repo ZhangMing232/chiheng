@@ -152,7 +152,20 @@ function main() {
       sourceLast: latest?.date ?? "",
       unresolved,
       seats: rows,
-      latest: latest ? { date: latest.date, seats: latest.seats } : null,
+      // 2026-11-16 补：给席位关联个股带 up code（名字→带前缀 id），供页面点击弹个股卡。
+      // codeByName 上面已按名字→id 建好（同名多只放弃，不猜），这里只做映射不新增解析。
+      latest: latest
+        ? {
+            date: latest.date,
+            seats: latest.seats.map((s) => ({
+              ...s,
+              stocks: (s.stocks ?? []).map((st) => ({
+                ...st,
+                id: codeByName.get(st.name.replace(/\s+/g, "")) ?? null,
+              })),
+            })),
+          }
+        : null,
     }),
   );
 

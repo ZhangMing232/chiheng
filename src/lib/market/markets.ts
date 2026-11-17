@@ -81,6 +81,22 @@ export const MARKETS: Record<MarketId, MarketSpec> = {
  */
 export const ID_PATTERN = /^(?:(?:sh|sz|bj)\d{6}|hk\d{5}|us[A-Z][A-Z0-9.-]{0,5})$/;
 
+/**
+ * 裸 6 位 A 股代码 → 带市场前缀的 id（sh600519 这种），供点击弹卡片用。
+ * 已经是带前缀的 id 原样返回；非 6 位数字返回 null（不猜——比如港美股字母代码）。
+ * 2026-11-16 加：多处页面只有 6 位 code（huiyan 落档、龙头 leader、席位关联股），
+ * 统一从这里映射，避免每个页面各写一遍前缀规则。
+ */
+export function idFromSixDigit(code: string | null | undefined): string | null {
+  const raw = (code ?? "").trim();
+  if (ID_PATTERN.test(raw)) return raw; // 已是完整 id
+  if (!/^\d{6}$/.test(raw)) return null;
+  // 北交 92 号段必须先判（否则会被下面 startsWith("9") 误判成沪市）。
+  if (raw.startsWith("92") || raw.startsWith("8") || raw.startsWith("4")) return `bj${raw}`;
+  if (raw.startsWith("6") || raw.startsWith("9")) return `sh${raw}`;
+  return `sz${raw}`; // 0/2/3 开头
+}
+
 /** id → 市场。认不出的前缀一律归 A 股（内部 id 都是带前缀的，不存在裸代码）。 */
 export function marketOf(id: string): MarketId {
   if (id.startsWith("hk")) return "hk";

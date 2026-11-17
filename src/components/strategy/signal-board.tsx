@@ -13,6 +13,7 @@
 import { CheckCircle, AlertTriangle, Zap, Trophy, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { CollapsibleSection } from "@/components/collapsible";
 import type { SignalCandidate, SignalReviewed, SignalTrackItem, SignalTrackSummary, ShortFormsData } from "@/lib/market/quotes.functions";
+import { StockName } from "@/components/screener/stock-name";
 
 function SignalCards({ title, signals, variant }: { title: string; signals: SignalCandidate[] | SignalReviewed[]; variant: "candidate" | "reviewed" }) {
   if (signals.length === 0) return null;
@@ -36,7 +37,7 @@ function SignalCards({ title, signals, variant }: { title: string; signals: Sign
             }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-medium text-sm">{s.name}</span>
+                  <StockName id={s.id} name={s.name} source={null} className="font-medium text-sm" />
                   <span className="text-[12px] text-muted tabular-nums">{s.code}</span>
                 </div>
                 {hasReview && r.verdict === "ok" && <CheckCircle size={12} className="text-up" />}
@@ -212,7 +213,7 @@ export function SignalFollowBoard({ data }: { data: SignalBoardData }) {
                 {tracking.signals.map((s, i) => (
                   <tr key={`${s.id}-${i}`} className="hover:bg-surface2/50">
                     <td className="px-3 py-2 tabular-nums text-muted">{s.code}</td>
-                    <td className="px-3 py-2">{s.name}</td>
+                    <td className="px-3 py-2"><StockName id={s.id} name={s.name} source={null} /></td>
                     <td className="px-3 py-2"><span className="rounded bg-surface2 px-1.5 py-0.5 text-[12px]">{s.strategy}</span></td>
                     <td className="px-3 py-2 text-right tabular-nums">{s.buyPrice}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted">{s.prevClose ?? "—"}</td>

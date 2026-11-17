@@ -26,6 +26,7 @@ import { type LimitUpRow } from "@/lib/market/limit-up";
 import { toneClass } from "@/lib/market/format";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
+import { StockName } from "@/components/screener/stock-name";
 
 export const Route = createFileRoute("/review/signals")({
   // date 缺的时候**不写这个键**：写了空串，TanStack 会认为 URL 和归一化后的
@@ -170,7 +171,7 @@ function PoolPanel({ title, rows, note }: { title: string; rows: LimitUpRow[]; n
             <tr key={row.id} className="border-b border-line/60">
               <td className={tdClass("text-left text-muted")}>{row.code}</td>
               <td className={tdClass("text-left")}>
-                <span className="text-fg">{row.name}</span>
+                <StockName id={row.id} name={row.name} source={null} className="text-fg" />
               </td>
               <td className={tdClass("text-right text-muted")}>{row.price}</td>
               <td className={tdClass("text-right " + toneClass(row.pct))}>

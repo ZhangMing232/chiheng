@@ -12,12 +12,12 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getRs } from "@/lib/market/archive.functions";
 import { PixelHeader } from "@/components/pixel-header";
+import { StockName } from "@/components/screener/stock-name";
 
 export const Route = createFileRoute("/rs")({
   loader: async () => await getRs(),
@@ -97,9 +97,7 @@ function RsPage() {
                   <tr key={r.id}>
                     <td className="num text-right text-muted">{i + 1}</td>
                     <td>
-                      <Link to="/symbol" search={{ q: r.id }} className="hover:underline">
-                        {r.name}
-                      </Link>
+                      <StockName id={r.id} name={r.name} source={null} className="hover:underline" />
                       <span className="num ml-1.5 text-[12px] text-muted">{r.id}</span>
                     </td>
                     <td className="max-w-[130px] truncate text-[12px] text-muted">{r.industry || "—"}</td>

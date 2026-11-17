@@ -21,7 +21,7 @@ const byId = new Map(quotes.map((q) => [q.id, q]));
 
 const rows = concepts.boards.map((b) => {
   let up = 0, down = 0, limitUp = 0, chgSum = 0, n = 0;
-  let leader: { name: string; chg: number } | null = null;
+  let leader: { id: string; name: string; chg: number } | null = null;
   for (const id of b.members) {
     const q = byId.get(id);
     if (!q || q.st || q.chg == null) continue;
@@ -30,7 +30,7 @@ const rows = concepts.boards.map((b) => {
     if (q.chg > 0.001) up += 1;
     else if (q.chg < -0.001) down += 1;
     if (q.chg >= 9.7) limitUp += 1;
-    else if (!leader || q.chg > leader.chg) leader = { name: q.name ?? id, chg: q.chg };
+    else if (!leader || q.chg > leader.chg) leader = { id, name: q.name ?? id, chg: q.chg };
   }
   return { name: b.name, n, limitUp, avg: n ? chgSum / n : 0, up, down, leader };
 });

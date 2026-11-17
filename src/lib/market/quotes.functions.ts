@@ -1534,7 +1534,7 @@ export type ThemeHeatItem = {
   up: number;
   down: number;
   /** 龙头（板内涨幅最高的非涨停股） */
-  leader: { name: string; chg: number } | null;
+  leader: { id?: string; name: string; chg: number } | null;
 };
 
 /** 题材热度榜（theme-heat.ts 每天 15:10 生成 data/theme-heat.json）。 */

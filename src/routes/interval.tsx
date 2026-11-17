@@ -13,13 +13,14 @@
  * - 首尾两天都有价的票才参与（停牌、新股自然被排除），页面显示覆盖数。
  */
 
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Frame } from "@/components/screener/nav";
 import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getInterval } from "@/lib/market/archive.functions";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
+import { StockName } from "@/components/screener/stock-name";
 
 export const Route = createFileRoute("/interval")({
   validateSearch: (raw: Record<string, unknown>): { from?: string; to?: string } => ({
@@ -135,7 +136,7 @@ function IntervalPage() {
                     <tr key={s.id}>
                       <td className="num text-right text-muted">{i + 1}</td>
                       <td>
-                        <Link to="/symbol" search={{ q: s.id }} className="hover:underline">{s.name}</Link>
+                        <StockName id={s.id} name={s.name} source={null} className="hover:underline" />
                       </td>
                       <td className="num text-right text-muted">{s.from.toFixed(2)}</td>
                       <td className="num text-right text-muted">{s.to.toFixed(2)}</td>
@@ -193,7 +194,7 @@ function IntervalPage() {
                     {bottom.map((s) => (
                       <tr key={s.id}>
                         <td>
-                          <Link to="/symbol" search={{ q: s.id }} className="hover:underline">{s.name}</Link>
+                          <StockName id={s.id} name={s.name} source={null} className="hover:underline" />
                         </td>
                         <td className="num text-right text-muted">{s.from.toFixed(2)}</td>
                         <td className="num text-right text-muted">{s.to.toFixed(2)}</td>

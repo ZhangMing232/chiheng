@@ -293,7 +293,7 @@ function NewsPage() {
                               const mark = heldSet.has(stock.id) ? "持仓" : pickedSet.has(stock.id) ? "精选" : "";
                               return (
                                 <span key={stock.id} className={"rounded-sm px-2 py-0.5 text-xs " + (mark === "持仓" ? "bg-up-soft text-up" : mark === "精选" ? "bg-brand-soft text-brand-text" : "bg-surface-2 text-muted")}>
-                                  {stock.name} {signedPct(stock.chg)}
+                                  <StockName id={stock.id} name={stock.name} source="news" /> {signedPct(stock.chg)}
                                   {mark ? ` ${mark}` : ""}
                                 </span>
                               );

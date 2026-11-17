@@ -610,9 +610,9 @@ function TodayReconcilePanel({
     intraday: "text-brand",
     unknown: "text-muted",
   };
-  const Line = ({ name, code, tail, tone }: { name: string; code: string; tail: string; tone: string }) => (
+  const Line = ({ id, name, code, tail, tone }: { id: string; name: string; code: string; tail: string; tone: string }) => (
     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-dashed border-line py-1.5 last:border-0 text-[13px]">
-      <span className="text-fg">{name}</span>
+      <StockName id={id} name={name} source="positions" className="text-fg" />
       <span className="px-num text-[12px] text-muted">{code}</span>
       <span className={"px-num ml-auto text-[12px] " + tone}>{tail}</span>
     </div>
@@ -627,14 +627,14 @@ function TodayReconcilePanel({
             <div className="px-num mb-1 text-[12px] tracking-widest text-brand">两边都有 · {r.matched.length}</div>
             {r.matched.length === 0 ? <div className="text-[12px] text-muted">今天没有重合的票</div> : null}
             {r.signalRows.filter((x) => x.bookTrade != null).map((x) => (
-              <Line key={x.signal.code} name={x.signal.name} code={sixDigitCode(x.signal.code)} tail={`账本 ${x.bookTrade!.entry.toFixed(2)}`} tone="text-brand" />
+              <Line key={x.signal.code} id={x.signal.code} name={x.signal.name} code={sixDigitCode(x.signal.code)} tail={`账本 ${x.bookTrade!.entry.toFixed(2)}`} tone="text-brand" />
             ))}
           </div>
           <div>
             <div className="px-num mb-1 text-[12px] tracking-widest text-muted">/today 有 · 账本没买 · {r.signalOnly.length}</div>
             {r.signalOnly.length === 0 ? <div className="text-[12px] text-muted">无</div> : null}
             {r.signalOnly.slice(0, 12).map((s) => (
-              <Line key={s.code} name={s.name} code={sixDigitCode(s.code)} tail={s.orderPrice == null ? "不追高" : "未买"} tone="text-muted" />
+              <Line key={s.code} id={s.code} name={s.name} code={sixDigitCode(s.code)} tail={s.orderPrice == null ? "不追高" : "未买"} tone="text-muted" />
             ))}
             {r.signalOnly.length > 12 ? <div className="text-[12px] text-muted">…另有 {r.signalOnly.length - 12} 只</div> : null}
           </div>
@@ -642,7 +642,7 @@ function TodayReconcilePanel({
             <div className="px-num mb-1 text-[12px] tracking-widest text-warn">账本买了 · /today 没提 · {r.bookOnly.length}</div>
             {r.bookOnly.length === 0 ? <div className="text-[12px] text-muted">无</div> : null}
             {r.bookOnly.map((t, i) => (
-              <Line key={t.code + i} name={t.name} code={sixDigitCode(t.code)} tail={`${BOOK_ONLY_LABEL[reasons[i]]} · ${t.entry.toFixed(2)}`} tone={reasonTone[reasons[i]]} />
+              <Line key={t.code + i} id={t.code} name={t.name} code={sixDigitCode(t.code)} tail={`${BOOK_ONLY_LABEL[reasons[i]]} · ${t.entry.toFixed(2)}`} tone={reasonTone[reasons[i]]} />
             ))}
             {r.bookOnly.length > 0 && codeSet == null ? (
               <div className="mt-1 text-[12px] text-muted">归因读不到信号日志：{logWhy ?? "未知原因"}，一律标「未留痕」</div>

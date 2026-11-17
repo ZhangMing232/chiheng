@@ -23,6 +23,8 @@ import { StateBlock } from "@/components/state-block";
 import { getForecast, type ForecastPeriod, type ForecastOutcome, type ForecastLiveRow } from "@/lib/market/archive.functions";
 import { PixelHeader } from "@/components/pixel-header";
 import { FILL_STATUS_LABEL, type FilledStatus } from "@/lib/market/fill-status";
+import { StockName } from "@/components/screener/stock-name";
+import { idFromSixDigit } from "@/lib/market/markets";
 
 export const Route = createFileRoute("/huiyan")({
   loader: async () => await getForecast(),
@@ -81,7 +83,7 @@ function HuiyanPage() {
                 const noBuy = lr?.buyFilled === false;
                 return (
                   <div key={k.code} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-dashed border-line py-1.5 last:border-0">
-                    <span className={"w-24 shrink-0 truncate text-[13px] font-medium " + (noBuy ? "text-muted line-through" : "")}>{k.name}</span>
+                    <StockName id={idFromSixDigit(k.code)} name={k.name} source={null} className={"w-24 shrink-0 truncate text-[13px] font-medium " + (noBuy ? "text-muted line-through" : "")} />
                     <span className="px-num text-[12px] text-muted">选股 {k.basis.close}</span>
                     <span className="px-num text-[12px] text-muted">→ 今开 {lr?.buyPrice ?? "—"}</span>
                     <span className={"px-num text-[12px] " + (lr?.pctFromBuy != null && lr.pctFromBuy >= 0 ? "text-up" : "text-down")}>
@@ -392,7 +394,7 @@ function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
 }
 
 function PickRow({
-  code: _code,
+  code,
   name,
   rule,
   basisText,
@@ -426,7 +428,7 @@ function PickRow({
     <div className="rounded border border-line bg-surface px-2 py-1.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate text-[12px] font-medium">{name}</span>
+          <StockName id={idFromSixDigit(code)} name={name} source={null} className="truncate text-[12px] font-medium" />
           <span className="shrink-0 text-[12px] text-muted">{rule}</span>
           {basisText ? <span className="num shrink-0 text-[12px] text-muted">{basisText}</span> : null}
         </span>

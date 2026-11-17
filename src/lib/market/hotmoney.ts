@@ -9,7 +9,7 @@
 import { eastmoneyFetch } from "./eastmoney-fetch.ts";
 
 /** 席位买过的一只股票。netWan 是净额，万元，正是净买、负是净卖。 */
-export type HotStock = { name: string; netWan: number };
+export type HotStock = { code: string; name: string; netWan: number };
 
 /** 一个席位当天的汇总。name 是别名或营业部简称，netWan 是净额（万元），stocks 是它买卖的股票。 */
 export type HotSeat = {
@@ -146,7 +146,7 @@ export async function loadHotMoney(): Promise<HotBook> {
     name,
     netWan: seat.net,
     stocks: [...seat.stocks.entries()]
-      .map(([code, netWan]) => ({ name: names.get(code) ?? code, netWan }))
+      .map(([code, netWan]) => ({ code, name: names.get(code) ?? code, netWan }))
       .sort((a, b) => Math.abs(b.netWan) - Math.abs(a.netWan))
       .slice(0, 12),
   }));

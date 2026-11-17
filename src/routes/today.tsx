@@ -26,6 +26,7 @@ import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
 import { splitMatrixRows } from "@/lib/market/matrix-split";
 import { FILL_STATUS_LABEL, fillStatusTone, type FilledStatus } from "@/lib/market/fill-status";
 import { reconcileDay, reconcileSummary, sixDigitCode, type ReconcileDay, type ReconcileSignal } from "@/lib/market/daily-reconcile";
+import { StockName } from "@/components/screener/stock-name";
 
 
 export const Route = createFileRoute("/today")({
@@ -567,7 +568,7 @@ function DecisionPage() {
                 <div className="px-num mt-1 text-3xl font-bold text-brand">{hotThemes[0].limitUp}<span className="ml-1 text-[12px] font-normal text-muted">涨停</span></div>
                 <div className="mt-1 text-[12px] text-muted">
                   均涨 {hotThemes[0].avg >= 0 ? "+" : ""}{hotThemes[0].avg.toFixed(1)}% · 成员 {hotThemes[0].n}
-                  {hotThemes[0].leader ? <> · 龙头 <b className="text-fg">{hotThemes[0].leader.name}</b> {hotThemes[0].leader.chg >= 0 ? "+" : ""}{hotThemes[0].leader.chg.toFixed(1)}%</> : null}
+                  {hotThemes[0].leader ? <> · 龙头 {hotThemes[0].leader.id ? <StockName id={hotThemes[0].leader.id} name={hotThemes[0].leader.name} source={null} className="text-fg" /> : <b className="text-fg">{hotThemes[0].leader.name}</b>} {hotThemes[0].leader.chg >= 0 ? "+" : ""}{hotThemes[0].leader.chg.toFixed(1)}%</> : null}
                 </div>
               </>
             ) : (
@@ -590,7 +591,7 @@ function DecisionPage() {
                       <span className="block h-full bg-brand" style={{ width: `${(t.limitUp / max) * 100}%` }} />
                     </span>
                     <span className="px-num w-8 shrink-0 text-right text-sm text-fg">{t.limitUp}</span>
-                    <span className="px-num w-24 shrink-0 truncate text-right text-[12px] text-muted">{t.leader?.name ?? "—"}</span>
+                    <span className="px-num w-24 shrink-0 truncate text-right text-[12px] text-muted">{t.leader?.id ? <StockName id={t.leader.id} name={t.leader.name} source={null} /> : (t.leader?.name ?? "—")}</span>
                   </div>
                 );
               })

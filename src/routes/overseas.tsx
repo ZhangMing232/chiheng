@@ -37,6 +37,7 @@ import { filterOverseas, sortOverseas, type OverseasMarket, type OverseasSort } 
 import { fmtPrice, toneClass } from "@/lib/market/format";
 import { PixelHeader } from "@/components/pixel-header";
 import { PixelSummary } from "@/components/pixel-summary";
+import { StockName } from "@/components/screener/stock-name";
 
 type Tab = "list" | "indices" | "watch";
 
@@ -261,7 +262,7 @@ function OverseasPage() {
                 {watch.rows.map((r) => (
                   <tr key={r.id} className="border-b border-line/60">
                     <td className={tdClass("text-left")}>
-                      <span className="text-fg">{r.name}</span>
+                      <StockName id={r.id} name={r.name} source={null} className="text-fg" />
                     </td>
                     <td className={tdClass("text-left text-muted")}>{r.id}</td>
                     <td className={tdClass("text-right " + toneClass(r.chg))}>

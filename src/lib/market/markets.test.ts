@@ -6,7 +6,7 @@
 
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { currencyLabelOf, ID_PATTERN, MARKETS, marketOf, marketSpecOf } from "@/lib/market/markets";
+import { currencyLabelOf, ID_PATTERN, MARKETS, marketOf, marketSpecOf, idFromSixDigit } from "@/lib/market/markets";
 
 test("marketOf：按前缀路由，认不出的归 A 股", () => {
   assert.equal(marketOf("sh600519"), "a");
@@ -47,4 +47,22 @@ test("ID_PATTERN：三种市场的合法形状，非法形状拒掉", () => {
   for (const bad of ["600519", "hk0700", "hk007000", "usaapl", "usAAPLAPPLE", "sh6005190", "us00700", "xx600519"]) {
     assert.ok(!ID_PATTERN.test(bad), `${bad} 应该非法`);
   }
+});
+
+
+// 2026-11-16 加：6 位代码 → 带前缀 id（点击弹个股卡用）。
+test("idFromSixDigit：A 股各板块前缀正确", () => {
+  assert.equal(idFromSixDigit("600519"), "sh600519"); // 沪主板
+  assert.equal(idFromSixDigit("688981"), "sh688981"); // 科创
+  assert.equal(idFromSixDigit("000001"), "sz000001"); // 深主板
+  assert.equal(idFromSixDigit("300750"), "sz300750"); // 创业
+  assert.equal(idFromSixDigit("830799"), "bj830799"); // 北交
+  assert.equal(idFromSixDigit("920002"), "bj920002"); // 北交新号段
+});
+
+test("idFromSixDigit：已带前缀的原样返回，非 6 位数字返回 null", () => {
+  assert.equal(idFromSixDigit("sh600519"), "sh600519");
+  assert.equal(idFromSixDigit("hk00700"), "hk00700");
+  assert.equal(idFromSixDigit("60051"), null);
+  assert.equal(idFromSixDigit(null), null);
 });

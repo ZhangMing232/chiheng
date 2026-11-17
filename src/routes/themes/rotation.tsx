@@ -18,6 +18,7 @@ import { StateBlock } from "@/components/state-block";
 import { getThemeRotation, getThemeHeat, getThemeMembers, type ThemeHeatItem, type ThemeMembersPayload } from "@/lib/market/quotes.functions";
 import { toneClass } from "@/lib/market/format";
 import { PixelHeader } from "@/components/pixel-header";
+import { StockName } from "@/components/screener/stock-name";
 
 export const Route = createFileRoute("/themes/rotation")({
   loader: async () => {
@@ -186,7 +187,7 @@ function RotationPage() {
               {members.members.slice(0, 60).map((m) => (
                 <div key={m.id} className="flex items-baseline justify-between gap-2 rounded px-1 py-0.5 text-[12px] hover:bg-surface2">
                   <span className="flex items-baseline gap-1.5">
-                    <span className="truncate">{m.name}</span>
+                    <StockName id={m.id} name={m.name} source={null} className="truncate" />
                     {m.limitUp ? <Tag tone="up">涨停</Tag> : null}
                   </span>
                   <span className={"num shrink-0 " + ((m.chg ?? 0) >= 0 ? "text-up" : "text-down")}>

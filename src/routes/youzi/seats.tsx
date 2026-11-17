@@ -22,6 +22,8 @@ import { Panel, Tag } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getSeats } from "@/lib/market/archive.functions";
 import { PixelHeader } from "@/components/pixel-header";
+import { StockName } from "@/components/screener/stock-name";
+import { idFromSixDigit } from "@/lib/market/markets";
 
 export const Route = createFileRoute("/youzi/seats")({
   loader: async () => await getSeats(),
@@ -84,7 +86,12 @@ function SeatsPage() {
                       </span>
                     </div>
                     <div className="mt-0.5 truncate text-[12px] text-muted">
-                      {s.stocks.slice(0, 4).map((x) => `${x.name} ${x.netWan >= 0 ? "+" : ""}${(x.netWan / 10000).toFixed(2)}亿`).join(" · ")}
+                      {s.stocks.slice(0, 4).map((x) => (
+                        <span key={x.name} className="mr-2 inline-block">
+                          <StockName id={x.id ?? idFromSixDigit(x.name)} name={x.name} source={null} />
+                          <span className="ml-0.5">{x.netWan >= 0 ? "+" : ""}{(x.netWan / 10000).toFixed(2)}亿</span>
+                        </span>
+                      ))}
                     </div>
                   </div>
                 ))}
