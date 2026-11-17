@@ -825,7 +825,7 @@ function runResumeProgress() {
   child.on("close", (code) => {
     resumeProgressRunning = false;
     if (code === 0) {
-      writeFile(stampPath, String(Date.now())).catch(() => {});
+      writeFileSync(stampPath, String(Date.now()));
     } else {
       console.error(`D-RESUME 进度推送失败（exit ${code}），下个 tick 重试`);
     }
