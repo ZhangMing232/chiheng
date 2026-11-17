@@ -383,7 +383,19 @@ if (phase.date) {
   if (ownerBook) {
     // 按 style:variant 分桶：冠军和挑战者的判决必须各算各的，混在一起两边都判不准。
     // 分桶口径抽在 challenger.bucketReturns，UI 的「样本 x/30」进度和这里共用。
+    // 全量桶：冠军对照、非豁免变体用。
     const retsByBucket = bucketReturns(ownerBook.days);
+    // 2026-11-17 D-RESUME：解冻变体的**判决**样本也从解冻日截断（预登记口径
+    // "样本重新计数"）——旧 5+4 笔是先验，混进 Welch 会带入 10 月反弹段的
+    // 选择偏差。豁免名单和进度显示同一份。
+    let dresExempt = new Set<string>();
+    let dresSince: string | null = null;
+    try {
+      const allowRaw = JSON.parse(await readFile(join(process.cwd(), "data", "experiment-allowlist.json"), "utf8")) as { variants?: unknown; at?: string };
+      if (Array.isArray(allowRaw.variants)) dresExempt = new Set(allowRaw.variants.filter((v): v is string => typeof v === "string"));
+      dresSince = allowRaw.at ?? null;
+    } catch { /* 无文件=无豁免 */ }
+    const retsByBucketSince = dresSince ? bucketReturns(ownerBook.days, dresSince) : null;
     // 策略闸判的是冠军参数（挑战者样本不算冠军的成绩，反之亦然）。
     const retsByStyle = new Map<string, number[]>(ACTIVE_STYLES.map((style) => [style, retsByBucket.get(`${style}:champion`) ?? []]));
     // 平仓日（和 rets 对齐）——聚类稳健 t 用。20 笔可能只落在 2 天，raw t 把 2 天
@@ -482,8 +494,12 @@ if (phase.date) {
     let chalChanged = false;
     for (const chal of chalFile.list) {
       if (chal.status !== "running") continue;
+      // D-RESUME 豁免变体：判决样本从解冻日起算；冠军对照照旧全量（value 冠军一直在跑）。
+      const chalRets = (dresExempt.has(chal.id) && retsByBucketSince
+        ? retsByBucketSince
+        : retsByBucket
+      ).get(`${chal.style}:${chal.id}`) ?? [];
       const champRets = retsByBucket.get(`${chal.style}:champion`) ?? [];
-      const chalRets = retsByBucket.get(`${chal.style}:${chal.id}`) ?? [];
       const decision = judgeChallenger(
         champRets,
         chalRets,
