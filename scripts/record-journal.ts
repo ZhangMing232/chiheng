@@ -766,12 +766,25 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
     // 饿死，永远攒不出样本、找不到替代品。现在改成挑战者用自己的 style 生成名单，
     // 每天限 1 只。全局 hard 闸（连亏停手）仍然拦它；母策略被闸（无 alpha）的挑战者不孵。
     if (hard.ok) {
+      // 受控解冻豁免名单（2026-11-17 预登记 D-RESUME）：家族级焊死不动，
+      // 只有被点名的变体 id 豁免。文件不存在=无豁免（fail-closed）。
+      let exemptVariants = new Set<string>();
+      try {
+        const exemptRaw = JSON.parse(await readFile(join(process.cwd(), "data", "experiment-allowlist.json"), "utf8")) as { variants?: unknown };
+        if (Array.isArray(exemptRaw.variants)) {
+          exemptVariants = new Set(exemptRaw.variants.filter((v): v is string => typeof v === "string"));
+        }
+      } catch { /* 无文件=无豁免，正常 */ }
+
       for (const chal of runningChallengers) {
         // 已淘汰家族的挑战者不买（2026-11-09 用户拍板，双保险）：status 已置
         // inconclusive，这里再挡一道防手工改回 JSON 复活——母家族都判了淘汰，
         // 变体判赢也没有现役席位（rebound 还被白皮书明文封禁）。名单唯一出处
         // strategies.ts 的 RETIRED_STYLES，和 AI 提名闸同一份。
-        if ((RETIRED_STYLES as string[]).includes(chal.style)) continue;
+        // 2026-11-17 预登记 D-RESUME：被 experiment-allowlist.json 点名的变体 id
+        // 豁免（受控实验，假设/口径/判决标准已在 design/RESUME-DOWN-SHAPES
+        // 预登记），家族焊死与 AI 提名闸不动。
+        if ((RETIRED_STYLES as string[]).includes(chal.style) && !exemptVariants.has(chal.id)) continue;
         if (gateDisabled.has(chal.style)) continue;
         const ownToday = todayTrades.filter((t) => t.variant === chal.id).length;
         if (ownToday >= 1) {
@@ -1408,7 +1421,15 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
       "../src/lib/market/challenger.ts"
     );
     const file = await readChallengers();
-    const { list: next, retired } = retireDeadFamilyChallengers(file.list, RETIRED_STYLES, phase.date);
+    // D-RESUME 豁免名单（和买入闸同一份，fail-closed）
+    let exemptVariants = new Set<string>();
+    try {
+      const exemptRaw = JSON.parse(await readFile(join(process.cwd(), "data", "experiment-allowlist.json"), "utf8")) as { variants?: unknown };
+      if (Array.isArray(exemptRaw.variants)) {
+        exemptVariants = new Set(exemptRaw.variants.filter((v): v is string => typeof v === "string"));
+      }
+    } catch { /* 无文件=无豁免 */ }
+    const { list: next, retired } = retireDeadFamilyChallengers(file.list, RETIRED_STYLES, phase.date, exemptVariants);
     if (retired.length > 0) {
       await writeChallengers({ list: next });
       console.log(`${time} 清理僵尸挑战者 ${retired.length} 个（所属策略已淘汰）：${retired.map((c) => c.id).join("、")}`);

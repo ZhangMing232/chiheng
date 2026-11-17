@@ -147,3 +147,24 @@ test("现役家族一个都不动", () => {
   assert.equal(retired.length, 0);
   assert.deepEqual(next.map((c) => c.status), ["running", "inconclusive"]);
 });
+
+// 2026-11-17 D-RESUME：受控解冻豁免——被点名的变体不被僵尸清理。
+test("retireDeadFamilyChallengers：豁免名单内的变体保持 running，不传豁免=行为不变", () => {
+  const list = [
+    { id: "rebound-hold12", style: "rebound", status: "running" },
+    { id: "old-zombie", style: "rebound", status: "running" },
+    { id: "trend-stop8", style: "trend", status: "running" },
+  ] as never[];
+  const { list: next, retired } = retireDeadFamilyChallengers(
+    list, ["rebound", "trend"], "2026-11-17", new Set(["rebound-hold12", "trend-stop8"]),
+  );
+  const byId = Object.fromEntries(next.map((c: { id: string; status: string }) => [c.id, c.status]));
+  assert.equal(byId["rebound-hold12"], "running", "豁免变体不被清理");
+  assert.equal(byId["trend-stop8"], "running", "豁免变体不被清理");
+  assert.equal(byId["old-zombie"], "rejected", "未豁免的照常清理");
+  assert.equal(retired.length, 1);
+
+  // 不传豁免（fail-closed 默认）= 旧行为：全清
+  const { retired: retired2 } = retireDeadFamilyChallengers(list, ["rebound", "trend"], "2026-11-17");
+  assert.equal(retired2.length, 3, "无豁免时行为与旧版一致");
+});

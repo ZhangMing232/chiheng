@@ -1266,3 +1266,18 @@ PE≤18/PB≤2 在 A 股天然≈银行筛选器——**value 现在正收益的
 **验证（11-13 10:5x）**：typecheck 干净 · `check:client` 96 个 JS 干净 ·
 `npm test` 1324/1324 · 线上 8787 冒烟 0 FAIL（本次修掉 `smoke-test.mjs` 写死找「复盘」
 的过时断言，改成判 `aria-expanded` + 导航链接数增加）· `.output` 为 11-13 09:53 新构建。
+
+## 2026-11-17 用户拍板 B：定向解冻 rebound-hold12 / trend-stop8（D-RESUME）
+
+亏损归因（LOSS-ATTRIB-2026-11-17.md）发现：下跌市唯一赚钱的两个形状
+（rebound-hold12 +20%×4/-25%、trend-stop8 +9%×4）恰是 11-09 停跑、11-14
+标 rejected 终态的挑战者——系统在熊市只被允许跑 value 冠军（追涨形状，
+高位段 -7.97%/笔）。用户拍板选项 B：定向解冻。
+
+- 预登记文档：design/RESUME-DOWN-SHAPES-2026-11-17.md（假设/口径/判决
+  全部先写死：样本重新计数、旧 5+4 笔作先验不进判决、每天限 1 只/变体、
+  hard 闸照拦、攒满 12 笔走 Welch |t|≥2 且前后同向，对照 value 冠军同期）
+- 实现：data/experiment-allowlist.json 点名豁免（fail-closed，无文件=无豁免）；
+  家族级 RETIRED_STYLES 焊死与 AI 提名闸**不动**；ACTIVE_STYLES 不动
+- 两变体 status → running，note 追加解冻记录
+- 明确不做：恢复冠军腿、放宽止损、AI 提名、判决前加权重

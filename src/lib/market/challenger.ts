@@ -178,12 +178,16 @@ export function retireDeadFamilyChallengers(
   list: Challenger[],
   retiredStyles: readonly string[],
   at: string,
+  /** 受控解冻豁免（2026-11-17 D-RESUME）：被点名的变体 id 不清理。
+   *  不传/为空 = 无豁免（fail-closed，行为与旧版完全一致）。 */
+  exemptVariants: ReadonlySet<string> = new Set(),
 ): { list: Challenger[]; retired: Challenger[] } {
   const retired: Challenger[] = [];
   const next = list.map((c) => {
     // 终态不动：promoted 是转正记录、rejected 是判决记录，都是历史事实。
     if (c.status === "promoted" || c.status === "rejected") return c;
     if (!retiredStyles.includes(c.style)) return c;
+    if (exemptVariants.has(c.id)) return c; // D-RESUME 豁免：预登记的恢复实验
     const done: Challenger = {
       ...c,
       status: "rejected",
