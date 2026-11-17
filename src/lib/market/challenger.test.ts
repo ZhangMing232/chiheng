@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CHALLENGER_RULE, judgeChallenger, welchT, retireDeadFamilyChallengers } from "@/lib/market/challenger";
+import { bucketReturns, CHALLENGER_RULE, judgeChallenger, welchT, retireDeadFamilyChallengers } from "@/lib/market/challenger";
 
 /** 交替骨架：均值≈mean、样本标准差≈sd 的 n 笔收益。 */
 function makeRets(n: number, mean: number, sd: number): number[] {
@@ -167,4 +167,17 @@ test("retireDeadFamilyChallengers：豁免名单内的变体保持 running，不
   // 不传豁免（fail-closed 默认）= 旧行为：全清
   const { retired: retired2 } = retireDeadFamilyChallengers(list, ["rebound", "trend"], "2026-11-17");
   assert.equal(retired2.length, 3, "无豁免时行为与旧版一致");
+});
+
+// 2026-11-17 D-RESUME：判决样本从解冻日起重新计数（预登记口径）。
+test("bucketReturns：since 过滤掉解冻前的平仓，不传=旧行为", () => {
+  const days = [
+    { date: "2026-11-01", trades: [{ entry: 10, exit: 11, style: "rebound", variant: "rebound-hold12" }] },
+    { date: "2026-11-20", trades: [{ entry: 10, exit: 12, style: "rebound", variant: "rebound-hold12" }] },
+  ];
+  const all = bucketReturns(days as never);
+  assert.equal(all.get("rebound:rebound-hold12")!.length, 2, "不传 since = 全量");
+  const since = bucketReturns(days as never, "2026-11-17");
+  assert.equal(since.get("rebound:rebound-hold12")!.length, 1, "解冻前的旧笔被过滤");
+  assert.equal(since.get("rebound:rebound-hold12")![0] > 0, true, "留下的是解冻后的 +20%");
 });

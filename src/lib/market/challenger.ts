@@ -275,11 +275,15 @@ export function tradingDaysSince(days: { date?: string }[], since: string): numb
  * 对不上。只数信号日可信的天、已平仓、风格可识别、净收益算得出来的单。
  */
 export function bucketReturns(
-  days: { signalTime?: string; trades: { entry?: number; exit?: number | null; style?: string; variant?: string }[] }[],
+  days: { date?: string; signalTime?: string; trades: { entry?: number; exit?: number | null; style?: string; variant?: string }[] }[],
+  /** 只统计该日期（含）之后的平仓。2026-11-17 D-RESUME：解冻变体的判决样本
+   *  从解冻日起重新计数（预登记口径），旧笔是先验不进判决。不传=旧行为。 */
+  since?: string,
 ): Map<string, number[]> {
   const buckets = new Map<string, number[]>();
   for (const day of days) {
     if (!dayReliable(day)) continue;
+    if (since && day.date && day.date < since) continue;
     for (const trade of day.trades) {
       if (trade.exit == null || typeof trade.entry !== "number") continue;
       const style = styleOf(trade);

@@ -1202,17 +1202,34 @@ export const getChallengerSamples = createServerFn({ method: "GET" }).handler(as
   const { OWNER_ID, readUserBook } = await import("@/lib/market/book-file");
   const { bucketReturns, loadChallengerRule, readChallengers } = await import("@/lib/market/challenger");
   const rule = await loadChallengerRule();
-  const book = await readUserBook<{ signalTime?: string; trades: { entry?: number; exit?: number | null; style?: string; variant?: string }[] }>(OWNER_ID).catch(() => null);
-  const buckets = bucketReturns(book?.days ?? []);
+  const book = await readUserBook<{ date?: string; signalTime?: string; trades: { entry?: number; exit?: number | null; style?: string; variant?: string }[] }>(OWNER_ID).catch(() => null);
+  // 2026-11-17 D-RESUME：解冻变体（experiment-allowlist 点名）的判决样本从
+  // 解冻日起重新计数——预登记口径，旧笔是先验、混进去会带 10 月反弹段的选择偏差。
+  let exemptVariants = new Set<string>();
+  let resumeSince: string | null = null;
+  try {
+    const { readFile } = await fsApi();
+    const allow = JSON.parse(await readFile("data/experiment-allowlist.json", "utf8")) as { variants?: unknown; at?: string };
+    if (Array.isArray(allow.variants)) exemptVariants = new Set(allow.variants.filter((v): v is string => typeof v === "string"));
+    resumeSince = allow.at ?? null;
+  } catch { /* 无文件=无豁免 */ }
+  // 截断桶（解冻变体用）+ 全量桶（冠军对照、非豁免变体用）
+  const bucketsSince = resumeSince ? bucketReturns(book?.days ?? [], resumeSince) : null;
+  const bucketsAll = bucketReturns(book?.days ?? []);
   const { list } = await readChallengers();
   const counts: Record<string, { n: number; target: number; champN: number }> = {};
   for (const c of list) {
     if (c.status !== "running") continue;
+    const key = `${c.style}:${c.id}`;
+    // D-RESUME 解冻变体：n 从解冻日起算（预登记）；冠军对照与其他变体：全量
+    const n = exemptVariants.has(c.id) && bucketsSince
+      ? (bucketsSince.get(key) ?? []).length
+      : (bucketsAll.get(key) ?? []).length;
     counts[c.id] = {
-      n: (buckets.get(`${c.style}:${c.id}`) ?? []).length,
+      n,
       target: rule.minTrades,
       // Welch 判决是双样本检验：挑战者和冠军两边各攒够 minTrades 才判，单边够数不算数
-      champN: (buckets.get(`${c.style}:champion`) ?? []).length,
+      champN: (bucketsAll.get(`${c.style}:champion`) ?? []).length,
     };
   }
   return counts;
