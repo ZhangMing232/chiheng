@@ -83,3 +83,45 @@ export function planForesightBuys(
 export function isForesightTrade(trade: { variant?: string | null }): boolean {
   return trade.variant === "foresight";
 }
+
+/** 账本里一笔 foresight 交易的展示口径（两套并存时用）。 */
+export type BookForesight = {
+  code: string;
+  buyDay: string;
+  entry: number;
+  exit: number | null;
+  exitDay: string | null;
+  /** 已平仓的真实收益（含 ±5%/10% 风控），未平为 null。 */
+  ret: number | null;
+  reason: string | null;
+};
+
+/**
+ * 把账本 days[] 里的 foresight 交易索引成 (code@买入日) → 展示口径。
+ * 同一只票同一天多笔取最后一笔（补买覆盖旧的，和账本追加顺序一致）。
+ * 2026-11-17 加：/huiyan 要在同一张表里同时显示「规则验证收益」和
+ * 「账本模拟收益」两套口径，各自标清，不再让两个数打架。
+ */
+export function indexBookForesight(
+  days: { date: string; trades: { id?: string; code?: string; variant?: string | null; entry: number; exit?: number | null; exitDate?: string | null }[] }[],
+): Map<string, BookForesight> {
+  const out = new Map<string, BookForesight>();
+  for (const day of days) {
+    for (const t of day.trades) {
+      if (!isForesightTrade(t)) continue;
+      const code = t.id ?? t.code ?? "";
+      if (!code) continue;
+      const exit = typeof t.exit === "number" ? t.exit : null;
+      out.set(`${code}@${day.date}`, {
+        code,
+        buyDay: day.date,
+        entry: t.entry,
+        exit,
+        exitDay: t.exitDate ?? null,
+        ret: exit != null && t.entry > 0 ? exit / t.entry - 1 : null,
+        reason: exit != null ? "账本模拟（±5%/10% 风控）" : "持仓中",
+      });
+    }
+  }
+  return out;
+}

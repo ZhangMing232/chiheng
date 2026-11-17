@@ -3,7 +3,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planForesightBuys, isForesightTrade, FORESIGHT_HOLD, FORESIGHT_STOP_PCT, FORESIGHT_TARGET_PCT } from "./foresight-book.ts";
+import { planForesightBuys, isForesightTrade, indexBookForesight, FORESIGHT_HOLD, FORESIGHT_STOP_PCT, FORESIGHT_TARGET_PCT } from "./foresight-book.ts";
 
 const picks = [
   { code: "sh605255", name: "天普股份", pickPrice: 73.82 },
@@ -59,4 +59,34 @@ test("isForesightTrade：只认 variant=foresight，冠军/challenger 不算", (
   assert.equal(isForesightTrade({ variant: "value-stop10" }), false);
   assert.equal(isForesightTrade({ variant: null }), false);
   assert.equal(isForesightTrade({}), false);
+});
+
+// 2026-11-17 加：账本 foresight 索引，供两套口径并存展示。
+test("indexBookForesight：按 code@买入日 索引，已平算真实收益", () => {
+  const days = [
+    { date: "2026-11-16", trades: [
+      { id: "sz002148", variant: "foresight", entry: 8.75, exit: 8.29, exitDate: "2026-11-17" },
+      { id: "sz002425", variant: "foresight", entry: 4.36, exit: 4.08, exitDate: "2026-11-17" },
+      { id: "sz000001", variant: "value-stop10", entry: 12, exit: 13 }, // 非 foresight 不算
+    ] },
+    { date: "2026-11-17", trades: [
+      { id: "sz002148", variant: "foresight", entry: 8.58 }, // 未平
+    ] },
+  ];
+  const m = indexBookForesight(days as never);
+  assert.equal(m.size, 3);
+  const old = m.get("sz002148@2026-11-16")!;
+  assert.ok(Math.abs(old.ret! - (8.29 / 8.75 - 1)) < 1e-9);
+  assert.equal(old.reason, "账本模拟（±5%/10% 风控）");
+  assert.equal(m.get("sz002148@2026-11-17")!.ret, null); // 持仓中
+  assert.equal(m.has("sz000001@2026-11-16"), false);
+});
+
+test("indexBookForesight：同一 code 同日多笔取最后一笔（追加覆盖）", () => {
+  const days = [{ date: "2026-11-16", trades: [
+    { id: "sz002148", variant: "foresight", entry: 8.75, exit: 9 },
+    { id: "sz002148", variant: "foresight", entry: 8.80, exit: 9.1 },
+  ] }];
+  const m = indexBookForesight(days as never);
+  assert.equal(m.get("sz002148@2026-11-16")!.entry, 8.80);
 });

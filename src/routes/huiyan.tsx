@@ -25,6 +25,7 @@ import { PixelHeader } from "@/components/pixel-header";
 import { FILL_STATUS_LABEL, type FilledStatus } from "@/lib/market/fill-status";
 import { StockName } from "@/components/screener/stock-name";
 import { idFromSixDigit } from "@/lib/market/markets";
+import type { BookForesight } from "@/lib/market/foresight-book";
 
 export const Route = createFileRoute("/huiyan")({
   loader: async () => await getForecast(),
@@ -45,7 +46,7 @@ function bjTime(iso?: string): string {
 }
 
 function HuiyanPage() {
-  const { locked, backtest } = Route.useLoaderData();
+  const { locked, backtest, bookForesight } = Route.useLoaderData();
 
   const settled = locked.filter((p) => p.summary && p.summary.n > 0);
   const picks = settled.reduce((s, p) => s + (p.summary?.n ?? 0), 0);
@@ -318,6 +319,7 @@ function basisText(source: ForecastPeriod["source"], b: { streak: number; volRat
 }
 
 function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
+  const { bookForesight } = Route.useLoaderData();
   const s = p.summary;
   const settled = Boolean(s && s.n > 0);
   const live = settled ? undefined : p.live;
@@ -365,6 +367,7 @@ function PeriodBlock({ p, compact }: { p: ForecastPeriod; compact?: boolean }) {
             lr={r.lr}
             pickPrice={r.basis?.close ?? null}
             compact={compact}
+            book={p.nextDate ? (bookForesight[`${r.code}@${p.nextDate}`] ?? null) : null}
           />
         ))}
       </div>
@@ -402,6 +405,7 @@ function PickRow({
   lr,
   pickPrice,
   compact,
+  book,
 }: {
   code: string;
   name: string;
@@ -411,6 +415,7 @@ function PickRow({
   lr?: ForecastLiveRow;
   pickPrice: number | null;
   compact?: boolean;
+  book?: BookForesight | null;
 }) {
   const settled = Boolean(o);
   const trade = o?.tradePct ?? null;
@@ -474,6 +479,20 @@ function PickRow({
         ) : null}
         {sellFail ? <Tag tone="warn">一字跌停·卖不出</Tag> : null}
       </div>
+      {/* 2026-11-17：两套口径同屏并存——规则验证 vs 账本模拟（±5%/10% 风控）。
+          两者规则本就不同，不再让 +0% 和 -5% 打架让人以为算错。 */}
+      {book ? (
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 border-t border-line/60 pt-1 num text-[12px]">
+          <span className="text-muted">账本模拟</span>
+          <span className="text-muted">{money(book.entry)}</span>
+          <span className="text-muted">→</span>
+          <span className="text-fg">{book.exit != null ? money(book.exit) : "持仓中"}</span>
+          <span className={book.ret == null ? "text-muted" : book.ret >= 0 ? "text-up" : "text-down"}>
+            {book.ret == null ? "未平" : pct(book.ret)}
+          </span>
+          <span className="text-muted">· {book.reason}</span>
+        </div>
+      ) : null}
       {fillNote ? <div className="mt-0.5 text-[12px] leading-snug text-muted">{fillNote}</div> : null}
     </div>
   );

@@ -95,6 +95,8 @@ export type ForecastPeriod = {
 export type ForecastPayload = {
   locked: ForecastPeriod[];
   backtest: { periods: ForecastPeriod[]; baseline: { n: number; upRate: number | null; chaseRate: number | null } | null; note: string } | null;
+  /** 账本里的 foresight 腿索引（code@买入日 → 展示口径），用于和规则验证收益两套并存展示。 */
+  bookForesight: Record<string, { code: string; buyDay: string; entry: number; exit: number | null; exitDay: string | null; ret: number | null; reason: string | null }>;
 };
 
 export const getForecast = createServerFn({ method: "GET" }).handler(async (): Promise<ForecastPayload> => {
@@ -138,6 +140,18 @@ export const getForecast = createServerFn({ method: "GET" }).handler(async (): P
   } catch {
     // 没有 live 目录就照旧——盘中没有实况比编一个数好
   }
+  // 2026-11-17 加：账本 foresight 腿索引——/huiyan 要在同一张表同时显示
+  // 「规则验证收益」和「账本模拟收益（±5%/10% 风控）」两套口径。读不到就是空表，
+  // 不拿 0 冒充（本仓铁律）。
+  let bookForesight: ForecastPayload["bookForesight"] = {};
+  try {
+    const { readUserBook, OWNER_ID } = await import("./book-file.ts");
+    const { indexBookForesight } = await import("./foresight-book.ts");
+    const book = await readUserBook<{ date: string; trades: { id?: string; code?: string; variant?: string | null; entry: number; exit?: number | null; exitDate?: string | null }[] }>(OWNER_ID);
+    for (const [key, v] of indexBookForesight(book.days)) bookForesight[key] = v;
+  } catch {
+    bookForesight = {};
+  }
   let backtest: ForecastPayload["backtest"] = null;
   try {
     const raw = JSON.parse(await readFile(`${dir}/backtest.json`, "utf8")) as {
@@ -149,7 +163,7 @@ export const getForecast = createServerFn({ method: "GET" }).handler(async (): P
   } catch {
     backtest = null;
   }
-  return { locked, backtest };
+  return { locked, backtest, bookForesight };
 });
 
 // ─────────────────────────── RS 榜 ───────────────────────────
