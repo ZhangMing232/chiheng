@@ -181,19 +181,24 @@ async function runForesightCatchup(userId: string, days: Day[], bookDate: string
       const picks = (period.picks ?? []).map((p) => ({ code: p.code, name: p.name, pickPrice: p.basis?.close ?? null }));
       if (picks.length === 0) continue;
 
-      // 开盘价从买入日那根 K 线取
+      // 买入日完整 K 线 + 昨收（判一字板：开盘=涨停=全天最低 → 买不进，不记假成交）。
       const { loadKline } = await import("../src/lib/market/quotes.functions.ts");
-      const openPrices = new Map<string, number | null>();
+      const { boardLimit } = await import("../src/lib/market/model.ts");
+      const bars = new Map<string, import("../src/lib/market/foresight-book.ts").BuyDayBar | null>();
       for (const p of picks) {
         try {
           const kl = await loadKline(p.code);
-          const bar = kl.bars.find((b) => b.date === buyDate);
-          openPrices.set(p.code, bar && bar.o > 0 ? bar.o : null);
+          const i = kl.bars.findIndex((b) => b.date === buyDate);
+          const bar = i >= 0 ? kl.bars[i] : null;
+          const prev = i > 0 ? kl.bars[i - 1] : null;
+          bars.set(p.code, bar && bar.o > 0
+            ? { o: bar.o, h: bar.h, l: bar.l, c: bar.c, prevClose: prev && prev.c > 0 ? prev.c : null }
+            : null);
         } catch {
-          openPrices.set(p.code, null);
+          bars.set(p.code, null);
         }
       }
-      const plans = planForesightBuys(picks, openPrices, alreadyHeld);
+      const plans = planForesightBuys(picks, bars, (code) => boardLimit(code, picks.find((p) => p.code === code)?.name ?? "") ?? 10, alreadyHeld);
       for (const plan of plans) {
         const key = `${plan.id}@${buyDate}`;
         if (alreadyTagged.has(key)) continue;

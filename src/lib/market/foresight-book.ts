@@ -13,7 +13,9 @@
  * 2. **variant 固定 "foresight"**：账本里靠 variant 分桶，冠军/挑战者/前瞻三套
  *    互不干扰，判决和净值各算各的。
  * 3. 入场价 = 当日**开盘价**（前瞻规则的买入时点就是次日开盘），不是收盘价——
- *    这是它和 value 等策略的本质差别，写在 fillNote 里可追溯。
+ *    这是它和 value 等策略的本质差别。开盘涨停不等于买不进：只要盘中有开板
+ *    （最低价 < 涨停价），开盘那一刻就有卖单、涨停价能成交（11-17 实测 5 笔都如此）；
+ *    只有**一字板**（开盘=涨停=全天最低）才真排不进——那种一律不买（2026-11-17 补）。
  */
 
 /** 前瞻落档的一只 pick（只取买入需要的字段）。 */
@@ -36,6 +38,8 @@ export type ForesightBuy = {
   style: "relay";
   variant: "foresight";
   hold: number;
+  /** 买入说明（开板/一字板判定），写入日志可追溯。 */
+  note: string | null;
 };
 
 /** 前瞻腿专用常量：短线 1 天出（和 relay 的 STYLE_HOLD 一致）。 */
@@ -44,36 +48,69 @@ export const FORESIGHT_HOLD = 1;
 export const FORESIGHT_STOP_PCT = 5;
 export const FORESIGHT_TARGET_PCT = 10;
 
+/** 买入日的完整 K 线（判一字板用）+ 昨收（算涨停价）。 */
+export type BuyDayBar = {
+  o: number; h: number; l: number; c: number;
+  /** 买入日前一交易日的收盘价，算涨停价用。拿不到就返回 null，不猜。 */
+  prevClose: number | null;
+};
+
+/**
+ * 定可成交的买入价（纯函数）。
+ * - 一字涨停（开盘=涨停=全天最低）→ null：挂单排不进，不记假成交。
+ * - 开盘涨停但盘中开板（最低 < 涨停）→ 按开盘价买（那一刻能成交）。
+ * - 正常开盘 → 按开盘价买。
+ * 涨停价用昨收×(1+limitPct)，limitPct 由调用方传入（boardLimit，纯函数）。
+ */
+export function fillPriceOf(bar: BuyDayBar, limitPct: number): { entry: number; note: string | null } | null {
+  if (!(bar.o > 0)) return null;
+  if (bar.prevClose == null || !(bar.prevClose > 0)) return { entry: bar.o, note: null };
+  const up = Math.round(bar.prevClose * (1 + limitPct / 100) * 100) / 100;
+  const eps = 0.005;
+  if (bar.o >= up - eps && bar.l >= up - eps) {
+    return null; // 一字板：全天最低都在涨停价，买不进
+  }
+  if (bar.o >= up - eps) {
+    return { entry: bar.o, note: `开盘涨停后开板（最低 ${bar.l.toFixed(2)}），开盘价 ${bar.o.toFixed(2)} 能成交` };
+  }
+  return { entry: bar.o, note: null };
+}
+
 /**
  * 生成买入计划。
  * @param picks 落档 picks
- * @param openPrices 代码 → 当日开盘价（拿不到的传 null）
+ * @param bars 代码 → 当日完整 K 线（含昨收，判一字板用；拿不到传 null）
+ * @param limitPctOf 代码 → 涨跌停百分比（boardLimit 纯函数）
  * @param alreadyHeld 账本里已持有（未卖出）的代码，防重复买入
  */
 export function planForesightBuys(
   picks: ForecastPick[],
-  openPrices: Map<string, number | null>,
+  bars: Map<string, BuyDayBar | null>,
+  limitPctOf: (code: string) => number,
   alreadyHeld: Set<string>,
 ): ForesightBuy[] {
   const out: ForesightBuy[] = [];
   const seen = new Set<string>();
   for (const p of picks) {
     if (!p.code || seen.has(p.code) || alreadyHeld.has(p.code)) continue;
-    const open = openPrices.get(p.code) ?? null;
-    // 没有开盘价就跳过：拿 pickPrice（选股日收盘）当买入价是假成交——
-    // 前瞻规则明确「次日开盘买入」，价格不对就是错的价，宁可今天不记。
-    if (open == null || !(open > 0)) continue;
+    const bar = bars.get(p.code) ?? null;
+    // 拿不到买入日 K 线就跳过——不拿 pickPrice（选股日收盘）冒充买入价。
+    if (!bar) continue;
+    const fill = fillPriceOf(bar, limitPctOf(p.code));
+    // 一字板买不进 → 不记假成交（2026-11-17 补）。
+    if (!fill) continue;
     seen.add(p.code);
     out.push({
       id: p.code,
       code: p.code.replace(/^(sh|sz|bj)/i, ""),
       name: p.name,
-      entry: open,
-      stop: Math.round(open * (1 - FORESIGHT_STOP_PCT / 100) * 100) / 100,
-      target: Math.round(open * (1 + FORESIGHT_TARGET_PCT / 100) * 100) / 100,
+      entry: fill.entry,
+      stop: Math.round(fill.entry * (1 - FORESIGHT_STOP_PCT / 100) * 100) / 100,
+      target: Math.round(fill.entry * (1 + FORESIGHT_TARGET_PCT / 100) * 100) / 100,
       style: "relay",
       variant: "foresight",
       hold: FORESIGHT_HOLD,
+      note: fill.note,
     });
   }
   return out;
