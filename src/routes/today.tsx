@@ -258,6 +258,18 @@ function DecisionPage() {
   const bookByCode = new Map(
     reconcile.bookTrades.map((t) => [sixDigitCode(t.code), t] as const),
   );
+  // 2026-11-17 修：「已买/未买」不能只看当天——早前买入仍持仓的票（如 11-05 的
+  // 华夏银行）当天没有新交易，原先显示「未买」，用户会以为没买。全量账本里
+  // 查未平仓的笔，命中显示「持有 @入场价」。
+  const holdingByCode = new Map<string, number>();
+  for (const day of journalDays ?? []) {
+    for (const t of day.trades) {
+      const key = sixDigitCode(t.code);
+      if (t.exit == null && t.entry > 0 && !holdingByCode.has(key)) {
+        holdingByCode.set(key, t.entry);
+      }
+    }
+  }
 
   // ── 三路信号合成一张矩阵（前瞻 / 短线 / 中长线）──
   // 为什么要合成一张：三条腿的价格在同一列，才比得出「今天到底哪几笔能成交」。
@@ -273,10 +285,13 @@ function DecisionPage() {
   /** 一行按六位 code 查账本。读不到时显示原因，不谎称「未买」。 */
   const bookCell = (code: string): Pick<Row, "book" | "bookTone"> => {
     if (reconcile.missing) return { book: "账本读不到", bookTone: "warn" };
-    const t = bookByCode.get(sixDigitCode(code));
-    return t
-      ? { book: `已买 ${t.entry.toFixed(2)}`, bookTone: "ok" }
-      : { book: "未买", bookTone: "muted" };
+    const key = sixDigitCode(code);
+    const todayTrade = bookByCode.get(key);
+    if (todayTrade) return { book: `已买 ${todayTrade.entry.toFixed(2)}`, bookTone: "ok" };
+    // 早前买入仍持仓的：显示「持有」而不是「未买」（避免误导成没买）。
+    const held = holdingByCode.get(key);
+    if (held != null) return { book: `持有 ${held.toFixed(2)}`, bookTone: "ok" };
+    return { book: "未买", bookTone: "muted" };
   };
   const rows: Row[] = [];
 
