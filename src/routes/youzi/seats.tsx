@@ -122,8 +122,8 @@ function SeatsPage() {
                     <td className="num text-right text-muted">{i < 40 ? i + 1 : "…"}</td>
                     <td className="max-w-[220px] truncate">{s.name}</td>
                     <td className="num text-right text-muted">{s.n5}</td>
-                    <td className={"num text-right " + ((s.avg1 ?? 0) >= 0 ? "text-up" : "text-down")}>{pct(s.avg1)}</td>
-                    <td className={"num text-right font-medium " + ((s.avg5 ?? 0) >= 0 ? "text-up" : "text-down")}>{pct(s.avg5)}</td>
+                    <td className={"num text-right " + (s.avg1 == null ? "text-muted" : s.avg1 >= 0 ? "text-up" : "text-down")}>{pct(s.avg1)}</td>
+                    <td className={"num text-right font-medium " + (s.avg5 == null ? "text-muted" : s.avg5 >= 0 ? "text-up" : "text-down")}>{pct(s.avg5)}</td>
                     <td className="num text-right text-muted">{s.win5 == null ? "—" : `${(s.win5 * 100).toFixed(0)}%`}</td>
                     <td className={"num text-right " + (s.netWan >= 0 ? "text-up" : "text-down")}>{yi(s.netWan)}</td>
                   </tr>
@@ -134,7 +134,7 @@ function SeatsPage() {
           <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed text-muted">
             榜尾那 10 个是同一批里最差的（表里用「…」隔开），不是另一份名单。
             「次日均」= 次日开盘买入、当日收盘卖出；「{data.hold} 日均」= 持有 {data.hold} 个交易日。
-            两个都是**次日开盘价**成交，因为席位是收盘后才公布的。
+            两个都是<strong>次日开盘价</strong>成交，因为席位是收盘后才公布的。
           </div>
         </Panel>
 
@@ -190,8 +190,8 @@ function SeatsPage() {
                                 <td className="num text-muted">{r.date}</td>
                                 <td className="max-w-[120px] truncate">{r.stock}</td>
                                 <td className="num text-right text-muted">{yi(r.netWan)}</td>
-                                <td className={"num text-right " + ((r.r1 ?? 0) >= 0 ? "text-up" : "text-down")}>{pct(r.r1)}</td>
-                                <td className={"num text-right " + ((r.r5 ?? 0) >= 0 ? "text-up" : "text-down")}>{pct(r.r5)}</td>
+                                <td className={"num text-right " + (r.r1 == null ? "text-muted" : r.r1 >= 0 ? "text-up" : "text-down")}>{pct(r.r1)}</td>
+                                <td className={"num text-right " + (r.r5 == null ? "text-muted" : r.r5 >= 0 ? "text-up" : "text-down")}>{pct(r.r5)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -219,7 +219,7 @@ function SeatsPage() {
             <div>
               <Tag tone="muted">缺口</Tag>{" "}
               有 <b className="num text-fg">{data.unresolved}</b> 笔买入的名字对不上代码（改名、退市、
-              一个字的差异），这些笔**不计入战绩**，同时也不假装它们不存在。
+              一个字的差异），这些笔<strong>不计入战绩</strong>，同时也不假装它们不存在。
             </div>
             <div>
               <Tag tone="muted">口径</Tag>{" "}

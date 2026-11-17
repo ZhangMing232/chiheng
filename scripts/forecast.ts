@@ -26,6 +26,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { barAfter, limitPct, loadAllKlines, tradingDates, type Bar } from "./lib/kline-store.ts";
+import { boardLimitRatio } from "../src/lib/market/model.ts";
 
 const OUT = "data/history/forecast";
 const BACKTEST_DAYS = Number(process.env.FORECAST_DAYS ?? 60);
@@ -225,15 +226,9 @@ async function fetchMergeKline(code: string, all: Map<string, Bar[]>): Promise<v
  * （留了余量防止四舍五入漏判），拿来算限价会把 25.66 算成 25.55。
  * ST 股实际是 5%，但代码里看不出 ST，这里不吃这一口，遇到 ST 会判偏松。
  */
-function limitRatio(code: string): number {
-  const bare = code.replace(/^(sh|sz|bj)/, "");
-  if (code.startsWith("bj")) return 0.3;
-  if (bare.startsWith("300") || bare.startsWith("301") || bare.startsWith("688") || bare.startsWith("689")) return 0.2;
-  return 0.1;
-}
-
-function limitPrices(code: string, prevClose: number): { up: number; down: number } {
-  const p = limitRatio(code);
+function limitPrices(code: string, prevClose: number, name: string | null | undefined): { up: number; down: number } {
+  // 2026-11-17 统一：走 model.ts 的 boardLimitRatio（ST 按名字识别 5%），删本地 limitRatio。
+  const p = boardLimitRatio(code, name) ?? 0.1;
   const round2 = (v: number) => Math.round(v * 100) / 100;
   return { up: round2(prevClose * (1 + p)), down: round2(prevClose * (1 - p)) };
 }
@@ -245,8 +240,8 @@ function limitPrices(code: string, prevClose: number): { up: number; down: numbe
  * 开盘涨停但盘中开过板 → 能买（成交价多半低于开盘价，所以用开盘价算成本是偏保守的）。
  * 收盘跌停但盘中开过板 → 能卖（卖在跌停价附近，卖出价就用收盘价，是偏保守的）。
  */
-function fillCheck(code: string, t: Bar, nx: Bar): { buyFilled: boolean | null; sellFilled: boolean | null; fillNote: string | null } {
-  const { up, down } = limitPrices(code, t.c);
+function fillCheck(code: string, name: string, t: Bar, nx: Bar): { buyFilled: boolean | null; sellFilled: boolean | null; fillNote: string | null } {
+  const { up, down } = limitPrices(code, t.c, name);
   const eps = 0.005;
   const notes: string[] = [];
   let buyFilled: boolean | null = true;
@@ -300,7 +295,7 @@ function computeOutcome(pick: Pick, t: Bar | null, nx: Bar | null): Outcome {
   const buyPrice = nx.o;
   const sellPrice = nx.c;
   const highPrice = nx.h;
-  const fill = fillCheck(pick.code, t, nx);
+  const fill = fillCheck(pick.code, pick.name, t, nx);
   // 买不到 / 卖不出，就没有「这一笔盈亏」——拿一个成交不了的价算收益就是假账
   const tradable = fill.buyFilled !== false && fill.sellFilled !== false;
   const tradePct = tradable && buyPrice > 0 ? sellPrice / buyPrice - 1 : null;

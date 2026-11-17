@@ -91,7 +91,7 @@ function HuiyanPage() {
                       → 现 {(lr?.last ?? "—")}{lr?.pctFromBuy != null ? ` (${(lr.pctFromBuy * 100).toFixed(2)}%)` : ""}
                     </span>
                     <span className={"px-st ml-auto " + (noBuy ? "no" : lr?.buyPrice != null ? "ok" : "wait")}>
-                      {lr?.status ? FILL_STATUS_LABEL[lr.status] : noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "已成交" : "待开盘"}
+                      {lr?.status ? FILL_STATUS_LABEL[lr.status] : noBuy ? "一字板·买不进" : lr?.buyPrice != null ? "成交" : "待开盘"}
                     </span>
                   </div>
                 );
@@ -238,7 +238,16 @@ function HuiyanPage() {
                 全市场随便一只票，当天最高价高于开盘价的概率就有{" "}
                 {bt.baseline?.chaseRate != null ? `${(bt.baseline.chaseRate * 100).toFixed(1)}%` : "—"}，
                 所以这一套规则跑出 {rate(btChases, btPicks)} 其实是
-                <b className="text-down">跑输</b>「随便买一只」。别被 80% 这种数字骗了。
+                {(() => {
+                  const mine = btPicks > 0 ? btChases / btPicks : null;
+                  const base = bt.baseline?.chaseRate ?? null;
+                  // 2026-11-17 修：跑赢/跑输按实算，不写死方向。
+                  if (mine == null || base == null) return <b className="text-muted">无法和基准比较</b>;
+                  return mine >= base
+                    ? <b className="text-up">跑赢</b>
+                    : <b className="text-down">跑输</b>;
+                })()}
+                「随便买一只」。别被高数字骗了。
               </div>
               {(() => {
                 const un = bt.periods.reduce((n, x) => n + (x.summary?.unfilled ?? 0), 0);

@@ -314,7 +314,7 @@ function DecisionPage() {
         pathTone: label === "短线" ? "text-brand" : "text-brand-text",
         name: sig.name, code: sig.code, id: sig.id,
         price: skip ? "不追高·放弃" : String(sig.order?.price ?? sig.buyPrice),
-        priceNote: skip ? "" : observeOnly ? "观察" : sig.fill?.status === "filled" ? "成交" : "可买",
+        priceNote: skip ? "" : observeOnly ? "观察" : sig.fill?.status === "filled" ? "竞价价" : "可买",
         why: sig.order?.basis ?? sig.order?.skipReason ?? sig.reason.slice(0, 28),
         status: observeOnly ? "观察·不建仓" : skip ? "放弃" : sig.fill?.status === "filled" ? "成交" : sig.fill?.status === "missed" ? "未成交" : "待判定",
         statusTone: observeOnly ? "wait" : skip ? "no" : sig.fill?.status === "filled" ? "ok" : sig.fill?.status === "missed" ? "no" : "wait",

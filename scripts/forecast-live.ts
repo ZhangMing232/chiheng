@@ -24,6 +24,7 @@
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { judgeFill, buyFilledOf, type FilledStatus } from "../src/lib/market/fill-status.ts";
+import { boardLimitRatio } from "../src/lib/market/model.ts";
 
 const OUT = "data/history/forecast";
 const LIVE = join(OUT, "live");
@@ -122,13 +123,6 @@ async function fetchBars(code: string): Promise<Bar[]> {
  * （留了余量防止四舍五入漏判），拿来算限价会把 25.66 算成 25.55。
  * ST 股实际是 5%，但代码里看不出 ST，这里不吃这一口，遇到 ST 会判偏松。
  */
-function limitRatio(code: string): number {
-  const bare = code.replace(/^(sh|sz|bj)/, "");
-  if (code.startsWith("bj")) return 0.3;
-  if (bare.startsWith("300") || bare.startsWith("301") || bare.startsWith("688") || bare.startsWith("689")) return 0.2;
-  return 0.1;
-}
-
 /** 是否已过开盘时间（9:30）。纯时间判断，供 judgeFill 用。 */
 function isAfterOpenNow(): boolean {
   const now = new Date();
@@ -174,7 +168,8 @@ async function main() {
       if (nx && !nextDate) nextDate = nx.date;
       const usable = nx && nx.o > 0 ? nx : null;
       const prevClose = i >= 0 ? bars[i].c : null;
-      const upPrice = prevClose != null ? Math.round(prevClose * (1 + limitRatio(pick.code)) * 100) / 100 : null;
+      // 2026-11-17 统一：boardLimitRatio（ST 5% 按名字识别），删本地 limitRatio。
+      const upPrice = prevClose != null ? Math.round(prevClose * (1 + (boardLimitRatio(pick.code, pick.name) ?? 0.1)) * 100) / 100 : null;
       // 没有今日 bar 时才需要查快照判停牌（有 bar 就是在正常交易，省一次请求）。
       const snapshotVolume = usable ? null : await fetchSnapshotVolume(pick.code);
       // 五态判定统一走纯函数（2026-11-16）：停牌不再被当成「待开盘」。

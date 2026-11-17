@@ -104,6 +104,18 @@ export function boardLimit(id: string, name: string): number | null {
   return 10;
 }
 
+/**
+ * 涨跌停幅度的小数版（0.1/0.2/0.3/0.05），给 forecast/forecast-live 算限价用。
+ * 2026-11-17 统一：原先 forecast 系各有一份 limitRatio 只看代码（ST 判不出、
+ * 判偏松），和账本的 boardLimit（按名字识别 ST→5%）口径分裂——同一只 ST 连板股
+ * 会出现「规则验证显示成交、账本判一字板不买」。现在两边都走这一份，ST/北交/
+ * 科创创业全覆盖。非 A 股返回 null（美/港无涨跌停）。
+ */
+export function boardLimitRatio(code: string, name: string | null | undefined): number | null {
+  const pct = boardLimit(code, name ?? "");
+  return pct == null ? null : pct / 100;
+}
+
 /** 现价已经贴到涨停或跌停就标出来。留了 0.15 个百分点的缝，避免四舍五入把涨停漏掉。无涨跌停的市场恒 null。 */
 export function limitTag(quote: Quote): "涨停" | "跌停" | null {
   if (quote.chg == null) return null;

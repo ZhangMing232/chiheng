@@ -190,12 +190,14 @@ function SymbolPanel({ id }: { id: string }) {
             <div
               className={cx(
                 "text-3xl font-medium tabular-nums",
-                quote || oQuote ? toneClass(quote?.chg ?? oQuote?.chg ?? 0) : "text-muted",
+                // 2026-11-17 修：涨跌着色只用当前 quote 自己的 chg——quote 有但 chg 为 null
+                // 时不再退用港美股 oQuote 的 chg（张冠李戴串色），显示 muted。
+                quote?.chg != null ? toneClass(quote.chg) : oQuote?.chg != null ? toneClass(oQuote.chg) : "text-muted",
               )}
             >
               {quote ? fmtPrice(quote.price) : oQuote ? `${fmtPrice(oQuote.price)} ${currency}` : "—"}
             </div>
-            <div className={cx("tabular-nums", quote || oQuote ? toneClass(quote?.chg ?? oQuote?.chg ?? 0) : "text-muted")}>
+            <div className={cx("tabular-nums", quote?.chg != null ? toneClass(quote.chg) : oQuote?.chg != null ? toneClass(oQuote.chg) : "text-muted")}>
               {quote ? signedPct(quote.chg) : oQuote ? `${signedPct(oQuote.chg)} · ${oQuote.asOf}` : "取不到现价"}
             </div>
           </div>

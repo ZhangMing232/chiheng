@@ -204,8 +204,8 @@ function Review() {
         >
           <Stat label="上涨" value={known === 0 ? "—" : String(up)} className="bg-surface text-up" />
           <Stat label="下跌" value={known === 0 ? "—" : String(down)} className="bg-surface text-down" />
-          <Stat label="涨停" value={String(limitUp)} className="bg-surface" hint="贴到板块涨跌停幅" />
-          <Stat label="跌停" value={String(limitDown)} className="bg-surface" />
+          <Stat label="涨停" value={String(limitUp)} className="bg-surface text-up" hint="贴到板块涨跌停幅" />
+          <Stat label="跌停" value={String(limitDown)} className="bg-surface text-down" />
         </Panel>
         {known > 0 ? (
           <div className="flex h-2 overflow-hidden rounded bg-surface-2" aria-label="涨跌分布条">
@@ -427,7 +427,7 @@ function PmiPanel({ pmi }: { pmi: Awaited<ReturnType<typeof getPmi>> | null }) {
           label="制造业 PMI"
           value={p.manufacturing ?? "—"}
           hint={zoneText}
-          tone={(p.manufacturing ?? 50) >= 50 ? "text-up" : "text-down"}
+          tone={p.manufacturing == null ? "text-muted" : p.manufacturing >= 50 ? "text-up" : "text-down"}
           className="bg-surface"
         />
         <Stat label="非制造业" value={p.nonManufacturing ?? "—"} hint="商务活动指数" className="bg-surface" />
@@ -440,7 +440,7 @@ function PmiPanel({ pmi }: { pmi: Awaited<ReturnType<typeof getPmi>> | null }) {
         />
       </div>
       <p className="px-3.5 pb-2 text-[12px] text-muted">
-        50 是荣枯线，制造业 PMI 在它上方叫扩张、下方叫收缩。**月频数据，月末发布**，
+        50 是荣枯线，制造业 PMI 在它上方叫扩张、下方叫收缩。<strong>月频数据，月末发布</strong>，
         比财报早一个季度反映景气。分档字段（大小企业）统计局改过措辞，认不出就显示「—」。
       </p>
     </Panel>
@@ -471,7 +471,7 @@ function LprPanel({ lpr }: { lpr: Awaited<ReturnType<typeof getLpr>> | null }) {
         />
       </div>
       <p className="px-3.5 pb-2 text-[12px] text-muted">
-        月频，2019-08 改革后每月 20 日报价。**直接相关的是银行和地产**——降息先压银行息差、
+        月频，2019-08 改革后每月 20 日报价。<strong>直接相关的是银行和地产</strong>——降息先压银行息差、
         再影响地产融资成本。历史上还有旧贷款基准利率（1991-2015），那些不是 LPR，已经剔掉。
       </p>
     </Panel>
@@ -503,14 +503,14 @@ function SocialFinancingPanel({ social }: { social: Awaited<ReturnType<typeof ge
           label="当月社融增量"
           value={fmt(last.afreTotal)}
           hint={`${last.month}`}
-          tone={(last.afreTotal ?? 0) >= 0 ? "text-up" : "text-down"}
+          tone={last.afreTotal == null ? "text-muted" : last.afreTotal >= 0 ? "text-up" : "text-down"}
           className="bg-surface"
         />
         <Stat
           label="近 12 个月累计"
           value={fmt(sum12)}
           hint="社融增量滚动合计"
-          tone={(sum12 ?? 0) >= 0 ? "text-up" : "text-down"}
+          tone={sum12 == null ? "text-muted" : sum12 >= 0 ? "text-up" : "text-down"}
           className="bg-surface"
         />
         <Stat label="当月人民币贷款" value={fmt(last.rmbLoans)} hint="社融的主要构成" className="bg-surface" />

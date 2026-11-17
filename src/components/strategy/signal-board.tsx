@@ -172,7 +172,7 @@ export function SignalFollowBoard({ data }: { data: SignalBoardData }) {
           <span className="flex items-center gap-1.5 font-medium"><Trophy size={14} className="text-brand" /> 战绩（{tracking.signalDate} → {tracking.trackedDate}）</span>
           <span className={`tabular-nums font-medium ${tracking.summary.winRate >= 50 ? "text-up" : "text-down"}`}>胜率 {tracking.summary.winRate}%（{tracking.summary.wins}胜{tracking.summary.losses}负）</span>
           <span className="tabular-nums">盈亏比 {tracking.summary.plRatio}</span>
-          <span className="tabular-nums text-muted">均赢 +{tracking.summary.avgWinPct}% / 均亏 {tracking.summary.avgLossPct}%</span>
+          <span className="tabular-nums text-muted">均赢 +{tracking.summary.avgWinPct}% / 均亏 {Math.abs(tracking.summary.avgLossPct)}%</span>
           <div className="w-full border-t border-line/50" />
           <div className="flex flex-wrap gap-x-4 gap-y-0.5">
             {Object.entries(tracking.summary.byStrategy).map(([s, v]) => (
@@ -218,7 +218,7 @@ export function SignalFollowBoard({ data }: { data: SignalBoardData }) {
                     <td className="px-3 py-2 text-right tabular-nums">{s.buyPrice}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted">{s.prevClose ?? "—"}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{s.nextClose ?? "—"}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums font-medium ${(s.chgPct ?? 0) >= 0 ? "text-up" : "text-down"}`}>
+                    <td className={`px-3 py-2 text-right tabular-nums font-medium ${s.chgPct == null ? "text-muted" : s.chgPct >= 0 ? "text-up" : "text-down"}`}>
                       {s.chgPct != null ? (s.chgPct >= 0 ? "+" : "") + s.chgPct + "%" : "—"}
                     </td>
                     <td className="px-3 py-2 text-center">
