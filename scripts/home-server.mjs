@@ -804,6 +804,36 @@ const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
 // ── D-RESUME 恢复实验进度推送（2026-11-17）：15:45 后每天一次，stamp 防重。
+// ── 每日赚钱研究名单（2026-11-17）：15:35 后每天一次，stamp 防重。
+let dailyCandidatesRunning = false;
+function runDailyCandidates() {
+  if (dailyCandidatesRunning) return;
+  const hour = new Date().getHours();
+  if (hour < 15) return;
+  const stampPath = `data/.daily-candidates-${new Date().toLocaleDateString("sv-SE")}.stamp`;
+  if (existsSync(stampPath)) return;
+  dailyCandidatesRunning = true;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/daily-candidates.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("error", (err) => {
+    console.error(`每日研究名单拉起失败:`, err.message);
+    dailyCandidatesRunning = false;
+  });
+  child.on("close", (code) => {
+    dailyCandidatesRunning = false;
+    if (code === 0) {
+      writeFileSync(stampPath, String(Date.now()));
+    } else {
+      console.error(`每日研究名单失败（exit ${code}），下个 tick 重试`);
+    }
+  });
+}
+runDailyCandidates();
+const dailyCandidatesTimer = setInterval(runDailyCandidates, 60_000);
+
 let resumeProgressRunning = false;
 function runResumeProgress() {
   if (resumeProgressRunning) return;

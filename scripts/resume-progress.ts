@@ -79,6 +79,21 @@ async function main() {
   } catch {
     // 健康段失败不影响主推送
   }
+  // 每日赚钱研究名单（2026-11-17 用户要求）：按环境战绩排序的候选，数据研究非建议。
+  try {
+    const cand = JSON.parse(await readFile(join(process.cwd(), "data", "daily-candidates.json"), "utf8")) as {
+      picks?: Record<string, { 历史战绩?: { n: number; win: number; avg: number } | null; 候选?: { name: string; 挂单?: number }[] }>;
+    };
+    lines.push("──────────────────");
+    lines.push("今日研究名单（按账本战绩排序，非投资建议）：");
+    for (const [shape, info] of Object.entries(cand.picks ?? {})) {
+      const p = info.历史战绩;
+      const names = (info.候选 ?? []).map((c) => `${c.name}(${c.挂单 ?? "?"})`).join("、");
+      lines.push(`  ${shape}（n=${p?.n ?? "?"} 胜率${p?.win ?? "?"}% 均${p?.avg ?? "?"}%）：${names}`);
+    }
+  } catch {
+    // 名单生成失败不阻断主推送
+  }
   lines.push("──────────────────");
   lines.push(`D-RESUME 预登记实验（design/RESUME-DOWN-SHAPES）：攒满 12 笔/变体走 Welch 判决。`);
   lines.push("本推送是实验进度，不是买入建议。");
