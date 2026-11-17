@@ -255,7 +255,9 @@ function fillCheck(code: string, t: Bar, nx: Bar): { buyFilled: boolean | null; 
       buyFilled = false;
       notes.push(`买入日 ${up.toFixed(2)} 一字涨停，开盘挂单排不进（当天最低就是涨停价）`);
     } else {
-      notes.push(`开盘涨停后开板（最低 ${nx.l.toFixed(2)}），能买到，实际成交价低于开盘价`);
+      // 2026-11-17 修措辞：开盘价那一刻能成交（盘中开板、集合竞价没封死），
+      // 账本就是按开盘价买的；原来说「实际成交价低于开盘价」是错的，会误导。
+      notes.push(`开盘涨停后开板（最低 ${nx.l.toFixed(2)}），能买到，按开盘价 ${nx.o.toFixed(2)} 成交`);
     }
   }
   let sellFilled: boolean | null = true;

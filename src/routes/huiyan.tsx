@@ -427,7 +427,10 @@ function PickRow({
   const bought = !settled && lr?.buyPrice != null && !buyFail;
   const livePct = bought ? (lr?.pctFromBuy ?? null) : null;
   const shown = tradeable ? (settled ? trade : livePct) : null;
-  const fillNote = settled ? (o?.fillNote ?? null) : (lr?.fillNote ?? null);
+  // 旧落档文件里的措辞「实际成交价低于开盘价」是错的（账本按开盘价成交）。
+  // 落档凭据不许改，只在显示层纠正这句话——历史数据保持原样、页面不误导。
+  const fillNote = (settled ? (o?.fillNote ?? null) : (lr?.fillNote ?? null))
+    ?.replace(/实际成交价低于开盘价/g, `按开盘价 ${money(settled ? o?.buyPrice : lr?.buyPrice)} 成交`) ?? null;
   const failLabel = buyFail ? "买不进" : sellFail ? "卖不出" : null;
   return (
     <div className="rounded border border-line bg-surface px-2 py-1.5">
@@ -493,12 +496,13 @@ function PickRow({
           <span className="text-muted">· {book.reason}</span>
         </div>
       ) : null}
-      {/* 开板买入说明（2026-11-17）：涨停价买入为什么能成交，必须写明——
-          一字板已在建仓时跳过，能记进来的开盘涨停都是盘中开过板的。 */}
-      {book?.note ? (
-        <div className="mt-0.5 text-[12px] leading-snug text-brand-text">{book.note}</div>
+      {/* 买入说明去重（2026-11-17）：book.note（账本实盘口径，准确）优先——
+          有它就不显示 fillNote（规则验证口径，措辞是「成交价低于开盘价」，
+          和账本按开盘价成交对不上，两条并排既重复又矛盾）。非前瞻票/老账没有
+          book.note 时才回退显示 fillNote。 */}
+      {book?.note ?? fillNote ? (
+        <div className="mt-0.5 text-[12px] leading-snug text-muted">{book?.note ?? fillNote}</div>
       ) : null}
-      {fillNote ? <div className="mt-0.5 text-[12px] leading-snug text-muted">{fillNote}</div> : null}
     </div>
   );
 }
