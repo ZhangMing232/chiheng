@@ -803,6 +803,37 @@ const signalGenTimer = setInterval(runSignalGen, 60_000);
 const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
+// ── D-RESUME 恢复实验进度推送（2026-11-17）：15:45 后每天一次，stamp 防重。
+let resumeProgressRunning = false;
+function runResumeProgress() {
+  if (resumeProgressRunning) return;
+  const hour = new Date().getHours();
+  const min = new Date().getMinutes();
+  if (hour < 15 || (hour === 15 && min < 45)) return;
+  const stampPath = `data/.resume-progress-${new Date().toLocaleDateString("sv-SE")}.stamp`;
+  if (existsSync(stampPath)) return;
+  resumeProgressRunning = true;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/resume-progress.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("error", (err) => {
+    console.error(`D-RESUME 进度推送拉起失败:`, err.message);
+    resumeProgressRunning = false;
+  });
+  child.on("close", (code) => {
+    resumeProgressRunning = false;
+    if (code === 0) {
+      writeFile(stampPath, String(Date.now())).catch(() => {});
+    } else {
+      console.error(`D-RESUME 进度推送失败（exit ${code}），下个 tick 重试`);
+    }
+  });
+}
+runResumeProgress();
+const resumeProgressTimer = setInterval(runResumeProgress, 60_000);
+
 const announcementsTimer = setInterval(runAnnouncementsFetch, 60_000);
 const preflightTimer = setInterval(runPreflight, 60_000);
 
