@@ -58,7 +58,9 @@ export function judgeFill(e: DayEvidence): FillVerdict {
       if (bar.l >= limitUpPrice - 0.005) {
         return { status: "unfillable", note: `${limitUpPrice.toFixed(2)} 一字涨停，开盘挂单排不进（全天最低就是涨停价）` };
       }
-      return { status: "filled", note: `开盘涨停后开板（最低 ${bar.l.toFixed(2)}），成交价低于开盘价` };
+      // 2026-11-17 修措辞：开盘那一刻能成交（集合竞价没封死/盘中开板），账本按开盘价买。
+      // 原来说「成交价低于开盘价」是事实错误。
+      return { status: "filled", note: `开盘涨停后开板（最低 ${bar.l.toFixed(2)}），按开盘价 ${bar.o.toFixed(2)} 成交` };
     }
     return { status: "filled", note: null };
   }

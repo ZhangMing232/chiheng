@@ -151,7 +151,7 @@ function Review() {
             <span className="px-num text-[13px] text-muted">平盘 <b className="text-2xl text-fg">{breadth?.flat ?? "—"}</b></span>
             {indices.slice(0, 3).map((ix) => (
               <span key={ix.id} className="px-num text-[13px] text-muted">
-                {ix.name} <b className={"text-xl " + (ix.chg >= 0 ? "text-up" : "text-down")}>{ix.chg >= 0 ? "+" : ""}{ix.chg?.toFixed(2)}%</b>
+                {ix.name} <b className={"text-xl " + (ix.pct != null && ix.pct >= 0 ? "text-up" : "text-down")}>{ix.pct != null ? `${ix.pct >= 0 ? "+" : ""}${ix.pct.toFixed(2)}%` : "—"}</b>
               </span>
             ))}
           </div>

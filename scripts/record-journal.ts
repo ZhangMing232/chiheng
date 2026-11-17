@@ -149,8 +149,10 @@ async function runForesightCatchup(userId: string, days: Day[], bookDate: string
       dt.setUTCDate(dt.getUTCDate() - back);
       return dt.toISOString().slice(0, 10);
     };
-    const allowed = new Set<string>();
-    for (let i = 0; i <= 3; i++) allowed.add(shiftDate(bookDate, i));
+    // 2026-11-17 修：窗口按**交易日**倒推 3 天（原自然日跨周末/长假会漏补）。
+    const { tradingDayCalendar } = await import("../src/lib/market/rule-change-effect.ts");
+    const cal = tradingDayCalendar(shiftDate(bookDate, 15), bookDate); // 15 自然日窗口足够覆盖 3 交易日+长假
+    const allowed = new Set(cal.slice(-4)); // 含买入日在内的最近 4 个交易日 = 买入日+3 交易日
 
     const alreadyHeld = new Set(days.flatMap((d) => d.trades).filter((t) => t.exit == null).map((t) => t.id));
     const alreadyTagged = new Set(
@@ -210,6 +212,7 @@ async function runForesightCatchup(userId: string, days: Day[], bookDate: string
           id: plan.id, code: plan.code, name: plan.name, entry: plan.entry,
           stop: plan.stop, target: plan.target, style: plan.style, hold: plan.hold,
           exit: null, exitDate: null, variant: plan.variant,
+          note: plan.note ?? undefined,
         };
         const idx = next.findIndex((d) => d.date === buyDate);
         if (idx >= 0) {
@@ -646,9 +649,12 @@ async function runBook(userId: string, book: Book, expectedVersion: string | nul
     // 现在它是真的会执行的闸门。分两种：
     //   硬闸 = 策略在亏（连亏天数 / 最近 20 笔均值）→ 这一套今天不开仓
     //   提示闸 = 样本不够 → 只记一笔，不拦。样本少不是策略的错，拦了等于永远不许开始
+    // 2026-11-17 修：hardGate 是真拦开仓的闸，样本必须只含实盘策略的已平仓交易。
+    // foresight（前瞻验证）是独立实验，它的 ±5% 止损亏损若混进来，会停掉 value
+    // 等策略的当日开仓——前瞻亏损不该改变实盘策略的风控行为。
     const closedForGate = days.flatMap((day) =>
       day.trades
-        .filter((trade) => trade.exit != null)
+        .filter((trade) => trade.exit != null && trade.variant !== "foresight")
         .map((trade) => ({ date: trade.exitDate ?? day.date, ret: (trade.exit! - trade.entry) / trade.entry })),
     );
     const hard = hardGate(closedForGate, rules);
@@ -1436,7 +1442,8 @@ if (phase.sealed && phase.date && isTradingDay(phase.date)) {
       );
       const changes = (await readRuleChangeLog()).slice(0, 8);
       const ownerBook = await readUserBook<Day>(OWNER_ID).catch(() => null);
-      const allTrades = (ownerBook?.days ?? []).flatMap((d) => d.trades);
+      // 规则回验样本不含 foresight（前瞻验证不是规则改动的检验样本）
+      const allTrades = (ownerBook?.days ?? []).flatMap((d) => d.trades).filter((t) => t.variant !== "foresight");
       // 2026-11-16 修：交易日必须用日历（isTradingDay），不能用「账本里有成交的日子」——
       // 后者 11-05→11-16 只有 7 天，daysAfter 永远 7，回验卡 pending 到不了 10 天观察期。
       // 日历覆盖到今天+1（让最新一条改动也能被数到），成交样本仍只来自 ownerBook。

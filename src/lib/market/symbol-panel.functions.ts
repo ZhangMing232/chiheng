@@ -27,6 +27,7 @@ import { netReturn } from "@/lib/market/journal-book";
 import { DEFAULT_RULES } from "@/lib/market/rules";
 import type { Quote } from "@/lib/market/types";
 import type { PaperDay } from "@/lib/paper";
+import { strategyLabelOf } from "@/lib/market/foresight-book";
 
 export type SymbolBook = {
   /** 持有它的那一笔（同一只票多笔时取最近一笔建仓的） */
@@ -122,10 +123,13 @@ export const getSymbolPanel = createServerFn({ method: "GET" })
               today,
               rules ?? DEFAULT_RULES,
             ),
-            ret: trade.exit != null ? netReturn(trade.entry, trade.exit) : live ? netReturn(trade.entry, live.price) : null,
+            // 2026-11-17 修：浮动（未卖出）不扣费——持仓页 rowReturn 同口径，
+            // 原先浮动也走 netReturn 扣双边费，两页对不上且逻辑不成立。
+            ret: trade.exit != null ? netReturn(trade.entry, trade.exit) : live ? live.price / trade.entry - 1 : null,
           },
           style: trade.style ?? null,
-          styleName: STYLES.find((s) => s.id === trade.style)?.name ?? "未标注策略",
+          // 2026-11-17 修：foresight 显示真身「前瞻验证」，不借 relay 的「次日补涨」。
+          styleName: strategyLabelOf(trade, (id) => STYLES.find((s) => s.id === id)?.name ?? "未标注策略"),
           alsoIn: hits
             .map((h) => h.trade.style)
             .filter((s): s is NonNullable<typeof s> => !!s && s !== trade.style)

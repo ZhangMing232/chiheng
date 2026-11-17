@@ -399,6 +399,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     const book = await readUserBook<{ trades?: unknown[] }>(OWNER_ID);
     const attribs = (book.days ?? [])
       .flatMap((day) => day.trades ?? [])
+      .filter((t) => (t as { variant?: string }).variant !== "foresight") // 前瞻验证不混进策略死因
       .map((trade) => attributeTradeLoss(trade as never))
       .filter((x): x is NonNullable<typeof x> => x != null);
     lossLines = lossAttribLines(summarizeTradeLosses(attribs));
@@ -415,7 +416,7 @@ export async function runStrategyAILoop(trigger: "manual" | "auto" = "manual"): 
     const book = await readUserBook<{ days?: { trades?: { variant?: string; style?: string; entry: number; exit: number | null }[] }[] }>(OWNER_ID);
     const trades = ((book?.days ?? []) as { trades?: { variant?: string; style?: string; entry: number; exit: number | null }[] }[])
       .flatMap((day) => day?.trades ?? [])
-      .filter((t) => t && typeof t.exit === "number")
+      .filter((t) => t && typeof t.exit === "number" && t.variant !== "foresight") // 前瞻不进方向学习样本
       .map((t) => ({
         variant: t.variant ?? null,
         style: t.style ?? null,

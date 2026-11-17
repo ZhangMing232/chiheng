@@ -148,9 +148,10 @@ export function reconcileSummary(r: ReconcileResult): string {
  *
  * 纯函数、零 IO：logCodes 由服务端 serverFn 读好后传进来，页面不碰 node 内置。
  */
-export type BookOnlyReason = "experiment" | "retired" | "intraday" | "unknown";
+export type BookOnlyReason = "experiment" | "retired" | "intraday" | "unknown" | "foresight";
 
 export const BOOK_ONLY_LABEL: Record<BookOnlyReason, string> = {
+  foresight: "前瞻验证",
   experiment: "挑战者·深扫实验",
   retired: "已淘汰策略结算",
   intraday: "盘中新增扫描",
@@ -162,7 +163,9 @@ export function attributeBookOnly(
   logCodes: Set<string> | null,
   activeStyle = "value",
 ): BookOnlyReason {
-  if (trade.variant || trade.deepScan) return "experiment";
+  // 2026-11-17 修：foresight 是前瞻验证不是挑战者实验，单独标。
+if (trade.variant === "foresight") return "foresight";
+if (trade.variant || trade.deepScan) return "experiment";
   if (trade.style && trade.style !== activeStyle) return "retired";
   if (logCodes == null) return "unknown";
   return logCodes.has(sixDigitCode(trade.code)) ? "intraday" : "unknown";

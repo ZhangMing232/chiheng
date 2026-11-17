@@ -70,6 +70,9 @@ export type PositionRow = {
   code: string;
   name: string;
   style?: string;
+  /** 挑战者/前瞻标记（2026-11-17 补）：strategyLabelOf 靠它识别 foresight。
+   *  之前漏了导致持仓页把前瞻票标成「次日补涨」——假修复。 */
+  variant?: string;
   /** 买入价 */
   entry: number;
   stop?: number;

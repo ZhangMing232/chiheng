@@ -159,6 +159,7 @@ function buildRows(days: PaperDay[], universe: Universe | null, rules: EarlyRule
         code: trade.code,
         name: trade.name,
         style: trade.style,
+        variant: trade.variant ?? undefined,
         entry: trade.entry,
         stop: trade.stop,
         target: trade.target,
@@ -607,6 +608,7 @@ function TodayReconcilePanel({
   const codeSet = logCodes ? new Set(logCodes) : null;
   const reasons = attributeBookOnlyAll(r.bookOnly, codeSet);
   const reasonTone: Record<BookOnlyReason, string> = {
+    foresight: "text-brand",
     experiment: "text-warn",
     retired: "text-muted",
     intraday: "text-brand",

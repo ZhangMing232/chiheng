@@ -120,10 +120,16 @@ const DAY_STAGES = [
   { key: "post", at: "次日 09:20", action: "推送明天买什么", data: "读昨日落档" },
 ];
 
+/** 上海时间 0-1439 分钟数。全仓只认上海时间（session.ts 同口径），不用浏览器本地时区。 */
+function shanghaiMinutes(): number {
+  const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const [h, m] = fmt.format(new Date()).split(":").map(Number);
+  return h * 60 + m;
+}
+
 /** 现在处在一天的哪一段。用来在时间轴上高亮，并决定「现在」区该怎么说。 */
 function stageNow(): { key: string; label: string; hint: string } {
-  const d = new Date();
-  const hm = d.getHours() * 60 + d.getMinutes();
+  const hm = shanghaiMinutes();
   if (hm < 9 * 60 + 15) return { key: "pre", label: "盘前", hint: "还没有竞价价，矩阵里是待开盘" };
   if (hm < 9 * 60 + 30) return { key: "auction", label: "竞价中", hint: "9:26 审核刚出，价还会跳" };
   if (hm < 15 * 60) return { key: "live", label: "盘中", hint: "挂单价=今早竞价价，成交与否看现价" };
@@ -192,8 +198,7 @@ function ZoneHeader({
 
 /** 9:26 竞价审核之后，矩阵里的价才算定下来（盘前只能看昨天的落档）。 */
 function stageAfter532(): boolean {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes() >= 9 * 60 + 26;
+  return shanghaiMinutes() >= 9 * 60 + 26;
 }
 
 function DecisionPage() {

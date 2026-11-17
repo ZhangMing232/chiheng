@@ -153,3 +153,15 @@ test("strategyLabelOf：foresight 显示「前瞻验证」而非借用的 relay�
   assert.equal(strategyLabelOf({ variant: undefined, style: "relay" }, relayName), "次日补涨");
   assert.equal(strategyLabelOf({ variant: "value-stop10", style: "value" }, relayName), "value");
 });
+
+// 2026-11-17 补：端到端防假修复——PositionRow 必须带 variant 才能让
+// strategyLabelOf 在持仓页/统计里识别 foresight（曾漏字段导致「前瞻验证」修复无效）。
+test("🔴 PositionRow 形状兼容：strategyLabelOf 靠 row.variant 识别，字段缺失=假修复", () => {
+  const relayName = (id: string) => (id === "relay" ? "次日补涨" : id);
+  // buildRows 拷贝后的真实 row 形状（variant 必须在）
+  const rowWithVariant = { style: "relay", variant: "foresight" };
+  assert.equal(strategyLabelOf(rowWithVariant, relayName), "前瞻验证");
+  // 如果 buildRows 漏拷 variant（回归），这个测试会红——strategyLabelOf 只认 variant
+  const rowMissingVariant = { style: "relay" };
+  assert.equal(strategyLabelOf(rowMissingVariant, relayName), "次日补涨", "variant 缺失时只能按 style 显示——这正是曾发生的假修复");
+});

@@ -430,7 +430,7 @@ function PickRow({
   // 旧落档文件里的措辞「实际成交价低于开盘价」是错的（账本按开盘价成交）。
   // 落档凭据不许改，只在显示层纠正这句话——历史数据保持原样、页面不误导。
   const fillNote = (settled ? (o?.fillNote ?? null) : (lr?.fillNote ?? null))
-    ?.replace(/实际成交价低于开盘价/g, `按开盘价 ${money(settled ? o?.buyPrice : lr?.buyPrice)} 成交`) ?? null;
+    ?.replace(/实际?成交价低于开盘价/g, `按开盘价 ${money(settled ? o?.buyPrice : lr?.buyPrice)} 成交`) ?? null;
   const failLabel = buyFail ? "买不进" : sellFail ? "卖不出" : null;
   return (
     <div className="rounded border border-line bg-surface px-2 py-1.5">

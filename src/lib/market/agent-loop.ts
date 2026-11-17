@@ -482,7 +482,7 @@ export async function collectLedgerSnapshot(): Promise<LedgerSnapshot> {
   let lossLines: string[] = [];
   try {
     const book = await readUserBook<{ trades?: AttributableTrade[] }>(OWNER_ID);
-    const trades = (book.days ?? []).flatMap((day) => day.trades ?? []);
+    const trades = (book.days ?? []).flatMap((day) => day.trades ?? []).filter((t) => (t as { variant?: string }).variant !== "foresight");
     const attribs = trades
       .map((trade) => attributeTradeLoss(trade))
       .filter((x): x is NonNullable<typeof x> => x != null);
