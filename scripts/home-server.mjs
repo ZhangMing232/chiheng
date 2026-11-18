@@ -804,6 +804,31 @@ const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
 // ── D-RESUME 恢复实验进度推送（2026-11-17）：15:45 后每天一次，stamp 防重。
+// ── 主线抄底扫描（2026-11-18）：已验证进攻信号（回测160笔+0.47%/笔胜率55.6%）。
+// 15:10 后跑（theme-heat 当日已生成），stamp 防重。
+let mainlineDipRunning = false;
+function runMainlineDipScan() {
+  if (mainlineDipRunning) return;
+  const hour = new Date().getHours();
+  if (hour < 15) return;
+  const stampPath = `data/.mainline-dip-${new Date().toLocaleDateString("sv-SE")}.stamp`;
+  if (existsSync(stampPath)) return;
+  mainlineDipRunning = true;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/mainline-dip-scan.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("error", (err) => { console.error(`主线抄底拉起失败:`, err.message); mainlineDipRunning = false; });
+  child.on("close", (code) => {
+    mainlineDipRunning = false;
+    if (code === 0) writeFileSync(stampPath, String(Date.now()));
+    else console.error(`主线抄底失败（exit ${code}），下个 tick 重试`);
+  });
+}
+runMainlineDipScan();
+const mainlineDipTimer = setInterval(runMainlineDipScan, 60_000);
+
 // ── 游资追踪扫描（2026-11-18）：龙虎榜公布后（17:30 后）每天跑一次，stamp 防重。
 // 回测次日超额 +0.975pp、胜率 63.3%（scripts/seat-signal-backtest.ts，237 天）。
 let seatSignalRunning = false;

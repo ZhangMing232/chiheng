@@ -111,6 +111,23 @@ async function main() {
   } catch {
     // 温度计失败不阻断主推送
   }
+  // 主线抄底（2026-11-18）：回测160笔+0.47%/笔胜率55.6%，进攻信号。
+  try {
+    const md = JSON.parse(await readFile(join(process.cwd(), "data", "mainline-dip.json"), "utf8")) as {
+      matched?: number; rows?: { name: string; chg: number; volRatio: number | null; themes: string[] }[];
+      backtest?: { avgPct: number; winRate: number };
+    };
+    if (md.rows?.length) {
+      lines.push("──────────────────");
+      lines.push(`主线抄底候选（${md.matched} 只，回测 +${md.backtest?.avgPct}%/笔 胜率 ${md.backtest?.winRate}%，次日开盘买/再次日卖）：`);
+      for (const r of md.rows.slice(0, 5)) {
+        lines.push(`  ${r.name} 今日${r.chg.toFixed(1)}% 量比${r.volRatio ?? "?"}｜${(r.themes ?? []).slice(0,2).join("、")}`);
+      }
+      lines.push("（进攻信号未实盘验证，单笔≤20%仓位，一字跌停不追）");
+    }
+  } catch {
+    // 没扫就没这段
+  }
   // 游资追踪名单（2026-11-18）：龙虎榜游资大额净买，回测次日超额 +0.975pp。
   try {
     const ss = JSON.parse(await readFile(join(process.cwd(), "data", "seat-signals.json"), "utf8")) as {
