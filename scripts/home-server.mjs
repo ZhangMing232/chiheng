@@ -804,6 +804,34 @@ const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
 // ── D-RESUME 恢复实验进度推送（2026-11-17）：15:45 后每天一次，stamp 防重。
+// ── 游资追踪扫描（2026-11-18）：龙虎榜公布后（17:30 后）每天跑一次，stamp 防重。
+// 回测次日超额 +0.975pp、胜率 63.3%（scripts/seat-signal-backtest.ts，237 天）。
+let seatSignalRunning = false;
+function runSeatSignalScan() {
+  if (seatSignalRunning) return;
+  const hour = new Date().getHours();
+  if (hour < 17) return; // 龙虎榜一般 17:00 后才出全
+  const stampPath = `data/.seat-signal-${new Date().toLocaleDateString("sv-SE")}.stamp`;
+  if (existsSync(stampPath)) return;
+  seatSignalRunning = true;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/seat-signal-scan.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("error", (err) => {
+    console.error(`游资追踪拉起失败:`, err.message);
+    seatSignalRunning = false;
+  });
+  child.on("close", (code) => {
+    seatSignalRunning = false;
+    if (code === 0) writeFileSync(stampPath, String(Date.now()));
+    else console.error(`游资追踪失败（exit ${code}），下个 tick 重试`);
+  });
+}
+runSeatSignalScan();
+const seatSignalTimer = setInterval(runSeatSignalScan, 60_000);
+
 // ── 启动前兆扫描（2026-11-18）：15:30 后每天一次，stamp 防重。
 // 找「还没大涨但有启动迹象」的票，输出观察名单（未验证，不建仓）。
 let earlySignalRunning = false;

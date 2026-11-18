@@ -94,6 +94,25 @@ async function main() {
   } catch {
     // 名单生成失败不阻断主推送
   }
+  // 游资追踪名单（2026-11-18）：龙虎榜游资大额净买，回测次日超额 +0.975pp。
+  try {
+    const ss = JSON.parse(await readFile(join(process.cwd(), "data", "seat-signals.json"), "utf8")) as {
+      seatDate?: string;
+      matched?: number;
+      rows?: { name: string; price: number | null; hotNetWan: number; chg: number | null }[];
+      backtest?: { nextDayEdgePp: number; nextDayWinRate: number };
+    };
+    if (ss.rows?.length) {
+      lines.push("──────────────────");
+      lines.push(`游资追踪 ${ss.seatDate}（${ss.matched} 只，回测次日超额 +${ss.backtest?.nextDayEdgePp}pp/胜率 ${ss.backtest?.nextDayWinRate}%，只做次日）：`);
+      for (const r of ss.rows.slice(0, 6)) {
+        lines.push(`  ${r.name} ${r.price ?? "?"}｜游资净买 ${(r.hotNetWan / 10000).toFixed(2)}亿`);
+      }
+      lines.push("（观察名单，未经判决转正，不建仓）");
+    }
+  } catch {
+    // 没扫就没这段
+  }
   // 启动前兆观察名单（2026-11-18）：资金+量能+位置+题材 四条件，未验证。
   try {
     const es = JSON.parse(await readFile(join(process.cwd(), "data", "early-signals.json"), "utf8")) as {
