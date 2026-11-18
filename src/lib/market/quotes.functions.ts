@@ -1555,6 +1555,25 @@ export type ThemeHeatItem = {
 };
 
 /** 题材热度榜（theme-heat.ts 每天 15:10 生成 data/theme-heat.json）。 */
+/** 大盘温度计：沪深300 vs MA20 的三态判定（详见 src/lib/market/regime-thermometer.ts）。
+ *  数据源 data/index-closes.json（腾讯K线，每日 15:45 resume-progress 刷新）。 */
+export const getRegimeThermometer = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const closes = JSON.parse(await readFile("data/index-closes.json", "utf8")) as { date: string; close: number }[];
+    const { todayRegime } = await import("./regime-thermometer.ts");
+    const t = todayRegime(closes);
+    if (!t) return null;
+    // 顺便回看最近 3 天的状态变化（转仓提示用）
+    const all = (await import("./regime-thermometer.ts")).computeRegime(closes);
+    const recent = all.slice(-4).map((d) => ({ date: d.date, regime: d.regime }));
+    const regimeChanged = recent.length >= 2 && recent[recent.length - 2].regime !== recent[recent.length - 1].regime;
+    return { ...t, recent, regimeChanged };
+  } catch {
+    return null;
+  }
+});
+
 export const getThemeHeat = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const { readFile } = await import("node:fs/promises");

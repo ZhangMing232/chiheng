@@ -19,7 +19,7 @@ import { Panel, Tag, thClass, tdClass } from "@/components/terminal";
 import { StateBlock } from "@/components/state-block";
 import { getMarketSnapshot } from "@/lib/market/limit-up.functions";
 import { getRegulatoryRadar, getLadder3Day, type RegulatoryRow, type LadderRow } from "@/lib/market/quotes.functions";
-import { getThemeHeat, getLimitUpReasons, getSignalReviewed, getServerJournal, type ThemeHeatItem, type SignalReviewed, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
+import { getThemeHeat, getLimitUpReasons, getSignalReviewed, getServerJournal, getRegimeThermometer, type ThemeHeatItem, type SignalReviewed, type LimitUpReasonsPayload } from "@/lib/market/quotes.functions";
 import { getForecast, type ForecastPeriod } from "@/lib/market/archive.functions";
 import { getFlow } from "@/lib/market/quotes.functions";
 import { ScopeNote, scopeNoteLinkClass } from "@/components/scope-note";
@@ -31,7 +31,7 @@ import { StockName } from "@/components/screener/stock-name";
 
 export const Route = createFileRoute("/today")({
   loader: async () => {
-    const [snap, themes, reasons, reviewed, reg, ladder3, forecast, flow, journal] = await Promise.all([
+    const [snap, themes, reasons, reviewed, reg, ladder3, forecast, flow, journal, regime] = await Promise.all([
       getMarketSnapshot().catch(() => ({ snapshot: null, why: "快照读不到" })),
       getThemeHeat().catch(() => ({ date: "", hot: [] as ThemeHeatItem[] })),
       getLimitUpReasons().catch(() => ({ date: "", reasons: {}, sectors: {} }) as LimitUpReasonsPayload),
@@ -42,6 +42,7 @@ export const Route = createFileRoute("/today")({
       getFlow().catch(() => null),
       // 账本只取对账要用的精简字段，不把整本账（22 天 354 笔）塞进 SSR HTML。
       getServerJournal().catch(() => null),
+      getRegimeThermometer().catch(() => null),
     ]);
     const journalDays: ReconcileDay[] | null = journal
       ? journal.days.map((d) => ({
@@ -54,6 +55,7 @@ export const Route = createFileRoute("/today")({
       : null;
     return {
       snap, themes, reasons, reviewed, reg, ladder3, forecast, flow,
+      regime,
       journalDays,
       journalWhy: journal?.why ?? (journal ? null : "服务端账本没返回"),
     };
@@ -202,7 +204,7 @@ function stageAfter532(): boolean {
 }
 
 function DecisionPage() {
-  const { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow, journalDays, journalWhy } = Route.useLoaderData();
+  const { snap, themes, reasons, reviewed, reg, ladder3, forecast, flow, journalDays, journalWhy, regime } = Route.useLoaderData();
   const { openDetail, modal } = useStockDetail();
   const pool = snap.snapshot;
 
@@ -408,6 +410,17 @@ function DecisionPage() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {regime ? (
+              <span
+                className={
+                  "px-st " +
+                  (regime.regime === "进攻" ? "ok" : regime.regime === "观察" ? "wait" : "no")
+                }
+                title={`沪深300 ${regime.close} vs MA20 ${regime.ma20.toFixed(0)}（偏离 ${regime.aboveMa20Pct.toFixed(1)}%），MA20 斜率 ${regime.ma20SlopePct.toFixed(2)}%`}
+              >
+                🌡 {regime.regime}
+              </span>
+            ) : null}
             <span className="px-st no">今日情绪档 · {mood.band}</span>
             <span className="px-st ok">候选 {buyable}</span>
             <span className="px-st wait">放弃 {givenUp}</span>
@@ -416,6 +429,21 @@ function DecisionPage() {
           </div>
         </div>
         <div className="px-hazard" aria-hidden="true" />
+
+        {regime?.regime === "空仓" ? (
+          <div className="rounded border border-warn/60 bg-warn-soft px-4 py-3 text-[13px] leading-relaxed">
+            <b>🌡 大盘温度计：空仓区</b>（沪深300 {regime.close} 在 MA20 {regime.ma20.toFixed(0)} 之下，MA20 下行 {Math.abs(regime.ma20SlopePct).toFixed(2)}%）
+            ——回测 121 天：跟着温度计少亏 12.26pp。今日<b>不买任何新票</b>，持仓票按止损纪律执行（昭衍 38.5 减半/36.86 清，震安 15.5 减/14 清，生益 57.7 走）。
+          </div>
+        ) : regime?.regime === "观察" ? (
+          <div className="rounded border border-line bg-surface2 px-4 py-3 text-[13px] leading-relaxed">
+            🌡 大盘温度计：<b>观察区</b>（MA20 走平/上行，可能筑底）——只允许已持仓票企稳加仓，不开新仓。
+          </div>
+        ) : regime?.regime === "进攻" ? (
+          <div className="rounded border border-up/40 bg-up-soft px-4 py-3 text-[13px] leading-relaxed">
+            🌡 大盘温度计：<b className="text-up">进攻区</b>（站上 MA20，MA20 上行）——可以分批进攻，现金分批进场。
+          </div>
+        ) : null}
 
         <StageBar now={`${pool?.date ?? "—"} ${pool?.sealed ? "收盘封印" : "盘中未定"}`} />
 
