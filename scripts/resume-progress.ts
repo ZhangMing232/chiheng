@@ -94,6 +94,20 @@ async function main() {
   } catch {
     // 名单生成失败不阻断主推送
   }
+  // 启动前兆观察名单（2026-11-18）：资金+量能+位置+题材 四条件，未验证。
+  try {
+    const es = JSON.parse(await readFile(join(process.cwd(), "data", "early-signals.json"), "utf8")) as {
+      matched?: number;
+      rows?: { name: string; code: string; price: number; why: string }[];
+    };
+    if (es.rows?.length) {
+      lines.push("──────────────────");
+      lines.push(`启动前兆观察（${es.matched} 只命中，前 5，⚠未经回测验证非建议）：`);
+      for (const r of es.rows.slice(0, 5)) lines.push(`  ${r.name} ${r.price}｜${r.why}`);
+    }
+  } catch {
+    // 没扫就没这段
+  }
   lines.push("──────────────────");
   lines.push(`D-RESUME 预登记实验（design/RESUME-DOWN-SHAPES）：攒满 12 笔/变体走 Welch 判决。`);
   lines.push("本推送是实验进度，不是买入建议。");

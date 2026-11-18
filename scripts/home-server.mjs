@@ -804,6 +804,37 @@ const signalReviewTimer = setInterval(runSignalReview, 60_000);
 const signalTrackTimer = setInterval(runSignalTrack, 60_000);
 const shortFormsTimer = setInterval(runShortFormsScan, 60_000);
 // ── D-RESUME 恢复实验进度推送（2026-11-17）：15:45 后每天一次，stamp 防重。
+// ── 启动前兆扫描（2026-11-18）：15:30 后每天一次，stamp 防重。
+// 找「还没大涨但有启动迹象」的票，输出观察名单（未验证，不建仓）。
+let earlySignalRunning = false;
+function runEarlySignalScan() {
+  if (earlySignalRunning) return;
+  const hour = new Date().getHours();
+  if (hour < 15) return;
+  const stampPath = `data/.early-signal-${new Date().toLocaleDateString("sv-SE")}.stamp`;
+  if (existsSync(stampPath)) return;
+  earlySignalRunning = true;
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", "--import", "./scripts/alias.mjs", "scripts/early-signal-scan.ts"],
+    { stdio: "inherit" },
+  );
+  child.on("error", (err) => {
+    console.error(`启动前兆扫描拉起失败:`, err.message);
+    earlySignalRunning = false;
+  });
+  child.on("close", (code) => {
+    earlySignalRunning = false;
+    if (code === 0) {
+      writeFileSync(stampPath, String(Date.now()));
+    } else {
+      console.error(`启动前兆扫描失败（exit ${code}），下个 tick 重试`);
+    }
+  });
+}
+runEarlySignalScan();
+const earlySignalTimer = setInterval(runEarlySignalScan, 60_000);
+
 // ── 每日赚钱研究名单（2026-11-17）：15:35 后每天一次，stamp 防重。
 let dailyCandidatesRunning = false;
 function runDailyCandidates() {
