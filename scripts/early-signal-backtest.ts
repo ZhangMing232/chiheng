@@ -7,6 +7,11 @@
  * 看命中的票在**之后 1/3/5 日**的真实表现，和全市场基准对比。
  * 这是检验规则有没有用的唯一诚实方式——不是拿用户举的三只票反推参数。
  *
+ * ⚠️ 2026-11-18 用户指出交易规则问题：本脚本原用**信号日收盘价**买入（未来函数），
+ * 结论「超额 +0.007pp」是在违规口径下得出的。历史 closes 只有收盘价没有开盘价，
+ * 无法重算合法收益 —— 因此本脚本**只能作废**，不再作为判据。
+ * 合法回测需走 src/lib/market/backtest-legality.ts 的 legalReturn（T+1 开盘买）。
+ *
  * 用法：node --experimental-strip-types --import ./scripts/alias.mjs scripts/early-signal-backtest.ts [天数]
  * 输出：data/early-signal-backtest.json
  */

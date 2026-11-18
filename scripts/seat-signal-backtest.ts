@@ -14,6 +14,7 @@
  */
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { legalReturn, limitUpSealed, ROUND_TRIP_COST_PCT, type LegalBar } from "../src/lib/market/backtest-legality.ts";
 
 type SeatFile = {
   date: string;
@@ -58,17 +59,18 @@ async function main() {
   const dayList = [...closeByDay.keys()].sort();
   const dayIndex = new Map(dayList.map((d, i) => [d, i]));
 
-  // 3. 逐日算：龙虎榜净买票的后续表现（分游资/机构两档）
-  type Result = { date: string; inst: number[]; ret1: number; ret3: number; ret5: number; n: number };
-  const byDay: Result[] = [];
-  const allBase: { r1: number[]; r3: number[]; r5: number[] } = { r1: [], r3: [], r5: [] };
+  // 3. 逐日算：龙虎榜净买票的后续表现（合法口径：T+1 开盘买、T+2 卖）
+  //    ⚠️ 2026-11-18 修正：原版用信号日收盘价买入（未来函数）+ 当日买卖（违反 T+1），
+  //    得出的 +0.975pp 超额是假的。现在走 legalReturn 强制合法。
+  const byDay: { date: string; n: number; r1: number }[] = [];
+  const allReturns: number[] = [];
+  let skippedSealed = 0;
 
   for (const [date, file] of seatsByDay) {
     const i = dayIndex.get(date);
-    if (i == null || i + 5 >= dayList.length) continue;
-    const todayCloses = closeByDay.get(dayList[i])!;
+    if (i == null || i + 3 >= dayList.length) continue;
 
-    // 聚合当日每只票的净买入（游资 + 机构分开）
+    // 聚合当日每只票的净买入
     const hotNet = new Map<string, number>();
     const instNet = new Map<string, number>();
     for (const seat of file.seats) {
@@ -81,77 +83,64 @@ async function main() {
       }
     }
 
-    const fwd = (id: string, n: number): number | null => {
-      const now = todayCloses[id];
-      const later = closeByDay.get(dayList[i + n])?.[id];
-      return now > 0 && later > 0 ? (later / now - 1) * 100 : null;
-    };
-
-    // 游资净买 > 3000 万且超过机构（跟着游资走，不是跟机构）
-    const picks: { id: string; net: number }[] = [];
+    const picks: string[] = [];
     for (const [id, net] of hotNet) {
       if (net < 3000) continue;
-      const inst = instNet.get(id) ?? 0;
-      if (inst > net) continue; // 机构主导的不跟
-      picks.push({ id, net });
+      if ((instNet.get(id) ?? 0) > net) continue;
+      picks.push(id);
     }
     if (picks.length === 0) continue;
 
-    const r1s = picks.map((p) => fwd(p.id, 1)).filter((v): v is number => v != null);
-    const r3s = picks.map((p) => fwd(p.id, 3)).filter((v): v is number => v != null);
-    const r5s = picks.map((p) => fwd(p.id, 5)).filter((v): v is number => v != null);
-    if (r1s.length === 0) continue;
-
-    byDay.push({
-      date,
-      inst: [],
-      ret1: r1s.reduce((a, b) => a + b, 0) / r1s.length,
-      ret3: r3s.length ? r3s.reduce((a, b) => a + b, 0) / r3s.length : 0,
-      ret5: r5s.length ? r5s.reduce((a, b) => a + b, 0) / r5s.length : 0,
-      n: picks.length,
-    });
-
-    // 全市场基准（同日）
-    for (const [id, p] of Object.entries(todayCloses)) {
-      if (!(p > 0)) continue;
-      const a = fwd(id, 1), b = fwd(id, 3), c = fwd(id, 5);
-      if (a != null) allBase.r1.push(a);
-      if (b != null) allBase.r3.push(b);
-      if (c != null) allBase.r5.push(c);
+    // 用 K 线算合法收益（需要开高低收，closes 只有收盘价 → 拉腾讯 K 线）
+    const dayReturns: number[] = [];
+    for (const id of picks.slice(0, 5)) {
+      try {
+        const { loadKline } = await import("../src/lib/market/quotes.functions.ts");
+        const kl = await loadKline(id);
+        const legalBars: LegalBar[] = kl.bars
+          .filter((b) => b.o > 0 && b.c > 0)
+          .map((b) => ({ date: b.date, o: b.o, h: b.h, l: b.l, c: b.c }));
+        const sigIdx = legalBars.findIndex((b) => b.date === date);
+        if (sigIdx < 0 || sigIdx + 1 >= legalBars.length) continue;
+        // 一字板买不进
+        if (limitUpSealed(legalBars[sigIdx + 1], legalBars[sigIdx].c)) {
+          skippedSealed++;
+          continue;
+        }
+        const r = legalReturn(date, legalBars, 1, "open"); // T+1 开盘买 → T+2 开盘卖
+        if ("pct" in r && r.pct != null) dayReturns.push(r.pct - ROUND_TRIP_COST_PCT);
+      } catch {
+        /* K 线拉不到就跳过 */
+      }
     }
+    if (dayReturns.length === 0) continue;
+    const dayAvg = dayReturns.reduce((a, b) => a + b, 0) / dayReturns.length;
+    byDay.push({ date, n: dayReturns.length, r1: dayAvg });
+    allReturns.push(...dayReturns);
   }
 
+  // 基准：同期全市场（用 closes 算不了合法收益，改用「同批票等权」对照不可行；
+  // 这里只报绝对收益，不给虚假超额——基准需要开高低收，历史 closes 没有）
   const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
-  const picks1 = byDay.map((d) => d.ret1);
-  const picks3 = byDay.map((d) => d.ret3);
-  const picks5 = byDay.map((d) => d.ret5);
 
   const out = {
     at: new Date().toISOString(),
-    rule:
-      "龙虎榜游资席净买入 > 3000 万，且游资净买 > 机构净买（跟游资不跟机构）；" +
-      "次日/3日/5日按收盘价计（不扣费，不含滑点）",
+    legality:
+      "合法口径：T日龙虎榜 → T+1 开盘买入 → T+2 开盘卖出（A股 T+1，最早只能隔日卖）；" +
+      `已扣往返成本 ${ROUND_TRIP_COST_PCT}%；一字板买不进的样本已剔除`,
+    rule: "龙虎榜游资席净买入 > 3000 万，且游资净买 > 机构净买（跟游资不跟机构）",
     days: byDay.length,
-    avgPicksPerDay: mean(byDay.map((d) => d.n)),
-    pickR1: mean(picks1),
-    pickR3: mean(picks3),
-    pickR5: mean(picks5),
-    baseR1: mean(allBase.r1),
-    baseR3: mean(allBase.r3),
-    baseR5: mean(allBase.r5),
-    edgeR1: mean(picks1) != null && mean(allBase.r1) != null ? mean(picks1)! - mean(allBase.r1)! : null,
-    edgeR3: mean(picks3) != null && mean(allBase.r3) != null ? mean(picks3)! - mean(allBase.r3)! : null,
-    edgeR5: mean(picks5) != null && mean(allBase.r5) != null ? mean(picks5)! - mean(allBase.r5)! : null,
-    hitRate1: picks1.length ? picks1.filter((x) => x > 0).length / picks1.length : null,
+    samples: allReturns.length,
+    skippedSealed,
+    avgPerTrade: mean(allReturns),
+    hitRate: allReturns.length ? allReturns.filter((x) => x > 0).length / allReturns.length : null,
     perDay: byDay,
   };
   await writeFile(join(process.cwd(), "data", "seat-signal-backtest.json"), JSON.stringify(out, null, 2));
 
-  console.log(`[seat-backtest] 有效 ${out.days} 天，每日平均 ${out.avgPicksPerDay?.toFixed(1)} 只`);
-  console.log(`  次日 ${out.pickR1?.toFixed(3)}% vs 基准 ${out.baseR1?.toFixed(3)}% → 超额 ${out.edgeR1?.toFixed(3)}pp`);
-  console.log(`  3日  ${out.pickR3?.toFixed(3)}% vs 基准 ${out.baseR3?.toFixed(3)}% → 超额 ${out.edgeR3?.toFixed(3)}pp`);
-  console.log(`  5日  ${out.pickR5?.toFixed(3)}% vs 基准 ${out.baseR5?.toFixed(3)}% → 超额 ${out.edgeR5?.toFixed(3)}pp`);
-  console.log(`  日胜率 ${(out.hitRate1! * 100).toFixed(1)}%`);
+  console.log(`[seat-backtest] 合法口径（T+1开盘买→T+2开盘卖，已扣费 ${ROUND_TRIP_COST_PCT}%）`);
+  console.log(`  有效 ${out.days} 天 / ${out.samples} 笔（一字板剔除 ${out.skippedSealed}）`);
+  console.log(`  单笔平均 ${out.avgPerTrade?.toFixed(3)}% | 笔胜率 ${(out.hitRate! * 100).toFixed(1)}%`);
 }
 
 await main();

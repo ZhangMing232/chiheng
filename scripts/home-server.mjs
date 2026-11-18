@@ -829,8 +829,11 @@ function runSeatSignalScan() {
     else console.error(`游资追踪失败（exit ${code}），下个 tick 重试`);
   });
 }
-runSeatSignalScan();
-const seatSignalTimer = setInterval(runSeatSignalScan, 60_000);
+// 2026-11-18 停用：回测发现该信号在合法 T+1 口径下为负（-0.546%），
+// 原 +0.975pp 超额来自未来函数（收盘价买入）+ 违反 T+1（当日买当日卖）。
+// 不再自动扫描，避免推送会亏钱的名单。脚本保留供重新验证。
+// runSeatSignalScan();
+// const seatSignalTimer = setInterval(runSeatSignalScan, 60_000);
 
 // ── 启动前兆扫描（2026-11-18）：15:30 后每天一次，stamp 防重。
 // 找「还没大涨但有启动迹象」的票，输出观察名单（未验证，不建仓）。
@@ -860,8 +863,10 @@ function runEarlySignalScan() {
     }
   });
 }
-runEarlySignalScan();
-const earlySignalTimer = setInterval(runEarlySignalScan, 60_000);
+// 2026-11-18 停用：回测（价格形态口径）超额 +0.007pp ≈ 0，且原回测用信号日
+// 收盘价买入属未来函数。修正口径后无超额，不再自动扫描。
+// runEarlySignalScan();
+// const earlySignalTimer = setInterval(runEarlySignalScan, 60_000);
 
 // ── 每日赚钱研究名单（2026-11-17）：15:35 后每天一次，stamp 防重。
 let dailyCandidatesRunning = false;
