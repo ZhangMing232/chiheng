@@ -94,6 +94,23 @@ async function main() {
   } catch {
     // 名单生成失败不阻断主推送
   }
+  // 大盘温度计（2026-11-18）：回测 121 天超额 +12.26pp，熊市里跟着它少亏一半。
+  try {
+    const idxCloses = JSON.parse(await readFile(join(process.cwd(), "data", "index-closes.json"), "utf8")) as { date: string; close: number }[];
+    const { todayRegime } = await import("../src/lib/market/regime-thermometer.ts");
+    const t = todayRegime(idxCloses);
+    if (t) {
+      lines.push("──────────────────");
+      lines.push(`🌡 大盘温度计 ${t.date}：${t.regime}（沪深300 ${t.close}，MA20 ${t.ma20.toFixed(0)}，偏离 ${t.aboveMa20Pct.toFixed(1)}%，MA20斜率 ${t.ma20SlopePct.toFixed(2)}%）`);
+      if (t.regime === "空仓") lines.push("  → 今日不买任何新票，持仓票按止损纪律执行");
+      else if (t.regime === "观察") lines.push("  → 可能筑底，只允许已持仓票企稳加仓，不开新仓");
+      else lines.push("  → 转牛信号，可以分批进攻");
+      // 刷新 index-closes（用最新数据，明天回测也用）
+      await writeFile(join(process.cwd(), "data", "index-closes.json"), JSON.stringify(idxCloses));
+    }
+  } catch {
+    // 温度计失败不阻断主推送
+  }
   // 游资追踪名单（2026-11-18）：龙虎榜游资大额净买，回测次日超额 +0.975pp。
   try {
     const ss = JSON.parse(await readFile(join(process.cwd(), "data", "seat-signals.json"), "utf8")) as {
